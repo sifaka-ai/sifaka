@@ -1,470 +1,748 @@
-"""
-Reflexion critic module for Sifaka.
+"""Reflexion critic for Sifaka.
 
-This module implements the Reflexion approach for critics, which enables language model
-agents to learn from feedback without requiring weight updates. It maintains reflections
-in memory to improve future text generation.
+This module provides a critic that uses self-reflection to improve text quality.
+The ReflexionCritic implements the Reflexion approach for improving text through
+self-reflection and iterative refinement.
+
+References:
+    Shinn, N., Cassano, F., Labash, B., Gopinath, A., Narasimhan, K., & Yao, S. (2023).
+    Reflexion: Language Agents with Verbal Reinforcement Learning.
+    arXiv preprint arXiv:2303.11366.
+    https://arxiv.org/abs/2303.11366
 
 Example:
     ```python
     from sifaka.critics.reflexion import create_reflexion_critic
-    from sifaka.models.providers import OpenAIProvider
+    from sifaka.models.openai import OpenAIModel
 
-    # Create a language model provider
-    provider = OpenAIProvider(api_key="your-api-key")
+    # Create a model
+    model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
 
     # Create a reflexion critic
-    critic = create_reflexion_critic(llm_provider=provider)
+    critic = create_reflexion_critic(
+        model=model,
+        reflection_rounds=2
+    )
 
-    # Improve text with feedback
-    text = "This is a sample technical document."
-    feedback = "The text needs more detail and better structure."
-    improved_text = critic.improve(text, feedback)
+    # Improve text
+    improved_text, result = critic.improve("Text to improve")
     ```
 """
 
+import json
 import logging
-from typing import Any, Dict, List, Optional, Union, cast
+import time
+from typing import Dict, Any, Optional, List
 
-from pydantic import PrivateAttr, ConfigDict
+from sifaka.models.base import Model
+from sifaka.critics.base import Critic
+from sifaka.errors import ImproverError
+from sifaka.registry import register_improver
+from sifaka.utils.error_handling import critic_context, log_error
 
-from .base import BaseCritic
-from .models import ReflexionCriticConfig
-from .protocols import TextCritic, TextImprover, TextValidator
-from .prompt import LanguageModel
-
-# Configure logging
+# Configure logger
 logger = logging.getLogger(__name__)
 
 
-# Import the Pydantic ReflexionCriticConfig from models.py
+class ReflexionCritic(Critic):
+    """Critic that uses self-reflection to improve text quality.
 
+    This critic implements the Reflexion approach for improving text through
+    self-reflection and iterative refinement. It uses a multi-step process where
+    the model reflects on its own output and iteratively improves it based on
+    those reflections.
 
-# Note: This class is kept for backward compatibility with tests
-# In production code, use ReflexionCriticPromptManager from managers.prompt_factories instead
-class ReflexionPromptFactory:
-    """Factory for creating reflexion-specific prompts."""
+    The process involves:
+    1. Generating an initial critique of the text
+    2. Improving the text based on the critique
+    3. Performing additional reflection rounds to further refine the text
 
-    def create_validation_prompt(self, text: str) -> str:
-        """Create a prompt for validating text."""
-        return f"""Please validate the following text:
+    Attributes:
+        model (Model): The model used for critiquing and improving text.
+        reflection_rounds (int): The number of reflection rounds to perform.
+        system_prompt (str): The system prompt used for the model.
+        temperature (float): The temperature used for the model.
 
-        TEXT TO VALIDATE:
-        {text}
+    Example:
+        ```python
+        from sifaka.critics.reflexion import ReflexionCritic
+        from sifaka.models.openai import OpenAIModel
 
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        VALID: [true/false]
-        REASON: [reason for validation result]
+        # Create a model
+        model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
 
-        VALIDATION:"""
+        # Create a reflexion critic
+        critic = ReflexionCritic(
+            model=model,
+            reflection_rounds=2,
+            temperature=0.7
+        )
 
-    def create_critique_prompt(self, text: str) -> str:
-        """Create a prompt for critiquing text."""
-        return f"""Please critique the following text:
-
-        TEXT TO CRITIQUE:
-        {text}
-
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        SCORE: [number between 0 and 1]
-        FEEDBACK: [your general feedback]
-        ISSUES:
-        - [issue 1]
-        - [issue 2]
-        SUGGESTIONS:
-        - [suggestion 1]
-        - [suggestion 2]
-
-        CRITIQUE:"""
-
-    def create_improvement_prompt(
-        self, text: str, feedback: str, reflections: List[str] = None
-    ) -> str:
-        """Create a prompt for improving text with reflections."""
-        reflection_text = ""
-        if reflections and len(reflections) > 0:
-            reflection_text = "\n\nPREVIOUS REFLECTIONS:\n"
-            for i, reflection in enumerate(reflections):
-                reflection_text += f"{i+1}. {reflection}\n"
-
-        return f"""Please improve the following text:
-
-        TEXT TO IMPROVE:
-        {text}
-
-        FEEDBACK:
-        {feedback}{reflection_text}
-
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        IMPROVED_TEXT: [improved text]
-
-        IMPROVEMENT:"""
-
-    def create_reflection_prompt(self, text: str, feedback: str, improved_text: str) -> str:
-        """Create a prompt for generating a reflection."""
-        return f"""Please reflect on the following text improvement process:
-
-        ORIGINAL TEXT:
-        {text}
-
-        FEEDBACK RECEIVED:
-        {feedback}
-
-        IMPROVED TEXT:
-        {improved_text}
-
-        Reflect on what went well, what went wrong, and what could be improved in future iterations.
-        Focus on specific patterns, mistakes, or strategies that could be applied to similar tasks.
-
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        REFLECTION: [your reflection]
-
-        REFLECTION:"""
-
-
-class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
-    """A critic that uses reflection to improve text quality.
-
-    This critic implements the Reflexion approach, which enables learning from
-    feedback without requiring weight updates. It maintains a memory buffer of
-    past reflections to improve future text generation.
-
-    ## Architecture
-
-    The ReflexionCritic follows a component-based architecture with memory-augmented generation:
-
-    1. **Core Components**
-       - **ReflexionCritic**: Main class that implements the critic interfaces
-       - **CritiqueService**: Service that handles the core critique functionality
-       - **ReflexionCriticPromptManager**: Creates prompts with reflection context
-       - **ResponseParser**: Parses and validates model responses
-       - **MemoryManager**: Manages the memory buffer of past reflections
-
-    2. **Component Relationships**
-       - ReflexionCritic delegates to CritiqueService for core operations
-       - CritiqueService uses ReflexionCriticPromptManager to create prompts
-       - ReflexionCriticPromptManager incorporates reflections from MemoryManager
-       - CritiqueService uses ResponseParser to parse model responses
-       - ReflexionCritic uses MemoryManager to track reflections
-
-    3. **State Management**
-       - Uses direct state pattern with _state attribute
-       - State contains references to all components
-       - State.cache dictionary stores additional runtime data
-       - Initialization flag prevents operations before setup is complete
-
-    4. **Memory Management**
-       - Maintains a buffer of past reflections
-       - Reflections are generated after each improvement
-       - Reflections are incorporated into future prompts
-       - Buffer size is configurable via memory_buffer_size
-       - Oldest reflections are removed when buffer is full
-
-    ## Lifecycle Management
-
-    The ReflexionCritic manages its lifecycle through three main phases:
-
-    1. **Initialization**
-       - Validates configuration
-       - Sets up language model provider
-       - Initializes prompt factory
-       - Creates memory manager with configured buffer size
-       - Allocates resources
-
-    2. **Operation**
-       - Validates text input
-       - Retrieves relevant reflections from memory
-       - Generates critiques with reflection context
-       - Improves text quality using reflections
-       - Generates new reflections from improvements
-       - Stores reflections in memory buffer
-
-    3. **Cleanup**
-       - Releases resources
-       - Resets state
-       - Logs final status
-
-    ## Error Handling
-
-    The ReflexionCritic implements comprehensive error handling:
-
-    1. **Input Validation**
-       - Validates text input
-       - Checks feedback format
-       - Verifies configuration
-       - Ensures initialization before operations
-
-    2. **Model Interaction**
-       - Handles provider errors
-       - Manages response parsing
-       - Validates output formats
-       - Handles reflection generation failures
-
-    3. **Memory Management**
-       - Handles memory buffer overflow
-       - Manages reflection storage errors
-       - Handles reflection retrieval failures
-
-    ## Examples
-
-    ```python
-    from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
-    from sifaka.models.providers import OpenAIProvider
-
-    # Create a language model provider
-    provider = OpenAIProvider(api_key="your-api-key")
-
-    # Create a reflexion critic configuration
-    config = ReflexionCriticConfig(
-        name="my_reflexion_critic",
-        description="A critic that learns from past feedback",
-        system_prompt="You are an expert editor that improves text through reflection.",
-        temperature=0.7,
-        max_tokens=1000,
-        memory_buffer_size=5,
-        reflection_depth=2
-    )
-
-    # Create a reflexion critic
-    critic = ReflexionCritic(
-        name="my_reflexion_critic",
-        description="A critic that learns from past feedback",
-        llm_provider=provider,
-        config=config
-    )
-
-    # Validate text
-    text = "This is a sample technical document."
-    is_valid = critic.validate(text)
-    print(f"Text is valid: {is_valid}")
-
-    # Critique text
-    critique = critic.critique(text)
-    print(f"Critique: {critique}")
-
-    # Improve text with feedback
-    feedback = "The text needs more specific details and examples."
-    improved_text = critic.improve(text, feedback)
-    print(f"Improved text: {improved_text}")
-
-    # Improve another text - now with reflections from previous improvement
-    another_text = "This is another document that needs improvement."
-    improved_text2 = critic.improve(another_text, "Make it more professional.")
-    print(f"Improved text with reflections: {improved_text2}")
-    ```
+        # Improve text
+        improved_text, result = critic.improve("Text to improve")
+        print(f"Original: {result.original_text}")
+        print(f"Improved: {result.improved_text}")
+        ```
     """
-
-    # Class constants
-    DEFAULT_NAME = "reflexion_critic"
-    DEFAULT_DESCRIPTION = "Improves text using reflections on past feedback"
-
-    # Pydantic v2 configuration
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
 
     def __init__(
         self,
-        name: str = DEFAULT_NAME,
-        description: str = DEFAULT_DESCRIPTION,
-        llm_provider: Any = None,
-        prompt_factory: Any = None,
-        config: ReflexionCriticConfig = None,
-    ) -> None:
-        """Initialize the reflexion critic."""
-        # Validate required parameters
-        if llm_provider is None:
-            from pydantic import ValidationError
+        model: Model,
+        reflection_rounds: int = 1,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        **options: Any,
+    ):
+        """Initialize the reflexion critic.
 
-            raise ValidationError.from_exception_data(
-                "Field required",
-                [{"loc": ("llm_provider",), "msg": "Field required", "type": "missing"}],
-            )
+        Args:
+            model: The model to use for critiquing and improving text.
+            reflection_rounds: The number of reflection rounds to perform.
+            system_prompt: The system prompt to use for the model.
+            temperature: The temperature to use for the model.
+            **options: Additional options to pass to the model.
 
-        # Create default config if not provided
-        if config is None:
-            config = ReflexionCriticConfig(
-                name=name,
-                description=description,
-                system_prompt=DEFAULT_SYSTEM_PROMPT,
-                temperature=0.7,
-                max_tokens=1000,
-                min_confidence=0.7,
-                max_attempts=3,
-                memory_buffer_size=5,
-                reflection_depth=1,
-            )
-
-        # Initialize base class
-        super().__init__(config)
-
-        # Initialize state
-        from ..utils.state import CriticState
-
-        self._state = CriticState()
-
-        # Import required components
-        from .managers.prompt_factories import ReflexionCriticPromptManager
-        from .managers.response import ResponseParser
-        from .managers.memory import MemoryManager
-        from .services.critique import CritiqueService
-
-        # Store components in state
-        self._state.model = llm_provider
-        self._state.prompt_manager = prompt_factory or ReflexionCriticPromptManager(config)
-        self._state.response_parser = ResponseParser()
-        self._state.memory_manager = MemoryManager(buffer_size=config.memory_buffer_size)
-
-        # Create service and store in state cache (not directly in state)
-        self._state.cache["critique_service"] = CritiqueService(
-            llm_provider=llm_provider,
-            prompt_manager=self._state.prompt_manager,
-            response_parser=self._state.response_parser,
-            memory_manager=self._state.memory_manager,
+        Raises:
+            ImproverError: If the model is not provided or if initialization fails.
+        """
+        # Log initialization attempt
+        logger.debug(
+            f"Initializing ReflexionCritic with model={model.__class__.__name__}, "
+            f"reflection_rounds={reflection_rounds}, temperature={temperature}"
         )
 
-        # Mark as initialized
-        self._state.initialized = True
+        try:
+            # Validate parameters
+            if not model:
+                logger.error("No model provided to ReflexionCritic")
+                raise ImproverError(
+                    message="Model must be provided",
+                    component="ReflexionCritic",
+                    operation="initialization",
+                    suggestions=[
+                        "Provide a valid model instance",
+                        "Check that the model implements the Model protocol",
+                    ],
+                    metadata={"reflection_rounds": reflection_rounds, "temperature": temperature},
+                )
 
-    @property
-    def config(self) -> ReflexionCriticConfig:
-        """Get the reflexion critic configuration."""
-        return cast(ReflexionCriticConfig, self._config)
+            if reflection_rounds < 1:
+                logger.warning(
+                    f"Invalid reflection_rounds value: {reflection_rounds}, using default value of 1"
+                )
+                reflection_rounds = 1
 
-    def _check_input(self, text: str) -> None:
-        """Validate input text and initialization state."""
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
+            # Use default system prompt if not provided
+            if system_prompt is None:
+                system_prompt = (
+                    "You are an expert editor who specializes in self-reflection and improvement. "
+                    "Your goal is to reflect on text and iteratively improve it."
+                )
+                logger.debug("Using default system prompt for ReflexionCritic")
 
-        if not self._state.initialized or "critique_service" not in self._state.cache:
-            raise RuntimeError("ReflexionCritic not properly initialized")
+            # Initialize the base critic
+            with critic_context(
+                critic_name="ReflexionCritic",
+                operation="initialization",
+                message_prefix="Failed to initialize ReflexionCritic",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the parameters are valid",
+                ],
+                metadata={
+                    "model_type": model.__class__.__name__,
+                    "reflection_rounds": reflection_rounds,
+                    "temperature": temperature,
+                },
+            ):
+                super().__init__(model, system_prompt, temperature, **options)
+                logger.debug("Successfully initialized base Critic")
 
-    def _format_feedback(self, feedback: Any) -> str:
-        """Format feedback into a string."""
-        if isinstance(feedback, list):
-            if not feedback:
-                return "No issues found."
+            # Store configuration
+            self.reflection_rounds = max(1, reflection_rounds)
 
-            result = "The following issues were found:\n"
-            for i, violation in enumerate(feedback):
-                rule_name = violation.get("rule_name", f"Rule {i+1}")
-                message = violation.get("message", "Unknown issue")
-                result += f"- {rule_name}: {message}\n"
-            return result
-        elif feedback is None:
-            return "Please improve this text."
-        return feedback
+            # Log successful initialization
+            logger.debug(
+                f"Successfully initialized ReflexionCritic with model={model.__class__.__name__}, "
+                f"reflection_rounds={self.reflection_rounds}, temperature={temperature}"
+            )
 
-    def validate(self, text: str) -> bool:
-        """Check if text meets quality standards."""
-        self._check_input(text)
-        return self._state.cache["critique_service"].validate(text)
+        except Exception as e:
+            # Log the error
+            log_error(e, logger, component="ReflexionCritic", operation="initialization")
 
-    def improve(self, text: str, feedback: str = None) -> str:
-        """Improve text based on feedback and reflections."""
-        self._check_input(text)
-        feedback_str = self._format_feedback(feedback)
-        return self._state.cache["critique_service"].improve(text, feedback_str)
+            # Re-raise as ImproverError with more context if not already an ImproverError
+            if not isinstance(e, ImproverError):
+                raise ImproverError(
+                    message=f"Failed to initialize ReflexionCritic: {str(e)}",
+                    component="ReflexionCritic",
+                    operation="initialization",
+                    suggestions=[
+                        "Check if the model is properly configured",
+                        "Verify that the reflection_rounds parameter is a positive integer",
+                        "Check the error message for details",
+                    ],
+                    metadata={
+                        "model_type": model.__class__.__name__ if model else None,
+                        "reflection_rounds": reflection_rounds,
+                        "temperature": temperature,
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                    },
+                )
+            raise
 
-    def improve_with_feedback(self, text: str, feedback: str) -> str:
-        """Improve text based on specific feedback."""
-        return self.improve(text, feedback)
+    def _critique(self, text: str) -> Dict[str, Any]:
+        """Critique text through self-reflection.
 
-    def critique(self, text: str) -> dict:
-        """Analyze text and provide detailed feedback."""
-        self._check_input(text)
-        return self._state.cache["critique_service"].critique(text)
+        Args:
+            text: The text to critique.
 
-    # Async methods
-    async def avalidate(self, text: str) -> bool:
-        """Asynchronously validate text."""
-        self._check_input(text)
-        return await self._state.cache["critique_service"].avalidate(text)
+        Returns:
+            A dictionary with critique information.
 
-    async def acritique(self, text: str) -> dict:
-        """Asynchronously critique text."""
-        self._check_input(text)
-        return await self._state.cache["critique_service"].acritique(text)
+        Raises:
+            ImproverError: If the text cannot be critiqued.
+        """
+        start_time = time.time()
 
-    async def aimprove(self, text: str, feedback: str = None) -> str:
-        """Asynchronously improve text."""
-        self._check_input(text)
-        feedback_str = self._format_feedback(feedback)
-        return await self._state.cache["critique_service"].aimprove(text, feedback_str)
+        # Log critique attempt
+        logger.debug(
+            f"ReflexionCritic: Critiquing text of length {len(text)}, "
+            f"reflection_rounds={self.reflection_rounds}"
+        )
 
-    async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
-        """Asynchronously improve text based on specific feedback."""
-        return await self.aimprove(text, feedback)
+        prompt = f"""
+        Please reflect on the following text and identify areas for improvement:
+
+        ```
+        {text}
+        ```
+
+        Provide your reflection in JSON format with the following fields:
+        - "needs_improvement": boolean indicating whether the text needs improvement
+        - "message": a brief summary of your reflection
+        - "issues": a list of specific issues identified
+        - "suggestions": a list of suggestions for improvement
+        - "reflections": your detailed thoughts on the text
+
+        JSON response:
+        """
+
+        try:
+            # Use critic_context for consistent error handling
+            with critic_context(
+                critic_name="ReflexionCritic",
+                operation="reflection_generation",
+                message_prefix="Failed to generate reflection",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the text is not too long for the model",
+                ],
+                metadata={"text_length": len(text), "temperature": self.temperature},
+            ):
+                # Generate reflection
+                response = self._generate(prompt)
+                logger.debug(f"ReflexionCritic: Generated response of length {len(response)}")
+
+                # Extract JSON from response
+                json_start = response.find("{")
+                json_end = response.rfind("}") + 1
+
+                if json_start == -1 or json_end == 0:
+                    # No JSON found, log the issue
+                    logger.warning(
+                        "ReflexionCritic: No JSON found in response, using default response"
+                    )
+
+                    # Calculate processing time
+                    processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+                    # Create a default response
+                    return {
+                        "needs_improvement": True,
+                        "message": "Unable to parse critique response, but proceeding with improvement",
+                        "issues": ["Unable to identify specific issues"],
+                        "suggestions": ["General improvement"],
+                        "reflections": ["Unable to generate reflections"],
+                        "processing_time_ms": processing_time,
+                    }
+
+                # Parse JSON
+                with critic_context(
+                    critic_name="ReflexionCritic",
+                    operation="json_parsing",
+                    message_prefix="Failed to parse JSON response",
+                    suggestions=[
+                        "Check if the model is generating valid JSON",
+                        "Try adjusting the temperature to get more consistent output",
+                    ],
+                    metadata={
+                        "response_length": len(response),
+                        "json_length": json_end - json_start,
+                        "temperature": self.temperature,
+                    },
+                ):
+                    json_str = response[json_start:json_end]
+                    critique = json.loads(json_str)
+                    logger.debug(f"ReflexionCritic: Successfully parsed JSON response")
+
+                # Ensure all required fields are present
+                critique.setdefault("needs_improvement", True)
+                critique.setdefault("message", "Text needs improvement")
+                critique.setdefault("issues", [])
+                critique.setdefault("suggestions", [])
+                critique.setdefault("reflections", [])
+
+                # Log critique details
+                logger.debug(
+                    f"ReflexionCritic: Generated critique with {len(critique['issues'])} issues, "
+                    f"{len(critique['suggestions'])} suggestions, "
+                    f"and {len(critique['reflections']) if isinstance(critique['reflections'], list) else 1} reflections"
+                )
+
+                # Calculate processing time
+                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+                critique["processing_time_ms"] = processing_time
+
+                # Log successful critique
+                logger.debug(
+                    f"ReflexionCritic: Successfully critiqued text in {processing_time:.2f}ms"
+                )
+
+                # Explicitly create a Dict[str, Any] to return
+                critique_result: Dict[str, Any] = critique
+                return critique_result
+
+        except json.JSONDecodeError as e:
+            # Log the error
+            log_error(e, logger, component="ReflexionCritic", operation="json_parsing")
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            # Failed to parse JSON, create a default response
+            logger.warning(f"ReflexionCritic: Failed to parse JSON in response: {str(e)}")
+            # Create a Dict[str, Any] to return
+            json_error_critique: Dict[str, Any] = {
+                "needs_improvement": True,
+                "message": "Unable to parse critique response, but proceeding with improvement",
+                "issues": ["Unable to identify specific issues"],
+                "suggestions": ["General improvement"],
+                "reflections": ["Unable to generate reflections"],
+                "processing_time_ms": processing_time,
+                "error": str(e),
+            }
+            return json_error_critique
+
+        except Exception as e:
+            # Log the error
+            log_error(e, logger, component="ReflexionCritic", operation="critique")
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            # Log the error
+            logger.error(f"ReflexionCritic: Error critiquing text: {str(e)}")
+
+            # Raise as ImproverError with more context
+            raise ImproverError(
+                message=f"Error critiquing text: {str(e)}",
+                component="ReflexionCritic",
+                operation="critique",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the text is not too long for the model",
+                    "Check the error message for details",
+                ],
+                metadata={
+                    "text_length": len(text),
+                    "reflection_rounds": self.reflection_rounds,
+                    "temperature": self.temperature,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "processing_time_ms": processing_time,
+                },
+            )
+
+    def _improve(self, text: str, critique: Dict[str, Any]) -> str:
+        """Improve text through multiple rounds of reflection.
+
+        Args:
+            text: The text to improve.
+            critique: The critique information.
+
+        Returns:
+            The improved text.
+
+        Raises:
+            ImproverError: If the text cannot be improved.
+        """
+        start_time = time.time()
+
+        # Log improvement attempt
+        logger.debug(
+            f"ReflexionCritic: Improving text of length {len(text)}, "
+            f"reflection_rounds={self.reflection_rounds}"
+        )
+
+        current_text = text
+        reflections = []
+
+        # Add initial reflection from critique
+        if isinstance(critique.get("reflections"), list):
+            reflections.extend(critique.get("reflections", []))
+            logger.debug(
+                f"ReflexionCritic: Added {len(critique.get('reflections', []))} reflections from critique"
+            )
+        elif isinstance(critique.get("reflections"), str):
+            reflections.append(critique.get("reflections"))
+            logger.debug("ReflexionCritic: Added 1 reflection from critique")
+
+        # Format issues and suggestions
+        issues = critique.get("issues", [])
+        suggestions = critique.get("suggestions", [])
+
+        issues_str = "\n".join(f"- {i}" for i in issues)
+        suggestions_str = "\n".join(f"- {s}" for s in suggestions)
+
+        logger.debug(
+            f"ReflexionCritic: Improving text with {len(issues)} issues and {len(suggestions)} suggestions"
+        )
+
+        try:
+            # Perform initial improvement
+            with critic_context(
+                critic_name="ReflexionCritic",
+                operation="initial_improvement",
+                message_prefix="Failed to perform initial improvement",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the text is not too long for the model",
+                ],
+                metadata={
+                    "text_length": len(text),
+                    "issues_count": len(issues),
+                    "suggestions_count": len(suggestions),
+                    "temperature": self.temperature,
+                },
+            ):
+                # Create improvement prompt
+                prompt = f"""
+                Please improve the following text based on the issues and suggestions:
+
+                Text:
+                ```
+                {current_text}
+                ```
+
+                Issues:
+                {issues_str}
+
+                Suggestions:
+                {suggestions_str}
+
+                Improved text:
+                """
+
+                # Generate improved text
+                response = self._generate(prompt)
+                logger.debug(
+                    f"ReflexionCritic: Generated initial improvement of length {len(response)}"
+                )
+
+                # Extract improved text from response
+                improved_text = response.strip()
+
+                # Remove any markdown code block markers
+                if improved_text.startswith("```") and improved_text.endswith("```"):
+                    improved_text = improved_text[3:-3].strip()
+                    logger.debug(
+                        "ReflexionCritic: Removed markdown code block markers from response"
+                    )
+
+                current_text = improved_text
+                logger.debug(
+                    f"ReflexionCritic: Completed initial improvement, new text length: {len(current_text)}"
+                )
+
+            # Perform additional reflection rounds
+            for round_num in range(1, self.reflection_rounds):
+                logger.debug(f"ReflexionCritic: Starting reflection round {round_num}")
+
+                # Generate reflection on current text
+                with critic_context(
+                    critic_name="ReflexionCritic",
+                    operation=f"reflection_round_{round_num}",
+                    message_prefix=f"Failed to generate reflection in round {round_num}",
+                    suggestions=[
+                        "Check if the model is properly configured",
+                        "Verify that the text is not too long for the model",
+                    ],
+                    metadata={
+                        "text_length": len(current_text),
+                        "round": round_num,
+                        "reflections_count": len(reflections),
+                        "temperature": self.temperature,
+                    },
+                ):
+                    reflection_prompt = f"""
+                    Please reflect on the following text and identify areas for further improvement:
+
+                    ```
+                    {current_text}
+                    ```
+
+                    Previous reflections:
+                    {self._format_list(reflections)}
+
+                    Provide your reflection:
+                    """
+
+                    reflection = self._generate(reflection_prompt)
+                    reflections.append(reflection)
+                    logger.debug(
+                        f"ReflexionCritic: Generated reflection of length {len(reflection)} in round {round_num}"
+                    )
+
+                # Improve text based on reflection
+                with critic_context(
+                    critic_name="ReflexionCritic",
+                    operation=f"improvement_round_{round_num}",
+                    message_prefix=f"Failed to improve text in round {round_num}",
+                    suggestions=[
+                        "Check if the model is properly configured",
+                        "Verify that the text is not too long for the model",
+                    ],
+                    metadata={
+                        "text_length": len(current_text),
+                        "reflection_length": len(reflection),
+                        "round": round_num,
+                        "temperature": self.temperature,
+                    },
+                ):
+                    improvement_prompt = f"""
+                    Please improve the following text based on the reflection:
+
+                    Text:
+                    ```
+                    {current_text}
+                    ```
+
+                    Reflection:
+                    {reflection}
+
+                    Improved text:
+                    """
+
+                    response = self._generate(improvement_prompt)
+                    logger.debug(
+                        f"ReflexionCritic: Generated improvement of length {len(response)} in round {round_num}"
+                    )
+
+                    # Extract improved text from response
+                    improved_text = response.strip()
+
+                    # Remove any markdown code block markers
+                    if improved_text.startswith("```") and improved_text.endswith("```"):
+                        improved_text = improved_text[3:-3].strip()
+                        logger.debug(
+                            "ReflexionCritic: Removed markdown code block markers from response"
+                        )
+
+                    current_text = improved_text
+                    logger.debug(
+                        f"ReflexionCritic: Completed improvement round {round_num}, new text length: {len(current_text)}"
+                    )
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            # Log successful improvement
+            logger.debug(
+                f"ReflexionCritic: Successfully improved text in {processing_time:.2f}ms, "
+                f"original length: {len(text)}, improved length: {len(current_text)}, "
+                f"rounds: {self.reflection_rounds}"
+            )
+
+            return current_text
+
+        except Exception as e:
+            # Log the error
+            log_error(e, logger, component="ReflexionCritic", operation="improvement")
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            # Log the error
+            logger.error(f"ReflexionCritic: Error improving text: {str(e)}")
+
+            # Raise as ImproverError with more context
+            raise ImproverError(
+                message=f"Error improving text: {str(e)}",
+                component="ReflexionCritic",
+                operation="improvement",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the text is not too long for the model",
+                    "Check if the reflection rounds parameter is valid",
+                    "Check the error message for details",
+                ],
+                metadata={
+                    "text_length": len(text),
+                    "reflection_rounds": self.reflection_rounds,
+                    "temperature": self.temperature,
+                    "issues_count": len(issues),
+                    "suggestions_count": len(suggestions),
+                    "reflections_count": len(reflections),
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "processing_time_ms": processing_time,
+                },
+            )
+
+    def _format_list(self, items: List[str]) -> str:
+        """Format a list of items as a numbered list.
+
+        Args:
+            items: The list of items to format.
+
+        Returns:
+            A string with the items formatted as a numbered list.
+        """
+        if not items:
+            return "None"
+
+        return "\n".join(f"{i+1}. {item}" for i, item in enumerate(items))
 
 
-# Default system prompt
-DEFAULT_SYSTEM_PROMPT = """You are an expert editor that improves text through reflection.
-You maintain a memory of past improvements and use these reflections to guide
-future improvements. Focus on learning patterns from past feedback and applying
-them to new situations."""
-
-
+@register_improver("reflexion")
 def create_reflexion_critic(
-    llm_provider: LanguageModel,
-    name: str = "reflexion_critic",
-    description: str = "Improves text using reflections on past feedback",
-    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    model: Model,
+    reflection_rounds: int = 1,
+    system_prompt: Optional[str] = None,
     temperature: float = 0.7,
-    max_tokens: int = 1000,
-    min_confidence: float = 0.7,
-    max_attempts: int = 3,
-    memory_buffer_size: int = 5,
-    reflection_depth: int = 1,
-    config: Optional[Union[Dict[str, Any], ReflexionCriticConfig]] = None,
+    **options: Any,
 ) -> ReflexionCritic:
-    """Create a reflexion critic with the given parameters.
+    """Create a reflexion critic for improving text through self-reflection.
+
+    This factory function creates a ReflexionCritic that implements the Reflexion approach
+    for improving text through self-reflection and iterative refinement. The critic
+    analyzes text, identifies areas for improvement, and iteratively refines the text
+    through multiple rounds of reflection.
+
+    The function is registered with the registry system for dependency injection,
+    allowing it to be used with the Chain class.
 
     Args:
-        llm_provider: Language model provider
-        name: Name of the critic
-        description: Description of the critic
-        system_prompt: System prompt for the model
-        temperature: Temperature for model generation
-        max_tokens: Maximum tokens for model generation
-        min_confidence: Minimum confidence threshold
-        max_attempts: Maximum number of improvement attempts
-        memory_buffer_size: Maximum number of reflections to store
-        reflection_depth: How many levels of reflection to perform
-        config: Optional pre-configured config
+        model (Model): The model to use for critiquing and improving text.
+        reflection_rounds (int): The number of reflection rounds to perform.
+        system_prompt (Optional[str]): The system prompt to use for the model.
+        temperature (float): The temperature to use for the model.
+        **options (Any): Additional options to pass to the ReflexionCritic.
 
     Returns:
-        ReflexionCritic: Configured reflexion critic
-    """
-    # Create config if not provided
-    if config is None:
-        config = ReflexionCriticConfig(
-            name=name,
-            description=description,
-            system_prompt=system_prompt,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            min_confidence=min_confidence,
-            max_attempts=max_attempts,
-            memory_buffer_size=memory_buffer_size,
-            reflection_depth=reflection_depth,
-        )
-    elif isinstance(config, dict):
-        config = ReflexionCriticConfig(**config)
+        ReflexionCritic: A configured ReflexionCritic instance.
 
-    # Create and return the critic
-    return ReflexionCritic(
-        config=config, llm_provider=llm_provider, name=name, description=description
+    Raises:
+        ImproverError: If the model is not provided or if initialization fails.
+
+    Example:
+        ```python
+        from sifaka.critics.reflexion import create_reflexion_critic
+        from sifaka.models.openai import OpenAIModel
+
+        # Create a model
+        model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
+
+        # Create a reflexion critic
+        critic = create_reflexion_critic(
+            model=model,
+            reflection_rounds=2,
+            temperature=0.7
+        )
+
+        # Improve text
+        improved_text, result = critic.improve("Text to improve")
+        ```
+
+    References:
+        Shinn, N., Cassano, F., Labash, B., Gopinath, A., Narasimhan, K., & Yao, S. (2023).
+        Reflexion: Language Agents with Verbal Reinforcement Learning.
+        arXiv preprint arXiv:2303.11366.
+        https://arxiv.org/abs/2303.11366
+    """
+    start_time = time.time()
+
+    # Log factory function call
+    logger.debug(
+        f"Creating ReflexionCritic with model={model.__class__.__name__ if model else None}, "
+        f"reflection_rounds={reflection_rounds}, temperature={temperature}"
     )
 
+    try:
+        # Validate parameters
+        if not model:
+            logger.error("No model provided to create_reflexion_critic")
+            raise ImproverError(
+                message="Model must be provided",
+                component="ReflexionCriticFactory",
+                operation="creation",
+                suggestions=[
+                    "Provide a valid model instance",
+                    "Check that the model implements the Model protocol",
+                ],
+                metadata={"reflection_rounds": reflection_rounds, "temperature": temperature},
+            )
 
-"""
-@misc{shinn2023reflexion,
-      title={Reflexion: Language Agents with Verbal Reinforcement Learning},
-      author={Noah Shinn and Federico Cassano and Edward Berman and Ashwin Gopinath and Karthik Narasimhan and Shunyu Yao},
-      year={2023},
-      eprint={2303.11366},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI}
-}
-"""
+        if reflection_rounds < 1:
+            logger.warning(
+                f"Invalid reflection_rounds value: {reflection_rounds}, using default value of 1"
+            )
+            reflection_rounds = 1
+
+        # Create the critic
+        critic = ReflexionCritic(
+            model=model,
+            reflection_rounds=reflection_rounds,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            **options,
+        )
+
+        # Calculate processing time
+        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+        # Log successful creation
+        logger.debug(f"Successfully created ReflexionCritic in {processing_time:.2f}ms")
+
+        return critic
+
+    except Exception as e:
+        # Calculate processing time
+        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+        # Log the error
+        log_error(e, logger, component="ReflexionCriticFactory", operation="creation")
+
+        # Raise as ImproverError with more context if not already an ImproverError
+        if not isinstance(e, ImproverError):
+            raise ImproverError(
+                message=f"Failed to create ReflexionCritic: {str(e)}",
+                component="ReflexionCriticFactory",
+                operation="creation",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the reflection_rounds parameter is a positive integer",
+                    "Check the error message for details",
+                ],
+                metadata={
+                    "model_type": model.__class__.__name__ if model else None,
+                    "reflection_rounds": reflection_rounds,
+                    "temperature": temperature,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "processing_time_ms": processing_time,
+                },
+            )
+        raise

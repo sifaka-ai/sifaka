@@ -1,843 +1,753 @@
 """
-Self-Refine critic module for Sifaka.
+Self-Refine critic for Sifaka.
 
-This module implements the Self-Refine approach for critics, which enables language models
-to iteratively critique and revise their own outputs without requiring external feedback.
-The critic uses the same language model to generate critiques and revisions in multiple rounds.
+This module provides a critic that uses the Self-Refine technique.
 
-Based on Self-Refine: https://arxiv.org/abs/2303.17651
-
-Example:
-    ```python
-    from sifaka.critics.self_refine import create_self_refine_critic
-    from sifaka.models.providers import OpenAIProvider
-
-    # Create a language model provider
-    provider = OpenAIProvider(api_key="your-api-key")
-
-    # Create a self-refine critic
-    critic = create_self_refine_critic(
-        llm_provider=provider,
-        max_iterations=3
-    )
-
-    # Use the critic to improve text
-    task = "Write a concise explanation of quantum computing."
-    initial_output = "Quantum computing uses quantum bits."
-    improved_output = critic.improve(initial_output, {"task": task})
-    ```
+Based on the paper:
+"Self-Refine: Iterative Refinement with Self-Feedback"
+Aman Madaan, Niket Tandon, Prakhar Gupta, Skyler Hallinan, Luyu Gao, Sarah Wiegreffe,
+Uri Alon, Nouha Dziri, Shrimai Prabhumoye, Yiming Yang, Sean Welleck, Bodhisattwa Prasad Majumder,
+Shashank Gupta, Amir Yazdanbakhsh, Peter Clark
+arXiv:2303.17651 [cs.CL]
+https://arxiv.org/abs/2303.17651
 """
 
-from typing import Any, Dict, List, Optional, Union, cast
+import json
+import logging
+import time
+from typing import Dict, Any, Optional, List
 
-from pydantic import Field, ConfigDict, PrivateAttr
+from sifaka.models.base import Model
+from sifaka.critics.base import Critic
+from sifaka.errors import ImproverError
+from sifaka.registry import register_improver
+from sifaka.utils.error_handling import critic_context, log_error
 
-from .base import BaseCritic, TextCritic, TextImprover, TextValidator
-from .models import PromptCriticConfig
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
-class SelfRefineCriticConfig(PromptCriticConfig):
+class SelfRefineCritic(Critic):
+    """Critic that uses the Self-Refine technique.
+
+    This critic implements the Self-Refine technique, which uses a multi-step
+    process of feedback and refinement to iteratively improve text.
+
+    Attributes:
+        model: The model to use for critiquing and improving text.
+        refinement_rounds: The number of refinement rounds to perform.
+        system_prompt: The system prompt to use for the model.
+        temperature: The temperature to use for the model.
     """
-    Configuration for self-refine critics.
-
-    This model extends PromptCriticConfig with self-refine-specific settings
-    for critics that iteratively critique and revise their own outputs.
-
-    ## Lifecycle Management
-
-    1. **Initialization**
-       - Set base configuration
-       - Configure self-refine settings
-       - Validate field values
-       - Create immutable instance
-
-    2. **Validation**
-       - Check field types
-       - Verify value ranges
-       - Ensure required fields
-       - Validate custom rules
-
-    3. **Usage**
-       - Access configuration values
-       - Create modified instances
-       - Serialize to/from JSON
-       - Validate against schema
-
-    Examples:
-        ```python
-        from sifaka.critics.self_refine import SelfRefineCriticConfig
-
-        # Create a self-refine critic config
-        config = SelfRefineCriticConfig(
-            name="self_refine_critic",
-            description="A self-refine critic",
-            max_iterations=3,
-            system_prompt="You are an expert at critiquing and revising content.",
-            temperature=0.7,
-            max_tokens=1000
-        )
-
-        # Access configuration values
-        print(f"Max iterations: {config.max_iterations}")
-        print(f"System prompt: {config.system_prompt}")
-
-        # Create modified config
-        new_config = config.model_copy(
-            update={"max_iterations": 5}
-        )
-        ```
-    """
-
-    max_iterations: int = Field(
-        default=3, description="Maximum number of refinement iterations", gt=0
-    )
-    critique_prompt_template: str = Field(
-        default=(
-            "Critique the following response and suggest improvements:\n\n"
-            "Task:\n{task}\n\n"
-            "Response:\n{response}\n\n"
-            "Critique:"
-        ),
-        description="Template for critique prompts",
-    )
-    revision_prompt_template: str = Field(
-        default=(
-            "Revise the original response using the critique:\n\n"
-            "Task:\n{task}\n\n"
-            "Original Response:\n{response}\n\n"
-            "Critique:\n{critique}\n\n"
-            "Revised Response:"
-        ),
-        description="Template for revision prompts",
-    )
-
-
-class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
-    """
-    A critic that implements the Self-Refine approach for iterative self-improvement.
-
-    This critic uses the same language model to critique and revise its own outputs
-    in multiple iterations, leading to progressively improved results.
-
-    Based on Self-Refine: https://arxiv.org/abs/2303.17651
-
-    ## Lifecycle Management
-
-    The SelfRefineCritic manages its lifecycle through three main phases:
-
-    1. **Initialization**
-       - Validates configuration
-       - Sets up language model provider
-       - Initializes state
-       - Allocates resources
-
-    2. **Operation**
-       - Validates text
-       - Critiques text
-       - Improves text through multiple iterations
-       - Tracks improvements
-
-    3. **Cleanup**
-       - Releases resources
-       - Clears state
-       - Logs results
-       - Handles errors
-
-    ## Error Handling
-
-    The critic handles various error conditions:
-    - Empty or invalid input text
-    - Missing task information
-    - Model generation failures
-    - Iteration limits
-    - No improvement detection
-
-    Examples:
-        ```python
-        from sifaka.critics.self_refine import SelfRefineCritic, SelfRefineCriticConfig
-        from sifaka.models.providers import OpenAIProvider
-
-        # Create a language model provider
-        provider = OpenAIProvider(api_key="your-api-key")
-
-        # Create a self-refine critic configuration
-        config = SelfRefineCriticConfig(
-            name="my_critic",
-            description="A critic for iterative self-improvement",
-            max_iterations=3,
-            system_prompt="You are an expert at critiquing and revising content.",
-            temperature=0.7,
-            max_tokens=1000
-        )
-
-        # Create a self-refine critic
-        critic = SelfRefineCritic(
-            config=config,
-            llm_provider=provider
-        )
-
-        # Example 1: Basic improvement with task context
-        task = "Write a concise explanation of quantum computing."
-        initial_output = "Quantum computing uses quantum bits."
-        improved_output = critic.improve(initial_output, {"task": task})
-        print(f"Improved output: {improved_output}")
-
-        # Example 2: Validating text quality
-        technical_doc = "Quantum computing leverages quantum mechanical phenomena to perform " \
-                        "computations. Unlike classical bits, quantum bits or qubits can exist " \
-                        "in multiple states simultaneously due to superposition."
-        is_valid = critic.validate(technical_doc, {"task": "Write a technical explanation of quantum computing"})
-        print(f"Is valid: {is_valid}")
-
-        # Example 3: Getting detailed critique
-        marketing_text = "Our product is the best in the market."
-        critique_result = critic.critique(marketing_text, {"task": "Write persuasive marketing copy"})
-        print(f"Critique score: {critique_result['score']}")
-        print(f"Feedback: {critique_result['feedback']}")
-        print(f"Issues: {critique_result['issues']}")
-        print(f"Suggestions: {critique_result['suggestions']}")
-
-        # Example 4: Improving with specific feedback
-        essay = "The impact of artificial intelligence on society is profound."
-        feedback = "This essay needs more specific examples and a clearer structure."
-        improved_essay = critic.improve_with_feedback(essay, feedback)
-        print(f"Improved essay: {improved_essay}")
-
-        # Example 5: Using async methods for better performance
-        import asyncio
-
-        async def process_multiple_texts():
-            texts = [
-                "Climate change is affecting our planet.",
-                "Machine learning algorithms require large datasets.",
-                "Renewable energy sources are becoming more affordable."
-            ]
-            tasks = ["Write about climate change", "Explain machine learning", "Discuss renewable energy"]
-
-            # Process texts concurrently
-            results = []
-            for i, text in enumerate(texts):
-                metadata = {"task": tasks[i]}
-                improved = await critic.aimprove(text, metadata)
-                results.append(improved)
-
-            return results
-
-        improved_texts = asyncio.run(process_multiple_texts())
-        for i, text in enumerate(improved_texts):
-            print(f"Improved text {i+1}: {text[:50]}...")
-        ```
-    """
-
-    # Class constants
-    DEFAULT_NAME = "self_refine_critic"
-    DEFAULT_DESCRIPTION = "Improves text through iterative self-critique and revision"
-
-    # Pydantic v2 configuration
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
 
     def __init__(
         self,
-        config: SelfRefineCriticConfig,
-        llm_provider: Any,
-    ) -> None:
-        """
-        Initialize the self-refine critic.
+        model: Model,
+        refinement_rounds: int = 2,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        **options: Any,
+    ):
+        """Initialize the Self-Refine critic.
 
         Args:
-            config: Configuration for the critic
-            llm_provider: Language model provider to use for critiquing and revising
+            model: The model to use for critiquing and improving text.
+            refinement_rounds: The number of refinement rounds to perform.
+            system_prompt: The system prompt to use for the model.
+            temperature: The temperature to use for the model.
+            **options: Additional options to pass to the model.
 
         Raises:
-            ValueError: If configuration is invalid
-            TypeError: If llm_provider is not a valid provider
+            ImproverError: If the model is not provided or if initialization fails.
         """
-        # Initialize base class
-        super().__init__(config)
+        start_time = time.time()
 
-        # Initialize state
-        from ..utils.state import CriticState
-
-        self._state = CriticState()
-
-        # Store components in state
-        self._state.model = llm_provider
-        self._state.cache = {
-            "max_iterations": config.max_iterations,
-            "critique_prompt_template": config.critique_prompt_template,
-            "revision_prompt_template": config.revision_prompt_template,
-            "system_prompt": config.system_prompt,
-            "temperature": config.temperature,
-            "max_tokens": config.max_tokens,
-        }
-        self._state.initialized = True
-
-    @property
-    def config(self) -> SelfRefineCriticConfig:
-        """Get the self-refine critic configuration."""
-        return cast(SelfRefineCriticConfig, self._config)
-
-    def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Extract task from metadata.
-
-        Args:
-            metadata: Optional metadata containing the task
-
-        Returns:
-            The task as a string
-
-        Raises:
-            ValueError: If metadata is missing or does not contain a task
-        """
-        if not metadata:
-            return "Improve the following text."
-
-        task = metadata.get("task", "")
-        if not task:
-            task = "Improve the following text."
-
-        return task
-
-    def validate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
-        """
-        Validate text by checking if it needs improvement.
-
-        Args:
-            text: The text to validate
-            metadata: Optional metadata containing the task
-
-        Returns:
-            True if the text is valid, False otherwise
-
-        Raises:
-            ValueError: If text is empty
-            RuntimeError: If critic is not properly initialized
-        """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("SelfRefineCritic not properly initialized")
-
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
-
-        # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
-            task=task,
-            response=text,
+        # Log initialization attempt
+        logger.debug(
+            f"Initializing SelfRefineCritic with model={model.__class__.__name__ if model else None}, "
+            f"refinement_rounds={refinement_rounds}, temperature={temperature}"
         )
 
-        # Generate critique
-        critique_text = self._state.model.generate(
-            prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
+        try:
+            # Validate parameters
+            if not model:
+                logger.error("No model provided to SelfRefineCritic")
+                raise ImproverError(
+                    message="Model must be provided",
+                    component="SelfRefineCritic",
+                    operation="initialization",
+                    suggestions=[
+                        "Provide a valid model instance",
+                        "Check that the model implements the Model protocol",
+                    ],
+                    metadata={"refinement_rounds": refinement_rounds, "temperature": temperature},
+                )
 
-        # Check if critique indicates no issues
-        no_issues_phrases = [
-            "no issues",
-            "looks good",
-            "well written",
-            "excellent",
-            "great job",
-            "perfect",
-        ]
-        return any(phrase in critique_text.lower() for phrase in no_issues_phrases)
+            # Use default system prompt if not provided
+            if system_prompt is None:
+                system_prompt = (
+                    "You are an expert editor who specializes in iterative refinement. "
+                    "Your goal is to provide detailed feedback and iteratively improve text."
+                )
+                logger.debug("Using default system prompt for SelfRefineCritic")
 
-    def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """
-        Analyze text and provide detailed feedback.
+            # Initialize the base critic
+            with critic_context(
+                critic_name="SelfRefineCritic",
+                operation="initialization",
+                message_prefix="Failed to initialize SelfRefineCritic",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the parameters are valid",
+                ],
+                metadata={
+                    "model_type": model.__class__.__name__,
+                    "refinement_rounds": refinement_rounds,
+                    "temperature": temperature,
+                },
+            ):
+                super().__init__(model, system_prompt, temperature, **options)
+                logger.debug("Successfully initialized base Critic")
 
-        Args:
-            text: The text to critique
-            metadata: Optional metadata containing the task
+            # Validate and set refinement rounds
+            original_refinement_rounds = refinement_rounds
+            self.refinement_rounds = max(1, refinement_rounds)
+            if (
+                self.refinement_rounds != original_refinement_rounds
+                and original_refinement_rounds < 1
+            ):
+                logger.warning(
+                    f"Adjusted refinement_rounds from {original_refinement_rounds} to "
+                    f"{self.refinement_rounds} (minimum: 1)"
+                )
 
-        Returns:
-            Dictionary containing score, feedback, issues, and suggestions
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-        Raises:
-            ValueError: If text is empty
-            RuntimeError: If critic is not properly initialized
-        """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("SelfRefineCritic not properly initialized")
-
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
-
-        # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
-            task=task,
-            response=text,
-        )
-
-        # Generate critique
-        critique_text = self._state.model.generate(
-            prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
-
-        # Parse critique
-        issues = []
-        suggestions = []
-
-        # Extract issues and suggestions from critique
-        for line in critique_text.split("\n"):
-            line = line.strip()
-            if line.startswith("- ") or line.startswith("* "):
-                if (
-                    "should" in line.lower()
-                    or "could" in line.lower()
-                    or "recommend" in line.lower()
-                ):
-                    suggestions.append(line[2:])
-                else:
-                    issues.append(line[2:])
-
-        # Calculate score based on issues
-        score = 1.0 if not issues else max(0.0, 1.0 - (len(issues) * 0.1))
-
-        return {
-            "score": score,
-            "feedback": critique_text,
-            "issues": issues,
-            "suggestions": suggestions,
-        }
-
-    def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Improve text through iterative self-critique and revision.
-
-        Args:
-            text: The text to improve
-            metadata: Optional metadata containing the task
-
-        Returns:
-            Improved text
-
-        Raises:
-            ValueError: If text is empty
-            RuntimeError: If critic is not properly initialized
-        """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("SelfRefineCritic not properly initialized")
-
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
-
-        # Get max iterations from state
-        max_iterations = self._state.cache.get("max_iterations", 3)
-
-        # Start with the initial text
-        current_output = text
-
-        # Perform iterative refinement
-        for _ in range(max_iterations):
-            # Step 1: Critique the current output
-            critique_prompt = self._state.cache.get("critique_prompt_template", "").format(
-                task=task,
-                response=current_output,
+            # Log successful initialization
+            logger.debug(
+                f"Successfully initialized SelfRefineCritic with {self.refinement_rounds} refinement rounds "
+                f"in {processing_time:.2f}ms"
             )
 
-            critique = self._state.model.generate(
-                critique_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
-            ).strip()
+        except Exception as e:
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-            # Heuristic stopping condition
-            no_issues_phrases = [
-                "no issues",
-                "looks good",
-                "well written",
-                "excellent",
-                "great job",
-                "perfect",
-            ]
-            if any(phrase in critique.lower() for phrase in no_issues_phrases):
-                return current_output
+            # Log the error
+            log_error(e, logger, component="SelfRefineCritic", operation="initialization")
 
-            # Step 2: Revise using the critique
-            revision_prompt = self._state.cache.get("revision_prompt_template", "").format(
-                task=task,
-                response=current_output,
-                critique=critique,
-            )
+            # Re-raise as ImproverError with more context if not already an ImproverError
+            if not isinstance(e, ImproverError):
+                raise ImproverError(
+                    message=f"Failed to initialize SelfRefineCritic: {str(e)}",
+                    component="SelfRefineCritic",
+                    operation="initialization",
+                    suggestions=[
+                        "Check if the model is properly configured",
+                        "Verify that the parameters are valid",
+                        "Check the error message for details",
+                    ],
+                    metadata={
+                        "model_type": model.__class__.__name__ if model else None,
+                        "refinement_rounds": refinement_rounds,
+                        "temperature": temperature,
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                        "processing_time_ms": processing_time,
+                    },
+                )
+            raise
 
-            revised_output = self._state.model.generate(
-                revision_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
-            ).strip()
-
-            # Check if there's no improvement
-            if revised_output == current_output:
-                return current_output
-
-            # Update current output
-            current_output = revised_output
-
-        return current_output
-
-    def improve_with_feedback(self, text: str, feedback: str) -> str:
-        """
-        Improve text based on specific feedback.
+    def _critique(self, text: str) -> Dict[str, Any]:
+        """Critique text using the Self-Refine technique.
 
         Args:
-            text: The text to improve
-            feedback: The feedback to use for improvement
+            text: The text to critique.
 
         Returns:
-            Improved text
+            A dictionary with critique information.
 
         Raises:
-            ValueError: If text or feedback is empty
-            RuntimeError: If critic is not properly initialized
+            ImproverError: If the text cannot be critiqued.
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("SelfRefineCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-        if not isinstance(feedback, str) or not feedback.strip():
-            raise ValueError("feedback must be a non-empty string")
+        logger.debug(f"SelfRefineCritic: Critiquing text of length {len(text)}")
 
-        # Create revision prompt with the provided feedback
-        revision_prompt = self._state.cache.get("revision_prompt_template", "").format(
-            task="Improve the following text",
-            response=text,
-            critique=feedback,
-        )
+        prompt = f"""
+        Please evaluate the following text and provide detailed feedback for improvement:
 
-        # Generate improved response
-        improved_text = self._state.model.generate(
-            revision_prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
+        ```
+        {text}
+        ```
 
-        return improved_text
+        Provide your evaluation in JSON format with the following fields:
+        - "needs_improvement": boolean indicating whether the text needs improvement
+        - "message": a brief summary of your evaluation
+        - "issues": a list of specific issues identified
+        - "suggestions": a list of suggestions for improvement
+        - "evaluation_criteria": a list of criteria you used to evaluate the text
 
-    async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+        JSON response:
         """
-        Asynchronously validate text by checking if it needs improvement.
+
+        try:
+            # Generate critique using the model
+            with critic_context(
+                critic_name="SelfRefineCritic",
+                operation="critique",
+                message_prefix="Failed to critique text",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the text is not too long for the model",
+                    "Try with a different model or temperature",
+                ],
+                metadata={"text_length": len(text), "temperature": self.temperature},
+            ):
+                response = self._generate(prompt)
+                logger.debug(f"SelfRefineCritic: Generated response of length {len(response)}")
+
+                # Extract JSON from response
+                json_start = response.find("{")
+                json_end = response.rfind("}") + 1
+
+                if json_start == -1 or json_end == 0:
+                    # No JSON found, log the issue
+                    logger.warning(
+                        f"SelfRefineCritic: No JSON found in response, using default response"
+                    )
+
+                    # Calculate processing time
+                    processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+                    # Create a default response
+                    return {
+                        "needs_improvement": True,
+                        "message": "Unable to parse critique response, but proceeding with improvement",
+                        "issues": ["Unable to identify specific issues"],
+                        "suggestions": ["General improvement"],
+                        "evaluation_criteria": ["Clarity", "Coherence", "Correctness"],
+                        "refinement_history": [],
+                        "processing_time_ms": processing_time,
+                    }
+
+                # Parse JSON
+                json_str = response[json_start:json_end]
+                critique = json.loads(json_str)
+
+                # Ensure all required fields are present
+                critique.setdefault("needs_improvement", True)
+                critique.setdefault("message", "Text needs improvement")
+                critique.setdefault("issues", [])
+                critique.setdefault("suggestions", [])
+                critique.setdefault("evaluation_criteria", ["Clarity", "Coherence", "Correctness"])
+                critique["refinement_history"] = []
+
+                # Calculate processing time
+                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+                critique["processing_time_ms"] = processing_time
+
+                # Log successful critique
+                logger.debug(
+                    f"SelfRefineCritic: Successfully critiqued text in {processing_time:.2f}ms, "
+                    f"needs_improvement={critique.get('needs_improvement', True)}, "
+                    f"issues_count={len(critique.get('issues', []))}, "
+                    f"suggestions_count={len(critique.get('suggestions', []))}"
+                )
+
+                # Explicitly create a Dict[str, Any] to return
+                critique_result: Dict[str, Any] = critique
+                return critique_result
+
+        except json.JSONDecodeError as e:
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            # Log the error
+            log_error(e, logger, component="SelfRefineCritic", operation="parse_json")
+
+            # Failed to parse JSON, create a default response
+            logger.warning(f"SelfRefineCritic: Failed to parse JSON in response: {str(e)}")
+            # Create a Dict[str, Any] to return
+            json_error_critique: Dict[str, Any] = {
+                "needs_improvement": True,
+                "message": "Unable to parse critique response, but proceeding with improvement",
+                "issues": ["Unable to identify specific issues"],
+                "suggestions": ["General improvement"],
+                "evaluation_criteria": ["Clarity", "Coherence", "Correctness"],
+                "refinement_history": [],
+                "processing_time_ms": processing_time,
+                "error": str(e),
+            }
+            return json_error_critique
+
+        except Exception as e:
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            # Log the error
+            log_error(e, logger, component="SelfRefineCritic", operation="critique")
+
+            # Raise as ImproverError with more context
+            raise ImproverError(
+                message=f"Error critiquing text: {str(e)}",
+                component="SelfRefineCritic",
+                operation="critique",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the text is not too long for the model",
+                    "Try with a different model or temperature",
+                ],
+                metadata={
+                    "text_length": len(text),
+                    "temperature": self.temperature,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "processing_time_ms": processing_time,
+                },
+            )
+
+    def _improve(self, text: str, critique: Dict[str, Any]) -> str:
+        """Improve text using the Self-Refine technique.
 
         Args:
-            text: The text to validate
-            metadata: Optional metadata containing the task
+            text: The text to improve.
+            critique: The critique information.
 
         Returns:
-            True if the text is valid, False otherwise
+            The improved text.
 
         Raises:
-            ValueError: If text is empty
-            RuntimeError: If critic is not properly initialized
+            ImproverError: If the text cannot be improved.
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("SelfRefineCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
-
-        # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
-            task=task,
-            response=text,
+        logger.debug(
+            f"SelfRefineCritic: Improving text of length {len(text)} with max {self.refinement_rounds} rounds"
         )
 
-        # Generate critique
-        critique_text = await self._state.model.agenerate(
-            prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        )
-        critique_text = critique_text.strip()
+        current_text = text
+        refinement_history = critique.get("refinement_history", [])
 
-        # Check if critique indicates no issues
-        no_issues_phrases = [
-            "no issues",
-            "looks good",
-            "well written",
-            "excellent",
-            "great job",
-            "perfect",
-        ]
-        return any(phrase in critique_text.lower() for phrase in no_issues_phrases)
+        try:
+            # Use critic_context for consistent error handling
+            with critic_context(
+                critic_name="SelfRefineCritic",
+                operation="improve",
+                message_prefix="Failed to improve text",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the text is not too long for the model",
+                    "Try with a different model or temperature",
+                ],
+                metadata={
+                    "text_length": len(text),
+                    "refinement_rounds": self.refinement_rounds,
+                    "temperature": self.temperature,
+                },
+            ):
+                # Format issues and suggestions
+                issues = critique.get("issues", [])
+                suggestions = critique.get("suggestions", [])
 
-    async def acritique(
-        self, text: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """
-        Asynchronously analyze text and provide detailed feedback.
+                issues_str = "\n".join(f"- {i}" for i in issues)
+                suggestions_str = "\n".join(f"- {s}" for s in suggestions)
+
+                # Perform initial improvement
+                initial_prompt = f"""
+                Please improve the following text based on the issues and suggestions:
+
+                Text:
+                ```
+                {current_text}
+                ```
+
+                Issues:
+                {issues_str}
+
+                Suggestions:
+                {suggestions_str}
+
+                Improved text:
+                """
+
+                logger.debug(f"SelfRefineCritic: Generating initial improvement")
+                response = self._generate(initial_prompt)
+                logger.debug(
+                    f"SelfRefineCritic: Generated initial improvement of length {len(response)}"
+                )
+
+                # Extract improved text from response
+                improved_text = response.strip()
+
+                # Remove any markdown code block markers
+                if improved_text.startswith("```") and improved_text.endswith("```"):
+                    improved_text = improved_text[3:-3].strip()
+                    logger.debug("SelfRefineCritic: Removed code block markers from response")
+
+                current_text = improved_text
+
+                # Add initial improvement to refinement history
+                refinement_history.append(
+                    {
+                        "round": 1,
+                        "text": current_text,
+                        "feedback": {
+                            "issues": issues,
+                            "suggestions": suggestions,
+                        },
+                    }
+                )
+
+                logger.debug(
+                    f"SelfRefineCritic: Completed initial improvement, new length: {len(current_text)}"
+                )
+
+                # Perform additional refinement rounds
+                for round_num in range(2, self.refinement_rounds + 1):
+                    round_start_time = time.time()
+
+                    logger.debug(
+                        f"SelfRefineCritic: Starting refinement round {round_num}/{self.refinement_rounds}"
+                    )
+
+                    try:
+                        # Generate feedback on current text
+                        feedback_prompt = f"""
+                        Please evaluate the following text and provide detailed feedback for further improvement:
+
+                        ```
+                        {current_text}
+                        ```
+
+                        Previous feedback:
+                        {self._format_feedback_history(refinement_history)}
+
+                        Provide your evaluation in JSON format with the following fields:
+                        - "issues": a list of specific issues that still need to be addressed
+                        - "suggestions": a list of suggestions for further improvement
+
+                        JSON response:
+                        """
+
+                        logger.debug(f"SelfRefineCritic: Generating feedback for round {round_num}")
+                        feedback_response = self._generate(feedback_prompt)
+                        logger.debug(
+                            f"SelfRefineCritic: Generated feedback of length {len(feedback_response)}"
+                        )
+
+                        # Extract JSON from response
+                        json_start = feedback_response.find("{")
+                        json_end = feedback_response.rfind("}") + 1
+
+                        if json_start == -1 or json_end == 0:
+                            # No JSON found, create a default response
+                            logger.warning(
+                                f"SelfRefineCritic: No JSON found in feedback response for round {round_num}, using default"
+                            )
+                            feedback = {
+                                "issues": ["Further refinement needed"],
+                                "suggestions": ["Continue improving the text"],
+                            }
+                        else:
+                            try:
+                                json_str = feedback_response[json_start:json_end]
+                                feedback = json.loads(json_str)
+
+                                # Ensure all required fields are present
+                                feedback.setdefault("issues", [])
+                                feedback.setdefault("suggestions", [])
+
+                                logger.debug(
+                                    f"SelfRefineCritic: Parsed feedback with {len(feedback.get('issues', []))} issues and "
+                                    f"{len(feedback.get('suggestions', []))} suggestions"
+                                )
+                            except json.JSONDecodeError as json_error:
+                                logger.warning(
+                                    f"SelfRefineCritic: Failed to parse JSON in feedback response: {str(json_error)}"
+                                )
+                                feedback = {
+                                    "issues": ["Further refinement needed"],
+                                    "suggestions": ["Continue improving the text"],
+                                    "error": [str(json_error)],
+                                }
+
+                        # Format issues and suggestions
+                        issues_str = "\n".join(f"- {i}" for i in feedback.get("issues", []))
+                        suggestions_str = "\n".join(
+                            f"- {s}" for s in feedback.get("suggestions", [])
+                        )
+
+                        # Improve text based on feedback
+                        refinement_prompt = f"""
+                        Please further improve the following text based on the issues and suggestions:
+
+                        Text:
+                        ```
+                        {current_text}
+                        ```
+
+                        Issues:
+                        {issues_str}
+
+                        Suggestions:
+                        {suggestions_str}
+
+                        Improved text:
+                        """
+
+                        logger.debug(
+                            f"SelfRefineCritic: Generating refinement for round {round_num}"
+                        )
+                        refinement_response = self._generate(refinement_prompt)
+                        logger.debug(
+                            f"SelfRefineCritic: Generated refinement of length {len(refinement_response)}"
+                        )
+
+                        # Extract improved text from response
+                        improved_text = refinement_response.strip()
+
+                        # Remove any markdown code block markers
+                        if improved_text.startswith("```") and improved_text.endswith("```"):
+                            improved_text = improved_text[3:-3].strip()
+                            logger.debug(
+                                "SelfRefineCritic: Removed code block markers from refinement response"
+                            )
+
+                        current_text = improved_text
+
+                        # Add refinement to history
+                        refinement_history.append(
+                            {
+                                "round": round_num,
+                                "text": current_text,
+                                "feedback": feedback,
+                            }
+                        )
+
+                        # Calculate round time
+                        round_time = (
+                            time.time() - round_start_time
+                        ) * 1000  # Convert to milliseconds
+
+                        logger.debug(
+                            f"SelfRefineCritic: Completed refinement round {round_num} in {round_time:.2f}ms, "
+                            f"new length: {len(current_text)}"
+                        )
+
+                    except Exception as round_error:
+                        # Log the error but continue with the current text
+                        log_error(
+                            round_error,
+                            logger,
+                            component="SelfRefineCritic",
+                            operation=f"refinement_round_{round_num}",
+                        )
+                        logger.warning(
+                            f"SelfRefineCritic: Error in refinement round {round_num}, stopping refinement: {str(round_error)}"
+                        )
+                        break
+
+                # Calculate total processing time
+                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+                # Log successful improvement
+                logger.debug(
+                    f"SelfRefineCritic: Successfully improved text in {processing_time:.2f}ms, "
+                    f"original length: {len(text)}, final length: {len(current_text)}, "
+                    f"completed rounds: {len(refinement_history)}"
+                )
+
+                return current_text
+
+        except Exception as e:
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            # Log the error
+            log_error(e, logger, component="SelfRefineCritic", operation="improve")
+
+            # Raise as ImproverError with more context
+            raise ImproverError(
+                message=f"Error improving text: {str(e)}",
+                component="SelfRefineCritic",
+                operation="improve",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the text is not too long for the model",
+                    "Try with a different model or temperature",
+                ],
+                metadata={
+                    "text_length": len(text),
+                    "refinement_rounds": self.refinement_rounds,
+                    "temperature": self.temperature,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "processing_time_ms": processing_time,
+                    "completed_rounds": len(refinement_history),
+                },
+            )
+
+    def _format_feedback_history(self, history: List[Dict[str, Any]]) -> str:
+        """Format the feedback history as a string.
 
         Args:
-            text: The text to critique
-            metadata: Optional metadata containing the task
+            history: The feedback history.
 
         Returns:
-            Dictionary containing score, feedback, issues, and suggestions
-
-        Raises:
-            ValueError: If text is empty
-            RuntimeError: If critic is not properly initialized
+            A string representation of the feedback history.
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("SelfRefineCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
+        logger.debug(f"SelfRefineCritic: Formatting feedback history with {len(history)} entries")
 
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
+        try:
+            if not history:
+                logger.debug("SelfRefineCritic: No feedback history to format")
+                return "No previous feedback"
 
-        # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
-            task=task,
-            response=text,
-        )
+            result = []
 
-        # Generate critique
-        critique_text = await self._state.model.agenerate(
-            prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        )
-        critique_text = critique_text.strip()
+            for entry in history:
+                round_num = entry.get("round", 0)
+                feedback = entry.get("feedback", {})
 
-        # Parse critique
-        issues = []
-        suggestions = []
+                issues = feedback.get("issues", [])
+                suggestions = feedback.get("suggestions", [])
 
-        # Extract issues and suggestions from critique
-        for line in critique_text.split("\n"):
-            line = line.strip()
-            if line.startswith("- ") or line.startswith("* "):
-                if (
-                    "should" in line.lower()
-                    or "could" in line.lower()
-                    or "recommend" in line.lower()
-                ):
-                    suggestions.append(line[2:])
-                else:
-                    issues.append(line[2:])
+                result.append(f"Round {round_num} feedback:")
 
-        # Calculate score based on issues
-        score = 1.0 if not issues else max(0.0, 1.0 - (len(issues) * 0.1))
+                if issues:
+                    result.append("Issues:")
+                    for issue in issues:
+                        result.append(f"- {issue}")
 
-        return {
-            "score": score,
-            "feedback": critique_text,
-            "issues": issues,
-            "suggestions": suggestions,
-        }
+                if suggestions:
+                    result.append("Suggestions:")
+                    for suggestion in suggestions:
+                        result.append(f"- {suggestion}")
 
-    async def aimprove(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Asynchronously improve text through iterative self-critique and revision.
+                result.append("")
 
-        Args:
-            text: The text to improve
-            metadata: Optional metadata containing the task
+            formatted_result = "\n".join(result)
 
-        Returns:
-            Improved text
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-        Raises:
-            ValueError: If text is empty
-            RuntimeError: If critic is not properly initialized
-        """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("SelfRefineCritic not properly initialized")
-
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
-
-        # Get max iterations from state
-        max_iterations = self._state.cache.get("max_iterations", 3)
-
-        # Start with the initial text
-        current_output = text
-
-        # Perform iterative refinement
-        for _ in range(max_iterations):
-            # Step 1: Critique the current output
-            critique_prompt = self._state.cache.get("critique_prompt_template", "").format(
-                task=task,
-                response=current_output,
+            # Log successful formatting
+            logger.debug(
+                f"SelfRefineCritic: Successfully formatted feedback history in {processing_time:.2f}ms, "
+                f"result length: {len(formatted_result)}"
             )
 
-            critique = await self._state.model.agenerate(
-                critique_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
+            return formatted_result
+
+        except Exception as e:
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            # Log the error
+            log_error(e, logger, component="SelfRefineCritic", operation="format_feedback_history")
+
+            # Return a default string in case of error
+            logger.warning(
+                f"SelfRefineCritic: Error formatting feedback history: {str(e)}, using default"
             )
-            critique = critique.strip()
-
-            # Heuristic stopping condition
-            no_issues_phrases = [
-                "no issues",
-                "looks good",
-                "well written",
-                "excellent",
-                "great job",
-                "perfect",
-            ]
-            if any(phrase in critique.lower() for phrase in no_issues_phrases):
-                return current_output
-
-            # Step 2: Revise using the critique
-            revision_prompt = self._state.cache.get("revision_prompt_template", "").format(
-                task=task,
-                response=current_output,
-                critique=critique,
-            )
-
-            revised_output = await self._state.model.agenerate(
-                revision_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
-            )
-            revised_output = revised_output.strip()
-
-            # Check if there's no improvement
-            if revised_output == current_output:
-                return current_output
-
-            # Update current output
-            current_output = revised_output
-
-        return current_output
+            return "Previous feedback available but could not be formatted."
 
 
+@register_improver("self_refine")
 def create_self_refine_critic(
-    llm_provider: Any,
-    name: str = "self_refine_critic",
-    description: str = "Improves text through iterative self-critique and revision",
-    min_confidence: float = 0.7,
-    max_attempts: int = 3,
-    cache_size: int = 100,
-    priority: int = 1,
-    cost: float = 1.0,
-    system_prompt: str = "You are an expert at critiquing and revising content.",
+    model: Model,
+    refinement_rounds: int = 2,
+    system_prompt: Optional[str] = None,
     temperature: float = 0.7,
-    max_tokens: int = 1000,
-    max_iterations: int = 3,
-    critique_prompt_template: Optional[str] = None,
-    revision_prompt_template: Optional[str] = None,
-    config: Optional[Union[Dict[str, Any], SelfRefineCriticConfig]] = None,
-    **kwargs: Any,
+    **options: Any,
 ) -> SelfRefineCritic:
-    """
-    Create a self-refine critic with the given parameters.
+    """Create a Self-Refine critic.
 
-    This function creates a self-refine critic that iteratively critiques and
-    revises text using the same language model.
+    This factory function creates a SelfRefineCritic based on the paper
+    "Self-Refine: Iterative Refinement with Self-Feedback" (Madaan et al., 2023).
+    It is registered with the registry system for dependency injection.
 
     Args:
-        llm_provider: Language model provider to use
-        name: Name of the critic
-        description: Description of the critic
-        min_confidence: Minimum confidence threshold
-        max_attempts: Maximum number of improvement attempts
-        cache_size: Size of the cache
-        priority: Priority of the critic
-        cost: Cost of using the critic
-        system_prompt: System prompt for the model
-        temperature: Temperature for model generation
-        max_tokens: Maximum tokens for model generation
-        max_iterations: Maximum number of refinement iterations
-        critique_prompt_template: Optional custom template for critique prompts
-        revision_prompt_template: Optional custom template for revision prompts
-        config: Optional critic configuration (overrides other parameters)
-        **kwargs: Additional keyword arguments for the critic
+        model: The model to use for critiquing and improving text.
+        refinement_rounds: The number of refinement rounds to perform.
+        system_prompt: The system prompt to use for the model.
+        temperature: The temperature to use for the model.
+        **options: Additional options to pass to the SelfRefineCritic.
 
     Returns:
-        A configured self-refine critic
+        A SelfRefineCritic instance.
 
     Raises:
-        ValueError: If max_iterations is less than 1
-        TypeError: If llm_provider is not a valid language model
+        ImproverError: If the critic cannot be created.
     """
-    # Create configuration
-    if config is None:
-        config_dict = {
-            "name": name,
-            "description": description,
-            "min_confidence": min_confidence,
-            "max_attempts": max_attempts,
-            "cache_size": cache_size,
-            "priority": priority,
-            "cost": cost,
-            "system_prompt": system_prompt,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "max_iterations": max_iterations,
-        }
+    start_time = time.time()
 
-        if critique_prompt_template:
-            config_dict["critique_prompt_template"] = critique_prompt_template
-
-        if revision_prompt_template:
-            config_dict["revision_prompt_template"] = revision_prompt_template
-
-        config = SelfRefineCriticConfig(**config_dict)
-    elif isinstance(config, dict):
-        # Ensure max_iterations is included in the config
-        if "max_iterations" not in config and max_iterations:
-            config["max_iterations"] = max_iterations
-        config = SelfRefineCriticConfig(**config)
-    elif not isinstance(config, SelfRefineCriticConfig):
-        raise TypeError("config must be a SelfRefineCriticConfig or dict")
-
-    # Create and return critic
-    return SelfRefineCritic(
-        config=config,
-        llm_provider=llm_provider,
+    logger.debug(
+        f"Creating SelfRefineCritic with model={model.__class__.__name__ if model else None}, "
+        f"refinement_rounds={refinement_rounds}, temperature={temperature}"
     )
 
+    try:
+        # Create the critic with error handling
+        with critic_context(
+            critic_name="SelfRefineCritic",
+            operation="creation",
+            message_prefix="Failed to create SelfRefineCritic",
+            suggestions=[
+                "Check if the model is properly configured",
+                "Verify that the parameters are valid",
+            ],
+            metadata={
+                "model_type": model.__class__.__name__ if model else None,
+                "refinement_rounds": refinement_rounds,
+                "temperature": temperature,
+            },
+        ):
+            critic = SelfRefineCritic(
+                model=model,
+                refinement_rounds=refinement_rounds,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                **options,
+            )
 
-"""
-@misc{selfrefine2023,
-      title={Self-Refine: Iterative Refinement with Self-Feedback},
-      author={Aman Madaan and Niket Tandon and Prakhar Gupta and Skyler Hallinan and Luyu Gao and Sarah Wiegreffe and Uri Alon and Nouha Dziri and Shrimai Prabhumoye and Yiming Yang and Sean Welleck and Bodhisattwa Prasad Majumder and Shashank Gupta and Amir Yazdanbakhsh and Peter Clark},
-      year={2023},
-      eprint={2303.17651},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
-}
-"""
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            # Log successful creation
+            logger.debug(f"Successfully created SelfRefineCritic in {processing_time:.2f}ms")
+
+            return critic
+
+    except Exception as e:
+        # Calculate processing time
+        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+        # Log the error
+        log_error(e, logger, component="SelfRefineCritic", operation="creation")
+
+        # Re-raise as ImproverError with more context if not already an ImproverError
+        if not isinstance(e, ImproverError):
+            raise ImproverError(
+                message=f"Failed to create SelfRefineCritic: {str(e)}",
+                component="SelfRefineCritic",
+                operation="creation",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the parameters are valid",
+                    "Check the error message for details",
+                ],
+                metadata={
+                    "model_type": model.__class__.__name__ if model else None,
+                    "refinement_rounds": refinement_rounds,
+                    "temperature": temperature,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "processing_time_ms": processing_time,
+                },
+            )
+        raise

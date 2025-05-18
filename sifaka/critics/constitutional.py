@@ -1,664 +1,556 @@
 """
-Constitutional critic module for Sifaka.
+Constitutional critic for Sifaka.
 
-This module implements a Constitutional AI approach for critics, which evaluates
-responses against a set of human-written principles (a "constitution") and provides
-natural language feedback when violations are detected.
+This module provides a critic that evaluates text against a set of principles.
 
-Based on Constitutional AI: https://arxiv.org/abs/2212.08073
-
-Example:
-    ```python
-    from sifaka.critics.constitutional import create_constitutional_critic
-    from sifaka.models.providers import OpenAIProvider
-
-    # Create a language model provider
-    provider = OpenAIProvider(api_key="your-api-key")
-
-    # Define principles
-    principles = [
-        "Do not provide harmful, offensive, or biased content.",
-        "Explain reasoning in a clear and truthful manner.",
-        "Respect user autonomy and avoid manipulative language.",
-    ]
-
-    # Create a constitutional critic
-    critic = create_constitutional_critic(
-        llm_provider=provider,
-        principles=principles
-    )
-
-    # Validate a response
-    task = "Explain why some people believe climate change isn't real."
-    response = "Climate change is a hoax created by scientists to get funding."
-    is_valid = critic.validate(response, metadata={"task": task})
-    print(f"Response is valid: {is_valid}")
-
-    # Get critique for a response
-    critique = critic.critique(response, metadata={"task": task})
-    print(f"Critique: {critique}")
-
-    # Improve a response
-    improved_response = critic.improve(response, metadata={"task": task})
-    print(f"Improved response: {improved_response}")
-    ```
+Based on the paper:
+"Constitutional AI: Harmlessness from AI Feedback"
+Yuntao Bai, Saurav Kadavath, Sandipan Kundu, Amanda Askell, Jackson Kernion, Andy Jones,
+Anna Chen, Anna Goldie, Azalia Mirhoseini, Cameron McKinnon, Carol Chen, Catherine Olsson,
+Christopher Olah, Circulation, Daniela Amodei, Dario Amodei, Dawn Drain, Dustin Hendrycks,
+Ethan Perez, Jamie Kerr, Jared Kaplan, Jeremie M. Harris, Joseph Gonzalez, Josh Landau,
+Liane Lovitt, Michael Sellitto, Miles Brundage, Pamela Mishkin, Paul Christiano, Rachel Hao,
+Raphael Millière, Sam Bowman, Sam McCandlish, Sandipan Kundu, Saurav Kadavath, Scott Sievert,
+Sheer El-Showk, Stanislav Fort, Timothy Telleen-Lawton, Thomas Langlois, Tyna Eloundou,
+Varun Sundar, Yuntao Bai, Zac Hatfield-Dodds
+arXiv:2212.08073 [cs.CL]
+https://arxiv.org/abs/2212.08073
 """
 
+import json
 import logging
-from typing import Any, Dict, List, Optional, Union, cast
+import time
+from typing import Dict, Any, Optional, List
 
-from pydantic import PrivateAttr, ConfigDict
+from sifaka.models.base import Model
+from sifaka.critics.base import Critic
+from sifaka.errors import ImproverError
+from sifaka.registry import register_improver
+from sifaka.utils.error_handling import critic_context, log_error
 
-from .base import BaseCritic
-from .models import ConstitutionalCriticConfig
-from .protocols import TextCritic, TextImprover, TextValidator
-from .prompt import LanguageModel
-
-# Configure logging
+# Configure logger
 logger = logging.getLogger(__name__)
 
 
-# Configuration is defined in models.py
+class ConstitutionalCritic(Critic):
+    """Critic that evaluates text against a set of principles.
 
+    This critic evaluates text against a set of principles (a "constitution")
+    and provides feedback when violations are detected.
 
-class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
+    Attributes:
+        model: The model to use for critiquing and improving text.
+        principles: The principles to evaluate text against.
+        system_prompt: The system prompt to use for the model.
+        temperature: The temperature to use for the model.
     """
-    A critic that evaluates responses against a list of principles (a "constitution")
-    and provides natural language feedback for revision.
-
-    Based on Constitutional AI: https://arxiv.org/abs/2212.08073
-
-    This critic analyzes responses for alignment with specified principles and
-    generates critiques when violations are detected.
-
-    ## Architecture
-
-    The ConstitutionalCritic follows a component-based architecture with principles-based evaluation:
-
-    1. **Core Components**
-       - **ConstitutionalCritic**: Main class that implements the critic interfaces
-       - **PrinciplesManager**: Manages the list of principles (the "constitution")
-       - **CritiqueGenerator**: Evaluates responses against principles
-       - **ResponseImprover**: Improves responses based on critiques
-       - **PromptManager**: Creates specialized prompts for critique and improvement
-
-    2. **Component Relationships**
-       - ConstitutionalCritic delegates to CritiqueGenerator for evaluation
-       - ConstitutionalCritic delegates to ResponseImprover for improvement
-       - Both components use the same language model provider
-       - Both components use the same set of principles
-       - PrinciplesManager formats principles for inclusion in prompts
-
-    3. **State Management**
-       - Uses direct state pattern with _state attribute
-       - State contains references to all components
-       - State.cache dictionary stores principles and prompt templates
-       - Initialization flag prevents operations before setup is complete
-
-    4. **Evaluation Process**
-       - Principles are formatted as a bulleted list
-       - Response is evaluated against each principle
-       - Violations are identified and detailed feedback is generated
-       - Feedback is used to guide response improvement
-       - Improved response is checked for continued violations
-
-    ## Lifecycle Management
-
-    The ConstitutionalCritic manages its lifecycle through three main phases:
-
-    1. **Initialization**
-       - Validates configuration
-       - Sets up language model provider
-       - Initializes principles
-       - Allocates resources
-
-    2. **Operation**
-       - Validates responses against principles
-       - Generates critiques for violations
-       - Improves responses based on critiques
-       - Processes feedback
-
-    3. **Cleanup**
-       - Releases resources
-       - Resets state
-       - Logs final status
-
-    ## Error Handling
-
-    1. **Input Validation**
-       - Empty text checks
-       - Missing task information
-       - Type validation
-       - Format verification
-
-    2. **Processing Errors**
-       - Model generation failures
-       - Invalid model outputs
-       - Timeout handling
-       - Resource limitations
-
-    3. **Recovery Strategies**
-       - Retry mechanisms
-       - Fallback responses
-       - Graceful degradation
-       - Error reporting
-
-    Examples:
-        ```python
-        from sifaka.critics.constitutional import ConstitutionalCritic, ConstitutionalCriticConfig
-        from sifaka.models.providers import OpenAIProvider
-
-        # Create a language model provider
-        provider = OpenAIProvider(api_key="your-api-key")
-
-        # Define principles
-        principles = [
-            "Do not provide harmful, offensive, or biased content.",
-            "Explain reasoning in a clear and truthful manner.",
-            "Respect user autonomy and avoid manipulative language.",
-        ]
-
-        # Create a constitutional critic configuration
-        config = ConstitutionalCriticConfig(
-            name="my_critic",
-            description="A critic for evaluating responses against principles",
-            principles=principles,
-            system_prompt="You are an expert at evaluating content.",
-            temperature=0.7,
-            max_tokens=1000
-        )
-
-        # Create a constitutional critic
-        critic = ConstitutionalCritic(
-            config=config,
-            llm_provider=provider
-        )
-
-        # Validate a response
-        task = "Explain why some people believe climate change isn't real."
-        response = "Climate change is a hoax created by scientists to get funding."
-        is_valid = critic.validate(response, metadata={"task": task})
-        print(f"Response is valid: {is_valid}")
-
-        # Get critique for a response
-        critique = critic.critique(response, metadata={"task": task})
-        print(f"Critique: {critique}")
-
-        # Improve a response
-        improved_response = critic.improve(response, metadata={"task": task})
-        print(f"Improved response: {improved_response}")
-        ```
-    """
-
-    # Class constants
-    DEFAULT_NAME = "constitutional_critic"
-    DEFAULT_DESCRIPTION = "Evaluates responses against principles"
-
-    # Pydantic v2 configuration
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
 
     def __init__(
         self,
-        config: ConstitutionalCriticConfig,
-        llm_provider: LanguageModel,
+        model: Model,
+        principles: Optional[List[str]] = None,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        **options: Any,
     ):
-        """
-        Initialize a constitutional critic.
+        """Initialize the constitutional critic.
 
         Args:
-            config: Configuration for the critic
-            llm_provider: Language model provider to use for critiquing
+            model: The model to use for critiquing and improving text.
+            principles: The principles to evaluate text against.
+            system_prompt: The system prompt to use for the model.
+            temperature: The temperature to use for the model.
+            **options: Additional options to pass to the model.
 
         Raises:
-            ValueError: If configuration is invalid
-            TypeError: If llm_provider is not a valid language model
+            ImproverError: If the model is not provided or if initialization fails.
         """
-        # Validate inputs
-        if not isinstance(config, ConstitutionalCriticConfig):
-            raise TypeError("config must be a ConstitutionalCriticConfig")
-        if not config.principles or not all(isinstance(p, str) for p in config.principles):
-            raise ValueError("principles must be a non-empty list of strings")
+        start_time = time.time()
 
-        # Initialize base class
-        super().__init__(config)
-
-        # Initialize state
-        from ..utils.state import CriticState
-
-        self._state = CriticState()
-
-        # Store components in state
-        self._state.model = llm_provider
-        self._state.cache = {
-            "principles": config.principles,
-            "critique_prompt_template": config.critique_prompt_template,
-            "improvement_prompt_template": config.improvement_prompt_template,
-            "system_prompt": config.system_prompt,
-            "temperature": config.temperature,
-            "max_tokens": config.max_tokens,
-        }
-        self._state.initialized = True
-
-    def _format_principles(self) -> str:
-        """
-        Format principles as a bulleted list.
-
-        Returns:
-            Formatted principles as a string
-        """
-        principles = self._state.cache.get("principles", [])
-        return "\n".join(f"- {p}" for p in principles)
-
-    def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Extract task from metadata.
-
-        Args:
-            metadata: Optional metadata dictionary
-
-        Returns:
-            Task string
-
-        Raises:
-            ValueError: If task is not provided in metadata
-        """
-        if not metadata or "task" not in metadata:
-            raise ValueError("metadata must contain 'task' key")
-        return metadata["task"]
-
-    def validate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
-        """
-        Validate a response against the principles.
-
-        Args:
-            text: The response to validate
-            metadata: Optional metadata containing the task
-
-        Returns:
-            True if the response is valid, False otherwise
-
-        Raises:
-            ValueError: If text is empty or metadata is missing required keys
-            RuntimeError: If critic is not properly initialized
-        """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("ConstitutionalCritic not properly initialized")
-
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-
-        # Get critique
-        critique_result = self.critique(text, metadata)
-
-        # Check if critique indicates violations
-        return not critique_result.get("issues", [])
-
-    def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """
-        Analyze a response against the principles and provide detailed feedback.
-
-        Args:
-            text: The response to critique
-            metadata: Optional metadata containing the task
-
-        Returns:
-            Dictionary containing score, feedback, issues, and suggestions
-
-        Raises:
-            ValueError: If text is empty or metadata is missing required keys
-            RuntimeError: If critic is not properly initialized
-        """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("ConstitutionalCritic not properly initialized")
-
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
-
-        # Format principles
-        principles_text = self._format_principles()
-
-        # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
-            principles=principles_text,
-            task=task,
-            response=text,
+        # Log initialization attempt
+        logger.debug(
+            f"Initializing ConstitutionalCritic with model={model.__class__.__name__ if model else None}, "
+            f"principles_count={len(principles) if principles else 'default'}, "
+            f"temperature={temperature}"
         )
 
-        # Generate critique
-        critique_text = self._state.model.generate(
-            prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
+        try:
+            # Validate parameters
+            if not model:
+                logger.error("No model provided to ConstitutionalCritic")
+                raise ImproverError(
+                    message="Model must be provided",
+                    component="ConstitutionalCritic",
+                    operation="initialization",
+                    suggestions=[
+                        "Provide a valid model instance",
+                        "Check that the model implements the Model protocol",
+                    ],
+                    metadata={
+                        "principles_count": len(principles) if principles else 0,
+                        "temperature": temperature,
+                    },
+                )
 
-        # Parse critique
-        issues = []
-        suggestions = []
+            # Use default system prompt if not provided
+            if system_prompt is None:
+                system_prompt = (
+                    "You are an expert editor who specializes in evaluating text against principles. "
+                    "Your goal is to identify violations of principles and provide feedback for improvement."
+                )
+                logger.debug("Using default system prompt for ConstitutionalCritic")
 
-        # Check if critique indicates no issues
-        if any(
-            phrase in critique_text.lower()
-            for phrase in [
-                "no issues",
-                "no violations",
-                "does not violate",
-                "aligns with all principles",
-                "adheres to all principles",
+            # Initialize the base critic
+            with critic_context(
+                critic_name="ConstitutionalCritic",
+                operation="initialization",
+                message_prefix="Failed to initialize ConstitutionalCritic",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the parameters are valid",
+                ],
+                metadata={
+                    "model_type": model.__class__.__name__,
+                    "principles_count": len(principles) if principles else 0,
+                    "temperature": temperature,
+                },
+            ):
+                super().__init__(model, system_prompt, temperature, **options)
+                logger.debug("Successfully initialized base Critic")
+
+            # Use default principles if not provided
+            self.principles = principles or [
+                "The text should be clear and concise.",
+                "The text should be grammatically correct.",
+                "The text should be well-structured.",
+                "The text should be factually accurate.",
+                "The text should be appropriate for the intended audience.",
             ]
-        ):
-            score = 1.0
-            feedback = "Response aligns with all principles."
-        else:
-            # There are issues
-            score = 0.5  # Default score for responses with issues
-            feedback = critique_text
 
-            # Extract issues and suggestions
-            lines = critique_text.split("\n")
-            for line in lines:
-                line = line.strip()
-                if line.startswith("- ") or line.startswith("* "):
-                    if (
-                        "should" in line.lower()
-                        or "could" in line.lower()
-                        or "recommend" in line.lower()
-                    ):
-                        suggestions.append(line[2:].strip())
-                    else:
-                        issues.append(line[2:].strip())
+            # Validate principles
+            if not self.principles:
+                logger.warning("Empty principles list provided, using default principles")
+                self.principles = [
+                    "The text should be clear and concise.",
+                    "The text should be grammatically correct.",
+                    "The text should be well-structured.",
+                    "The text should be factually accurate.",
+                    "The text should be appropriate for the intended audience.",
+                ]
 
-            # If no structured issues were found, add the whole critique as an issue
-            if not issues:
-                issues = [critique_text]
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-        return {"score": score, "feedback": feedback, "issues": issues, "suggestions": suggestions}
+            # Log successful initialization
+            logger.debug(
+                f"Successfully initialized ConstitutionalCritic with {len(self.principles)} principles "
+                f"in {processing_time:.2f}ms"
+            )
 
-    def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Improve a response based on principles.
+        except Exception as e:
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            # Log the error
+            log_error(e, logger, component="ConstitutionalCritic", operation="initialization")
+
+            # Re-raise as ImproverError with more context if not already an ImproverError
+            if not isinstance(e, ImproverError):
+                raise ImproverError(
+                    message=f"Failed to initialize ConstitutionalCritic: {str(e)}",
+                    component="ConstitutionalCritic",
+                    operation="initialization",
+                    suggestions=[
+                        "Check if the model is properly configured",
+                        "Verify that the principles are well-defined",
+                        "Check the error message for details",
+                    ],
+                    metadata={
+                        "model_type": model.__class__.__name__ if model else None,
+                        "principles_count": len(principles) if principles else 0,
+                        "temperature": temperature,
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                        "processing_time_ms": processing_time,
+                    },
+                )
+            raise
+
+    def _critique(self, text: str) -> Dict[str, Any]:
+        """Critique text against the principles.
 
         Args:
-            text: The response to improve
-            metadata: Optional metadata containing the task
+            text: The text to critique.
 
         Returns:
-            Improved response
+            A dictionary with critique information.
 
         Raises:
-            ValueError: If text is empty or metadata is missing required keys
-            RuntimeError: If critic is not properly initialized
+            ImproverError: If the text cannot be critiqued.
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("ConstitutionalCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
-
-        # Get critique
-        critique_result = self.critique(text, metadata)
-
-        # If no issues, return original text
-        if not critique_result.get("issues", []):
-            return text
-
-        # Format principles
-        principles_text = self._format_principles()
-
-        # Create improvement prompt
-        prompt = self._state.cache.get("improvement_prompt_template", "").format(
-            principles=principles_text,
-            task=task,
-            response=text,
-            critique=critique_result["feedback"],
+        # Log critique attempt
+        logger.debug(
+            f"ConstitutionalCritic: Critiquing text of length {len(text)} against {len(self.principles)} principles"
         )
 
-        # Generate improved response
-        improved_text = self._state.model.generate(
-            prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
+        # Format principles as a bulleted list
+        principles_str = "\n".join(f"- {p}" for p in self.principles)
 
-        return improved_text
+        prompt = f"""
+        Please evaluate the following text against these principles:
 
-    def improve_with_feedback(self, text: str, feedback: str) -> str:
+        Principles:
+        {principles_str}
+
+        Text:
+        ```
+        {text}
+        ```
+
+        Provide your evaluation in JSON format with the following fields:
+        - "needs_improvement": boolean indicating whether the text violates any principles
+        - "message": a brief summary of your evaluation
+        - "violations": a list of specific principle violations
+        - "suggestions": a list of suggestions for improvement
+
+        JSON response:
         """
-        Improve text based on specific feedback.
 
-        This method improves the text based on the provided feedback,
-        which can be more specific than the general improvements based on principles.
+        try:
+            # Use critic_context for consistent error handling
+            with critic_context(
+                critic_name="ConstitutionalCritic",
+                operation="critique",
+                message_prefix="Failed to critique text",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the principles are well-defined",
+                    "Try with a different model or temperature",
+                ],
+                metadata={
+                    "text_length": len(text),
+                    "principles_count": len(self.principles),
+                    "temperature": self.temperature,
+                },
+            ):
+                # Generate critique
+                response = self._generate(prompt)
+
+                # Extract JSON from response
+                json_start = response.find("{")
+                json_end = response.rfind("}") + 1
+
+                if json_start == -1 or json_end == 0:
+                    # No JSON found, log the issue
+                    logger.warning(
+                        "ConstitutionalCritic: No JSON found in critique response, using default response"
+                    )
+
+                    # Calculate processing time
+                    processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+                    # Create a default response
+                    # Create a Dict[str, Any] to return
+                    default_critique: Dict[str, Any] = {
+                        "needs_improvement": True,
+                        "message": "Unable to parse critique response, but proceeding with improvement",
+                        "violations": ["Unable to identify specific violations"],
+                        "suggestions": ["General improvement"],
+                        "processing_time_ms": processing_time,
+                    }
+                    return default_critique
+
+                # Parse JSON
+                json_str = response[json_start:json_end]
+                critique_data = json.loads(json_str)
+
+                # Ensure all required fields are present
+                critique_data.setdefault("needs_improvement", True)
+                critique_data.setdefault("message", "Text needs improvement")
+                critique_data.setdefault("violations", [])
+                critique_data.setdefault("suggestions", [])
+
+                # Add issues field for compatibility with base Critic
+                critique_data["issues"] = critique_data.get("violations", [])
+
+                # Calculate processing time
+                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+                critique_data["processing_time_ms"] = processing_time
+
+                # Log successful critique
+                logger.debug(
+                    f"ConstitutionalCritic: Successfully critiqued text in {processing_time:.2f}ms, "
+                    f"found {len(critique_data['violations'])} violations"
+                )
+
+                # Explicitly create a Dict[str, Any] to return
+                critique_result: Dict[str, Any] = critique_data
+                return critique_result
+
+        except json.JSONDecodeError as e:
+            # Log the error
+            log_error(e, logger, component="ConstitutionalCritic", operation="critique_json_parse")
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            # Failed to parse JSON, create a default response
+            logger.warning(
+                f"ConstitutionalCritic: Failed to parse JSON in critique response: {str(e)}"
+            )
+            # Create a Dict[str, Any] to return
+            json_error_critique: Dict[str, Any] = {
+                "needs_improvement": True,
+                "message": "Unable to parse critique response, but proceeding with improvement",
+                "violations": ["Unable to identify specific violations"],
+                "suggestions": ["General improvement"],
+                "issues": ["Unable to identify specific violations"],
+                "processing_time_ms": processing_time,
+                "error": str(e),
+            }
+            return json_error_critique
+
+        except Exception as e:
+            # Log the error
+            log_error(e, logger, component="ConstitutionalCritic", operation="critique")
+
+            # Raise as ImproverError with more context
+            raise ImproverError(
+                message=f"Error critiquing text: {str(e)}",
+                component="ConstitutionalCritic",
+                operation="critique",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the principles are well-defined",
+                    "Try with a different model or temperature",
+                ],
+                metadata={
+                    "text_length": len(text),
+                    "principles_count": len(self.principles),
+                    "temperature": self.temperature,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
+
+    def _improve(self, text: str, critique: Dict[str, Any]) -> str:
+        """Improve text based on critique.
 
         Args:
-            text: The text to improve
-            feedback: Feedback to guide the improvement
+            text: The text to improve.
+            critique: The critique information.
 
         Returns:
-            The improved text
+            The improved text.
 
         Raises:
-            ValueError: If text or feedback is empty
-            RuntimeError: If critic is not properly initialized
+            ImproverError: If the text cannot be improved.
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("ConstitutionalCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-
-        if not isinstance(feedback, str) or not feedback.strip():
-            raise ValueError("feedback must be a non-empty string")
-
-        # Format principles
-        principles_text = self._format_principles()
-
-        # Create improvement prompt
-        prompt = (
-            f"You are an AI assistant tasked with ensuring alignment to the following principles:\n\n"
-            f"{principles_text}\n\n"
-            f"Please improve the following response based on this feedback:\n\n"
-            f"Response:\n{text}\n\n"
-            f"Feedback:\n{feedback}\n\n"
-            f"Improved response:"
+        # Log improvement attempt
+        logger.debug(
+            f"ConstitutionalCritic: Improving text of length {len(text)} based on critique with "
+            f"{len(critique.get('violations', []))} violations and {len(critique.get('suggestions', []))} suggestions"
         )
 
-        # Generate improved response
-        improved_text = self._state.model.generate(
-            prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
+        # Format principles as a bulleted list
+        principles_str = "\n".join(f"- {p}" for p in self.principles)
 
-        return improved_text
+        # Format violations and suggestions
+        violations = critique.get("violations", [])
+        suggestions = critique.get("suggestions", [])
 
-    async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+        violations_str = "\n".join(f"- {v}" for v in violations)
+        suggestions_str = "\n".join(f"- {s}" for s in suggestions)
+
+        prompt = f"""
+        Please improve the following text to address the violations of principles:
+
+        Principles:
+        {principles_str}
+
+        Text:
+        ```
+        {text}
+        ```
+
+        Violations:
+        {violations_str}
+
+        Suggestions:
+        {suggestions_str}
+
+        Improved text:
         """
-        Asynchronously validate a response against the principles.
 
-        Args:
-            text: The response to validate
-            metadata: Optional metadata containing the task
+        try:
+            # Use critic_context for consistent error handling
+            with critic_context(
+                critic_name="ConstitutionalCritic",
+                operation="improve",
+                message_prefix="Failed to improve text",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the critique information is valid",
+                    "Try with a different model or temperature",
+                ],
+                metadata={
+                    "text_length": len(text),
+                    "principles_count": len(self.principles),
+                    "violations_count": len(violations),
+                    "suggestions_count": len(suggestions),
+                    "temperature": self.temperature,
+                },
+            ):
+                # Generate improved text
+                response = self._generate(prompt)
 
-        Returns:
-            True if the response is valid, False otherwise
+                # Extract improved text from response
+                improved_text = response.strip()
 
-        Raises:
-            ValueError: If text is empty or metadata is missing required keys
-            RuntimeError: If critic is not properly initialized
-        """
-        # For now, use the synchronous implementation
-        return self.validate(text, metadata)
+                # Remove any markdown code block markers
+                if improved_text.startswith("```") and improved_text.endswith("```"):
+                    improved_text = improved_text[3:-3].strip()
 
-    async def acritique(
-        self, text: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """
-        Asynchronously analyze a response against the principles and provide detailed feedback.
+                # Calculate processing time
+                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-        Args:
-            text: The response to critique
-            metadata: Optional metadata containing the task
+                # Log successful improvement
+                logger.debug(
+                    f"ConstitutionalCritic: Successfully improved text in {processing_time:.2f}ms, "
+                    f"original length: {len(text)}, improved length: {len(improved_text)}"
+                )
 
-        Returns:
-            Dictionary containing score, feedback, issues, and suggestions
+                return improved_text
 
-        Raises:
-            ValueError: If text is empty or metadata is missing required keys
-            RuntimeError: If critic is not properly initialized
-        """
-        # For now, use the synchronous implementation
-        return self.critique(text, metadata)
+        except Exception as e:
+            # Log the error
+            log_error(e, logger, component="ConstitutionalCritic", operation="improve")
 
-    async def aimprove(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Asynchronously improve a response based on principles.
-
-        Args:
-            text: The response to improve
-            metadata: Optional metadata containing the task
-
-        Returns:
-            Improved response
-
-        Raises:
-            ValueError: If text is empty or metadata is missing required keys
-            RuntimeError: If critic is not properly initialized
-        """
-        # For now, use the synchronous implementation
-        return self.improve(text, metadata)
-
-    async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
-        """
-        Asynchronously improve text based on specific feedback.
-
-        This method asynchronously improves the text based on the provided feedback,
-        which can be more specific than the general improvements based on principles.
-
-        Args:
-            text: The text to improve
-            feedback: Feedback to guide the improvement
-
-        Returns:
-            The improved text
-
-        Raises:
-            ValueError: If text or feedback is empty
-            RuntimeError: If critic is not properly initialized
-        """
-        # For now, use the synchronous implementation
-        return self.improve_with_feedback(text, feedback)
+            # Raise as ImproverError with more context
+            raise ImproverError(
+                message=f"Error improving text: {str(e)}",
+                component="ConstitutionalCritic",
+                operation="improve",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the critique information is valid",
+                    "Try with a different model or temperature",
+                ],
+                metadata={
+                    "text_length": len(text),
+                    "principles_count": len(self.principles),
+                    "violations_count": len(violations),
+                    "suggestions_count": len(suggestions),
+                    "temperature": self.temperature,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
 
 
+@register_improver("constitutional")
 def create_constitutional_critic(
-    llm_provider: Any,
-    principles: List[str],
-    name: str = "constitutional_critic",
-    description: str = "Evaluates responses against principles",
-    min_confidence: float = 0.7,
-    max_attempts: int = 3,
-    cache_size: int = 100,
-    priority: int = 1,
-    cost: float = 1.0,
-    system_prompt: str = "You are an expert at evaluating content against principles.",
+    model: Model,
+    principles: Optional[List[str]] = None,
+    system_prompt: Optional[str] = None,
     temperature: float = 0.7,
-    max_tokens: int = 1000,
-    critique_prompt_template: Optional[str] = None,
-    improvement_prompt_template: Optional[str] = None,
-    config: Optional[Union[Dict[str, Any], ConstitutionalCriticConfig]] = None,
-    **kwargs: Any,
+    **options: Any,
 ) -> ConstitutionalCritic:
-    """
-    Create a constitutional critic with the given parameters.
+    """Create a constitutional critic.
 
-    This factory function creates a configured constitutional critic instance
-    that evaluates responses against a set of principles.
+    This factory function creates a ConstitutionalCritic based on the paper
+    "Constitutional AI: Harmlessness from AI Feedback" (Bai et al., 2022).
+    It is registered with the registry system for dependency injection.
 
     Args:
-        llm_provider: Language model provider to use
-        principles: List of principles to evaluate responses against
-        name: Name of the critic
-        description: Description of the critic
-        min_confidence: Minimum confidence threshold
-        max_attempts: Maximum number of improvement attempts
-        cache_size: Size of the cache
-        priority: Priority of the critic
-        cost: Cost of using the critic
-        system_prompt: System prompt for the model
-        temperature: Temperature for model generation
-        max_tokens: Maximum tokens for model generation
-        critique_prompt_template: Optional custom template for critique prompts
-        improvement_prompt_template: Optional custom template for improvement prompts
-        config: Optional critic configuration (overrides other parameters)
-        **kwargs: Additional keyword arguments for the critic
+        model: The model to use for critiquing and improving text.
+        principles: The principles to evaluate text against.
+        system_prompt: The system prompt to use for the model.
+        temperature: The temperature to use for the model.
+        **options: Additional options to pass to the ConstitutionalCritic.
 
     Returns:
-        A configured constitutional critic
+        A ConstitutionalCritic instance.
 
     Raises:
-        ValueError: If principles is empty or invalid
-        TypeError: If llm_provider is not a valid language model
+        ImproverError: If the critic cannot be created.
     """
-    # Create configuration
-    if config is None:
-        config_dict = {
-            "name": name,
-            "description": description,
-            "min_confidence": min_confidence,
-            "max_attempts": max_attempts,
-            "cache_size": cache_size,
-            "priority": priority,
-            "cost": cost,
-            "principles": principles,
-            "system_prompt": system_prompt,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
+    start_time = time.time()
 
-        if critique_prompt_template:
-            config_dict["critique_prompt_template"] = critique_prompt_template
+    try:
+        # Log factory function call
+        logger.debug(
+            f"Creating ConstitutionalCritic with model {model.__class__.__name__ if model else None}, "
+            f"principles_count={len(principles) if principles else 'default'}, "
+            f"temperature={temperature}"
+        )
 
-        if improvement_prompt_template:
-            config_dict["improvement_prompt_template"] = improvement_prompt_template
+        # Validate parameters
+        if not model:
+            logger.error("No model provided to create_constitutional_critic")
+            raise ImproverError(
+                message="Model must be provided",
+                component="ConstitutionalCriticFactory",
+                operation="create_critic",
+                suggestions=[
+                    "Provide a valid model instance",
+                    "Check that the model implements the Model protocol",
+                ],
+                metadata={
+                    "principles_count": len(principles) if principles else 0,
+                    "temperature": temperature,
+                },
+            )
 
-        config = ConstitutionalCriticConfig(**config_dict)
-    elif isinstance(config, dict):
-        # Ensure principles are included in the config
-        if "principles" not in config and principles:
-            config["principles"] = principles
-        config = ConstitutionalCriticConfig(**config)
-    elif not isinstance(config, ConstitutionalCriticConfig):
-        raise TypeError("config must be a ConstitutionalCriticConfig or dict")
+        # Create the critic
+        critic = ConstitutionalCritic(
+            model=model,
+            principles=principles,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            **options,
+        )
 
-    # Create and return critic
-    return ConstitutionalCritic(
-        config=config,
-        llm_provider=llm_provider,
-    )
+        # Calculate processing time
+        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
+        # Log successful creation
+        logger.debug(
+            f"Successfully created ConstitutionalCritic with {len(critic.principles)} principles "
+            f"in {processing_time:.2f}ms"
+        )
 
-"""
-@misc{bai2022constitutionalaiharmlessnessai,
-      title={Constitutional AI: Harmlessness from AI Feedback},
-      author={Yuntao Bai and Saurav Kadavath and Sandipan Kundu and Amanda Askell and Jackson Kernion and Andy Jones and Anna Chen and Anna Goldie and Azalia Mirhoseini and Cameron McKinnon and Carol Chen and Catherine Olsson and Christopher Olah and Danny Hernandez and Dawn Drain and Deep Ganguli and Dustin Li and Eli Tran-Johnson and Ethan Perez and Jamie Kerr and Jared Mueller and Jeffrey Ladish and Joshua Landau and Kamal Ndousse and Kamile Lukosuite and Liane Lovitt and Michael Sellitto and Nelson Elhage and Nicholas Schiefer and Noemi Mercado and Nova DasSarma and Robert Lasenby and Robin Larson and Sam Ringer and Scott Johnston and Shauna Kravec and Sheer El Showk and Stanislav Fort and Tamera Lanham and Timothy Telleen-Lawton and Tom Conerly and Tom Henighan and Tristan Hume and Samuel R. Bowman and Zac Hatfield-Dodds and Ben Mann and Dario Amodei and Nicholas Joseph and Sam McCandlish and Tom Brown and Jared Kaplan},
-      year={2022},
-      eprint={2212.08073},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL},
-      url={https://arxiv.org/abs/2212.08073},
-}
-"""
+        return critic
+
+    except Exception as e:
+        # Calculate processing time
+        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+        # Log the error
+        log_error(e, logger, component="ConstitutionalCriticFactory", operation="create_critic")
+
+        # Raise as ImproverError with more context if not already an ImproverError
+        if not isinstance(e, ImproverError):
+            raise ImproverError(
+                message=f"Failed to create ConstitutionalCritic: {str(e)}",
+                component="ConstitutionalCriticFactory",
+                operation="create_critic",
+                suggestions=[
+                    "Check if the model is properly configured",
+                    "Verify that the principles are well-defined",
+                    "Try with a different model or temperature",
+                ],
+                metadata={
+                    "model_type": model.__class__.__name__ if model else None,
+                    "principles_count": len(principles) if principles else 0,
+                    "temperature": temperature,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "processing_time_ms": processing_time,
+                },
+            )
+        raise
