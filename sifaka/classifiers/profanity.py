@@ -89,8 +89,10 @@ class ProfanityClassifier:
             if self._custom_words:
                 profanity.profanity.add_censor_words(self._custom_words)
 
-            # Set censor character
-            profanity.profanity.set_censor_char(self._censor_char)
+            # Set censor character if the method exists
+            # Some versions of better_profanity might not have this method
+            if hasattr(profanity.profanity, "set_censor_char"):
+                profanity.profanity.set_censor_char(self._censor_char)
 
             return profanity.profanity
         except ImportError:

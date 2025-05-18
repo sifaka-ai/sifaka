@@ -223,9 +223,23 @@ result = chain.run()
 - **SelfRefineCritic**: When complex text requires multiple refinement iterations
 - **NCriticsCritic**: When you need comprehensive feedback from multiple perspectives
 
+## Documentation
+
+For more detailed information about Sifaka, check out the following documentation:
+
+- [Components Overview](docs/COMPONENTS.md) - Overview of all Sifaka components
+- [Chain Documentation](docs/CHAIN.md) - Detailed documentation for the Chain class
+- [Models Documentation](docs/MODELS.md) - Documentation for model integrations
+- [Validators Documentation](docs/VALIDATORS.md) - Documentation for validators
+- [Critics Documentation](docs/CRITICS.md) - Documentation for critics
+- [Retrievers Documentation](docs/RETRIEVERS.md) - Documentation for retrievers
+- [Classifiers Documentation](docs/CLASSIFIERS.md) - Documentation for classifiers
+- [API Reference](docs/API_REFERENCE.md) - Comprehensive API reference
+- [Architecture](docs/ARCHITECTURE.md) - Detailed architecture documentation with diagrams
+
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request. See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
 ## License
 

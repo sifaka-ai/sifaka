@@ -241,3 +241,162 @@ class TestChainExecution:
         assert len(mock_validator.validate_calls) == 1
         assert mock_validator.validate_calls[0] == "This is a generated response."
         assert len(mock_critic.improve_calls) == 0
+
+    def test_run_with_multiple_critics(self, mock_model) -> None:
+        """Test running a Chain with multiple critics."""
+        # Import the MockCritic class directly from the conftest module in the current directory
+        import sys
+        import os
+
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from conftest import MockCritic
+
+        # Create multiple critics
+        critic1 = MockCritic(name="Critic1")
+        critic1.set_improved_text("This is improved by critic 1.")
+
+        critic2 = MockCritic(name="Critic2")
+        critic2.set_improved_text("This is improved by critic 1 and 2.")
+
+        critic3 = MockCritic(name="Critic3")
+        critic3.set_improved_text("This is improved by all critics.")
+
+        # Set up the chain
+        mock_model.set_response("This is a generated response.")
+        chain = (
+            Chain()
+            .with_model(mock_model)
+            .with_prompt("Write a short story about a robot.")
+            .improve_with(critic1)
+            .improve_with(critic2)
+            .improve_with(critic3)
+        )
+        result = chain.run()
+
+        # Check the result
+        assert result.text == "This is improved by all critics."
+        assert result.passed is True
+        assert len(result.improvement_results) == 3
+
+        # Check that each critic was called with the output of the previous one
+        assert critic1.improve_calls[0] == "This is a generated response."
+        assert critic2.improve_calls[0] == "This is improved by critic 1."
+        assert critic3.improve_calls[0] == "This is improved by critic 1 and 2."
+
+    def test_model_error_handling(self, mock_model, monkeypatch) -> None:
+        """Test error handling when the model raises an error."""
+        from sifaka.errors import ModelError, ChainError
+
+        # Make the model raise an error
+        def mock_generate_error(*args, **kwargs):
+            # ModelError doesn't accept model_name parameter directly
+            error = ModelError("API error")
+            error.metadata["model_name"] = "mock_model"
+            raise error
+
+        monkeypatch.setattr(mock_model, "generate", mock_generate_error)
+
+        # Set up the chain
+        chain = Chain().with_model(mock_model).with_prompt("Write a short story about a robot.")
+
+        # Run the chain and check that the error is properly handled
+        with pytest.raises(ChainError) as excinfo:
+            chain.run()
+
+        # Check that the error contains useful information
+        error = excinfo.value
+        assert error.component == "Chain"
+        assert "model" in str(error).lower() or "Model" in str(error)
+        assert "API error" in str(error)
+
+    def test_validator_error_handling(self, mock_model, mock_validator, monkeypatch) -> None:
+        """Test error handling when a validator raises an error."""
+        from sifaka.errors import ValidationError
+
+        # Make the validator raise an error
+        def mock_validate_error(*args, **kwargs):
+            error = ValidationError("Validation failed with an error")
+            error.metadata["validator_name"] = "mock_validator"
+            raise error
+
+        monkeypatch.setattr(mock_validator, "validate", mock_validate_error)
+
+        # Set up the chain
+        mock_model.set_response("This is a generated response.")
+        chain = (
+            Chain()
+            .with_model(mock_model)
+            .with_prompt("Write a short story about a robot.")
+            .validate_with(mock_validator)
+        )
+
+        # Run the chain and check that the error is handled
+        # The Chain class catches the ValidationError and returns a Result with passed=False
+        # rather than propagating the error as a ChainError
+        result = chain.run()
+
+        # Check that the validation failed
+        assert result.passed is False
+        assert len(result.validation_results) > 0
+        assert "Validation failed with an error" in str(result.validation_results[0].message)
+
+    def test_critic_error_handling(self, mock_model, mock_critic, monkeypatch) -> None:
+        """Test error handling when a critic raises an error."""
+        from sifaka.errors import ImproverError
+
+        # Make the critic raise an error
+        def mock_improve_error(*args, **kwargs):
+            error = ImproverError("Improvement failed with an error")
+            error.metadata["improver_name"] = "mock_critic"
+            raise error
+
+        monkeypatch.setattr(mock_critic, "improve", mock_improve_error)
+
+        # Set up the chain
+        mock_model.set_response("This is a generated response.")
+        chain = (
+            Chain()
+            .with_model(mock_model)
+            .with_prompt("Write a short story about a robot.")
+            .improve_with(mock_critic)
+        )
+
+        # Run the chain and check that the error is handled
+        # The Chain class catches the ImproverError and returns a Result with the original text
+        # rather than propagating the error as a ChainError
+        result = chain.run()
+
+        # Check that the result contains the original text
+        assert result.text == "This is a generated response."
+        assert result.passed is True
+        assert len(result.improvement_results) > 0
+        assert "Improvement failed with an error" in str(result.improvement_results[0].message)
+
+    def test_chain_with_config_options(self, mock_model) -> None:
+        """Test running a Chain with configuration options."""
+        from sifaka.config import SifakaConfig, ModelConfig
+
+        # Create a custom configuration
+        config = SifakaConfig(
+            model=ModelConfig(
+                temperature=0.5,
+                max_tokens=100,
+                top_p=0.9,
+            ),
+            debug=True,
+        )
+
+        # Set up the chain with the configuration
+        mock_model.set_response("This is a generated response.")
+        chain = (
+            Chain(config).with_model(mock_model).with_prompt("Write a short story about a robot.")
+        )
+        result = chain.run()
+
+        # Check that the model was called with the correct options
+        assert result.text == "This is a generated response."
+        assert len(mock_model.generate_calls) == 1
+        options = mock_model.generate_calls[0][1]
+        assert options.get("temperature") == 0.5
+        assert options.get("max_tokens") == 100
+        assert options.get("top_p") == 0.9
