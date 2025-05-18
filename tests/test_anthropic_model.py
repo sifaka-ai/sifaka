@@ -5,11 +5,11 @@ This module contains tests for the Anthropic model implementation in Sifaka.
 """
 
 import os
-import pytest
-from unittest.mock import patch, MagicMock
-from typing import Dict, Any
+from unittest.mock import MagicMock, patch
 
-from sifaka.errors import ModelError, ModelAPIError, ConfigurationError
+import pytest
+
+from sifaka.errors import ConfigurationError, ModelAPIError, ModelError
 
 
 # Mock the anthropic module for testing
@@ -31,17 +31,11 @@ class MockAnthropicModule:
     class APIError(Exception):
         """Mock for the APIError class."""
 
-        pass
-
     class RateLimitError(Exception):
         """Mock for the RateLimitError class."""
 
-        pass
-
     class APIConnectionError(Exception):
         """Mock for the APIConnectionError class."""
-
-        pass
 
 
 # Patch the anthropic module
@@ -145,9 +139,12 @@ class TestAnthropicModel:
         assert result == "Generated text response"
 
         # Check that the client was called correctly
-        model.client.messages.create.assert_called_once_with(
-            model="claude-2", messages=[{"role": "user", "content": "Test prompt"}], temperature=0.7
-        )
+        # Note: The model now adds a default max_tokens parameter
+        call_args = model.client.messages.create.call_args[1]
+        assert call_args["model"] == "claude-2"
+        assert call_args["messages"] == [{"role": "user", "content": "Test prompt"}]
+        assert call_args["temperature"] == 0.7
+        assert call_args["max_tokens"] == 1000  # Default value
 
     def test_generate_with_options_conversion(self, mock_anthropic):
         """Test option conversion during generation."""
@@ -167,17 +164,16 @@ class TestAnthropicModel:
         # Generate text with options that need conversion
         result = model.generate(
             "Test prompt",
-            max_tokens=100,  # Should be converted to max_tokens_to_sample
+            max_tokens=100,  # This is now the correct parameter name
             stop=["END"],  # Should be converted to stop_sequences
         )
 
         # Check that the client was called with converted options
-        model.client.messages.create.assert_called_once_with(
-            model="claude-2",
-            messages=[{"role": "user", "content": "Test prompt"}],
-            max_tokens_to_sample=100,
-            stop_sequences=["END"],
-        )
+        call_args = model.client.messages.create.call_args[1]
+        assert call_args["model"] == "claude-2"
+        assert call_args["messages"] == [{"role": "user", "content": "Test prompt"}]
+        assert call_args["max_tokens"] == 100
+        assert call_args["stop_sequences"] == ["END"]
 
     def test_generate_rate_limit_error(self, mock_anthropic):
         """Test handling of rate limit errors during generation."""

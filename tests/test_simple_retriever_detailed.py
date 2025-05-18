@@ -7,7 +7,6 @@ to improve test coverage.
 
 from sifaka.retrievers.simple import SimpleRetriever
 
-
 # Mock documents for testing
 MOCK_DOCUMENTS = [
     "This is the first test document about cats and dogs.",

@@ -7,7 +7,7 @@ on toxic content datasets.
 """
 
 import importlib
-from typing import List, Any
+from typing import Any, List
 
 from sifaka.classifiers import ClassificationResult
 
@@ -46,7 +46,14 @@ class ToxicityClassifier:
     }
 
     # Priority order for labels (most severe first)
-    LABEL_PRIORITY = ["severe_toxic", "threat", "identity_attack", "toxic", "insult", "obscene"]
+    LABEL_PRIORITY = [
+        "severe_toxic",
+        "threat",
+        "identity_attack",
+        "toxic",
+        "insult",
+        "obscene",
+    ]
 
     def __init__(
         self,
@@ -220,7 +227,11 @@ class ToxicityClassifier:
                     ClassificationResult(
                         label="non_toxic",
                         confidence=1.0,
-                        metadata={"input_length": 0, "reason": "empty_text", "scores": {}},
+                        metadata={
+                            "input_length": 0,
+                            "reason": "empty_text",
+                            "scores": {},
+                        },
                     )
                 )
             else:

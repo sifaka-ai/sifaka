@@ -20,11 +20,11 @@ https://arxiv.org/abs/2212.08073
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
-from sifaka.models.base import Model
 from sifaka.critics.base import Critic
 from sifaka.errors import ImproverError
+from sifaka.models.base import Model
 from sifaka.registry import register_improver
 from sifaka.utils.error_handling import critic_context, log_error
 
@@ -291,7 +291,12 @@ class ConstitutionalCritic(Critic):
 
         except json.JSONDecodeError as e:
             # Log the error
-            log_error(e, logger, component="ConstitutionalCritic", operation="critique_json_parse")
+            log_error(
+                e,
+                logger,
+                component="ConstitutionalCritic",
+                operation="critique_json_parse",
+            )
 
             # Calculate processing time
             processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
@@ -531,7 +536,12 @@ def create_constitutional_critic(
         processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
         # Log the error
-        log_error(e, logger, component="ConstitutionalCriticFactory", operation="create_critic")
+        log_error(
+            e,
+            logger,
+            component="ConstitutionalCriticFactory",
+            operation="create_critic",
+        )
 
         # Raise as ImproverError with more context if not already an ImproverError
         if not isinstance(e, ImproverError):

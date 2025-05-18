@@ -8,7 +8,7 @@ using scikit-learn's Naive Bayes classifier with TF-IDF vectorization.
 import importlib
 import os
 import pickle
-from typing import List, Optional, Any
+from typing import Any, List, Optional
 
 from sifaka.classifiers import ClassificationResult
 
@@ -239,7 +239,9 @@ class SpamClassifier:
             classes = self._model.classes_
 
             # Create probabilities dictionary
-            probs_dict = {cls: float(prob) for cls, prob in zip(classes, probabilities)}
+            probs_dict = {
+                cls: float(prob) for cls, prob in zip(classes, probabilities, strict=False)
+            }
 
             # Determine label and confidence
             if "spam" in probs_dict and probs_dict["spam"] > self._threshold:
@@ -356,7 +358,7 @@ class SpamClassifier:
                 probs = probabilities[i]
 
                 # Create probabilities dictionary
-                probs_dict = {cls: float(prob) for cls, prob in zip(classes, probs)}
+                probs_dict = {cls: float(prob) for cls, prob in zip(classes, probs, strict=False)}
 
                 # Determine label and confidence
                 if "spam" in probs_dict and probs_dict["spam"] > self._threshold:

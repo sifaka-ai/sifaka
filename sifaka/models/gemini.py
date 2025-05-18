@@ -5,20 +5,20 @@ This module provides an implementation of the Model protocol for Google Gemini m
 """
 
 import os
-from typing import Optional, Any, Dict, Union
+from typing import Any, Dict, Optional
 
 try:
     import google.generativeai as genai
-    from google.api_core.exceptions import GoogleAPIError, ResourceExhausted, InvalidArgument
+    from google.api_core.exceptions import GoogleAPIError, InvalidArgument, ResourceExhausted
     from google.generativeai.types import GenerationConfig as GenAIGenerationConfig
 
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
 
-from sifaka.errors import ModelError, ModelAPIError, ConfigurationError
-from sifaka.registry import register_model
+from sifaka.errors import ConfigurationError, ModelAPIError, ModelError
 from sifaka.interfaces import Model
+from sifaka.registry import register_model
 
 
 class GeminiModel(Model):
@@ -53,6 +53,7 @@ class GeminiModel(Model):
             ModelError: If the API key is not provided and not available in the environment.
         """
         import logging
+
         from sifaka.utils.error_handling import log_error
 
         logger = logging.getLogger(__name__)
@@ -146,7 +147,8 @@ class GeminiModel(Model):
         """
         import logging
         import time
-        from sifaka.utils.error_handling import model_context, log_error
+
+        from sifaka.utils.error_handling import log_error, model_context
 
         logger = logging.getLogger(__name__)
 
@@ -306,7 +308,8 @@ class GeminiModel(Model):
         """
         import logging
         import time
-        from sifaka.utils.error_handling import model_context, log_error
+
+        from sifaka.utils.error_handling import log_error, model_context
 
         logger = logging.getLogger(__name__)
 
@@ -418,6 +421,7 @@ def create_gemini_model(model_name: str, **options: Any) -> Model:
         ModelError: If the API key is not provided and not available in the environment.
     """
     import logging
+
     from sifaka.utils.error_handling import log_error
 
     logger = logging.getLogger(__name__)

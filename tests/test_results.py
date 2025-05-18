@@ -4,10 +4,7 @@ Tests for the results module.
 This module contains tests for the result classes in the Sifaka framework.
 """
 
-import pytest
-from typing import Any, Dict, List, Optional
-
-from sifaka.results import ValidationResult, ImprovementResult, Result
+from sifaka.results import ImprovementResult, Result, ValidationResult
 
 
 class TestValidationResult:
@@ -261,7 +258,9 @@ class TestResult:
             passed=False,
             validation_results=[
                 ValidationResult(
-                    passed=False, message="Validation failed", issues=["Issue 1", "Issue 2"]
+                    passed=False,
+                    message="Validation failed",
+                    issues=["Issue 1", "Issue 2"],
                 )
             ],
             improvement_results=[],
@@ -291,7 +290,9 @@ class TestResult:
             validation_results=[
                 ValidationResult(passed=True, message="Validation 1 passed"),
                 ValidationResult(
-                    passed=False, message="Validation 2 failed", issues=["Issue 1", "Issue 2"]
+                    passed=False,
+                    message="Validation 2 failed",
+                    issues=["Issue 1", "Issue 2"],
                 ),
             ],
             improvement_results=[],
@@ -305,10 +306,14 @@ class TestResult:
             passed=False,
             validation_results=[
                 ValidationResult(
-                    passed=False, message="Validation 1 failed", issues=["Issue A", "Issue B"]
+                    passed=False,
+                    message="Validation 1 failed",
+                    issues=["Issue A", "Issue B"],
                 ),
                 ValidationResult(
-                    passed=False, message="Validation 2 failed", issues=["Issue C", "Issue D"]
+                    passed=False,
+                    message="Validation 2 failed",
+                    issues=["Issue C", "Issue D"],
                 ),
             ],
             improvement_results=[],

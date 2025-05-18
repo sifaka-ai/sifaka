@@ -6,8 +6,8 @@ These validators follow the Validator protocol defined in the chain module.
 """
 
 import re
-from typing import Optional, List, Dict, Any, Callable, Union
 from re import Pattern
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from sifaka.results import ValidationResult
 
@@ -221,8 +221,9 @@ def json_schema(
         True
     """
     try:
-        import jsonschema
         import json
+
+        import jsonschema
     except ImportError:
         raise ImportError(
             "JSON schema validation requires jsonschema. "
@@ -267,7 +268,9 @@ def json_schema(
         try:
             jsonschema.validate(instance=data, schema=schema)
             return ValidationResult(
-                passed=True, message="JSON is valid and matches the schema", _details={"data": data}
+                passed=True,
+                message="JSON is valid and matches the schema",
+                _details={"data": data},
             )
         except jsonschema.exceptions.ValidationError as e:
             return ValidationResult(

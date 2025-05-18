@@ -4,12 +4,13 @@ Tests for the validators module.
 This module contains tests for the validators in the Sifaka framework.
 """
 
-import pytest
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
-from sifaka.validators.base import BaseValidator, safe_validate
-from sifaka.validators import length, prohibited_content, json_format
+import pytest
+
 from sifaka.results import ValidationResult
+from sifaka.validators import json_format, length, prohibited_content
+from sifaka.validators.base import BaseValidator, safe_validate
 
 
 class TestBaseValidator:
@@ -55,7 +56,11 @@ class TestBaseValidator:
 
         validator = TestValidator(option1="value1")
         validator.configure(option2="value2", option3="value3")
-        assert validator._options == {"option1": "value1", "option2": "value2", "option3": "value3"}
+        assert validator._options == {
+            "option1": "value1",
+            "option2": "value2",
+            "option3": "value3",
+        }
 
     def test_validate_empty_text(self) -> None:
         """Test validating empty text."""

@@ -32,11 +32,11 @@ Example:
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
-from sifaka.models.base import Model
 from sifaka.critics.base import Critic
 from sifaka.errors import ImproverError
+from sifaka.models.base import Model
 from sifaka.registry import register_improver
 from sifaka.utils.error_handling import critic_context, log_error
 
@@ -123,7 +123,10 @@ class ReflexionCritic(Critic):
                         "Provide a valid model instance",
                         "Check that the model implements the Model protocol",
                     ],
-                    metadata={"reflection_rounds": reflection_rounds, "temperature": temperature},
+                    metadata={
+                        "reflection_rounds": reflection_rounds,
+                        "temperature": temperature,
+                    },
                 )
 
             if reflection_rounds < 1:
@@ -285,7 +288,7 @@ class ReflexionCritic(Critic):
                 ):
                     json_str = response[json_start:json_end]
                     critique = json.loads(json_str)
-                    logger.debug(f"ReflexionCritic: Successfully parsed JSON response")
+                    logger.debug("ReflexionCritic: Successfully parsed JSON response")
 
                 # Ensure all required fields are present
                 critique.setdefault("needs_improvement", True)
@@ -692,7 +695,10 @@ def create_reflexion_critic(
                     "Provide a valid model instance",
                     "Check that the model implements the Model protocol",
                 ],
-                metadata={"reflection_rounds": reflection_rounds, "temperature": temperature},
+                metadata={
+                    "reflection_rounds": reflection_rounds,
+                    "temperature": temperature,
+                },
             )
 
         if reflection_rounds < 1:

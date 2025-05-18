@@ -14,11 +14,11 @@ https://arxiv.org/abs/2310.18679
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
-from sifaka.models.base import Model
 from sifaka.critics.base import Critic
 from sifaka.errors import ImproverError
+from sifaka.models.base import Model
 from sifaka.registry import register_improver
 from sifaka.utils.error_handling import critic_context, log_error
 
@@ -844,7 +844,12 @@ class NCriticsCritic(Critic):
             processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
             # Log the error
-            log_error(e, logger, component="NCriticsCritic", operation="generate_improved_text")
+            log_error(
+                e,
+                logger,
+                component="NCriticsCritic",
+                operation="generate_improved_text",
+            )
 
             # Raise as ImproverError with more context
             raise ImproverError(

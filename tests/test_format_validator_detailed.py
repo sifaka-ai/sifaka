@@ -5,14 +5,12 @@ This module contains more comprehensive tests for the format validator
 to improve test coverage.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-import json
-from typing import Dict, Any, Callable
+from typing import Any, Dict
 
-from sifaka.validators.format import FormatValidator
+import pytest
+
 from sifaka.errors import ValidationError
-from sifaka.results import ValidationResult
+from sifaka.validators.format import FormatValidator
 
 
 # Mock jsonschema for testing
@@ -24,8 +22,6 @@ class MockJsonSchema:
 
         class ValidationError(Exception):
             """Mock for ValidationError."""
-
-            pass
 
     @staticmethod
     def validate(instance, schema):
@@ -77,7 +73,9 @@ class TestFormatValidatorDetailed:
             return {"valid": len(text) > 10, "reason": "length"}
 
         validator = FormatValidator(
-            format_type="custom", custom_validator=custom_validator, name="CustomValidator"
+            format_type="custom",
+            custom_validator=custom_validator,
+            name="CustomValidator",
         )
 
         assert validator.name == "CustomValidator"
@@ -284,7 +282,7 @@ class TestFormatValidatorDetailed:
                 "message": "Text is long enough" if is_valid else "Text is too short",
                 "details": {"length": len(text), "required_length": 10},
                 "issues": [] if is_valid else ["Text is too short"],
-                "suggestions": [] if is_valid else ["Add more content to make the text longer"],
+                "suggestions": ([] if is_valid else ["Add more content to make the text longer"]),
             }
 
         validator = FormatValidator(format_type="custom", custom_validator=custom_validator)

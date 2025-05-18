@@ -27,13 +27,14 @@ Example:
     ```
 """
 
-from typing import Dict, Any, Optional, List, Union, TypeVar
-from dataclasses import dataclass, field, asdict
 import json
-import yaml
-import os
 import logging
+import os
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any, Dict, List, Optional, TypeVar, Union
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -439,7 +440,11 @@ def _create_config_from_dict(config_dict: Dict[str, Any]) -> SifakaConfig:
 
     # Create main config
     return SifakaConfig(
-        model=model, validator=validator, critic=critic, retriever=retriever, **config_dict
+        model=model,
+        validator=validator,
+        critic=critic,
+        retriever=retriever,
+        **config_dict,
     )
 
 

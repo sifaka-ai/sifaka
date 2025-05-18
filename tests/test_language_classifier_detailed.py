@@ -5,12 +5,12 @@ This module contains more comprehensive tests for the language classifier
 to improve test coverage.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from typing import List, Any, Sequence
+from typing import Any, Sequence
+from unittest.mock import patch
 
-from sifaka.classifiers import ClassificationResult
-from sifaka.classifiers.language import LanguageClassifier, LanguageDetector
+import pytest
+
+from sifaka.classifiers.language import LanguageClassifier
 
 
 # Create a mock language detector for testing
@@ -101,7 +101,8 @@ class TestLanguageClassifierDetailed:
     def test_load_langdetect_error(self) -> None:
         """Test error handling when langdetect is not available."""
         with patch(
-            "importlib.import_module", side_effect=ImportError("No module named 'langdetect'")
+            "importlib.import_module",
+            side_effect=ImportError("No module named 'langdetect'"),
         ):
             classifier = LanguageClassifier()
 
@@ -198,7 +199,12 @@ class TestLanguageClassifierDetailed:
         detector = MockLanguageDetector()
         classifier = LanguageClassifier(detector=detector)
 
-        texts = ["This is English text.", "This is french text.", "", "This is german text."]
+        texts = [
+            "This is English text.",
+            "This is french text.",
+            "",
+            "This is german text.",
+        ]
 
         results = classifier.batch_classify(texts)
 

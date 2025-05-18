@@ -4,12 +4,12 @@ Factory functions for creating retrievers and retrieval augmenters.
 This module provides factory functions for creating retrievers and retrieval augmenters.
 """
 
-from typing import List, Dict, Any, Optional, Callable, Union
 import logging
+from typing import Any, Callable, List, Optional, Union
 
+from sifaka.errors import RetrieverError
 from sifaka.models.base import Model
 from sifaka.retrievers.base import Retriever
-from sifaka.errors import RetrieverError
 
 logger = logging.getLogger(__name__)
 

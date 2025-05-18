@@ -5,12 +5,13 @@ This module contains tests for the RetrievalAugmenter in the Sifaka framework.
 """
 
 import json
-import pytest
 from typing import List, Optional
 from unittest.mock import MagicMock, patch
 
-from sifaka.retrievers.augmenter import RetrievalAugmenter
+import pytest
+
 from sifaka.errors import RetrieverError
+from sifaka.retrievers.augmenter import RetrievalAugmenter
 
 
 class MockRetriever:

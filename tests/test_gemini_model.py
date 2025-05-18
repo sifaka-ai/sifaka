@@ -5,11 +5,11 @@ This module contains tests for the Gemini model implementation in Sifaka.
 """
 
 import os
-import pytest
-from unittest.mock import patch, MagicMock
-from typing import Dict, Any
+from unittest.mock import MagicMock, patch
 
-from sifaka.errors import ModelError, ModelAPIError, ConfigurationError
+import pytest
+
+from sifaka.errors import ConfigurationError, ModelAPIError, ModelError
 
 
 # Mock the google.generativeai module for testing
@@ -42,17 +42,11 @@ class MockExceptions:
     class GoogleAPIError(Exception):
         """Mock for the GoogleAPIError class."""
 
-        pass
-
     class ResourceExhausted(GoogleAPIError):
         """Mock for the ResourceExhausted class."""
 
-        pass
-
     class InvalidArgument(GoogleAPIError):
         """Mock for the InvalidArgument class."""
-
-        pass
 
 
 # Patch the necessary modules
@@ -64,18 +58,26 @@ def mock_genai():
 
     with patch.dict(
         "sys.modules",
-        {"google.generativeai": mock_genai, "google.api_core.exceptions": mock_exceptions},
+        {
+            "google.generativeai": mock_genai,
+            "google.api_core.exceptions": mock_exceptions,
+        },
     ):
         # Set the GEMINI_AVAILABLE flag to True
         with patch("sifaka.models.gemini.GEMINI_AVAILABLE", True):
             # Also patch the specific imports
             with patch("sifaka.models.gemini.genai", mock_genai):
-                with patch("sifaka.models.gemini.GoogleAPIError", mock_exceptions.GoogleAPIError):
+                with patch(
+                    "sifaka.models.gemini.GoogleAPIError",
+                    mock_exceptions.GoogleAPIError,
+                ):
                     with patch(
-                        "sifaka.models.gemini.ResourceExhausted", mock_exceptions.ResourceExhausted
+                        "sifaka.models.gemini.ResourceExhausted",
+                        mock_exceptions.ResourceExhausted,
                     ):
                         with patch(
-                            "sifaka.models.gemini.InvalidArgument", mock_exceptions.InvalidArgument
+                            "sifaka.models.gemini.InvalidArgument",
+                            mock_exceptions.InvalidArgument,
                         ):
                             with patch(
                                 "sifaka.models.gemini.GenAIGenerationConfig",
@@ -208,8 +210,7 @@ class TestGeminiModel:
     def test_generate_resource_exhausted(self, mock_genai):
         """Test handling of resource exhausted errors during generation."""
         # Import here after mocking
-        from sifaka.models.gemini import GeminiModel
-        from sifaka.models.gemini import ResourceExhausted
+        from sifaka.models.gemini import GeminiModel, ResourceExhausted
 
         # Set up the mock model to raise a resource exhausted error
         model = GeminiModel("gemini-pro", api_key="test-key")
@@ -233,8 +234,7 @@ class TestGeminiModel:
     def test_generate_invalid_argument(self, mock_genai):
         """Test handling of invalid argument errors during generation."""
         # Import here after mocking
-        from sifaka.models.gemini import GeminiModel
-        from sifaka.models.gemini import InvalidArgument
+        from sifaka.models.gemini import GeminiModel, InvalidArgument
 
         # Set up the mock model to raise an invalid argument error
         model = GeminiModel("gemini-pro", api_key="test-key")
@@ -281,8 +281,7 @@ class TestGeminiModel:
     def test_count_tokens_error(self, mock_genai):
         """Test error handling during token counting."""
         # Import here after mocking
-        from sifaka.models.gemini import GeminiModel
-        from sifaka.models.gemini import GoogleAPIError
+        from sifaka.models.gemini import GeminiModel, GoogleAPIError
 
         # Set up the mock model to raise an error
         model = GeminiModel("gemini-pro", api_key="test-key")

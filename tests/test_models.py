@@ -4,10 +4,11 @@ Tests for the models module.
 This module contains tests for the models in the Sifaka framework.
 """
 
-import pytest
 import os  # noqa
 from typing import Any, Dict, List, Optional  # noqa
-from unittest.mock import patch, MagicMock  # noqa
+from unittest.mock import MagicMock, patch  # noqa
+
+import pytest
 
 from sifaka.models.base import create_model
 from sifaka.models.openai import OpenAIModel, create_openai_model

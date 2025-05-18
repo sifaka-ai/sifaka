@@ -7,7 +7,7 @@ filter with good accuracy.
 """
 
 import importlib
-from typing import List, Optional, Set, Any
+from typing import Any, List, Optional, Set
 
 from sifaka.classifiers import ClassificationResult
 

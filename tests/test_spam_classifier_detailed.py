@@ -5,13 +5,11 @@ This module contains more comprehensive tests for the spam classifier
 to improve test coverage.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
 import os
-import pickle
-from typing import Dict, Any, Tuple
+from unittest.mock import MagicMock, patch
 
-from sifaka.classifiers import ClassificationResult
+import pytest
+
 from sifaka.classifiers.spam import SpamClassifier
 
 
@@ -190,7 +188,10 @@ class TestSpamClassifierDetailed:
 
     def test_load_scikit_learn_error(self) -> None:
         """Test error handling when scikit-learn is not available."""
-        with patch("importlib.import_module", side_effect=ImportError("No module named 'sklearn'")):
+        with patch(
+            "importlib.import_module",
+            side_effect=ImportError("No module named 'sklearn'"),
+        ):
             classifier = SpamClassifier()
 
             with pytest.raises(ImportError) as excinfo:
@@ -407,7 +408,9 @@ class TestSpamClassifierDetailed:
 
         # Patch _initialize to raise an exception
         with patch.object(
-            SpamClassifier, "_initialize", side_effect=RuntimeError("Initialization failed")
+            SpamClassifier,
+            "_initialize",
+            side_effect=RuntimeError("Initialization failed"),
         ):
             result = classifier.classify("Test text")
 

@@ -5,9 +5,9 @@ This module contains tests for the Self-Refine critic in the Sifaka framework.
 """
 
 import json
+from unittest.mock import patch
+
 import pytest
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch
 
 from sifaka.critics.self_refine import SelfRefineCritic
 from sifaka.errors import ImproverError
@@ -86,7 +86,11 @@ class TestSelfRefineCritic:
             assert result["message"] == "Text needs improvement"
             assert result["issues"] == ["Issue 1", "Issue 2"]
             assert result["suggestions"] == ["Suggestion 1", "Suggestion 2"]
-            assert result["evaluation_criteria"] == ["Clarity", "Coherence", "Correctness"]
+            assert result["evaluation_criteria"] == [
+                "Clarity",
+                "Coherence",
+                "Correctness",
+            ]
             assert "refinement_history" in result
             assert "processing_time_ms" in result
 

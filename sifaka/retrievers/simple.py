@@ -5,7 +5,7 @@ This module provides a simple retriever that returns documents based on keyword 
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List
 
 from sifaka.retrievers.base import Retriever
 

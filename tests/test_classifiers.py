@@ -4,9 +4,8 @@ Tests for the classifiers module.
 This module contains tests for the classifiers in the Sifaka framework.
 """
 
-import pytest
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch
+from typing import List
+from unittest.mock import patch
 
 from sifaka.classifiers import ClassificationResult, Classifier
 

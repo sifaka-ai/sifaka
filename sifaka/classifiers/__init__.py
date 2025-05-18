@@ -5,8 +5,8 @@ This module provides classifier classes that categorize text into specific class
 Classifiers can be used directly or adapted into validators using the classifier validator.
 """
 
-from typing import Dict, Any, List, Optional, Protocol, runtime_checkable
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 
 @dataclass
@@ -85,12 +85,13 @@ class Classifier(Protocol):
         ...
 
 
+from sifaka.classifiers.language import LanguageClassifier
+from sifaka.classifiers.profanity import ProfanityClassifier
+
 # Import classifier implementations
 from sifaka.classifiers.sentiment import SentimentClassifier
-from sifaka.classifiers.toxicity import ToxicityClassifier
 from sifaka.classifiers.spam import SpamClassifier
-from sifaka.classifiers.profanity import ProfanityClassifier
-from sifaka.classifiers.language import LanguageClassifier
+from sifaka.classifiers.toxicity import ToxicityClassifier
 
 __all__ = [
     "Classifier",

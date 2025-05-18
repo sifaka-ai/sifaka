@@ -5,10 +5,10 @@ This module provides a wrapper for ValidationResult that ensures compatibility
 between the Sifaka implementation and the interface protocol.
 """
 
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
-from sifaka.results import ValidationResult as SifakaValidationResult
 from sifaka.interfaces import ValidationResult as ValidationResultProtocol
+from sifaka.results import ValidationResult as SifakaValidationResult
 
 
 class ValidationResultWrapper(ValidationResultProtocol):

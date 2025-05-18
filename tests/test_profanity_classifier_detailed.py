@@ -5,11 +5,11 @@ This module contains more comprehensive tests for the profanity classifier
 to improve test coverage.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from typing import List, Set, Any
+from typing import List
+from unittest.mock import MagicMock, patch
 
-from sifaka.classifiers import ClassificationResult
+import pytest
+
 from sifaka.classifiers.profanity import ProfanityClassifier
 
 
@@ -24,7 +24,6 @@ class MockProfanity:
 
     def load_censor_words(self):
         """Mock for load_censor_words method."""
-        pass
 
     def add_censor_words(self, custom_words: List[str]):
         """Mock for add_censor_words method."""
@@ -95,7 +94,8 @@ class TestProfanityClassifierDetailed:
     def test_load_profanity_error(self) -> None:
         """Test error handling when better_profanity is not available."""
         with patch(
-            "importlib.import_module", side_effect=ImportError("No module named 'better_profanity'")
+            "importlib.import_module",
+            side_effect=ImportError("No module named 'better_profanity'"),
         ):
             classifier = ProfanityClassifier()
 

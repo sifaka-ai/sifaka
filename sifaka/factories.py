@@ -7,15 +7,11 @@ without creating circular dependencies.
 """
 
 import logging
-from typing import Optional, Any, Dict, List, Union, Type, TypeVar, cast
+from typing import Any, Optional, Union
 
-from sifaka.interfaces import Model, Validator, Improver
-from sifaka.registry import (
-    get_model_factory,
-    get_validator_factory,
-    get_improver_factory,
-)
-from sifaka.config import SifakaConfig, ModelConfig, ValidatorConfig, CriticConfig
+from sifaka.config import CriticConfig, ModelConfig, ValidatorConfig
+from sifaka.interfaces import Improver, Model, Validator
+from sifaka.registry import get_improver_factory, get_model_factory, get_validator_factory
 
 # Logger
 logger = logging.getLogger(__name__)
@@ -23,8 +19,6 @@ logger = logging.getLogger(__name__)
 
 class FactoryError(Exception):
     """Error raised when a factory function fails."""
-
-    pass
 
 
 def create_model(

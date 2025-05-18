@@ -4,14 +4,15 @@ Tests for the Retrieval-Enhanced critic.
 This module contains tests for the Retrieval-Enhanced critic in the Sifaka framework.
 """
 
-import pytest
 from typing import List, Optional
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sifaka.critics.retrieval_enhanced import RetrievalEnhancedCritic
-from sifaka.retrievers.augmenter import RetrievalAugmenter
 from sifaka.errors import ImproverError
 from sifaka.results import ImprovementResult
+from sifaka.retrievers.augmenter import RetrievalAugmenter
 
 
 class MockRetriever:

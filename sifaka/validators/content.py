@@ -4,16 +4,16 @@ Content validator for Sifaka.
 This module provides a validator that checks if text contains prohibited content.
 """
 
-import re
 import logging
-from typing import List, Optional, Any
+import re
 from re import Pattern
+from typing import Any, List, Optional
 
-from sifaka.results import ValidationResult as SifakaValidationResult
 from sifaka.errors import ValidationError
 from sifaka.registry import register_validator
+from sifaka.results import ValidationResult as SifakaValidationResult
+from sifaka.utils.error_handling import log_error, validation_context
 from sifaka.validators.base import BaseValidator
-from sifaka.utils.error_handling import validation_context, log_error
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -442,7 +442,12 @@ def prohibited_content(
         processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
         # Log the error
-        log_error(e, logger, component="ContentValidatorFunction", operation="prohibited_content")
+        log_error(
+            e,
+            logger,
+            component="ContentValidatorFunction",
+            operation="prohibited_content",
+        )
 
         # Re-raise as ValidationError with more context
         if not isinstance(e, ValidationError):

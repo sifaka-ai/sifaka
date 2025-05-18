@@ -5,9 +5,10 @@ This module contains tests for the Self-RAG critic in the Sifaka framework.
 """
 
 import json
-import pytest
 from typing import List, Optional
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from sifaka.critics.self_rag import SelfRAGCritic, create_self_rag_critic
 from sifaka.errors import ImproverError, RetrieverError

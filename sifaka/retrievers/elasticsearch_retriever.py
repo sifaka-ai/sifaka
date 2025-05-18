@@ -4,18 +4,19 @@ Elasticsearch retriever for Sifaka.
 This module provides a retriever that uses Elasticsearch for document retrieval.
 """
 
-from typing import List, Dict, Any, Optional, Callable, Union
 import logging
+from typing import Any, Callable, List
 
 # Import Elasticsearch conditionally to avoid hard dependency
 try:
     from elasticsearch import Elasticsearch
+
     ELASTICSEARCH_AVAILABLE = True
 except ImportError:
     ELASTICSEARCH_AVAILABLE = False
 
-from sifaka.retrievers.base import Retriever
 from sifaka.errors import RetrieverError
+from sifaka.retrievers.base import Retriever
 
 logger = logging.getLogger(__name__)
 
@@ -120,23 +121,20 @@ class ElasticsearchRetriever(Retriever):
         """
         # Generate embedding for the query
         query_embedding = self.embedding_model(query)
-        
+
         # Perform vector search in Elasticsearch
         search_query = {
             "knn": {
                 "field": self.embedding_field,
                 "query_vector": query_embedding,
                 "k": self.top_k,
-                "num_candidates": self.top_k * 2
+                "num_candidates": self.top_k * 2,
             },
-            "_source": [self.text_field]
+            "_source": [self.text_field],
         }
-        
-        response = self.es_client.search(
-            index=self.es_index,
-            body=search_query
-        )
-        
+
+        response = self.es_client.search(index=self.es_index, body=search_query)
+
         # Extract document texts from the response
         documents = [hit["_source"][self.text_field] for hit in response["hits"]["hits"]]
         return documents
@@ -152,39 +150,25 @@ class ElasticsearchRetriever(Retriever):
         """
         # Generate embedding for the query
         query_embedding = self.embedding_model(query)
-        
+
         # Perform hybrid search in Elasticsearch
         search_query = {
             "query": {
-                "bool": {
-                    "should": [
-                        {
-                            "match": {
-                                self.text_field: {
-                                    "query": query,
-                                    "boost": 0.3
-                                }
-                            }
-                        }
-                    ]
-                }
+                "bool": {"should": [{"match": {self.text_field: {"query": query, "boost": 0.3}}}]}
             },
             "knn": {
                 "field": self.embedding_field,
                 "query_vector": query_embedding,
                 "k": self.top_k,
                 "num_candidates": self.top_k * 2,
-                "boost": 0.7
+                "boost": 0.7,
             },
             "_source": [self.text_field],
-            "size": self.top_k
+            "size": self.top_k,
         }
-        
-        response = self.es_client.search(
-            index=self.es_index,
-            body=search_query
-        )
-        
+
+        response = self.es_client.search(index=self.es_index, body=search_query)
+
         # Extract document texts from the response
         documents = [hit["_source"][self.text_field] for hit in response["hits"]["hits"]]
         return documents

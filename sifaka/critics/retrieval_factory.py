@@ -5,18 +5,17 @@ This module provides factory functions for creating retrieval-enhanced versions 
 """
 
 import logging
-from typing import Any, Optional, List, cast
+from typing import Any, List, Optional, cast
 
-from sifaka.models.base import Model
 from sifaka.critics.base import Critic
 from sifaka.critics.constitutional import create_constitutional_critic
 from sifaka.critics.n_critics import create_n_critics_critic
-from sifaka.critics.reflexion import create_reflexion_critic
-from sifaka.critics.self_refine import create_self_refine_critic
 from sifaka.critics.prompt import create_prompt_critic
+from sifaka.critics.reflexion import create_reflexion_critic
 from sifaka.critics.retrieval_enhanced import enhance_critic_with_retrieval
+from sifaka.critics.self_refine import create_self_refine_critic
+from sifaka.models.base import Model
 from sifaka.retrievers.augmenter import RetrievalAugmenter
-from sifaka.errors import ImproverError
 
 logger = logging.getLogger(__name__)
 

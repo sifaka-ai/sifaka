@@ -32,7 +32,7 @@ Example:
     ```
 """
 
-from typing import Protocol, Any
+from typing import Any, Protocol
 
 
 class Model(Protocol):
@@ -140,19 +140,19 @@ def create_model(provider: str, model_name: str = "", **options: Any) -> Model:
         print(response)
         ```
     """
-    from sifaka.errors import ModelNotFoundError, ConfigurationError
+    from sifaka.errors import ConfigurationError, ModelNotFoundError
     from sifaka.factories import create_model as factory_create_model
 
     # Use the factory function from sifaka.factories
     try:
         return factory_create_model(provider, model_name, **options)
-    except Exception as e:
+    except Exception:
         # Fall back to direct imports if factory fails
         provider = provider.lower()
 
         if provider == "openai":
             try:
-                from sifaka.models.openai import OpenAIModel, OPENAI_AVAILABLE
+                from sifaka.models.openai import OPENAI_AVAILABLE, OpenAIModel
 
                 if not OPENAI_AVAILABLE:
                     raise ImportError("OpenAI package not available")

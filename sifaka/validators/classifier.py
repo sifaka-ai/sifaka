@@ -8,15 +8,15 @@ in validation chains.
 
 import logging
 import time
-from typing import List, Optional, Any, Callable
 from dataclasses import dataclass, field
+from typing import Any, Callable, List, Optional
 
-from sifaka.results import ValidationResult as SifakaValidationResult
+from sifaka.classifiers import Classifier
 from sifaka.errors import ValidationError
 from sifaka.registry import register_validator
-from sifaka.classifiers import Classifier
+from sifaka.results import ValidationResult as SifakaValidationResult
+from sifaka.utils.error_handling import log_error, validation_context
 from sifaka.validators.base import BaseValidator
-from sifaka.utils.error_handling import validation_context, log_error
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -87,7 +87,12 @@ class ClassifierValidatorConfig:
 
         except Exception as e:
             # Log the error
-            log_error(e, logger, component="ClassifierValidatorConfig", operation="initialization")
+            log_error(
+                e,
+                logger,
+                component="ClassifierValidatorConfig",
+                operation="initialization",
+            )
 
             # Re-raise as ValidationError with more context if not already a ValidationError
             if not isinstance(e, ValidationError):
@@ -240,7 +245,7 @@ class ClassifierValidator(BaseValidator):
                         "Provide either valid_labels or invalid_labels",
                     ],
                     metadata={
-                        "classifier_type": classifier.__class__.__name__ if classifier else None,
+                        "classifier_type": (classifier.__class__.__name__ if classifier else None),
                         "threshold": threshold,
                         "valid_labels": valid_labels,
                         "invalid_labels": invalid_labels,
@@ -586,7 +591,7 @@ def create_classifier_validator(
                     "Check that the extraction function is properly implemented",
                 ],
                 metadata={
-                    "classifier_type": classifier.__class__.__name__ if classifier else None,
+                    "classifier_type": (classifier.__class__.__name__ if classifier else None),
                     "threshold": threshold,
                     "valid_labels": valid_labels,
                     "invalid_labels": invalid_labels,
@@ -693,7 +698,7 @@ def classifier_validator(
                     "Check that the extraction function is properly implemented",
                 ],
                 metadata={
-                    "classifier_type": classifier.__class__.__name__ if classifier else None,
+                    "classifier_type": (classifier.__class__.__name__ if classifier else None),
                     "threshold": threshold,
                     "valid_labels": valid_labels,
                     "invalid_labels": invalid_labels,

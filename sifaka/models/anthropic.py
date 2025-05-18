@@ -5,19 +5,18 @@ This module provides an implementation of the Model protocol for Anthropic model
 """
 
 import os
-from typing import Optional, Any
+from typing import Any, Optional
 
 try:
-    import anthropic
-    from anthropic import Anthropic, APIError, RateLimitError, APIConnectionError
+    from anthropic import Anthropic, APIConnectionError, APIError, RateLimitError
 
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
-from sifaka.errors import ModelError, ModelAPIError, ConfigurationError
-from sifaka.registry import register_model
+from sifaka.errors import ConfigurationError, ModelAPIError, ModelError
 from sifaka.interfaces import Model
+from sifaka.registry import register_model
 
 
 class AnthropicModel(Model):
@@ -90,18 +89,21 @@ class AnthropicModel(Model):
         """
         import logging
         import time
-        from sifaka.utils.error_handling import model_context, log_error
+
+        from sifaka.utils.error_handling import log_error, model_context
 
         logger = logging.getLogger(__name__)
 
         # Merge default options with provided options
         merged_options = {**self.options, **options}
 
-        # Convert max_tokens to max_tokens_to_sample if present
+        # Extract max_tokens from merged_options if present
         if "max_tokens" in merged_options:
-            merged_options["max_tokens_to_sample"] = merged_options.pop("max_tokens")
+            max_tokens = merged_options.pop("max_tokens")
+        else:
+            max_tokens = 1000  # Default value
 
-        # Convert stop to stop_sequences if present
+        # Convert stop to stop_sequences if present (for backward compatibility)
         if "stop" in merged_options:
             merged_options["stop_sequences"] = merged_options.pop("stop")
 
@@ -129,14 +131,26 @@ class AnthropicModel(Model):
                     "model_name": self.model_name,
                     "prompt_length": len(prompt),
                     "temperature": merged_options.get("temperature"),
-                    "max_tokens": merged_options.get("max_tokens_to_sample"),
+                    "max_tokens": max_tokens,
                 },
             ):
-                response = self.client.messages.create(
-                    model=self.model_name,
-                    messages=[{"role": "user", "content": prompt}],
-                    **merged_options,
-                )
+                # Extract specific parameters that are supported
+                stop_sequences = merged_options.get("stop_sequences", None)
+
+                # Build the API call parameters
+                api_params = {
+                    "model": self.model_name,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": max_tokens,
+                    "temperature": merged_options.get("temperature", 0.7),
+                }
+
+                # Add stop_sequences if provided
+                if stop_sequences:
+                    api_params["stop_sequences"] = stop_sequences
+
+                # Make the API call
+                response = self.client.messages.create(**api_params)
 
                 # Calculate processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
@@ -254,7 +268,8 @@ class AnthropicModel(Model):
         """
         import logging
         import time
-        from sifaka.utils.error_handling import model_context, log_error
+
+        from sifaka.utils.error_handling import log_error, model_context
 
         logger = logging.getLogger(__name__)
 
@@ -348,6 +363,7 @@ def create_anthropic_model(model_name: str, **options: Any) -> Model:
         ModelError: If the API key is not provided and not available in the environment.
     """
     import logging
+
     from sifaka.utils.error_handling import log_error
 
     logger = logging.getLogger(__name__)

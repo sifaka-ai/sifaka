@@ -4,30 +4,27 @@ Tests for the error handling utilities.
 This module contains tests for the error handling utilities in the Sifaka framework.
 """
 
-import logging
 import pytest
-from typing import Any, Dict, List, Optional
 
+from sifaka.errors import (
+    ChainError,
+    ImproverError,
+    ModelError,
+    RetrieverError,
+    SifakaError,
+    ValidationError,
+)
 from sifaka.utils.error_handling import (
-    format_error_message,
-    log_error,
+    chain_context,
     convert_exception,
+    critic_context,
     error_context,
-    with_error_handling,
-    validation_context,
+    format_error_message,
     improvement_context,
     model_context,
     retrieval_context,
-    critic_context,
-    chain_context,
-)
-from sifaka.errors import (
-    SifakaError,
-    ValidationError,
-    ImproverError,
-    ModelError,
-    ChainError,
-    RetrieverError,
+    validation_context,
+    with_error_handling,
 )
 
 
@@ -213,7 +210,9 @@ class TestSpecializedContextManagers:
         suggestions = ["Check input format", "Verify data types"]
         with pytest.raises(ValidationError) as excinfo:
             with validation_context(
-                validator_name="TestValidator", suggestions=suggestions, operation="validate_text"
+                validator_name="TestValidator",
+                suggestions=suggestions,
+                operation="validate_text",
             ):
                 raise ValueError("Test error")
 
@@ -240,7 +239,8 @@ class TestSpecializedContextManagers:
         """Test improvement_context with additional metadata."""
         with pytest.raises(ImproverError) as excinfo:
             with improvement_context(
-                improver_name="TestImprover", metadata={"text_length": 100, "attempt": 2}
+                improver_name="TestImprover",
+                metadata={"text_length": 100, "attempt": 2},
             ):
                 # The specialized context managers don't yield the context object
                 # This is a design issue in the implementation

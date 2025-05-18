@@ -5,7 +5,7 @@ This module provides various retry strategies for handling transient errors.
 """
 
 import random
-from typing import Callable, List, Optional, Type, Union
+from typing import List, Optional, Type, Union
 
 from sifaka.retry.base import RetryStrategy
 

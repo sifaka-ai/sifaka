@@ -13,11 +13,11 @@ https://arxiv.org/abs/2310.11511
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List, Callable, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
-from sifaka.models.base import Model
 from sifaka.critics.base import Critic
 from sifaka.errors import ImproverError, RetrieverError
+from sifaka.models.base import Model
 from sifaka.registry import register_improver
 from sifaka.retrievers.base import Retriever
 from sifaka.utils.error_handling import critic_context, log_error
@@ -118,7 +118,10 @@ class SelfRAGCritic(Critic):
                         "Use a retriever that implements the Retriever protocol",
                         "Provide a function that takes a query string and returns a list of passages",
                     ],
-                    metadata={"model_type": model.__class__.__name__, "temperature": temperature},
+                    metadata={
+                        "model_type": model.__class__.__name__,
+                        "temperature": temperature,
+                    },
                 )
 
             # Store configuration
@@ -260,7 +263,7 @@ class SelfRAGCritic(Critic):
                 ):
                     json_str = response[json_start:json_end]
                     critique = json.loads(json_str)
-                    logger.debug(f"SelfRAGCritic: Successfully parsed JSON response")
+                    logger.debug("SelfRAGCritic: Successfully parsed JSON response")
 
                 # Ensure all required fields are present
                 critique.setdefault("needs_improvement", True)
@@ -646,7 +649,10 @@ class SelfRAGCritic(Critic):
                     except Exception as e:
                         # Log the error
                         log_error(
-                            e, logger, component="SelfRAGCritic", operation="final_reflection"
+                            e,
+                            logger,
+                            component="SelfRAGCritic",
+                            operation="final_reflection",
                         )
                         logger.warning(
                             f"SelfRAGCritic: Error generating final reflection: {str(e)}"
@@ -745,7 +751,7 @@ def create_self_rag_critic(
         )
 
         # Log successful creation
-        logger.debug(f"Successfully created SelfRAGCritic")
+        logger.debug("Successfully created SelfRAGCritic")
 
         return critic
 

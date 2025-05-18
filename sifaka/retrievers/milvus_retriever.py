@@ -4,8 +4,8 @@ Milvus retriever for Sifaka.
 This module provides a retriever that uses Milvus for document retrieval.
 """
 
-from typing import List, Dict, Any, Optional, Callable, Union, TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING, Any, Callable, Dict, List
 
 # Import Milvus conditionally to avoid hard dependency
 try:
@@ -30,8 +30,8 @@ except ImportError:
             ) -> List[List[Dict[str, Any]]]: ...
 
 
-from sifaka.retrievers.base import Retriever
 from sifaka.errors import RetrieverError
+from sifaka.retrievers.base import Retriever
 
 logger = logging.getLogger(__name__)
 
