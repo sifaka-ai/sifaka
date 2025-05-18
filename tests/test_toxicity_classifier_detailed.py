@@ -5,11 +5,10 @@ This module contains more comprehensive tests for the toxicity classifier
 to improve test coverage.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from typing import Dict, Any
+from unittest.mock import MagicMock, patch
 
-from sifaka.classifiers import ClassificationResult
+import pytest
+
 from sifaka.classifiers.toxicity import ToxicityClassifier
 
 
@@ -22,9 +21,9 @@ class TestToxicityClassifierDetailed:
             threshold=0.7,
             model_name="unbiased",
             name="custom_toxicity",
-            description="Custom toxicity classifier"
+            description="Custom toxicity classifier",
         )
-        
+
         assert classifier.name == "custom_toxicity"
         assert classifier.description == "Custom toxicity classifier"
         # Access private attributes for testing
@@ -37,7 +36,7 @@ class TestToxicityClassifierDetailed:
         """Test classifying empty text."""
         classifier = ToxicityClassifier()
         result = classifier.classify("")
-        
+
         assert result.label == "non_toxic"
         assert result.confidence == 1.0
         assert result.metadata["input_length"] == 0
@@ -52,10 +51,10 @@ class TestToxicityClassifierDetailed:
         mock_detoxify_class = MagicMock()
         mock_detoxify.Detoxify.return_value = mock_detoxify_class
         mock_import.return_value = mock_detoxify
-        
+
         classifier = ToxicityClassifier()
         model = classifier._load_detoxify()
-        
+
         # Check that the import was called correctly
         mock_import.assert_called_once_with("detoxify")
         # Check that Detoxify was initialized with the correct model type
@@ -68,13 +67,13 @@ class TestToxicityClassifierDetailed:
         """Test handling of ImportError when loading Detoxify."""
         # Make the import raise an ImportError
         mock_import.side_effect = ImportError("No module named 'detoxify'")
-        
+
         classifier = ToxicityClassifier()
-        
+
         # Check that the correct error is raised
         with pytest.raises(ImportError) as excinfo:
             classifier._load_detoxify()
-        
+
         assert "detoxify package is required" in str(excinfo.value)
         assert "pip install detoxify" in str(excinfo.value)
 
@@ -85,13 +84,13 @@ class TestToxicityClassifierDetailed:
         mock_detoxify = MagicMock()
         mock_detoxify.Detoxify.side_effect = RuntimeError("Failed to initialize model")
         mock_import.return_value = mock_detoxify
-        
+
         classifier = ToxicityClassifier()
-        
+
         # Check that the correct error is raised
         with pytest.raises(RuntimeError) as excinfo:
             classifier._load_detoxify()
-        
+
         assert "Failed to load Detoxify model" in str(excinfo.value)
 
     @patch.object(ToxicityClassifier, "_load_detoxify")
@@ -100,23 +99,23 @@ class TestToxicityClassifierDetailed:
         # Create a mock model
         mock_model = MagicMock()
         mock_load_detoxify.return_value = mock_model
-        
+
         classifier = ToxicityClassifier()
         assert classifier._initialized is False
         assert classifier._model is None
-        
+
         # Initialize the model
         classifier._initialize()
-        
+
         # Check that the model was loaded
         mock_load_detoxify.assert_called_once()
         assert classifier._initialized is True
         assert classifier._model == mock_model
-        
+
         # Reset the mock and call initialize again
         mock_load_detoxify.reset_mock()
         classifier._initialize()
-        
+
         # Check that the model was not loaded again
         mock_load_detoxify.assert_not_called()
 
@@ -128,7 +127,7 @@ class TestToxicityClassifierDetailed:
         mock_model = MagicMock()
         classifier._model = mock_model
         classifier._initialized = True
-        
+
         # Set up the mock model to return toxicity scores
         mock_model.predict.return_value = {
             "toxic": 0.8,
@@ -136,18 +135,18 @@ class TestToxicityClassifierDetailed:
             "obscene": 0.6,
             "threat": 0.1,
             "insult": 0.7,
-            "identity_attack": 0.2
+            "identity_attack": 0.2,
         }
-        
+
         # Classify some text
         result = classifier.classify("This is a test text.")
-        
+
         # Check that initialize was called
         mock_initialize.assert_called_once()
-        
+
         # Check that the model was called with the correct text
         mock_model.predict.assert_called_once_with("This is a test text.")
-        
+
         # Check the result
         assert result.label == "toxic"  # toxic has the highest score above threshold
         assert result.confidence == 0.8
@@ -163,7 +162,7 @@ class TestToxicityClassifierDetailed:
         mock_model = MagicMock()
         classifier._model = mock_model
         classifier._initialized = True
-        
+
         # Set up the mock model to return low toxicity scores
         mock_model.predict.return_value = {
             "toxic": 0.1,
@@ -171,12 +170,12 @@ class TestToxicityClassifierDetailed:
             "obscene": 0.2,
             "threat": 0.01,
             "insult": 0.15,
-            "identity_attack": 0.03
+            "identity_attack": 0.03,
         }
-        
+
         # Classify some text
         result = classifier.classify("This is a friendly message.")
-        
+
         # Check the result
         assert result.label == "non_toxic"
         assert result.confidence == 0.8  # 1.0 - max(scores) = 1.0 - 0.2 = 0.8
@@ -191,10 +190,10 @@ class TestToxicityClassifierDetailed:
         mock_model.predict.side_effect = RuntimeError("Model prediction failed")
         classifier._model = mock_model
         classifier._initialized = True
-        
+
         # Classify some text
         result = classifier.classify("This is a test text.")
-        
+
         # Check that the result indicates an error
         assert result.label == "non_toxic"
         assert result.confidence == 0.5  # Default confidence for errors

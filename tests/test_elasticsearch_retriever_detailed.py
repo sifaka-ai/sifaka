@@ -5,15 +5,13 @@ This module contains more comprehensive tests for the Elasticsearch retriever
 to improve test coverage.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+from unittest.mock import MagicMock, patch
 
-from sifaka.retrievers.elasticsearch_retriever import (
-    ElasticsearchRetriever,
-    ELASTICSEARCH_AVAILABLE,
-)
+import pytest
+
 from sifaka.errors import RetrieverError
+from sifaka.retrievers.elasticsearch_retriever import ElasticsearchRetriever
 
 
 # Mock embedding model for testing
@@ -42,7 +40,11 @@ def create_mock_es_response(num_hits: int = 3) -> Dict[str, Any]:
         "took": 5,
         "timed_out": False,
         "_shards": {"total": 1, "successful": 1, "skipped": 0, "failed": 0},
-        "hits": {"total": {"value": num_hits, "relation": "eq"}, "max_score": 0.9, "hits": hits},
+        "hits": {
+            "total": {"value": num_hits, "relation": "eq"},
+            "max_score": 0.9,
+            "hits": hits,
+        },
     }
 
 

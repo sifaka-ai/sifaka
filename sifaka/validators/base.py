@@ -44,13 +44,13 @@ Example:
     ```
 """
 
-import time
 import logging
-from typing import Any, Dict, Optional, Protocol, runtime_checkable, TypeVar
+import time
+from typing import Any, Optional, Protocol, TypeVar, runtime_checkable
 
+from sifaka.interfaces import ValidationResult, Validator
 from sifaka.results import ValidationResult as SifakaValidationResult
-from sifaka.utils.error_handling import validation_context, log_error
-from sifaka.interfaces import Validator, ValidationResult
+from sifaka.utils.error_handling import log_error, validation_context
 from sifaka.utils.validation_wrapper import wrap_validation_result
 
 # Configure logger

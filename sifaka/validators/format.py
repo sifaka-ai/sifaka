@@ -5,16 +5,16 @@ This module provides a validator that checks if text follows a specific format.
 """
 
 import json
-import re
 import logging
+import re
 import time
-from typing import Optional, Dict, Any, Callable
+from typing import Any, Callable, Dict, Optional
 
-from sifaka.results import ValidationResult as SifakaValidationResult
 from sifaka.errors import ValidationError
 from sifaka.registry import register_validator
+from sifaka.results import ValidationResult as SifakaValidationResult
+from sifaka.utils.error_handling import log_error, validation_context
 from sifaka.validators.base import BaseValidator
-from sifaka.utils.error_handling import validation_context, log_error
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -82,7 +82,11 @@ class FormatValidator(BaseValidator):
             },
         ):
             # Validate format type
-            if self.format_type not in [self.FORMAT_JSON, self.FORMAT_MARKDOWN, self.FORMAT_CUSTOM]:
+            if self.format_type not in [
+                self.FORMAT_JSON,
+                self.FORMAT_MARKDOWN,
+                self.FORMAT_CUSTOM,
+            ]:
                 logger.error(f"{self.name}: Unsupported format type: {format_type}")
                 raise ValidationError(
                     message=f"Unsupported format type: {format_type}",
@@ -233,7 +237,10 @@ class FormatValidator(BaseValidator):
                 operation="json_parsing",
                 message_prefix="Failed to parse JSON",
                 suggestions=["Check if the text is valid JSON"],
-                metadata={"text_length": len(text), "has_schema": self.schema is not None},
+                metadata={
+                    "text_length": len(text),
+                    "has_schema": self.schema is not None,
+                },
             ):
                 data = json.loads(text)
                 logger.debug(f"{self.name}: Successfully parsed JSON")
@@ -252,7 +259,12 @@ class FormatValidator(BaseValidator):
                         logger.debug(f"{self.name}: JSON successfully validated against schema")
                 except self.jsonschema.exceptions.ValidationError as e:
                     # Log schema validation error
-                    log_error(e, logger, component="FormatValidator", operation="schema_validation")
+                    log_error(
+                        e,
+                        logger,
+                        component="FormatValidator",
+                        operation="schema_validation",
+                    )
 
                     # Create issues and suggestions
                     issues = [f"JSON does not match schema: {str(e)}"]
@@ -589,7 +601,12 @@ def create_json_format_validator(
 
     except Exception as e:
         # Log the error
-        log_error(e, logger, component="JSONFormatValidatorFactory", operation="create_validator")
+        log_error(
+            e,
+            logger,
+            component="JSONFormatValidatorFactory",
+            operation="create_validator",
+        )
 
         # Re-raise as ValidationError with more context
         if not isinstance(e, ValidationError):
@@ -693,7 +710,10 @@ def create_markdown_format_validator(name: Optional[str] = None, **options: Any)
     except Exception as e:
         # Log the error
         log_error(
-            e, logger, component="MarkdownFormatValidatorFactory", operation="create_validator"
+            e,
+            logger,
+            component="MarkdownFormatValidatorFactory",
+            operation="create_validator",
         )
 
         # Re-raise as ValidationError with more context
@@ -732,7 +752,10 @@ def markdown_format(name: Optional[str] = None) -> FormatValidator:
     except Exception as e:
         # Log the error
         log_error(
-            e, logger, component="MarkdownFormatValidatorFactory", operation="markdown_format"
+            e,
+            logger,
+            component="MarkdownFormatValidatorFactory",
+            operation="markdown_format",
         )
 
         # Re-raise as ValidationError with more context
@@ -749,7 +772,9 @@ def markdown_format(name: Optional[str] = None) -> FormatValidator:
 
 @register_validator("custom_format")
 def create_custom_format_validator(
-    validator: Callable[[str], Dict[str, Any]], name: Optional[str] = None, **options: Any
+    validator: Callable[[str], Dict[str, Any]],
+    name: Optional[str] = None,
+    **options: Any,
 ) -> FormatValidator:
     """Create a custom format validator.
 
@@ -786,7 +811,12 @@ def create_custom_format_validator(
 
     except Exception as e:
         # Log the error
-        log_error(e, logger, component="CustomFormatValidatorFactory", operation="create_validator")
+        log_error(
+            e,
+            logger,
+            component="CustomFormatValidatorFactory",
+            operation="create_validator",
+        )
 
         # Re-raise as ValidationError with more context
         if not isinstance(e, ValidationError):
@@ -831,7 +861,12 @@ def custom_format(
 
     except Exception as e:
         # Log the error
-        log_error(e, logger, component="CustomFormatValidatorFactory", operation="custom_format")
+        log_error(
+            e,
+            logger,
+            component="CustomFormatValidatorFactory",
+            operation="custom_format",
+        )
 
         # Re-raise as ValidationError with more context
         if not isinstance(e, ValidationError):

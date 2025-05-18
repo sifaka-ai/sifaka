@@ -4,14 +4,13 @@ Base retry functionality for Sifaka.
 This module provides the base retry functionality for handling transient errors.
 """
 
-import time
 import logging
+import time
 from abc import ABC, abstractmethod
 from functools import wraps
 from typing import Any, Callable, List, Optional, Type, TypeVar, Union
 
 from sifaka.errors import RetryError
-
 
 # Type for the function to retry
 T = TypeVar("T")
@@ -37,7 +36,6 @@ class RetryStrategy(ABC):
         Returns:
             The delay in seconds before the next retry attempt.
         """
-        pass
 
     @abstractmethod
     def should_retry(self, attempt: int, exception: Exception) -> bool:
@@ -50,7 +48,6 @@ class RetryStrategy(ABC):
         Returns:
             True if the operation should be retried, False otherwise.
         """
-        pass
 
 
 def retry(

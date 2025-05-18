@@ -4,12 +4,11 @@ Tests for the validator rules.
 This module contains tests for the functional validators in the Sifaka framework.
 """
 
-import pytest
 import re
-from typing import Any, Dict, List, Optional
 
-from sifaka.validators.rules import length, content, format, json_schema
-from sifaka.results import ValidationResult
+import pytest
+
+from sifaka.validators.rules import content, format, json_schema, length
 
 
 class TestLengthValidator:

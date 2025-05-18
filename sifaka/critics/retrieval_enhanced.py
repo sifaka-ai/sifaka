@@ -5,7 +5,7 @@ This module provides base classes and utilities for enhancing critics with retri
 """
 
 import logging
-from typing import Dict, Any, Optional, TypeVar
+from typing import Any, Dict, Optional, TypeVar
 
 from sifaka.critics.base import Critic
 from sifaka.errors import ImproverError, RetrieverError
@@ -109,7 +109,12 @@ class RetrievalEnhancedCritic(Critic):
 
         except Exception as e:
             # Log the error
-            log_error(e, logger, component="RetrievalEnhancedCritic", operation="initialization")
+            log_error(
+                e,
+                logger,
+                component="RetrievalEnhancedCritic",
+                operation="initialization",
+            )
 
             # Raise as ImproverError with more context
             raise ImproverError(
@@ -139,9 +144,7 @@ class RetrievalEnhancedCritic(Critic):
             True if the text is valid, False otherwise.
         """
         # Check if the base critic has a validate method
-        if hasattr(self.base_critic, "validate") and callable(
-            getattr(self.base_critic, "validate")
-        ):
+        if hasattr(self.base_critic, "validate") and callable(self.base_critic.validate):
             return bool(self.base_critic.validate(text))
         # Default to True if the base critic doesn't have a validate method
         return True
@@ -159,6 +162,7 @@ class RetrievalEnhancedCritic(Critic):
             ImproverError: If the text cannot be critiqued.
         """
         import time
+
         from sifaka.utils.error_handling import improvement_context, log_error
 
         start_time = time.time()
@@ -335,6 +339,7 @@ class RetrievalEnhancedCritic(Critic):
             ImproverError: If the text cannot be improved.
         """
         import time
+
         from sifaka.utils.error_handling import improvement_context, log_error
 
         start_time = time.time()
@@ -371,7 +376,10 @@ class RetrievalEnhancedCritic(Critic):
                 improver_name=self.name,
                 operation="create_prompt",
                 message_prefix="Failed to create improvement prompt",
-                suggestions=["Check the critique format", "Verify retrieval context structure"],
+                suggestions=[
+                    "Check the critique format",
+                    "Verify retrieval context structure",
+                ],
                 metadata={
                     "text_length": len(text),
                     "critique_keys": (
@@ -565,6 +573,7 @@ def enhance_critic_with_retrieval(
         ImproverError: If the critic or retrieval augmenter is not provided.
     """
     import logging
+
     from sifaka.utils.error_handling import log_error
 
     logger = logging.getLogger(__name__)
@@ -596,7 +605,12 @@ def enhance_critic_with_retrieval(
 
     except Exception as e:
         # Log the error
-        log_error(e, logger, component="RetrievalEnhancedCriticFactory", operation="enhance_critic")
+        log_error(
+            e,
+            logger,
+            component="RetrievalEnhancedCriticFactory",
+            operation="enhance_critic",
+        )
 
         # Raise as ImproverError with more context
         raise ImproverError(

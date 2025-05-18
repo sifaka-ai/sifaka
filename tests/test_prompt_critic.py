@@ -5,9 +5,9 @@ This module contains tests for the Prompt critic in the Sifaka framework.
 """
 
 import json
+from unittest.mock import patch
+
 import pytest
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch
 
 from sifaka.critics.prompt import PromptCritic, create_prompt_critic
 from sifaka.errors import ImproverError

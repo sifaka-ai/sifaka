@@ -4,14 +4,13 @@ Tests for the retry module.
 This module contains tests for the retry functionality in the Sifaka framework.
 """
 
-import pytest
-import time
-from typing import Any, List, Optional, Type, Union
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
+import pytest
+
+from sifaka.errors import RetryError
 from sifaka.retry.base import RetryStrategy, retry
 from sifaka.retry.strategies import ExponentialBackoff, FixedInterval, LinearBackoff
-from sifaka.errors import RetryError
 
 
 class TestRetryStrategy:

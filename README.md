@@ -237,6 +237,36 @@ For more detailed information about Sifaka, check out the following documentatio
 - [API Reference](docs/API_REFERENCE.md) - Comprehensive API reference
 - [Architecture](docs/ARCHITECTURE.md) - Detailed architecture documentation with diagrams
 
+## Development
+
+### Code Formatting
+
+Sifaka uses automated code formatting to maintain consistent code style. We use the following tools:
+
+- **Black**: Code formatting
+- **isort**: Import sorting
+- **autoflake**: Removing unused imports
+- **Ruff**: Linting with automatic fixes
+- **mypy**: Type checking
+
+To set up the development environment:
+
+```bash
+# Install development dependencies
+make install-dev
+
+# Format code
+make format
+
+# Run linting checks
+make lint
+
+# Run tests
+make test
+```
+
+The CI pipeline will automatically format code in pull requests, so you don't need to worry about formatting issues.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request. See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.

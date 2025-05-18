@@ -5,7 +5,7 @@ This module provides the base retriever class that all retrievers should inherit
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List
 
 
 class Retriever(ABC):
@@ -25,4 +25,3 @@ class Retriever(ABC):
         Returns:
             A list of relevant document texts.
         """
-        pass

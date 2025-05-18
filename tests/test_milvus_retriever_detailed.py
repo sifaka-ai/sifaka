@@ -5,12 +5,13 @@ This module contains more comprehensive tests for the Milvus retriever
 to improve test coverage.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+from unittest.mock import MagicMock, patch
 
-from sifaka.retrievers.milvus_retriever import MilvusRetriever
+import pytest
+
 from sifaka.errors import RetrieverError
+from sifaka.retrievers.milvus_retriever import MilvusRetriever
 
 
 # Mock embedding model for testing

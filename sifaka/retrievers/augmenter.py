@@ -6,11 +6,11 @@ This module provides a generic retrieval augmenter that can be used by multiple 
 
 import json
 import logging
-from typing import List, Dict, Any, Optional, Callable, Union, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
+from sifaka.errors import RetrieverError
 from sifaka.models.base import Model
 from sifaka.retrievers.base import Retriever
-from sifaka.errors import RetrieverError
 
 logger = logging.getLogger(__name__)
 

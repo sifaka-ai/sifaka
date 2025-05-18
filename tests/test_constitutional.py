@@ -5,9 +5,9 @@ This module contains tests for the Constitutional critic in the Sifaka framework
 """
 
 import json
+from unittest.mock import patch
+
 import pytest
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch
 
 from sifaka.critics.constitutional import ConstitutionalCritic, create_constitutional_critic
 from sifaka.errors import ImproverError

@@ -5,12 +5,11 @@ This module contains tests for the GuardrailsValidator in Sifaka.
 """
 
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from typing import Dict, Any, List
 
 from sifaka.errors import ValidationError
-from sifaka.results import ValidationResult
 
 
 # Mock the guardrails module for testing
@@ -167,7 +166,8 @@ class TestGuardrailsValidator:
 
         # Patch importlib.import_module to raise an ImportError
         with patch(
-            "importlib.import_module", side_effect=ImportError("No module named 'guardrails'")
+            "importlib.import_module",
+            side_effect=ImportError("No module named 'guardrails'"),
         ):
             validator = GuardrailsValidator()
 

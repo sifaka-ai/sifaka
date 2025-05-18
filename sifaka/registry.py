@@ -22,16 +22,9 @@ Example:
 
 import importlib
 import logging
-from typing import Dict, Optional, Any, TypeVar, Callable, List, Set
+from typing import Callable, Dict, List, Optional, Set, TypeVar
 
-from sifaka.interfaces import (
-    Model,
-    Validator,
-    Improver,
-    ModelFactory,
-    ValidatorFactory,
-    ImproverFactory,
-)
+from sifaka.interfaces import ImproverFactory, ModelFactory, ValidatorFactory
 
 # Type variable for generic functions
 T = TypeVar("T")
@@ -82,7 +75,11 @@ class Registry:
 
         # Lazy imports to avoid circular dependencies
         self._lazy_imports: Dict[str, List[str]] = {
-            "model": ["sifaka.models.openai", "sifaka.models.anthropic", "sifaka.models.gemini"],
+            "model": [
+                "sifaka.models.openai",
+                "sifaka.models.anthropic",
+                "sifaka.models.gemini",
+            ],
             "validator": [
                 "sifaka.validators.length",
                 "sifaka.validators.content",

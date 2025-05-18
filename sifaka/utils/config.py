@@ -6,7 +6,7 @@ This module provides functions for loading and saving configuration.
 
 import json
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from sifaka.errors import ConfigurationError
 

@@ -5,12 +5,12 @@ This module contains more comprehensive tests for the base model module
 to improve test coverage.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from typing import Any
+from unittest.mock import MagicMock, patch
 
+import pytest
+
+from sifaka.errors import ConfigurationError, ModelNotFoundError
 from sifaka.models.base import create_model
-from sifaka.errors import ModelNotFoundError, ConfigurationError
 
 
 class TestBaseModelDetailed:

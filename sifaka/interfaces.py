@@ -7,7 +7,7 @@ without creating circular dependencies.
 """
 
 from abc import abstractmethod
-from typing import Protocol, Any, Dict, Tuple, TypeVar, Generic, Optional, runtime_checkable
+from typing import Any, Dict, Generic, Optional, Protocol, Tuple, TypeVar, runtime_checkable
 
 # Type variables for generic protocols
 T = TypeVar("T", covariant=True)

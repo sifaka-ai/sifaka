@@ -62,13 +62,13 @@ Example:
     ```
 """
 
-from typing import Union, List, Dict, Any, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
 
-from sifaka.interfaces import Model, Validator, Improver
-from sifaka.factories import create_model, create_model_from_string
-from sifaka.results import Result
-from sifaka.errors import ChainError
 from sifaka.config import SifakaConfig
+from sifaka.errors import ChainError
+from sifaka.factories import create_model, create_model_from_string
+from sifaka.interfaces import Improver, Model, Validator
+from sifaka.results import Result
 
 
 class Chain:
@@ -469,6 +469,7 @@ class Chain:
         """
         import logging
         import time
+
         from sifaka.utils.error_handling import chain_context, log_error
 
         logger = logging.getLogger(__name__)
@@ -508,7 +509,10 @@ class Chain:
             with chain_context(
                 operation="generation",
                 message_prefix="Failed to generate text",
-                suggestions=["Check the model configuration", "Verify the prompt format"],
+                suggestions=[
+                    "Check the model configuration",
+                    "Verify the prompt format",
+                ],
                 metadata={
                     "model_type": self._model.__class__.__name__,
                     "prompt_length": len(self._prompt),
@@ -529,7 +533,10 @@ class Chain:
                     with chain_context(
                         operation=f"validation_{i}",
                         message_prefix=f"Failed to validate text with {validator.__class__.__name__}",
-                        suggestions=["Check the validator configuration", "Verify the text format"],
+                        suggestions=[
+                            "Check the validator configuration",
+                            "Verify the text format",
+                        ],
                         metadata={
                             "validator_type": validator.__class__.__name__,
                             "text_length": len(text),
@@ -540,8 +547,8 @@ class Chain:
                         # Cast the result to the expected type
                         typed_result: ResultsValidationResult = ResultsValidationResult(
                             passed=result.passed,
-                            message=result.message if hasattr(result, "message") else "",
-                            _details=result.details if hasattr(result, "details") else {},
+                            message=(result.message if hasattr(result, "message") else ""),
+                            _details=(result.details if hasattr(result, "details") else {}),
                             issues=result.issues if hasattr(result, "issues") else None,
                             suggestions=(
                                 result.suggestions if hasattr(result, "suggestions") else None
@@ -583,7 +590,10 @@ class Chain:
                         issues=[
                             f"Validator {validator.__class__.__name__} failed with error: {str(e)}"
                         ],
-                        suggestions=["Check the validator configuration", "Verify the text format"],
+                        suggestions=[
+                            "Check the validator configuration",
+                            "Verify the text format",
+                        ],
                     )
                     validation_results.append(error_result)
 
@@ -606,7 +616,10 @@ class Chain:
                     with chain_context(
                         operation=f"improvement_{i}",
                         message_prefix=f"Failed to improve text with {improver.__class__.__name__}",
-                        suggestions=["Check the improver configuration", "Verify the text format"],
+                        suggestions=[
+                            "Check the improver configuration",
+                            "Verify the text format",
+                        ],
                         metadata={
                             "improver_type": improver.__class__.__name__,
                             "text_length": len(text),
@@ -620,8 +633,8 @@ class Chain:
                                 _original_text=result.original_text,
                                 _improved_text=result.improved_text,
                                 _changes_made=result.changes_made,
-                                message=result.message if hasattr(result, "message") else "",
-                                _details=result.details if hasattr(result, "details") else {},
+                                message=(result.message if hasattr(result, "message") else ""),
+                                _details=(result.details if hasattr(result, "details") else {}),
                             )
                         )
                         improvement_results.append(typed_improvement_result)

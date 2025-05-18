@@ -18,11 +18,11 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 
-from sifaka.results import ValidationResult as SifakaValidationResult
 from sifaka.errors import ValidationError
 from sifaka.registry import register_validator
+from sifaka.results import ValidationResult as SifakaValidationResult
+from sifaka.utils.error_handling import log_error, validation_context
 from sifaka.validators.base import BaseValidator
-from sifaka.utils.error_handling import validation_context, log_error
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -626,7 +626,12 @@ def create_guardrails_validator(
         processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
         # Log the error
-        log_error(e, logger, component="GuardrailsValidatorFactory", operation="create_validator")
+        log_error(
+            e,
+            logger,
+            component="GuardrailsValidatorFactory",
+            operation="create_validator",
+        )
 
         # Re-raise as ValidationError with more context if not already a ValidationError
         if not isinstance(e, ValidationError):
@@ -736,7 +741,10 @@ def guardrails_validator(
 
         # Log the error
         log_error(
-            e, logger, component="GuardrailsValidatorFunction", operation="guardrails_validator"
+            e,
+            logger,
+            component="GuardrailsValidatorFunction",
+            operation="guardrails_validator",
         )
 
         # Re-raise as ValidationError with more context if not already a ValidationError

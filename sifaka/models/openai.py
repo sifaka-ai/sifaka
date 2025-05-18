@@ -34,11 +34,11 @@ Example:
 """
 
 import os
-from typing import Optional, Any
+from typing import Any, Optional
 
 try:
     import tiktoken
-    from openai import OpenAI, APIError, RateLimitError, APIConnectionError
+    from openai import APIConnectionError, APIError, OpenAI, RateLimitError
 
     # No need to import specific types for now
 
@@ -46,7 +46,7 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
-from sifaka.errors import ModelError, ModelAPIError, ConfigurationError
+from sifaka.errors import ConfigurationError, ModelAPIError, ModelError
 from sifaka.registry import register_model
 
 
@@ -197,7 +197,8 @@ class OpenAIModel:
             ```
         """
         import logging
-        from sifaka.utils.error_handling import model_context, log_error
+
+        from sifaka.utils.error_handling import log_error, model_context
 
         logger = logging.getLogger(__name__)
 
@@ -578,7 +579,8 @@ class OpenAIModel:
             ```
         """
         import logging
-        from sifaka.utils.error_handling import model_context, log_error
+
+        from sifaka.utils.error_handling import log_error, model_context
 
         logger = logging.getLogger(__name__)
 
@@ -649,7 +651,8 @@ class OpenAIModel:
                 such as if tiktoken is not installed or the model is not supported.
         """
         import logging
-        from sifaka.utils.error_handling import model_context, log_error
+
+        from sifaka.utils.error_handling import log_error, model_context
 
         logger = logging.getLogger(__name__)
 
@@ -681,7 +684,7 @@ class OpenAIModel:
 
                     # Fall back to cl100k_base, which is used by gpt-4 and gpt-3.5-turbo
                     encoding = tiktoken.get_encoding("cl100k_base")
-                    logger.debug(f"Successfully got fallback encoding 'cl100k_base'")
+                    logger.debug("Successfully got fallback encoding 'cl100k_base'")
                     return encoding
 
         except Exception as e:
@@ -698,7 +701,10 @@ class OpenAIModel:
                     "Try using a different encoding method",
                     "Update to the latest version of tiktoken",
                 ],
-                metadata={"model_name": self.model_name, "error_type": type(e).__name__},
+                metadata={
+                    "model_name": self.model_name,
+                    "error_type": type(e).__name__,
+                },
             )
 
 
@@ -746,6 +752,7 @@ def create_openai_model(model_name: str, **options: Any) -> OpenAIModel:
         ```
     """
     import logging
+
     from sifaka.utils.error_handling import log_error
 
     logger = logging.getLogger(__name__)

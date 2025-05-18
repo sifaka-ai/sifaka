@@ -5,13 +5,13 @@ This module provides a validator that checks if text meets length requirements.
 """
 
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
 
-from sifaka.results import ValidationResult as SifakaValidationResult
 from sifaka.errors import ValidationError
 from sifaka.registry import register_validator
+from sifaka.results import ValidationResult as SifakaValidationResult
+from sifaka.utils.error_handling import log_error, validation_context
 from sifaka.validators.base import BaseValidator
-from sifaka.utils.error_handling import validation_context, log_error
 
 # Configure logger
 logger = logging.getLogger(__name__)

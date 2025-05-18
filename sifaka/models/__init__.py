@@ -31,6 +31,7 @@ Example:
 """
 
 from typing import Any
+
 from sifaka.models.base import Model, create_model
 from sifaka.registry import register_model
 
@@ -39,7 +40,7 @@ __all__ = ["Model", "create_model"]
 
 # OpenAI
 try:
-    from sifaka.models.openai import OpenAIModel, OPENAI_AVAILABLE, create_openai_model
+    from sifaka.models.openai import OPENAI_AVAILABLE
 
     if OPENAI_AVAILABLE:
         __all__.append("OpenAIModel")
@@ -49,7 +50,7 @@ except ImportError:
 
 # Anthropic
 try:
-    from sifaka.models.anthropic import AnthropicModel, create_anthropic_model
+    pass
 
     __all__.append("AnthropicModel")
     __all__.append("create_anthropic_model")
@@ -58,7 +59,7 @@ except ImportError:
 
 # Google Gemini
 try:
-    from sifaka.models.gemini import GeminiModel, create_gemini_model
+    pass
 
     __all__.append("GeminiModel")
     __all__.append("create_gemini_model")

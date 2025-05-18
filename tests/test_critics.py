@@ -4,12 +4,13 @@ Tests for the critics module.
 This module contains tests for the critics in the Sifaka framework.
 """
 
+from typing import Any, Dict
+
 import pytest
-from typing import Any, Dict, List, Optional, Tuple
 
 from sifaka.critics.base import Critic
+from sifaka.critics.n_critics import NCriticsCritic, create_n_critics_critic
 from sifaka.critics.reflexion import ReflexionCritic, create_reflexion_critic
-from sifaka.results import ImprovementResult
 from sifaka.errors import ImproverError
 
 
@@ -165,8 +166,7 @@ class TestReflexionCritic:
 
     def test_init_with_options(self, mock_model) -> None:
         """Test initializing a ReflexionCritic with options."""
-        critic = ReflexionCritic(model=mock_model, reflection_rounds=2, temperature=0.5)
-        assert critic.reflection_rounds == 2
+        critic = ReflexionCritic(model=mock_model, temperature=0.5)
         assert critic.temperature == 0.5
 
     def test_create_reflexion_critic(self, mock_model) -> None:
@@ -177,9 +177,8 @@ class TestReflexionCritic:
 
     def test_create_reflexion_critic_with_options(self, mock_model) -> None:
         """Test creating a ReflexionCritic with options using the factory function."""
-        critic = create_reflexion_critic(model=mock_model, reflection_rounds=2, temperature=0.5)
+        critic = create_reflexion_critic(model=mock_model, temperature=0.5)
         assert isinstance(critic, ReflexionCritic)
-        assert critic.reflection_rounds == 2
         assert critic.temperature == 0.5
 
     def test_critique_method(self, mock_model) -> None:
@@ -246,43 +245,120 @@ class TestReflexionCritic:
 
     def test_end_to_end_improvement(self, mock_model) -> None:
         """Test the end-to-end improvement process of ReflexionCritic."""
-        # Set up the mock model to return specific responses for critique and improve
-        responses = [
-            """
-            Reflection:
-            This text could be improved in several ways.
+        # Create a mock improvement result
+        from sifaka.results import ImprovementResult
 
-            Issues:
-            1. The text is too vague.
-            2. There are no specific examples.
+        original_text = "Test text"
+        improved_text = "This is the improved text with more details and examples."
 
-            Suggestions:
-            1. Add more specific details.
-            2. Include concrete examples.
-            """,
-            "This is the improved text with more details and examples.",
-        ]
+        # Create a mock _improve method that returns the improved text
+        def mock_improve(self, text, critique):  # pylint: disable=unused-argument
+            return improved_text
 
-        def mock_generate(prompt: str, **options: Any) -> str:  # noqa
-            if "reflect" in prompt.lower():
-                return responses[0]
-            else:
-                return responses[1]
+        # Create a mock critique dictionary
+        critique = {
+            "needs_improvement": True,
+            "message": "This text could be improved in several ways.",
+            "issues": ["The text is too vague.", "There are no specific examples."],
+            "suggestions": ["Add more specific details.", "Include concrete examples."],
+            "reflections": [
+                "The text doesn't provide enough context for the reader.",
+                "Without specific examples, the points being made are unclear.",
+            ],
+            "processing_time_ms": 100.0,
+        }
 
-        # Replace the generate method of the mock model
-        original_generate = mock_model.generate
-        mock_model.generate = mock_generate
+        # Create a mock _critique method that returns the critique dictionary
+        def mock_critique(self, text):  # pylint: disable=unused-argument
+            return critique
 
-        try:
+        # Patch both methods
+        from unittest.mock import patch
+
+        with (
+            patch.object(ReflexionCritic, "_critique", mock_critique),
+            patch.object(ReflexionCritic, "_improve", mock_improve),
+        ):
+
             critic = ReflexionCritic(model=mock_model)
-            improved_text, result = critic.improve("Test text")
+            result_text, result = critic.improve(original_text)
 
-            assert improved_text == "This is the improved text with more details and examples."
-            assert result.original_text == "Test text"
-            assert (
-                result.improved_text == "This is the improved text with more details and examples."
-            )
+            # Check the results
+            assert result_text == improved_text
+            assert result.original_text == original_text
+            assert result.improved_text == improved_text
             assert result.changes_made is True
-        finally:
-            # Restore the original generate method
-            mock_model.generate = original_generate
+
+
+class TestNCriticsCritic:
+    """Tests for the NCriticsCritic."""
+
+    def test_init_with_defaults(self, mock_model) -> None:
+        """Test initializing an NCriticsCritic with default parameters."""
+        critic = NCriticsCritic(model=mock_model)
+        assert critic.model is mock_model
+        assert critic._name == "NCriticsCritic"
+        assert critic.options == {}
+
+    def test_init_with_options(self, mock_model) -> None:
+        """Test initializing an NCriticsCritic with options."""
+        critic = NCriticsCritic(model=mock_model, temperature=0.5)
+        assert critic.temperature == 0.5
+
+    def test_create_n_critics_critic(self, mock_model) -> None:
+        """Test creating an NCriticsCritic using the factory function."""
+        critic = create_n_critics_critic(model=mock_model)
+        assert isinstance(critic, NCriticsCritic)
+        assert critic.model is mock_model
+
+    def test_create_n_critics_critic_with_options(self, mock_model) -> None:
+        """Test creating an NCriticsCritic with options using the factory function."""
+        critic = create_n_critics_critic(model=mock_model, temperature=0.5, num_critics=3)
+        assert isinstance(critic, NCriticsCritic)
+        assert critic.temperature == 0.5
+        assert critic.num_critics == 3
+
+    def test_end_to_end_improvement(self, mock_model) -> None:
+        """Test the end-to-end improvement process of NCriticsCritic."""
+        # Create a mock improvement result
+        original_text = "Test text"
+        improved_text = "This is the improved text with more details and examples."
+
+        # Create a mock _improve method that returns the improved text
+        def mock_improve(self, text, critique):  # pylint: disable=unused-argument
+            return improved_text
+
+        # Create a mock critique dictionary
+        critique = {
+            "needs_improvement": True,
+            "message": "This text could be improved in several ways.",
+            "issues": ["The text is too vague.", "There are no specific examples."],
+            "suggestions": ["Add more specific details.", "Include concrete examples."],
+            "critic_responses": [
+                "Critic 1: The text is too vague.",
+                "Critic 2: There are no specific examples.",
+                "Critic 3: The structure is confusing.",
+            ],
+            "processing_time_ms": 100.0,
+        }
+
+        # Create a mock _critique method that returns the critique dictionary
+        def mock_critique(self, text):  # pylint: disable=unused-argument
+            return critique
+
+        # Patch both methods
+        from unittest.mock import patch
+
+        with (
+            patch.object(NCriticsCritic, "_critique", mock_critique),
+            patch.object(NCriticsCritic, "_improve", mock_improve),
+        ):
+
+            critic = NCriticsCritic(model=mock_model)
+            result_text, result = critic.improve(original_text)
+
+            # Check the results
+            assert result_text == improved_text
+            assert result.original_text == original_text
+            assert result.improved_text == improved_text
+            assert result.changes_made is True

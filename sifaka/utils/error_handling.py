@@ -5,19 +5,18 @@ This module provides utility functions and context managers for consistent
 error handling across the Sifaka framework.
 """
 
-import logging
 import functools
-import traceback
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
+import logging
 from contextlib import contextmanager
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 
 from sifaka.errors import (
-    SifakaError,
-    ValidationError,
+    ChainError,
     ImproverError,
     ModelError,
-    ChainError,
     RetrieverError,
+    SifakaError,
+    ValidationError,
 )
 
 # Configure logger

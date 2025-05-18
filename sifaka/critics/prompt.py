@@ -11,11 +11,11 @@ foundation for more specialized critics.
 import json
 import logging
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from sifaka.models.base import Model
 from sifaka.critics.base import Critic
 from sifaka.errors import ImproverError
+from sifaka.models.base import Model
 from sifaka.registry import register_improver
 from sifaka.utils.error_handling import critic_context, log_error
 
@@ -319,11 +319,11 @@ class PromptCritic(Critic):
 
         try:
             # Format critique as a string
-            critique_str = f"Issues:\n"
+            critique_str = "Issues:\n"
             for issue in critique.get("issues", []):
                 critique_str += f"- {issue}\n"
 
-            critique_str += f"\nSuggestions:\n"
+            critique_str += "\nSuggestions:\n"
             for suggestion in critique.get("suggestions", []):
                 critique_str += f"- {suggestion}\n"
 

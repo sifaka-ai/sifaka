@@ -38,14 +38,14 @@ Example:
     ```
 """
 
-import time
 import logging
-from typing import Optional, Dict, Any
+import time
+from typing import Any, Dict, Optional
 
-from sifaka.models.base import Model
-from sifaka.results import ImprovementResult as SifakaImprovementResult
 from sifaka.errors import ImproverError, ModelError
 from sifaka.interfaces import Improver
+from sifaka.models.base import Model
+from sifaka.results import ImprovementResult as SifakaImprovementResult
 from sifaka.utils.error_handling import improvement_context, log_error
 
 # Configure logger
@@ -266,7 +266,10 @@ class Critic(Improver):
                 improver_name=self.name,
                 component="Critic",
                 operation="improve",
-                suggestions=["Check the model configuration", "Verify API keys and quotas"],
+                suggestions=[
+                    "Check the model configuration",
+                    "Verify API keys and quotas",
+                ],
                 metadata={
                     "critic_name": self.name,
                     "error_type": type(e).__name__,
@@ -283,7 +286,10 @@ class Critic(Improver):
                 improver_name=self.name,
                 component="Critic",
                 operation="improve",
-                suggestions=["Check the input text format", "Verify critic implementation"],
+                suggestions=[
+                    "Check the input text format",
+                    "Verify critic implementation",
+                ],
                 metadata={
                     "critic_name": self.name,
                     "error_type": type(e).__name__,

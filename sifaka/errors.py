@@ -4,7 +4,7 @@ Error types for Sifaka operations.
 This module defines the custom exceptions used throughout the Sifaka framework.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 
 class SifakaError(Exception):

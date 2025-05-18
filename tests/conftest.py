@@ -5,11 +5,11 @@ This module contains fixtures and configuration for testing the Sifaka framework
 """
 
 import os
-import pytest
-from typing import Dict, Any, Optional
+from typing import Any, Dict
 
-from sifaka.models.base import Model
-from sifaka.results import ValidationResult, ImprovementResult
+import pytest
+
+from sifaka.results import ImprovementResult, ValidationResult
 
 
 class MockModel:
@@ -60,18 +60,14 @@ class MockValidator:
         """Validate text against specific criteria."""
         self.validate_calls.append(text)
         if self.should_pass:
-            return ValidationResult(
-                passed=True,
-                message="Validation passed",
-                score=1.0
-            )
+            return ValidationResult(passed=True, message="Validation passed", score=1.0)
         else:
             return ValidationResult(
                 passed=False,
                 message="Validation failed",
                 score=0.0,
                 issues=["Mock issue"],
-                suggestions=["Mock suggestion"]
+                suggestions=["Mock suggestion"],
             )
 
 
@@ -99,7 +95,7 @@ class MockCritic:
                 _improved_text=self.improved_text,
                 _changes_made=True,
                 message="Text improved",
-                processing_time_ms=100.0
+                processing_time_ms=100.0,
             )
         else:
             return text, ImprovementResult(
@@ -107,7 +103,7 @@ class MockCritic:
                 _improved_text=text,
                 _changes_made=False,
                 message="No improvements needed",
-                processing_time_ms=100.0
+                processing_time_ms=100.0,
             )
 
     def set_improved_text(self, text: str) -> None:
@@ -124,7 +120,7 @@ def mock_model() -> MockModel:
 @pytest.fixture
 def mock_validator(request) -> MockValidator:
     """Fixture for a mock validator.
-    
+
     Args:
         request: The pytest request object, which can be used to pass parameters.
             Use `@pytest.mark.parametrize("mock_validator", [True, False], indirect=True)`
@@ -139,7 +135,7 @@ def mock_validator(request) -> MockValidator:
 @pytest.fixture
 def mock_critic(request) -> MockCritic:
     """Fixture for a mock critic.
-    
+
     Args:
         request: The pytest request object, which can be used to pass parameters.
             Use `@pytest.mark.parametrize("mock_critic", [True, False], indirect=True)`
@@ -169,9 +165,9 @@ def set_env_vars(env_vars: Dict[str, str]) -> None:
         if key in os.environ:
             original_vars[key] = os.environ[key]
         os.environ[key] = value
-    
+
     yield
-    
+
     # Restore original environment variables
     for key in env_vars:
         if key in original_vars:

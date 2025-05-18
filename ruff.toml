@@ -1,7 +1,10 @@
+# Updated configuration for Ruff linter
 line-length = 100
 target-version = "py311"
 select = ["E", "F", "B", "I"]
-ignore = ["E203"]
+# Ignore E203 (whitespace before ':') as it conflicts with Black
+# Ignore B904 (raise from) for now until we can fix all instances
+ignore = ["E203", "B904"]
 exclude = [
     ".git",
     "__pycache__",

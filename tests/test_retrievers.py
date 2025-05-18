@@ -4,9 +4,9 @@ Tests for the retrievers module.
 This module contains tests for the retrievers in the Sifaka framework.
 """
 
+from typing import List
+
 import pytest
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch
 
 from sifaka.retrievers.base import Retriever
 from sifaka.utils.error_handling import retrieval_context

@@ -5,14 +5,13 @@ This module contains more comprehensive tests for the classifier validator
 to improve test coverage.
 """
 
-import pytest
-from unittest.mock import MagicMock
-from typing import List, Optional, Dict, Any
+from typing import List
 
-from sifaka.classifiers import ClassificationResult, Classifier
-from sifaka.validators.classifier import ClassifierValidator, ClassifierValidatorConfig
+import pytest
+
+from sifaka.classifiers import ClassificationResult
 from sifaka.errors import ValidationError
-from sifaka.results import ValidationResult
+from sifaka.validators.classifier import ClassifierValidator, ClassifierValidatorConfig
 
 
 # Create a mock classifier for testing
@@ -20,7 +19,10 @@ class MockClassifier:
     """Mock classifier for testing."""
 
     def __init__(
-        self, label: str = "positive", confidence: float = 0.8, name: str = "mock_classifier"
+        self,
+        label: str = "positive",
+        confidence: float = 0.8,
+        name: str = "mock_classifier",
     ):
         self.label = label
         self.confidence = confidence
@@ -66,7 +68,9 @@ class MockClassifier:
 
         # Default case
         return ClassificationResult(
-            label=self.label, confidence=self.confidence, metadata={"input_length": len(text)}
+            label=self.label,
+            confidence=self.confidence,
+            metadata={"input_length": len(text)},
         )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:

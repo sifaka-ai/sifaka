@@ -4,27 +4,18 @@ Tests for the main configuration module.
 This module contains tests for the main configuration module in the Sifaka framework.
 """
 
-import os
 import json
+import os
 import tempfile
-import pytest
-from typing import Dict, Any, List, Optional
-from pathlib import Path
-from dataclasses import asdict
 
 from sifaka.config import (
-    SifakaConfig,
-    ModelConfig,
-    ValidatorConfig,
     CriticConfig,
+    ModelConfig,
     RetrieverConfig,
-    load_config_from_json,
-    load_config_from_yaml,
+    SifakaConfig,
+    ValidatorConfig,
     load_config_from_env,
-    save_config_to_json,
-    save_config_to_yaml,
-    _create_config_from_dict,
-    _set_config_value,
+    load_config_from_json,
 )
 
 

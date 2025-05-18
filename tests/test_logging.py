@@ -7,8 +7,7 @@ This module contains tests for the logging utilities in the Sifaka framework.
 import logging
 import os
 import tempfile
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from sifaka.utils.logging import configure_logging, get_logger
 
@@ -21,9 +20,9 @@ class TestConfigureLogging:
         with patch("logging.getLogger") as mock_get_logger:
             mock_logger = MagicMock()
             mock_get_logger.return_value = mock_logger
-            
+
             configure_logging()
-            
+
             mock_get_logger.assert_called_once_with("sifaka")
             mock_logger.setLevel.assert_called_once_with(logging.INFO)
             assert mock_logger.addHandler.call_count == 1
@@ -33,9 +32,9 @@ class TestConfigureLogging:
         with patch("logging.getLogger") as mock_get_logger:
             mock_logger = MagicMock()
             mock_get_logger.return_value = mock_logger
-            
+
             configure_logging(level=logging.DEBUG)
-            
+
             mock_get_logger.assert_called_once_with("sifaka")
             mock_logger.setLevel.assert_called_once_with(logging.DEBUG)
             assert mock_logger.addHandler.call_count == 1
@@ -45,9 +44,9 @@ class TestConfigureLogging:
         with patch("logging.getLogger") as mock_get_logger:
             mock_logger = MagicMock()
             mock_get_logger.return_value = mock_logger
-            
+
             configure_logging(level="DEBUG")
-            
+
             mock_get_logger.assert_called_once_with("sifaka")
             mock_logger.setLevel.assert_called_once_with(logging.DEBUG)
             assert mock_logger.addHandler.call_count == 1
@@ -57,9 +56,9 @@ class TestConfigureLogging:
         with patch("logging.getLogger") as mock_get_logger:
             mock_logger = MagicMock()
             mock_get_logger.return_value = mock_logger
-            
+
             configure_logging(level="INVALID")
-            
+
             mock_get_logger.assert_called_once_with("sifaka")
             # Should default to INFO
             mock_logger.setLevel.assert_called_once_with(logging.INFO)
@@ -69,14 +68,14 @@ class TestConfigureLogging:
         """Test configuring logging with a log file."""
         with tempfile.NamedTemporaryFile(suffix=".log", delete=False) as temp_file:
             log_file = temp_file.name
-            
+
             try:
                 with patch("logging.getLogger") as mock_get_logger:
                     mock_logger = MagicMock()
                     mock_get_logger.return_value = mock_logger
-                    
+
                     configure_logging(log_file=log_file)
-                    
+
                     mock_get_logger.assert_called_once_with("sifaka")
                     mock_logger.setLevel.assert_called_once_with(logging.INFO)
                     # Should add both console and file handlers
@@ -92,23 +91,23 @@ class TestConfigureLogging:
         root_logger = logging.getLogger()
         original_handlers = root_logger.handlers.copy()
         original_level = root_logger.level
-        
+
         try:
             # Remove all handlers to start clean
             for handler in root_logger.handlers:
                 root_logger.removeHandler(handler)
-            
+
             # Configure logging
             configure_logging(level=logging.DEBUG)
-            
+
             # Get the sifaka logger
             logger = logging.getLogger("sifaka")
-            
+
             # Check that the logger is configured correctly
             assert logger.level == logging.DEBUG
             assert len(logger.handlers) == 1
             assert isinstance(logger.handlers[0], logging.StreamHandler)
-            
+
             # Test logging a message
             with patch.object(logger.handlers[0], "emit") as mock_emit:
                 logger.debug("Test debug message")
@@ -142,14 +141,14 @@ class TestGetLogger:
         with patch("logging.getLogger") as mock_get_logger:
             mock_root_logger = MagicMock()
             mock_get_logger.return_value = mock_root_logger
-            
+
             configure_logging(level=logging.DEBUG)
-            
+
             mock_get_logger.assert_called_once_with("sifaka")
-        
+
         # Now test with real loggers
         root_logger = logging.getLogger("sifaka")
         test_logger = get_logger("test")
-        
+
         # The test logger should inherit from the root logger
         assert test_logger.parent == root_logger

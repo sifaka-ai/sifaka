@@ -7,7 +7,7 @@ It supports over 50 languages and provides detailed confidence scores.
 """
 
 import importlib
-from typing import List, Any, Optional, Sequence, Protocol, runtime_checkable
+from typing import Any, List, Optional, Protocol, Sequence, runtime_checkable
 
 from sifaka.classifiers import ClassificationResult
 
@@ -285,7 +285,7 @@ class LanguageClassifier:
                         "detected_lang": best_lang,
                         "detected_prob": best_prob,
                         "language_name": self.get_language_name(self._fallback_lang),
-                        "reason": "low_confidence" if best_lang else "no_language_detected",
+                        "reason": ("low_confidence" if best_lang else "no_language_detected"),
                         "input_length": len(text),
                     },
                 )

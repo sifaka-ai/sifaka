@@ -5,12 +5,12 @@ This module contains tests for the Chain class, which is the central component
 of the Sifaka framework.
 """
 
+from typing import Any
+
 import pytest
-from typing import Any, Dict, List, Optional, Tuple
 
 from sifaka import Chain
-from sifaka.config import SifakaConfig, ModelConfig
-from sifaka.results import Result, ValidationResult, ImprovementResult
+from sifaka.config import ModelConfig, SifakaConfig
 
 
 class TestChainInitialization:
@@ -245,8 +245,8 @@ class TestChainExecution:
     def test_run_with_multiple_critics(self, mock_model) -> None:
         """Test running a Chain with multiple critics."""
         # Import the MockCritic class directly from the conftest module in the current directory
-        import sys
         import os
+        import sys
 
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from conftest import MockCritic
@@ -285,7 +285,7 @@ class TestChainExecution:
 
     def test_model_error_handling(self, mock_model, monkeypatch) -> None:
         """Test error handling when the model raises an error."""
-        from sifaka.errors import ModelError, ChainError
+        from sifaka.errors import ChainError, ModelError
 
         # Make the model raise an error
         def mock_generate_error(*args, **kwargs):
@@ -374,7 +374,7 @@ class TestChainExecution:
 
     def test_chain_with_config_options(self, mock_model) -> None:
         """Test running a Chain with configuration options."""
-        from sifaka.config import SifakaConfig, ModelConfig
+        from sifaka.config import ModelConfig, SifakaConfig
 
         # Create a custom configuration
         config = SifakaConfig(

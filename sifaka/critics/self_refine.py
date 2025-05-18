@@ -15,11 +15,11 @@ https://arxiv.org/abs/2303.17651
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
-from sifaka.models.base import Model
 from sifaka.critics.base import Critic
 from sifaka.errors import ImproverError
+from sifaka.models.base import Model
 from sifaka.registry import register_improver
 from sifaka.utils.error_handling import critic_context, log_error
 
@@ -80,7 +80,10 @@ class SelfRefineCritic(Critic):
                         "Provide a valid model instance",
                         "Check that the model implements the Model protocol",
                     ],
-                    metadata={"refinement_rounds": refinement_rounds, "temperature": temperature},
+                    metadata={
+                        "refinement_rounds": refinement_rounds,
+                        "temperature": temperature,
+                    },
                 )
 
             # Use default system prompt if not provided
@@ -215,7 +218,7 @@ class SelfRefineCritic(Critic):
                 if json_start == -1 or json_end == 0:
                     # No JSON found, log the issue
                     logger.warning(
-                        f"SelfRefineCritic: No JSON found in response, using default response"
+                        "SelfRefineCritic: No JSON found in response, using default response"
                     )
 
                     # Calculate processing time
@@ -372,7 +375,7 @@ class SelfRefineCritic(Critic):
                 Improved text:
                 """
 
-                logger.debug(f"SelfRefineCritic: Generating initial improvement")
+                logger.debug("SelfRefineCritic: Generating initial improvement")
                 response = self._generate(initial_prompt)
                 logger.debug(
                     f"SelfRefineCritic: Generated initial improvement of length {len(response)}"
@@ -648,7 +651,12 @@ class SelfRefineCritic(Critic):
             processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
             # Log the error
-            log_error(e, logger, component="SelfRefineCritic", operation="format_feedback_history")
+            log_error(
+                e,
+                logger,
+                component="SelfRefineCritic",
+                operation="format_feedback_history",
+            )
 
             # Return a default string in case of error
             logger.warning(

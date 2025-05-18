@@ -43,13 +43,20 @@ We are committed to providing a friendly, safe, and welcoming environment for al
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-2. Install development dependencies:
+2. Install development dependencies and set up pre-commit hooks:
    ```bash
-   pip install -e ".[dev]"
+   make install-dev
    ```
 
-3. Install pre-commit hooks:
+   This will:
+   - Install all development dependencies
+   - Install pre-commit hooks
+   - Set up the development environment
+
+3. Alternatively, you can install dependencies manually:
    ```bash
+   pip install -e ".[dev,all]"
+   pip install pre-commit
    pre-commit install
    ```
 
@@ -73,11 +80,28 @@ We follow these coding standards:
 
 We use the following tools to enforce these standards:
 
-- **black**: For code formatting
+- **Black**: For code formatting
 - **isort**: For import sorting
+- **autoflake**: For removing unused imports
+- **Ruff**: For linting with automatic fixes
 - **mypy**: For type checking
-- **flake8**: For linting
-- **pylint**: For additional linting
+- **flake8**: For additional linting
+
+These tools are automatically run as part of our CI/CD pipeline and pre-commit hooks. You can also run them manually:
+
+```bash
+# Format code
+make format
+
+# Run linting checks
+make lint
+
+# Run tests
+make test
+
+# Run all CI checks
+make ci
+```
 
 ## Documentation
 

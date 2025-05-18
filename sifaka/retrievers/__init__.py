@@ -7,30 +7,30 @@ The package also provides a generic retrieval augmenter that can be used by mult
 """
 
 from sifaka.retrievers.base import Retriever
-from sifaka.retrievers.simple import SimpleRetriever
 from sifaka.retrievers.factory import (
     create_elasticsearch_retriever,
     create_milvus_retriever,
     create_retrieval_augmenter,
 )
+from sifaka.retrievers.simple import SimpleRetriever
 
 # Import retrievers conditionally to avoid hard dependencies
 try:
-    from sifaka.retrievers.elasticsearch_retriever import ElasticsearchRetriever
+    pass
 
     ELASTICSEARCH_AVAILABLE = True
 except ImportError:
     ELASTICSEARCH_AVAILABLE = False
 
 try:
-    from sifaka.retrievers.milvus_retriever import MilvusRetriever
+    pass
 
     MILVUS_AVAILABLE = True
 except ImportError:
     MILVUS_AVAILABLE = False
 
 try:
-    from sifaka.retrievers.augmenter import RetrievalAugmenter
+    pass
 
     RETRIEVAL_AUGMENTER_AVAILABLE = True
 except ImportError:
