@@ -168,6 +168,7 @@ class TestResult:
         """Test initializing a Result with only required fields."""
         result = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=True,
             validation_results=[],
             improvement_results=[],
@@ -196,6 +197,7 @@ class TestResult:
         ]
         result = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=True,
             validation_results=validation_results,
             improvement_results=improvement_results,
@@ -213,6 +215,7 @@ class TestResult:
         """Test converting Result to boolean."""
         result_true = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=True,
             validation_results=[],
             improvement_results=[],
@@ -220,6 +223,7 @@ class TestResult:
         )
         result_false = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=False,
             validation_results=[],
             improvement_results=[],
@@ -245,6 +249,7 @@ class TestResult:
         # No issues
         result1 = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=True,
             validation_results=[ValidationResult(passed=True, message="Validation passed")],
             improvement_results=[],
@@ -255,6 +260,7 @@ class TestResult:
         # With issues
         result2 = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=False,
             validation_results=[
                 ValidationResult(
@@ -273,6 +279,7 @@ class TestResult:
         # No issues
         result1 = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=True,
             validation_results=[
                 ValidationResult(passed=True, message="Validation 1 passed"),
@@ -286,6 +293,7 @@ class TestResult:
         # With issues from one validator
         result2 = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=False,
             validation_results=[
                 ValidationResult(passed=True, message="Validation 1 passed"),
@@ -303,6 +311,7 @@ class TestResult:
         # With issues from multiple validators
         result3 = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=False,
             validation_results=[
                 ValidationResult(
@@ -326,6 +335,7 @@ class TestResult:
         # No suggestions
         result1 = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=True,
             validation_results=[
                 ValidationResult(passed=True, message="Validation 1 passed"),
@@ -339,6 +349,7 @@ class TestResult:
         # With suggestions from one validator
         result2 = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=False,
             validation_results=[
                 ValidationResult(passed=True, message="Validation 1 passed"),
@@ -356,6 +367,7 @@ class TestResult:
         # With suggestions from multiple validators
         result3 = Result(
             text="Final text",
+            initial_text="Initial text",
             passed=False,
             validation_results=[
                 ValidationResult(

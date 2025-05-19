@@ -6,11 +6,12 @@ This example demonstrates how to create a simple chain with a model, validators,
 
 import logging
 import os
+
 from dotenv import load_dotenv
+
 from sifaka import Chain
-from sifaka.validators import length, prohibited_content
-from sifaka.critics.reflexion import create_reflexion_critic
 from sifaka.models.openai import OpenAIModel
+from sifaka.validators import length, prohibited_content
 
 # Set up logging
 logging.basicConfig(

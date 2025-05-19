@@ -123,8 +123,13 @@ The components interact in a well-defined sequence:
 1. **Chain** orchestrates the entire process
 2. **Model** generates initial text based on the prompt
 3. **Validators** check if the generated text meets the specified criteria
-4. **Critics** improve the text if it passes validation
-5. **Results** are returned to the user
+4. If validation fails and feedback loop is enabled:
+   - **Validators** provide feedback on why validation failed
+   - **Critics** provide feedback on how to improve the text
+   - **Model** generates improved text based on the combined feedback
+   - The improved text is re-validated
+5. **Critics** improve the text if it passes validation
+6. **Results** are returned to the user
 
 The detailed interaction flow is as follows:
 
@@ -151,7 +156,14 @@ The data flows through the system as follows:
 1. **Input**: User provides a prompt and configuration
 2. **Generation**: Model generates text from the prompt
 3. **Validation**: Validators check if the text meets criteria
-   - If validation fails, the process stops and returns a failed result
+   - If validation fails and `apply_improvers_on_validation_failure` is enabled:
+     - Feedback from validators is collected
+     - Critics provide feedback on how to improve the text
+     - The model generates improved text based on the combined feedback
+     - The improved text is re-validated
+     - This process repeats until validation passes or max iterations is reached
+   - If validation fails and `apply_improvers_on_validation_failure` is disabled:
+     - The process stops and returns a failed result
 4. **Improvement**: Critics improve the text if validation passes
 5. **Output**: The final text and results are returned to the user
 
@@ -186,14 +198,34 @@ The detailed data flow is as follows:
          │
          ▼
 ┌─────────────────┐     ┌─────────────────┐
-│                 │     │                 │
-│  Validators     │ No  │  Failed Result  │
-│  - Text meets   ├────▶│  - Error message│
-│    criteria?    │     │  - Suggestions  │
+│                 │ No  │                 │
+│  Validators     │────▶│ Apply Improvers │
+│  - Text meets   │     │ on Validation   │
+│    criteria?    │     │ Failure?        │
 │                 │     │                 │
 └────────┬────────┘     └────────┬────────┘
          │ Yes                   │
-         ▼                       │
+         │                       ▼
+         │               ┌───────────────┐ No  ┌─────────────────┐
+         │               │               │────▶│                 │
+         │               │ Feedback Loop │     │  Failed Result  │
+         │               │ - Get feedback│     │  - Error message│
+         │               │ - Improve text│     │  - Suggestions  │
+         │               │ - Re-validate │     │                 │
+         │               │               │     └────────┬────────┘
+         │               └───────┬───────┘             │
+         │                       │                     │
+         │                       │ Yes                 │
+         │                       │                     │
+         │                       ▼                     │
+         │               ┌───────────────┐             │
+         │               │ Validation    │ No          │
+         │               │ Passed After  │─────────────┘
+         │               │ Feedback?     │
+         │               │               │
+         │               └───────┬───────┘
+         │                       │ Yes
+         ▼                       ▼
 ┌─────────────────┐              │
 │                 │              │
 │  Critics        │              │

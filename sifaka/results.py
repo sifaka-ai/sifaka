@@ -294,6 +294,7 @@ class Result:
 
     Attributes:
         text (str): The final text after all validations and improvements.
+        initial_text (str): The initial text before any validations or improvements.
         passed (bool): Whether all validations passed (True) or at least one failed (False).
         validation_results (List[ValidationResult]): Results of all validations that were performed.
         improvement_results (List[ImprovementResult]): Results of all improvements that were applied.
@@ -316,6 +317,8 @@ class Result:
         # Check if all validations passed
         if result.passed:
             print(f"Chain execution succeeded in {result.execution_time_ms:.2f}ms")
+            print(f"Initial text ({len(result.initial_text)} chars):")
+            print(result.initial_text)
             print(f"Final text ({len(result.text)} chars):")
             print(result.text)
         else:
@@ -332,6 +335,7 @@ class Result:
     """
 
     text: str
+    initial_text: str
     passed: bool
     validation_results: List[ValidationResult]
     improvement_results: List[ImprovementResult]

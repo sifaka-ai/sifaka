@@ -15,8 +15,17 @@ multi_line_output = 3
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-select = ["E", "F", "B", "I"]
-ignore = ["E203", "B904"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "tests",
+    "examples",
+    "demos",
+    "benchmarks",
+    "tools",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I"]

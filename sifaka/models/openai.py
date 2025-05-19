@@ -399,9 +399,9 @@ class OpenAIModel:
         }
 
         # Send request to OpenAI
-        # Type ignore: The OpenAI API expects a specific message format that mypy can't verify
+        # The OpenAI API expects a specific message format
         response = self.client.chat.completions.create(
-            model=self.model_name, messages=messages, **openai_params  # type: ignore
+            model=self.model_name, messages=messages, **openai_params
         )
 
         return response.choices[0].message.content or ""
@@ -456,7 +456,7 @@ class OpenAIModel:
 
         # Ensure we return a string
         result = response.choices[0].text
-        return result.strip() if result is not None else ""
+        return str(result.strip() if result is not None else "")
 
     def _is_chat_model(self) -> bool:
         """Determine if the model is a chat model based on its name.

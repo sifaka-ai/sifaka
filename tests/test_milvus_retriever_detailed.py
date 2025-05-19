@@ -96,7 +96,6 @@ class TestMilvusRetrieverDetailed:
         """Test successful initialization of the retriever."""
         with patch("sifaka.retrievers.milvus_retriever.MILVUS_AVAILABLE", True):
             with patch("sifaka.retrievers.milvus_retriever.connections") as mock_connections:
-
                 with patch(
                     "sifaka.retrievers.milvus_retriever.Collection"
                 ) as mock_collection_class:
@@ -136,7 +135,6 @@ class TestMilvusRetrieverDetailed:
         """Test retrieve method."""
         with patch("sifaka.retrievers.milvus_retriever.MILVUS_AVAILABLE", True):
             with patch("sifaka.retrievers.milvus_retriever.connections") as mock_connections:
-
                 with patch(
                     "sifaka.retrievers.milvus_retriever.Collection"
                 ) as mock_collection_class:
@@ -177,7 +175,6 @@ class TestMilvusRetrieverDetailed:
         """Test error handling in retrieve method."""
         with patch("sifaka.retrievers.milvus_retriever.MILVUS_AVAILABLE", True):
             with patch("sifaka.retrievers.milvus_retriever.connections") as mock_connections:
-
                 with patch(
                     "sifaka.retrievers.milvus_retriever.Collection"
                 ) as mock_collection_class:
@@ -206,7 +203,6 @@ class TestMilvusRetrieverDetailed:
         """Test retrieve method with custom search parameters."""
         with patch("sifaka.retrievers.milvus_retriever.MILVUS_AVAILABLE", True):
             with patch("sifaka.retrievers.milvus_retriever.connections") as mock_connections:
-
                 with patch(
                     "sifaka.retrievers.milvus_retriever.Collection"
                 ) as mock_collection_class:

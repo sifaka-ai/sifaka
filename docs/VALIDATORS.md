@@ -4,7 +4,13 @@ Validators are components in the Sifaka framework that check if text meets speci
 
 ## Overview
 
-Validators are used by the Chain class to ensure that generated text meets the required criteria before being returned to the user or passed to critics for improvement. They implement the ValidatorProtocol, which defines a consistent interface for all validators.
+Validators are used by the Chain class in two ways:
+
+1. **Validation**: To ensure that generated text meets the required criteria before being returned to the user or passed to critics for improvement.
+
+2. **Feedback Loop**: When validation fails and the feedback loop is enabled, validators provide feedback on why validation failed. This feedback is combined with critic feedback and sent to the model to generate improved text.
+
+Validators implement the ValidatorProtocol, which defines a consistent interface for all validators.
 
 ## Built-in Validators
 
@@ -91,12 +97,13 @@ Validators are typically used with the Chain class to validate generated text:
 from sifaka import Chain
 from sifaka.validators import length, prohibited_content
 
-# Create a chain with validators
-chain = (Chain()
+# Create a chain with validators and feedback loop
+chain = (Chain(max_improvement_iterations=3)
     .with_model("openai:gpt-4")
     .with_prompt("Write a short story about a robot.")
     .validate_with(length(min_words=100, max_words=500))
     .validate_with(prohibited_content(prohibited=["violent", "harmful"]))
+    .with_options(apply_improvers_on_validation_failure=True)  # Enable feedback loop
 )
 
 # Run the chain
@@ -125,22 +132,22 @@ class ReadabilityValidator(BaseValidator):
     def __init__(self, max_grade_level: float, name: str = "ReadabilityValidator"):
         super().__init__(name=name)
         self.max_grade_level = max_grade_level
-        
+
     def _validate(self, text: str) -> ValidationResult:
         # Calculate Flesch-Kincaid grade level (simplified example)
         words = len(text.split())
         sentences = len(text.split('.'))
         syllables = sum(self._count_syllables(word) for word in text.split())
-        
+
         if words == 0 or sentences == 0:
             return ValidationResult(
                 passed=False,
                 message="Text is too short to calculate readability",
                 score=0.0
             )
-        
+
         grade_level = 0.39 * (words / sentences) + 11.8 * (syllables / words) - 15.59
-        
+
         if grade_level <= self.max_grade_level:
             return ValidationResult(
                 passed=True,
@@ -155,7 +162,7 @@ class ReadabilityValidator(BaseValidator):
                 issues=[f"Text is too complex (grade level {grade_level:.1f} > {self.max_grade_level})"],
                 suggestions=["Use shorter sentences", "Use simpler words", "Break up complex paragraphs"]
             )
-    
+
     def _count_syllables(self, word: str) -> int:
         # Simplified syllable counting (not accurate for all words)
         word = word.lower()
@@ -184,7 +191,7 @@ class ValidatorProtocol(Protocol):
     def validate(self, text: str) -> ValidationResult:
         """Validate text against specific criteria."""
         ...
-        
+
     @property
     def name(self) -> str:
         """Get the name of the validator."""
@@ -242,6 +249,43 @@ else:
     print(f"Validation failed: {result.message}")
 ```
 
+## Validators in the Feedback Loop
+
+When validation fails and the feedback loop is enabled, validators provide feedback on why validation failed. This feedback is combined with critic feedback and sent to the model to generate improved text. The feedback includes:
+
+- The validation message explaining why validation failed
+- Any issues identified during validation
+- Suggestions for how to fix the issues
+
+To enable the feedback loop:
+
+```python
+from sifaka import Chain
+from sifaka.validators import length, prohibited_content
+from sifaka.critics.reflexion import create_reflexion_critic
+
+# Create a chain with feedback loop enabled
+chain = (Chain(max_improvement_iterations=3)
+    .with_model("openai:gpt-4")
+    .with_prompt("Write a short story about a robot.")
+    .validate_with(length(min_words=100, max_words=500))
+    .validate_with(prohibited_content(prohibited=["violent", "harmful"]))
+    .improve_with(create_reflexion_critic(model="openai:gpt-4"))
+    .with_options(apply_improvers_on_validation_failure=True)  # Enable feedback loop
+)
+
+# Run the chain
+result = chain.run()
+```
+
+The feedback loop process:
+
+1. If validation fails, the Chain collects feedback from validators on why validation failed
+2. The Chain gets feedback from critics on how to improve the text
+3. The combined feedback is sent to the model along with the original text to generate improved text
+4. The improved text is re-validated
+5. This process repeats until validation passes or the maximum number of iterations is reached
+
 ## Best Practices
 
 1. **Use built-in validators** when possible, as they handle common validation scenarios
@@ -250,3 +294,5 @@ else:
 4. **Include suggestions** for how to fix validation issues
 5. **Handle edge cases** like empty text or very short text
 6. **Use safe_validate** when you want to ensure that validation always returns a result, even if the validator raises an exception
+7. **Enable the feedback loop** when you want to automatically improve text that fails validation
+8. **Set an appropriate max_improvement_iterations** to balance between quality and performance

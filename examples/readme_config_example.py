@@ -5,11 +5,13 @@ This example is taken directly from the README to verify that it works correctly
 """
 
 import os
+
 from dotenv import load_dotenv
+
 from sifaka import Chain
-from sifaka.config import SifakaConfig, ModelConfig, ValidatorConfig, CriticConfig
-from sifaka.validators import length, prohibited_content
+from sifaka.config import CriticConfig, ModelConfig, SifakaConfig, ValidatorConfig
 from sifaka.critics.self_refine import create_self_refine_critic
+from sifaka.validators import length, prohibited_content
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -28,14 +30,12 @@ config = SifakaConfig(
         api_key=api_key,  # Use environment variable for API key
     ),
     validator=ValidatorConfig(
-        min_words=100,
-        max_words=500,
-        prohibited_content=["violence", "hate speech"]
+        min_words=100, max_words=500, prohibited_content=["violence", "hate speech"]
     ),
     critic=CriticConfig(
         temperature=0.5,
         refinement_rounds=3,
-        system_prompt="You are an expert editor that improves text for clarity and conciseness."
+        system_prompt="You are an expert editor that improves text for clarity and conciseness.",
     ),
     debug=True,
     log_level="DEBUG",
@@ -43,6 +43,7 @@ config = SifakaConfig(
 
 # Create a model
 from sifaka.models.openai import OpenAIModel
+
 model = OpenAIModel(model_name="gpt-3.5-turbo", api_key=api_key)
 
 # Use the configuration with a chain
@@ -50,9 +51,15 @@ chain = (
     Chain(config)
     .with_model(model)
     .with_prompt("Write a short story about a robot.")
-    .validate_with(length(min_words=config.validator.min_words, max_words=config.validator.max_words))
+    .validate_with(
+        length(min_words=config.validator.min_words, max_words=config.validator.max_words)
+    )
     .validate_with(prohibited_content(prohibited=config.validator.prohibited_content))
-    .improve_with(create_self_refine_critic(model=model, max_refinement_iterations=config.critic.refinement_rounds))
+    .improve_with(
+        create_self_refine_critic(
+            model=model, max_refinement_iterations=config.critic.refinement_rounds
+        )
+    )
 )
 
 # Run the chain

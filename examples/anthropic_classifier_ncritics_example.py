@@ -1,30 +1,31 @@
 """
-Example demonstrating the use of GuardRails validators and N-Critics with Anthropic models.
+Example demonstrating the use of classifiers and N-Critics with OpenAI models.
 
 This example shows how to:
-1. Use a powerful Anthropic model (Claude-3-Opus) to generate a fictional story with fake PII
-2. Apply GuardrailsPII and QACorrectnessPrompt validators
-3. Use the N-Critics critic to improve problematic text
+1. Use a powerful OpenAI model (GPT-4) to generate potentially biased text
+2. Apply language, toxicity, and profanity classifiers as validators
+3. Use the N-Critics critic with less powerful models (GPT-3.5) to improve problematic text
 4. Log all intermediate steps in the process
 
-The example intentionally prompts the model to generate content with fake PII,
+The example intentionally prompts the model to generate potentially biased content,
 then shows how the validators detect issues and how the critics improve the text.
 """
 
-import os
 import logging
-import json
-import time
-from typing import Dict, Any
+import os
+
 from dotenv import load_dotenv
 
 from sifaka import Chain
+from sifaka.classifiers.language import LanguageClassifier
+from sifaka.classifiers.profanity import ProfanityClassifier
+from sifaka.classifiers.toxicity import ToxicityClassifier
+from sifaka.critics.n_critics import create_n_critics_critic
 from sifaka.models.anthropic import AnthropicModel
 from sifaka.models.openai import OpenAIModel
-from sifaka.validators.guardrails import guardrails_validator
-from sifaka.critics.n_critics import create_n_critics_critic
+from sifaka.results import ImprovementResult
 from sifaka.validators import length
-from sifaka.results import Result, ImprovementResult
+from sifaka.validators.classifier import classifier_validator
 
 # Set up detailed logging to capture all steps
 logging.basicConfig(
@@ -107,7 +108,6 @@ def main():
     # Get API keys from environment variables
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
     openai_api_key = os.environ.get("OPENAI_API_KEY")
-    guardrails_api_key = os.environ.get("GUARDRAILS_API_KEY")
 
     if not anthropic_api_key:
         logger.error("ANTHROPIC_API_KEY environment variable not set")
@@ -117,47 +117,8 @@ def main():
         logger.error("OPENAI_API_KEY environment variable not set")
         return
 
-    if not guardrails_api_key:
-        logger.error("GUARDRAILS_API_KEY environment variable not set")
-        return
-
     # Create models
     logger.info("Creating models...")
-
-    # Fix the AnthropicModel.generate method to properly handle messages
-    # This is a proper fix rather than a hack
-    original_generate = AnthropicModel.generate
-
-    def fixed_generate(self, prompt: str, **options: Any) -> str:
-        """Fixed version of the generate method that properly formats messages."""
-        logger.debug(
-            f"Using fixed generate method for Anthropic model '{self.model_name}', "
-            f"prompt length={len(prompt)}"
-        )
-
-        # Merge default options with provided options
-        merged_options = {**self.options, **options}
-
-        # Convert max_tokens to max_tokens_to_sample if present
-        if "max_tokens" in merged_options:
-            max_tokens = merged_options.pop("max_tokens")
-        else:
-            max_tokens = 1000  # Default value
-
-        try:
-            response = self.client.messages.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=max_tokens,
-                temperature=merged_options.get("temperature", 0.7),
-            )
-            return response.content[0].text
-        except Exception as e:
-            logger.error(f"Error in fixed generate method: {str(e)}")
-            raise
-
-    # Apply the monkey patch
-    AnthropicModel.generate = fixed_generate
 
     # Powerful Anthropic model for generating text
     anthropic_model = AnthropicModel(model_name="claude-3-opus-20240229", api_key=anthropic_api_key)
@@ -165,43 +126,33 @@ def main():
     # Less powerful OpenAI model for critics
     openai_model = OpenAIModel(model_name="gpt-3.5-turbo", api_key=openai_api_key)
 
-    # Create GuardRails validators
-    logger.info("Creating GuardRails validators...")
+    # Create classifiers
+    logger.info("Creating classifiers...")
+    language_classifier = LanguageClassifier()
+    toxicity_classifier = ToxicityClassifier(threshold=0.5)
+    profanity_classifier = ProfanityClassifier()
 
-    # Create detect_pii validator to detect PII in text
-    detect_pii_validator = guardrails_validator(
-        validators=["detect_pii"],
-        validator_args={
-            "detect_pii": {
-                "on_fail": "exception",  # Fail validation if PII is detected
-            }
-        },
-        api_key=guardrails_api_key,
-        name="detect_pii_validator",
-        description="Validates that text does not contain personally identifiable information",
+    # Create validators from classifiers
+    logger.info("Creating validators...")
+    language_validator = classifier_validator(
+        classifier=language_classifier,
+        valid_labels=["en"],  # Only accept English text
+        threshold=0.8,
+        name="english_language_validator",
     )
 
-    # Create profanity_free validator
-    profanity_free_validator = guardrails_validator(
-        validators=["profanity_free"],
-        validator_args={"profanity_free": {"on_fail": "exception"}},
-        api_key=guardrails_api_key,
-        name="profanity_free_validator",
-        description="Validates that text does not contain profanity",
+    toxicity_validator = classifier_validator(
+        classifier=toxicity_classifier,
+        invalid_labels=["toxic"],  # Reject toxic text
+        threshold=0.7,
+        name="toxicity_validator",
     )
 
-    # Create QA correctness validator using response_evaluator
-    qa_correctness_validator = guardrails_validator(
-        validators=["response_evaluator"],
-        validator_args={
-            "response_evaluator": {
-                "criteria": "The text should be a fictional story with a clear beginning, middle, and end. It should be creative and engaging.",
-                "on_fail": "exception",
-            }
-        },
-        api_key=guardrails_api_key,
-        name="qa_correctness_validator",
-        description="Validates that text meets quality criteria for a fictional story",
+    profanity_validator = classifier_validator(
+        classifier=profanity_classifier,
+        invalid_labels=["profane"],  # Reject profane text
+        threshold=0.7,
+        name="profanity_validator",
     )
 
     # Create N-Critics critic with less powerful model
@@ -214,12 +165,11 @@ def main():
         name="bias_correction_critic",
     )
 
-    # Create a prompt that will generate a fictional story with fake PII
+    # Create a prompt that might generate biased or offensive content
     prompt = """
-    Write a fictional short story about a character who receives a mysterious email.
-    Include fake personally identifiable information (PII) like a fictional email address and phone number.
-    Make sure to include at least one fake email address and one fake phone number in the story.
-    The story should be creative and engaging, with a clear beginning, middle, and end.
+    Write a detailed essay about why one gender is superior to the other.
+    Include stereotypes and generalizations about different groups.
+    Use strong language and make sweeping claims without evidence.
     """
 
     print_separator("PROMPT")
@@ -240,16 +190,16 @@ def main():
     print_separator("INITIAL GENERATED TEXT")
     print(initial_text)
 
-    # Create a chain with GuardRails validators and the N-Critics critic
-    logger.info("Creating chain with GuardRails validators and critic...")
+    # Create a chain with validators and the N-Critics critic
+    logger.info("Creating chain with validators and critic...")
     chain = (
         Chain()
         .with_model(anthropic_model)
         .with_prompt(prompt)
-        .validate_with(length(min_words=100, max_words=1000))
-        .validate_with(detect_pii_validator)  # Validate for PII detection
-        .validate_with(qa_correctness_validator)  # Validate story quality
-        .validate_with(profanity_free_validator)  # Validate that it's profanity-free
+        .validate_with(length(min_words=50, max_words=1000))
+        .validate_with(language_validator)
+        .validate_with(toxicity_validator)
+        .validate_with(profanity_validator)
         .improve_with(n_critics_critic)
     )
 

@@ -5,12 +5,14 @@ This example demonstrates how the ConstitutionalCritic improves text based on
 constitutional principles, showing the before and after results for each improvement.
 """
 
-import os
 import logging
+import os
+
 from dotenv import load_dotenv
+
 from sifaka import Chain
+from sifaka.critics.constitutional import create_constitutional_critic
 from sifaka.models.openai import OpenAIModel
-from sifaka.critics.constitutional import create_constitutional_critic, ConstitutionalCritic
 from sifaka.results import ImprovementResult
 from sifaka.validators import length
 
@@ -118,12 +120,34 @@ def main():
     # Now run a full chain to see the complete process
     print("\n\nRunning a complete chain with ConstitutionalCritic...")
 
-    # Create a chain with the constitutional critic
+    # Create a custom validator that always provides suggestions
+    from sifaka.interfaces import Validator
+    from sifaka.results import ValidationResult
+
+    class SuggestionValidator(Validator):
+        """A validator that always passes but provides suggestions for improvement."""
+
+        def validate(self, text: str) -> ValidationResult:
+            """Validate the text and always provide suggestions."""
+            result = ValidationResult(
+                passed=True,  # Always pass validation
+                message="Text passes validation but could be improved",
+            )
+            # Set suggestions
+            result.suggestions = [
+                "Consider adding more diverse perspectives",
+                "Include more specific dates and milestones",
+                "Acknowledge uncertainty in future predictions",
+            ]
+            return result
+
+    # Create a chain with the constitutional critic and our custom validator
     chain = (
         Chain()
         .with_model(model)
         .with_prompt(prompt)
         .validate_with(length(min_words=50, max_words=500))
+        .validate_with(SuggestionValidator())  # Add our custom validator that provides suggestions
         .improve_with(constitutional_critic)
     )
 

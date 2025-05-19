@@ -24,17 +24,23 @@ The components interact in the following way:
 │    Model    │────▶│    Chain    │────▶│  Validators │────▶│   Critics   │
 │             │     │             │     │             │     │             │
 └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
-                          │                    ▲                   │
-                          │                    │                   │
-                          ▼                    │                   ▼
-                    ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-                    │             │     │             │     │             │
-                    │   Results   │     │ Classifiers │     │ Retrievers  │
-                    │             │     │             │     │             │
-                    └─────────────┘     └─────────────┘     └─────────────┘
-                          ▲                                        │
-                          │                                        │
-                          └────────────────────────────────────────┘
+      ▲                   │                    │                   │
+      │                   │                    │                   │
+      │                   ▼                    │                   ▼
+      │             ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+      │             │             │     │             │     │             │
+      │             │   Results   │     │ Classifiers │     │ Retrievers  │
+      │             │             │     │             │     │             │
+      │             └─────────────┘     └─────────────┘     └─────────────┘
+      │                   ▲                                        │
+      │                   │                                        │
+      │                   └────────────────────────────────────────┘
+      │
+      │             ┌─────────────────────────────────────┐
+      │             │                                     │
+      └─────────────┤        Feedback Loop               │
+                    │                                     │
+                    └─────────────────────────────────────┘
 ```
 
 ## Chain
@@ -42,7 +48,12 @@ The components interact in the following way:
 The Chain is the central component of the Sifaka framework. It orchestrates the process of:
 1. Generating text using a language model
 2. Validating the text against specified criteria
-3. Improving the text using specialized critics
+3. If validation fails and the feedback loop is enabled:
+   - Getting feedback from validators on why validation failed
+   - Getting feedback from critics on how to improve the text
+   - Using the model to generate improved text based on the combined feedback
+   - Re-validating the improved text
+4. Improving the text using specialized critics if validation passes
 
 The Chain follows a fluent interface pattern (builder pattern) for easy configuration, allowing you to chain method calls to set up the desired behavior.
 

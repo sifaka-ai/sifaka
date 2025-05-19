@@ -248,7 +248,6 @@ class TestSpamClassifierDetailed:
             patch("builtins.open", create=True),
             patch("pickle.load", return_value=model_data),
         ):
-
             classifier = SpamClassifier(model_path="valid_model.pkl")
             model, vectorizer = classifier._load_model()
 

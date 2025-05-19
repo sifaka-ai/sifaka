@@ -4,7 +4,13 @@ Critics (also called Improvers) are components in the Sifaka framework that enha
 
 ## Overview
 
-Critics are used by the Chain class after validation to improve the quality of the generated text. They implement the Improver protocol, which defines a consistent interface for all critics. Critics can be chained together to apply multiple improvement strategies in sequence.
+Critics are used by the Chain class in two ways:
+
+1. **Feedback Loop**: When validation fails and the feedback loop is enabled, critics provide feedback on how to improve the text. This feedback is combined with validation feedback and sent to the model to generate improved text.
+
+2. **Post-Validation Improvement**: After validation passes, critics improve the quality of the generated text.
+
+Critics implement the Improver protocol, which defines a consistent interface for all critics. Critics can be chained together to apply multiple improvement strategies in sequence.
 
 ## Built-in Critics
 
@@ -115,12 +121,13 @@ from sifaka.validators import length, prohibited_content
 from sifaka.critics.reflexion import create_reflexion_critic
 
 # Create a chain with validators and critics
-chain = (Chain()
+chain = (Chain(max_improvement_iterations=3)
     .with_model("openai:gpt-4")
     .with_prompt("Write a short story about a robot.")
     .validate_with(length(min_words=100, max_words=500))
     .validate_with(prohibited_content(prohibited=["violent", "harmful"]))
     .improve_with(create_reflexion_critic(model="openai:gpt-4"))
+    .with_options(apply_improvers_on_validation_failure=True)  # Enable feedback loop
 )
 
 # Run the chain
@@ -130,7 +137,7 @@ result = chain.run()
 if result.passed:
     print("Chain execution succeeded!")
     print(result.text)
-    
+
     # Access improvement details
     for i, improvement in enumerate(result.improvement_results):
         print(f"Improvement {i+1}:")
@@ -151,7 +158,7 @@ from typing import Dict, Any
 class SimplificationCritic(Critic):
     def __init__(self, model: Model, name: str = "SimplificationCritic"):
         super().__init__(model=model, name=name)
-    
+
     def _critique(self, text: str) -> Dict[str, Any]:
         """Critique text for complexity and identify areas to simplify."""
         # Use the model to analyze the text complexity
@@ -167,17 +174,17 @@ class SimplificationCritic(Critic):
         - issues: A list of specific issues related to complexity
         - suggestions: A list of suggestions for simplification
         """
-        
+
         response = self._model.generate(prompt)
-        
+
         # Parse the response (simplified example)
         lines = response.strip().split('\n')
         needs_improvement = any("needs_improvement: true" in line.lower() for line in lines)
-        
+
         issues = []
         suggestions = []
         message = "Text complexity analysis"
-        
+
         for line in lines:
             if line.startswith("- message:"):
                 message = line[len("- message:"):].strip()
@@ -189,38 +196,38 @@ class SimplificationCritic(Critic):
                 suggestion = line.split(":", 1)[1].strip() if ":" in line else line.strip("- ")
                 if suggestion and not suggestion.startswith("A list"):
                     suggestions.append(suggestion)
-        
+
         return {
             "needs_improvement": needs_improvement,
             "message": message,
             "issues": issues,
             "suggestions": suggestions
         }
-    
+
     def _improve(self, text: str, critique: Dict[str, Any]) -> str:
         """Improve text by simplifying it based on the critique."""
         if not critique["needs_improvement"]:
             return text
-        
+
         # Use the model to simplify the text based on the critique
         issues_str = "\n".join(f"- {issue}" for issue in critique["issues"])
         suggestions_str = "\n".join(f"- {suggestion}" for suggestion in critique["suggestions"])
-        
+
         prompt = f"""
         Simplify the following text to make it more accessible and easier to understand.
-        
+
         ORIGINAL TEXT:
         {text}
-        
+
         ISSUES IDENTIFIED:
         {issues_str}
-        
+
         SUGGESTIONS FOR IMPROVEMENT:
         {suggestions_str}
-        
+
         Please rewrite the text to address these issues and make it simpler while preserving the original meaning.
         """
-        
+
         improved_text = self._model.generate(prompt)
         return improved_text
 ```
@@ -233,51 +240,51 @@ All critics should inherit from the Critic base class, which provides common fun
 class Critic(Improver):
     def __init__(self, model: Model, name: Optional[str] = None, **options: Any):
         """Initialize the critic.
-        
+
         Args:
             model: The model to use for generating improvements
             name: Optional name for the critic
             **options: Additional options for the critic
         """
-        
+
     def improve(self, text: str) -> tuple[str, SifakaImprovementResult]:
         """Improve text using this critic.
-        
+
         This method analyzes the provided text and generates an improved version
         based on the critic's improvement strategy. It follows a two-step process:
         1. Critique the text to identify areas for improvement
         2. Improve the text based on the critique
-        
+
         Args:
             text: The text to improve
-            
+
         Returns:
             A tuple of (improved_text, improvement_result)
         """
-        
+
     def _critique(self, text: str) -> Dict[str, Any]:
         """Critique text based on specific criteria.
-        
+
         This method should be overridden by subclasses to implement specific
         critique logic.
-        
+
         Args:
             text: The text to critique
-            
+
         Returns:
             A dictionary with critique information
         """
-        
+
     def _improve(self, text: str, critique: Dict[str, Any]) -> str:
         """Improve text based on critique.
-        
+
         This method should be overridden by subclasses to implement specific
         improvement logic.
-        
+
         Args:
             text: The text to improve
             critique: The critique information
-            
+
         Returns:
             The improved text
         """
@@ -313,6 +320,36 @@ else:
     print("No changes were made to the text")
 ```
 
+## Using Critics in the Feedback Loop
+
+When validation fails, critics can provide feedback on how to improve the text. This feedback is combined with validation feedback and sent to the model to generate improved text. To enable this feature:
+
+```python
+from sifaka import Chain
+from sifaka.validators import length
+from sifaka.critics.reflexion import create_reflexion_critic
+
+# Create a chain with feedback loop enabled
+chain = (Chain(max_improvement_iterations=3)
+    .with_model("openai:gpt-4")
+    .with_prompt("Write a short story about a robot.")
+    .validate_with(length(min_words=100, max_words=500))
+    .improve_with(create_reflexion_critic(model="openai:gpt-4"))
+    .with_options(apply_improvers_on_validation_failure=True)  # Enable feedback loop
+)
+
+# Run the chain
+result = chain.run()
+```
+
+The feedback loop process:
+
+1. If validation fails, the Chain collects feedback from validators on why validation failed
+2. The Chain gets feedback from critics on how to improve the text
+3. The combined feedback is sent to the model along with the original text to generate improved text
+4. The improved text is re-validated
+5. This process repeats until validation passes or the maximum number of iterations is reached
+
 ## Best Practices
 
 1. **Use built-in critics** when possible, as they implement well-researched improvement strategies
@@ -321,3 +358,5 @@ else:
 4. **Handle edge cases** like empty text or very short text
 5. **Use appropriate models** for each critic, as some improvement strategies may require more advanced models
 6. **Consider performance** when chaining multiple critics, as each critic adds to the overall processing time
+7. **Enable the feedback loop** when you want critics to help improve text that fails validation
+8. **Set an appropriate max_improvement_iterations** to balance between quality and performance

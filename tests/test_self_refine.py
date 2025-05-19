@@ -22,7 +22,7 @@ class TestSelfRefineCritic:
         critic = SelfRefineCritic(model=mock_model)
         assert critic.model == mock_model
         assert critic.temperature == 0.7
-        assert critic.refinement_rounds == 2
+        assert critic.options.get("refinement_rounds", 1) == 1
         assert "expert editor" in critic.system_prompt.lower()
 
     def test_init_with_custom_parameters(self, mock_model) -> None:
@@ -34,7 +34,7 @@ class TestSelfRefineCritic:
             temperature=0.5,
         )
         assert critic.model == mock_model
-        assert critic.refinement_rounds == 3
+        assert critic.options.get("refinement_rounds", 1) == 3
         assert critic.system_prompt == "Custom system prompt"
         assert critic.temperature == 0.5
 
@@ -42,11 +42,11 @@ class TestSelfRefineCritic:
         """Test initializing a SelfRefineCritic with invalid refinement rounds."""
         # Test with negative refinement rounds (should be clamped to 1)
         critic = SelfRefineCritic(model=mock_model, refinement_rounds=-1)
-        assert critic.refinement_rounds == 1
+        assert critic.options.get("refinement_rounds", 1) == 1
 
         # Test with zero refinement rounds (should be clamped to 1)
         critic = SelfRefineCritic(model=mock_model, refinement_rounds=0)
-        assert critic.refinement_rounds == 1
+        assert critic.options.get("refinement_rounds", 1) == 1
 
     def test_init_without_model(self) -> None:
         """Test initializing a SelfRefineCritic without a model."""
@@ -180,6 +180,8 @@ class TestSelfRefineCritic:
 
     def test_improve_method_with_multiple_rounds(self, mock_model) -> None:
         """Test the _improve method with multiple refinement rounds."""
+        # Since the SelfRefineCritic no longer handles multiple rounds internally,
+        # we'll simulate it by calling _improve twice
         critic = SelfRefineCritic(model=mock_model, refinement_rounds=2)
 
         # Create a critique
@@ -196,18 +198,21 @@ class TestSelfRefineCritic:
         with patch.object(critic, "_generate") as mock_generate:
             mock_generate.side_effect = [
                 "First improvement",  # Initial improvement
-                '{"issues": ["Issue 3"], "suggestions": ["Suggestion 3"]}',  # Feedback for round 2
-                "Final improvement",  # Improvement for round 2
+                "Final improvement",  # Second improvement
             ]
 
-            # Call the _improve method
-            result = critic._improve("Test text", critique)
+            # First call to _improve
+            result1 = critic._improve("Test text", critique)
+
+            # Second call to _improve (simulating the Chain calling it again)
+            result2 = critic._improve(result1, critique)
 
             # Check that the _generate method was called correctly
-            assert mock_generate.call_count == 3
+            assert mock_generate.call_count == 2
 
             # Check the result
-            assert result == "Final improvement"
+            assert result1 == "First improvement"
+            assert result2 == "Final improvement"
             assert len(critique["refinement_history"]) == 2
             assert critique["refinement_history"][0]["round"] == 1
             assert critique["refinement_history"][0]["text"] == "First improvement"
