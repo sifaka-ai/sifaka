@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List
 
 # Import Milvus conditionally to avoid hard dependency
 try:
-    from pymilvus import Collection, connections  # type: ignore
+    from pymilvus import Collection, connections
 
     MILVUS_AVAILABLE = True
 except ImportError:
@@ -18,8 +18,12 @@ except ImportError:
     if TYPE_CHECKING:
 
         class Collection:  # type: ignore
-            def __init__(self, name: str) -> None: ...
-            def load(self) -> None: ...
+            def __init__(self, name: str) -> None:
+                ...
+
+            def load(self) -> None:
+                ...
+
             def search(
                 self,
                 data: List[List[float]],
@@ -27,7 +31,8 @@ except ImportError:
                 param: Dict[str, Any],
                 limit: int,
                 output_fields: List[str],
-            ) -> List[List[Dict[str, Any]]]: ...
+            ) -> List[List[Dict[str, Any]]]:
+                ...
 
 
 from sifaka.errors import RetrieverError

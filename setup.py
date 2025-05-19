@@ -47,7 +47,7 @@ extras_require["all"] = [dep for name, deps in extras_require.items() for dep in
 setup(
     name="sifaka",
     version="0.1.0",
-    description="Sifaka - Simplified AI Text Processing Framework",
+    description="Sifaka - AI validation, improvement, and evaluation framework with built-in guardrails.",
     author="Evan Volgas",
     author_email="evan.volgas@gmail.com",
     packages=find_packages(),

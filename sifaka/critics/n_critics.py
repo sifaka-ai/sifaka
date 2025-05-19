@@ -13,6 +13,7 @@ https://arxiv.org/abs/2310.18679
 
 import json
 import logging
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -40,8 +41,128 @@ class NCriticsCritic(Critic):
         system_prompt: The system prompt to use for the model.
         temperature: The temperature to use for the model.
         num_critics: Number of specialized critics to use.
-        max_refinement_iterations: Maximum number of refinement iterations.
     """
+
+    def _repair_json(self, json_str: str) -> str:
+        """Attempt to repair common JSON syntax issues.
+
+        Args:
+            json_str: The JSON string to repair.
+
+        Returns:
+            The repaired JSON string.
+        """
+        # Remove any leading/trailing whitespace
+        json_str = json_str.strip()
+
+        # Ensure the string starts with { and ends with }
+        if not json_str.startswith("{"):
+            json_str = "{" + json_str
+        if not json_str.endswith("}"):
+            json_str = json_str + "}"
+
+        # Replace JavaScript-style single quotes with double quotes
+        # This is a simplified approach and may not handle all cases correctly
+        in_string = False
+        in_escape = False
+        result = []
+
+        for char in json_str:
+            if char == "\\" and not in_escape:
+                in_escape = True
+                result.append(char)
+            elif in_escape:
+                in_escape = False
+                result.append(char)
+            elif char == '"' and not in_escape:
+                in_string = not in_string
+                result.append(char)
+            elif char == "'" and not in_string:
+                # Replace single quotes with double quotes when not in a string
+                result.append('"')
+            else:
+                result.append(char)
+
+        # Fix trailing commas in arrays and objects
+        repaired = "".join(result)
+        repaired = repaired.replace(",]", "]").replace(",}", "}")
+
+        # Fix missing commas between key-value pairs
+        # This is a very simplified approach and may not handle all cases correctly
+        repaired = re.sub(r'"\s*}\s*"', '", "', repaired)
+
+        return repaired
+
+    def _aggressive_json_repair(self, json_str: str) -> Dict[str, Any]:
+        """Attempt more aggressive JSON repair when standard parsing fails.
+
+        This method tries to extract key-value pairs from malformed JSON using
+        regular expressions and other heuristics.
+
+        Args:
+            json_str: The malformed JSON string.
+
+        Returns:
+            A dictionary with the extracted key-value pairs.
+        """
+        # Initialize an empty result dictionary
+        result = {}
+
+        # Try to extract role
+        role_match = re.search(r'"role"\s*:\s*"([^"]+)"', json_str)
+        if role_match:
+            result["role"] = role_match.group(1)
+
+        # Try to extract needs_improvement
+        needs_improvement_match = re.search(
+            r'"needs_improvement"\s*:\s*(true|false)', json_str, re.IGNORECASE
+        )
+        if needs_improvement_match:
+            result["needs_improvement"] = needs_improvement_match.group(1).lower() == "true"
+        else:
+            result["needs_improvement"] = True
+
+        # Try to extract score
+        score_match = re.search(r'"score"\s*:\s*(\d+)', json_str)
+        if score_match:
+            result["score"] = int(score_match.group(1))
+        else:
+            result["score"] = 5
+
+        # Try to extract issues
+        issues = []
+        issues_matches = re.findall(r'"issues"\s*:\s*\[(.*?)\]', json_str, re.DOTALL)
+        if issues_matches:
+            issues_str = issues_matches[0]
+            # Extract quoted strings from the issues array
+            issue_items = re.findall(r'"([^"]+)"', issues_str)
+            issues.extend(issue_items)
+
+        if not issues:
+            issues = ["Unable to parse issues from critique response"]
+        result["issues"] = issues
+
+        # Try to extract suggestions
+        suggestions = []
+        suggestions_matches = re.findall(r'"suggestions"\s*:\s*\[(.*?)\]', json_str, re.DOTALL)
+        if suggestions_matches:
+            suggestions_str = suggestions_matches[0]
+            # Extract quoted strings from the suggestions array
+            suggestion_items = re.findall(r'"([^"]+)"', suggestions_str)
+            suggestions.extend(suggestion_items)
+
+        if not suggestions:
+            suggestions = ["General improvement needed"]
+        result["suggestions"] = suggestions
+
+        # Try to extract explanation
+        explanation_match = re.search(r'"explanation"\s*:\s*"([^"]+)"', json_str)
+        if explanation_match:
+            result["explanation"] = explanation_match.group(1)
+        else:
+            result["explanation"] = "Unable to parse explanation from critique response"
+
+        return result
 
     def __init__(
         self,
@@ -49,7 +170,6 @@ class NCriticsCritic(Critic):
         system_prompt: Optional[str] = None,
         temperature: float = 0.7,
         num_critics: int = 3,
-        max_refinement_iterations: int = 2,
         **options: Any,
     ):
         """Initialize the N-Critics critic.
@@ -59,7 +179,6 @@ class NCriticsCritic(Critic):
             system_prompt: The system prompt to use for the model.
             temperature: The temperature to use for the model.
             num_critics: Number of specialized critics to use.
-            max_refinement_iterations: Maximum number of refinement iterations.
             **options: Additional options to pass to the model.
 
         Raises:
@@ -70,8 +189,7 @@ class NCriticsCritic(Critic):
         # Log initialization attempt
         logger.debug(
             f"Initializing NCriticsCritic with model={model.__class__.__name__ if model else None}, "
-            f"num_critics={num_critics}, max_refinement_iterations={max_refinement_iterations}, "
-            f"temperature={temperature}"
+            f"num_critics={num_critics}, temperature={temperature}"
         )
 
         try:
@@ -88,7 +206,6 @@ class NCriticsCritic(Critic):
                     ],
                     metadata={
                         "num_critics": num_critics,
-                        "max_refinement_iterations": max_refinement_iterations,
                         "temperature": temperature,
                     },
                 )
@@ -114,7 +231,6 @@ class NCriticsCritic(Critic):
                 metadata={
                     "model_type": model.__class__.__name__,
                     "num_critics": num_critics,
-                    "max_refinement_iterations": max_refinement_iterations,
                     "temperature": temperature,
                 },
             ):
@@ -127,14 +243,6 @@ class NCriticsCritic(Critic):
             if self.num_critics != original_num_critics:
                 logger.warning(
                     f"Adjusted num_critics from {original_num_critics} to {self.num_critics} (valid range: 1-5)"
-                )
-
-            original_max_iterations = max_refinement_iterations
-            self.max_refinement_iterations = max(1, max_refinement_iterations)
-            if self.max_refinement_iterations != original_max_iterations:
-                logger.warning(
-                    f"Adjusted max_refinement_iterations from {original_max_iterations} to "
-                    f"{self.max_refinement_iterations} (minimum: 1)"
                 )
 
             # Define the critic roles
@@ -178,7 +286,6 @@ class NCriticsCritic(Critic):
                     metadata={
                         "model_type": model.__class__.__name__ if model else None,
                         "num_critics": num_critics,
-                        "max_refinement_iterations": max_refinement_iterations,
                         "temperature": temperature,
                         "error_type": type(e).__name__,
                         "error_message": str(e),
@@ -362,11 +469,27 @@ class NCriticsCritic(Critic):
                 response = self._generate(prompt)
                 logger.debug(f"NCriticsCritic: Generated response of length {len(response)}")
 
-                # Extract JSON from response
-                json_start = response.find("{")
-                json_end = response.rfind("}") + 1
+                # Extract and repair JSON from response
+                # First, try to find JSON between triple backticks
+                json_str = ""
+                if "```json" in response and "```" in response.split("```json", 1)[1]:
+                    # Extract JSON from code block
+                    json_str = response.split("```json", 1)[1].split("```", 1)[0].strip()
+                elif "```" in response and "```" in response.split("```", 1)[1]:
+                    # Extract potential JSON from generic code block
+                    code_block = response.split("```", 1)[1].split("```", 1)[0].strip()
+                    if code_block.startswith("{") and code_block.endswith("}"):
+                        json_str = code_block
 
-                if json_start == -1 or json_end == 0:
+                # If no code block found, try to extract JSON directly
+                if not json_str:
+                    json_start = response.find("{")
+                    json_end = response.rfind("}") + 1
+
+                    if json_start != -1 and json_end > json_start:
+                        json_str = response[json_start:json_end]
+
+                if not json_str:
                     # No JSON found, log the issue
                     logger.warning(
                         f"NCriticsCritic: No JSON found in response for role: {role[:30]}, using default response"
@@ -386,9 +509,33 @@ class NCriticsCritic(Critic):
                         "processing_time_ms": processing_time,
                     }
 
-                # Parse JSON
-                json_str = response[json_start:json_end]
-                critique = json.loads(json_str)
+                # Try to repair common JSON issues
+                try:
+                    # Replace single quotes with double quotes (if not within strings)
+                    # This is a simplified approach and may not handle all cases correctly
+                    json_str = self._repair_json(json_str)
+
+                    # Parse JSON
+                    critique = json.loads(json_str)
+                except json.JSONDecodeError as e:
+                    # If parsing fails, log the error with details
+                    logger.warning(
+                        f"NCriticsCritic: JSON parsing error for role: {role[:30]}: {str(e)}\n"
+                        f"JSON string (first 100 chars): {json_str[:100]}..."
+                    )
+
+                    # Try a more aggressive repair approach
+                    try:
+                        # Try to extract just the key-value pairs
+                        repaired_json = self._aggressive_json_repair(json_str)
+                        critique = repaired_json
+                    except Exception as repair_error:
+                        # If aggressive repair fails, raise the original error
+                        raise json.JSONDecodeError(
+                            f"Failed to parse JSON: {str(e)}. Repair attempt failed: {str(repair_error)}",
+                            json_str,
+                            0,
+                        )
 
                 # Ensure all required fields are present
                 critique.setdefault("role", role)
@@ -602,8 +749,8 @@ class NCriticsCritic(Critic):
     def _improve(self, text: str, critique: Dict[str, Any]) -> str:
         """Improve text using the N-Critics technique.
 
-        This method implements the iterative refinement process from the N-Critics paper,
-        using feedback from multiple critics to guide the improvement.
+        This method generates improved text based on feedback from multiple critics.
+        It performs a single improvement step without internal iterations.
 
         Args:
             text: The text to improve.
@@ -617,12 +764,7 @@ class NCriticsCritic(Critic):
         """
         start_time = time.time()
 
-        logger.debug(
-            f"NCriticsCritic: Improving text of length {len(text)} with max {self.max_refinement_iterations} iterations"
-        )
-
-        current_text = text
-        current_critique = critique
+        logger.debug(f"NCriticsCritic: Improving text of length {len(text)}")
 
         try:
             # Use critic_context for consistent error handling
@@ -637,72 +779,15 @@ class NCriticsCritic(Critic):
                 ],
                 metadata={
                     "text_length": len(text),
-                    "max_iterations": self.max_refinement_iterations,
                     "temperature": self.temperature,
                 },
             ):
-                # Iterative refinement process
-                for iteration_num in range(self.max_refinement_iterations):
-                    iteration_start_time = time.time()
-
-                    logger.debug(
-                        f"NCriticsCritic: Starting improvement iteration {iteration_num+1}/{self.max_refinement_iterations}"
-                    )
-
-                    try:
-                        # Generate improved text based on aggregated critique
-                        improved_text = self._generate_improved_text(
-                            current_text,
-                            current_critique["aggregated_critique"]["summary"],
-                            current_critique["critic_critiques"],
-                        )
-
-                        # Re-evaluate the improved text
-                        improved_critique = self._critique(improved_text)
-
-                        # Check if the text has improved
-                        current_score = current_critique["aggregated_critique"]["average_score"]
-                        improved_score = improved_critique["aggregated_critique"]["average_score"]
-
-                        # Calculate iteration time
-                        iteration_time = (
-                            time.time() - iteration_start_time
-                        ) * 1000  # Convert to milliseconds
-
-                        if improved_score > current_score:
-                            logger.debug(
-                                f"NCriticsCritic: Iteration {iteration_num+1} improved score from {current_score:.1f} to "
-                                f"{improved_score:.1f} in {iteration_time:.2f}ms"
-                            )
-                            current_text = improved_text
-                            current_critique = improved_critique
-                        else:
-                            # No improvement, stop iterating
-                            logger.debug(
-                                f"NCriticsCritic: Iteration {iteration_num+1} did not improve score "
-                                f"({improved_score:.1f} <= {current_score:.1f}), stopping iterations"
-                            )
-                            break
-
-                        # If the score is high enough, stop iterating
-                        if improved_score >= 9.0:
-                            logger.debug(
-                                f"NCriticsCritic: Achieved high score ({improved_score:.1f} >= 9.0), stopping iterations"
-                            )
-                            break
-
-                    except Exception as error:
-                        # Log the error but continue with the current text
-                        log_error(
-                            error,
-                            logger,
-                            component="NCriticsCritic",
-                            operation=f"improve_iteration_{iteration_num+1}",
-                        )
-                        logger.warning(
-                            f"NCriticsCritic: Error in iteration {iteration_num+1}, stopping iterations: {str(error)}"
-                        )
-                        break
+                # Generate improved text based on aggregated critique
+                improved_text = self._generate_improved_text(
+                    text,
+                    critique["aggregated_critique"]["summary"],
+                    critique["critic_critiques"],
+                )
 
                 # Calculate total processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
@@ -712,7 +797,7 @@ class NCriticsCritic(Critic):
                     f"NCriticsCritic: Successfully improved text in {processing_time:.2f}ms"
                 )
 
-                return current_text
+                return improved_text
 
         except Exception as e:
             # Calculate processing time
@@ -733,7 +818,7 @@ class NCriticsCritic(Critic):
                 ],
                 metadata={
                     "text_length": len(text),
-                    "max_iterations": self.max_refinement_iterations,
+                    "max_iterations": self.options.get("max_refinement_iterations", 3),
                     "temperature": self.temperature,
                     "error_type": type(e).__name__,
                     "error_message": str(e),
@@ -879,7 +964,6 @@ def create_n_critics_critic(
     system_prompt: Optional[str] = None,
     temperature: float = 0.7,
     num_critics: int = 3,
-    max_refinement_iterations: int = 2,
     **options: Any,
 ) -> NCriticsCritic:
     """Create an N-Critics critic.
@@ -893,7 +977,6 @@ def create_n_critics_critic(
         system_prompt: The system prompt to use for the model.
         temperature: The temperature to use for the model.
         num_critics: Number of specialized critics to use.
-        max_refinement_iterations: Maximum number of refinement iterations.
         **options: Additional options to pass to the NCriticsCritic.
 
     Returns:
@@ -906,8 +989,7 @@ def create_n_critics_critic(
 
     logger.debug(
         f"Creating NCriticsCritic with model={model.__class__.__name__ if model else None}, "
-        f"num_critics={num_critics}, max_refinement_iterations={max_refinement_iterations}, "
-        f"temperature={temperature}"
+        f"num_critics={num_critics}, temperature={temperature}"
     )
 
     try:
@@ -923,7 +1005,6 @@ def create_n_critics_critic(
             metadata={
                 "model_type": model.__class__.__name__ if model else None,
                 "num_critics": num_critics,
-                "max_refinement_iterations": max_refinement_iterations,
                 "temperature": temperature,
             },
         ):
@@ -932,7 +1013,6 @@ def create_n_critics_critic(
                 system_prompt=system_prompt,
                 temperature=temperature,
                 num_critics=num_critics,
-                max_refinement_iterations=max_refinement_iterations,
                 **options,
             )
 
@@ -965,7 +1045,6 @@ def create_n_critics_critic(
                 metadata={
                     "model_type": model.__class__.__name__ if model else None,
                     "num_critics": num_critics,
-                    "max_refinement_iterations": max_refinement_iterations,
                     "temperature": temperature,
                     "error_type": type(e).__name__,
                     "error_message": str(e),

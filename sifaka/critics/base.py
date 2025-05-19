@@ -372,8 +372,9 @@ class Critic(Improver):
                 merged_options["stop"] = merged_options.pop("stop_sequences")
 
             # Log generation attempt
+            temp_value = merged_options.get("temperature")
             logger.debug(
-                f"{self.name}: Generating text with prompt length={len(prompt)}, temperature={merged_options.get('temperature')}"
+                f"{self.name}: Generating text with prompt length={len(prompt)}, temperature={temp_value}"
             )
 
             # Generate text

@@ -7,12 +7,14 @@ for knowledge-enhanced text generation.
 
 import logging
 import os
+
 from dotenv import load_dotenv
+
 from sifaka import Chain
-from sifaka.validators import length
 from sifaka.critics.self_rag import create_self_rag_critic
 from sifaka.models.openai import OpenAIModel
 from sifaka.retrievers import SimpleRetriever
+from sifaka.validators import length
 
 # Set up logging
 logging.basicConfig(

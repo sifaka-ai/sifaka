@@ -23,7 +23,7 @@ import ast
 import os
 import re
 import sys
-from typing import List, Tuple, Dict, Any, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Define root classes that don't need to call super()._initialize_state()
 # These are the base implementations that have no parent to call
@@ -92,7 +92,7 @@ class StateManagementVisitor(ast.NodeVisitor):
                             self.violations.append(
                                 (
                                     item.lineno,
-                                    f"Direct StateManager instantiation in PrivateAttr. Use create_*_state() factory functions instead.",
+                                    "Direct StateManager instantiation in PrivateAttr. Use create_*_state() factory functions instead.",
                                 )
                             )
                     elif isinstance(item.value, ast.Call) and isinstance(
@@ -111,7 +111,7 @@ class StateManagementVisitor(ast.NodeVisitor):
                             self.violations.append(
                                 (
                                     item.lineno,
-                                    f"Direct StateManager use in default_factory. Use create_*_state() factory functions instead.",
+                                    "Direct StateManager use in default_factory. Use create_*_state() factory functions instead.",
                                 )
                             )
                     # Record this location to check later
@@ -181,7 +181,7 @@ class StateManagementVisitor(ast.NodeVisitor):
                     self.violations.append(
                         (
                             node.lineno,
-                            f"Missing super()._initialize_state() call in _initialize_state method",
+                            "Missing super()._initialize_state() call in _initialize_state method",
                         )
                     )
 
@@ -202,7 +202,7 @@ class StateManagementVisitor(ast.NodeVisitor):
                 self.violations.append(
                     (
                         node.lineno,
-                        f"Direct StateManager instantiation detected. Use create_*_state() factory functions instead.",
+                        "Direct StateManager instantiation detected. Use create_*_state() factory functions instead.",
                     )
                 )
         return self.generic_visit(node)
@@ -221,7 +221,7 @@ class StateManagementVisitor(ast.NodeVisitor):
                 and node.func.value.attr == "_state_manager"
             ):
                 self.violations.append(
-                    (node.lineno, f"Using set() method on state manager. Use update() instead.")
+                    (node.lineno, "Using set() method on state manager. Use update() instead.")
                 )
 
         # Check for direct StateManager instantiation in any context
@@ -233,7 +233,7 @@ class StateManagementVisitor(ast.NodeVisitor):
             self.violations.append(
                 (
                     node.lineno,
-                    f"Direct StateManager instantiation detected. Use create_*_state() factory functions instead.",
+                    "Direct StateManager instantiation detected. Use create_*_state() factory functions instead.",
                 )
             )
 
@@ -279,7 +279,7 @@ def lint_file(filepath: str) -> List[Tuple[int, str]]:
                 visitor.violations.append(
                     (
                         line_number,
-                        f"Potential direct StateManager instantiation detected. Use create_*_state() factory functions instead.",
+                        "Potential direct StateManager instantiation detected. Use create_*_state() factory functions instead.",
                     )
                 )
 
@@ -291,7 +291,7 @@ def lint_file(filepath: str) -> List[Tuple[int, str]]:
                 visitor.violations.append(
                     (
                         line_number,
-                        f"Using StateManager directly as default_factory. Use create_*_state() factory functions instead.",
+                        "Using StateManager directly as default_factory. Use create_*_state() factory functions instead.",
                     )
                 )
 

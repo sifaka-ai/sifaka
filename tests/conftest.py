@@ -80,6 +80,7 @@ class MockCritic:
         self.should_improve = should_improve
         self.improve_calls = []
         self.improved_text = "This is improved text."
+        self.get_feedback_calls = []
 
     @property
     def name(self) -> str:
@@ -105,6 +106,14 @@ class MockCritic:
                 message="No improvements needed",
                 processing_time_ms=100.0,
             )
+
+    def get_feedback(self, text: str) -> dict:
+        """Get feedback on text for improvement."""
+        self.get_feedback_calls.append(text)
+        return {
+            "issues": ["Mock issue"],
+            "suggestions": ["Mock suggestion", f"Consider improvements suggested by {self._name}"],
+        }
 
     def set_improved_text(self, text: str) -> None:
         """Set the improved text for the mock critic."""

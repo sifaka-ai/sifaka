@@ -85,10 +85,10 @@ class Classifier(Protocol):
         ...
 
 
+# Import classifier implementations
+from sifaka.classifiers.bias import BiasClassifier
 from sifaka.classifiers.language import LanguageClassifier
 from sifaka.classifiers.profanity import ProfanityClassifier
-
-# Import classifier implementations
 from sifaka.classifiers.sentiment import SentimentClassifier
 from sifaka.classifiers.spam import SpamClassifier
 from sifaka.classifiers.toxicity import ToxicityClassifier
@@ -96,6 +96,7 @@ from sifaka.classifiers.toxicity import ToxicityClassifier
 __all__ = [
     "Classifier",
     "ClassificationResult",
+    "BiasClassifier",
     "SentimentClassifier",
     "ToxicityClassifier",
     "SpamClassifier",

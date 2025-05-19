@@ -21,12 +21,13 @@ from sifaka.validators import length, prohibited_content
 from sifaka.critics.reflexion import create_reflexion_critic
 
 # Create a chain with validators and critics
-chain = (Chain()
+chain = (Chain(max_improvement_iterations=3)
     .with_model("openai:gpt-4")  # Uses OPENAI_API_KEY environment variable
     .with_prompt("Write a short story about a robot.")
     .validate_with(length(min_words=100, max_words=500))
     .validate_with(prohibited_content(prohibited=["violent", "harmful"]))
     .improve_with(create_reflexion_critic(model="openai:gpt-4"))
+    .with_options(apply_improvers_on_validation_failure=True)  # Enable feedback loop
 )
 
 # Run the chain
@@ -50,6 +51,7 @@ def __init__(
     self,
     config: Optional[SifakaConfig] = None,
     model_factory: Optional[Callable[[str, str], Model]] = None,
+    max_improvement_iterations: int = 3,
 ):
 ```
 
@@ -57,6 +59,7 @@ Creates a new Chain instance with optional configuration and model factory.
 
 - `config`: Optional configuration for the chain and its components
 - `model_factory`: Optional factory function for creating models from strings
+- `max_improvement_iterations`: Maximum number of improvement iterations when applying the feedback loop between validators and improvers. Default is 3.
 
 ### with_model
 
@@ -100,6 +103,9 @@ def with_options(self, **options: Any) -> "Chain":
 
 Sets options to pass to the model during generation. These options can include parameters like temperature, max_tokens, and top_p, which control the behavior of the model.
 
+Special options:
+- `apply_improvers_on_validation_failure` (bool): If True, improvers will be applied when validation fails to create a feedback loop. Default is True.
+
 ### with_config
 
 ```python
@@ -114,12 +120,17 @@ Sets the configuration for the chain. This method allows you to update the confi
 def run(self) -> Result:
 ```
 
-Executes the chain and returns the result. This method runs the complete chain execution process:
+Executes the chain and returns the result. This method runs the complete chain execution process with a feedback loop:
 1. Checks that the chain is properly configured (has a model and prompt)
 2. Generates text using the model and prompt
 3. Validates the generated text using all configured validators
-4. If all validations pass, improves the text using all configured improvers
-5. Returns a Result object containing the final text and all validation/improvement results
+4. If validation fails and `apply_improvers_on_validation_failure` is True:
+   - Gets feedback from critics on how to improve the text
+   - Sends the original text + feedback to the model to generate improved text
+   - Re-validates the improved text
+   - Repeats steps 4a-4c until validation passes or max iterations is reached
+5. If validation passes, improves the text using all configured improvers
+6. Returns a Result object containing the final text and all validation/improvement results
 
 ## Chain Execution Process
 
@@ -128,9 +139,45 @@ The Chain execution process follows these steps:
 1. **Configuration Check**: Ensures that a model and prompt have been specified
 2. **Text Generation**: Uses the model to generate text from the prompt
 3. **Validation**: Applies each validator in sequence to check if the text meets the specified criteria
-   - If any validator fails, the process stops and returns a failed result
+   - If any validator fails and `apply_improvers_on_validation_failure` is True:
+     - Collects feedback from validators on why validation failed
+     - Gets feedback from critics on how to improve the text
+     - Uses the model to generate improved text based on the combined feedback
+     - Re-validates the improved text
+     - Repeats this process until validation passes or max iterations is reached
+   - If any validator fails and `apply_improvers_on_validation_failure` is False:
+     - The process stops and returns a failed result
 4. **Improvement**: If all validations pass, applies each improver in sequence to enhance the text quality
 5. **Result Creation**: Returns a Result object containing the final text and all validation/improvement results
+
+## Feedback Loop
+
+The Chain class implements a feedback loop between validators and critics to improve text that fails validation. This feature is enabled by default and can be controlled with the `apply_improvers_on_validation_failure` option.
+
+When the feedback loop is enabled:
+
+1. If validation fails, the Chain collects feedback from validators on why validation failed
+2. The Chain gets feedback from critics on how to improve the text
+3. The combined feedback is sent to the model along with the original text to generate improved text
+4. The improved text is re-validated
+5. This process repeats until validation passes or the maximum number of iterations is reached
+
+The maximum number of iterations can be set when creating the Chain instance:
+
+```python
+# Create a chain with a custom number of improvement iterations
+chain = Chain(max_improvement_iterations=5)
+```
+
+To enable or disable the feedback loop:
+
+```python
+# Enable the feedback loop (default)
+chain = chain.with_options(apply_improvers_on_validation_failure=True)
+
+# Disable the feedback loop
+chain = chain.with_options(apply_improvers_on_validation_failure=False)
+```
 
 ## Using Configuration
 

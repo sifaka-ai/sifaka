@@ -7,14 +7,16 @@ text improvement, using the ReflexionCritic and N-Critics approach.
 
 import logging
 import os
+
 from dotenv import load_dotenv
+
 from sifaka import Chain
-from sifaka.validators import length, prohibited_content
-from sifaka.validators.guardrails import guardrails_validator
-from sifaka.critics.reflexion import create_reflexion_critic
-from sifaka.critics.n_critics import create_n_critics_critic
 from sifaka.critics.constitutional import create_constitutional_critic
+from sifaka.critics.n_critics import create_n_critics_critic
+from sifaka.critics.reflexion import create_reflexion_critic
 from sifaka.models.openai import OpenAIModel
+from sifaka.validators import length
+from sifaka.validators.guardrails import guardrails_validator
 
 # Set up logging
 logging.basicConfig(
