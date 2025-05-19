@@ -84,7 +84,8 @@ class Chain:
     The typical workflow is:
     1. Create a Chain instance
     2. Configure it with a model, prompt, validators, and critics
-    3. Run the chain to generate and validate text, with critics providing feedback for improvement when validation fails
+    3. Run the chain to generate and validate text, with critics providing feedback
+       for improvement when validation fails
     4. Process the result
 
     Attributes:
@@ -155,7 +156,8 @@ class Chain:
         a model and prompt have been specified.
 
         Args:
-            config (Optional[SifakaConfig]): Optional configuration for the chain and its components.
+            config (Optional[SifakaConfig]): Optional configuration for the chain and its
+                components.
                 If not provided, a default configuration will be used. The configuration can
                 include settings for the model, validators, and critics.
             model_factory (Optional[Callable[[str, str], Model]]): Optional factory function for
@@ -467,7 +469,8 @@ class Chain:
             text (str): The pre-generated text to validate and improve
 
         Returns:
-            Result: A Result object containing the final text, validation results, and improvement results
+            Result: A Result object containing the final text, validation results,
+                and improvement results
 
         Example:
             ```python
@@ -519,7 +522,8 @@ class Chain:
 
         # Log chain execution start
         logger.debug(
-            f"Starting chain execution with pre-generated text, model={self._model.__class__.__name__}, "
+            f"Starting chain execution with pre-generated text, "
+            f"model={self._model.__class__.__name__}, "
             f"text_length={len(text)}, "
             f"validators={len(self._validators)}, "
             f"improvers={len(self._improvers)}"
@@ -539,7 +543,8 @@ class Chain:
 
             for iteration in range(self._max_improvement_iterations):
                 logger.debug(
-                    f"Starting improvement iteration {iteration+1}/{self._max_improvement_iterations}"
+                    f"Starting improvement iteration {iteration+1}"
+                    f"/{self._max_improvement_iterations}"
                 )
 
                 # Validate current text
@@ -801,7 +806,8 @@ class Chain:
                     ],
                     metadata={
                         "critic_type": improver.__class__.__name__,
-                        "text_length": len(text),
+                        # Note: This is a temporary approach until critics are updated
+                        # to provide feedback
                         "critic_index": i,
                     },
                 ):
@@ -1068,7 +1074,8 @@ class Chain:
 
             for iteration in range(self._max_improvement_iterations):
                 logger.debug(
-                    f"Starting improvement iteration {iteration+1}/{self._max_improvement_iterations}"
+                    f"Starting improvement iteration {iteration+1}/"
+                    f"{self._max_improvement_iterations}"
                 )
 
                 # Validate current text
