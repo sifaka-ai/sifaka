@@ -2,12 +2,12 @@
 
 This module defines the Chain class, which is the main entry point for the Sifaka framework.
 It orchestrates the process of generating text using language models, validating the text
-against specified criteria, and improving the text using specialized critics.
+against specified criteria, and improving the text using specialized critics when validation fails.
 
 The Chain class uses a builder pattern to provide a fluent API for configuring and
 executing LLM operations. It allows you to specify which model to use, set the prompt
 for generation, add validators to check if the generated text meets requirements,
-add critics to enhance the quality of the generated text, and configure model options.
+add critics to provide feedback for improvement when validation fails, and configure model options.
 
 Example:
     ```python
@@ -76,15 +76,15 @@ class Chain:
 
     The Chain class is the central component of the Sifaka framework, coordinating
     the process of generating text using language models, validating it against
-    specified criteria, and improving it using specialized critics.
+    specified criteria, and improving it using specialized critics when validation fails.
 
     It follows a fluent interface pattern (builder pattern) for easy configuration,
     allowing you to chain method calls to set up the desired behavior.
 
     The typical workflow is:
     1. Create a Chain instance
-    2. Configure it with a model, prompt, validators, and improvers
-    3. Run the chain to generate, validate, and improve text
+    2. Configure it with a model, prompt, validators, and critics
+    3. Run the chain to generate and validate text, with critics providing feedback for improvement when validation fails
     4. Process the result
 
     Attributes:
@@ -361,9 +361,9 @@ class Chain:
     def improve_with(self, improver: Improver) -> "Chain":
         """Add an improver to the chain.
 
-        This method adds an improver to the chain, which will be used to improve
-        the generated text. Improvers enhance the quality of the text by applying
-        various improvement strategies, such as clarity, coherence, or style improvements.
+        This method adds an improver to the chain, which will be used to provide feedback
+        when validation fails. Critics provide suggestions on how to improve the text,
+        which are then sent back to the model to generate improved text.
 
         If the improver has a `configure` method, it will be called with the
         critic options from the configuration.
@@ -378,12 +378,14 @@ class Chain:
             ```python
             from sifaka import Chain
             from sifaka.critics import self_refine
+            from sifaka.validators import length
 
             chain = Chain()
                 .with_model("openai:gpt-4")
                 .with_prompt("Write a short story about a robot.")
-                .improve_with(self_refine())
-                .improve_with(self_refine(refinement_rounds=3))
+                .validate_with(length(min_words=50, max_words=200))
+                .improve_with(self_refine())  # Used when validation fails
+                .with_options(apply_improvers_on_validation_failure=True)
             ```
         """
         # Configure the improver with options from the configuration
@@ -458,8 +460,7 @@ class Chain:
            b. Sends the original text + feedback to the model to generate improved text
            c. Re-validates the improved text
            d. Repeats steps 2a-2c until validation passes or max iterations is reached
-        3. If validation passes and the text needs improvement:
-           a. Improves the text using configured improvers
+        3. If validation passes, returns the result immediately
         4. Returns a Result object with the final text and all validation/improvement results
 
         Args:
@@ -499,7 +500,7 @@ class Chain:
         import logging
         import time
 
-        from sifaka.utils.error_handling import chain_context, log_error
+        from sifaka.utils.error_handling import log_error
 
         logger = logging.getLogger(__name__)
 
@@ -598,75 +599,9 @@ class Chain:
                         execution_time_ms=execution_time * 1000,
                     )
 
-                # If validation passes, check if we need to apply improvers for enhancement
-                elif self._improvers and self._needs_improvement(current_text, validation_results):
-                    logger.debug("Text passed validation but needs improvement, applying improvers")
-
-                    # Apply improvers sequentially
-                    for i, improver in enumerate(self._improvers):
-                        try:
-                            with chain_context(
-                                operation=f"improvement_{i}",
-                                message_prefix=f"Failed to improve text with {improver.__class__.__name__}",
-                                suggestions=[
-                                    "Check the improver configuration",
-                                    "Verify the text format",
-                                ],
-                                metadata={
-                                    "improver_type": improver.__class__.__name__,
-                                    "text_length": len(current_text),
-                                    "improver_index": i,
-                                },
-                            ):
-                                improved_text, result = improver.improve(current_text)
-                                # Cast the result to the expected type
-                                typed_improvement_result: ResultsImprovementResult = (
-                                    ResultsImprovementResult(
-                                        _original_text=result.original_text,
-                                        _improved_text=result.improved_text,
-                                        _changes_made=result.changes_made,
-                                        message=(
-                                            result.message if hasattr(result, "message") else ""
-                                        ),
-                                        _details=(
-                                            result.details if hasattr(result, "details") else {}
-                                        ),
-                                    )
-                                )
-                                improvement_results.append(typed_improvement_result)
-                                logger.debug(
-                                    f"Improvement {i} with {improver.__class__.__name__}: "
-                                    f"changes_made={result.changes_made}, "
-                                    f"text_length_before={len(current_text)}, "
-                                    f"text_length_after={len(improved_text)}"
-                                )
-                                current_text = improved_text
-                        except Exception as e:
-                            # Log the error
-                            log_error(e, logger, component="Chain", operation=f"improvement_{i}")
-
-                            # Add the error to improvement results
-                            from sifaka.results import ImprovementResult as SifakaImprovementResult
-
-                            improvement_error_result: ResultsImprovementResult = (
-                                SifakaImprovementResult(
-                                    _original_text=current_text,
-                                    _improved_text=current_text,
-                                    _changes_made=False,
-                                    message=f"Improvement error: {str(e)}",
-                                    _details={"error_type": type(e).__name__},
-                                )
-                            )
-                            improvement_results.append(improvement_error_result)
-
-                            # Continue with the next improver
-                            continue
-
-                    # Break the loop after applying improvers
-                    break
+                # If validation passes, return the result immediately
                 else:
-                    # Validation passed and no improvement needed
-                    logger.debug("Text passed validation and does not need improvement")
+                    logger.debug("Text passed validation, returning result")
                     break
 
             # Final validation to ensure the text still passes after all improvements
@@ -730,45 +665,6 @@ class Chain:
                     "model_options": self._config.get_model_options(),
                 },
             )
-
-    def _needs_improvement(self, text: str, validation_results: List[Any]) -> bool:
-        """Determine if the text needs improvement based on validation results.
-
-        This method checks if the text needs improvement by:
-        1. Checking if there are any issues or suggestions in the validation results
-        2. Optionally, applying a preliminary check with the first improver to see if it would make changes
-
-        Args:
-            text: The text to check
-            validation_results: The validation results from all validators
-
-        Returns:
-            True if the text needs improvement, False otherwise
-        """
-        # Check if any validation results have issues or suggestions
-        for result in validation_results:
-            if hasattr(result, "issues") and result.issues:
-                return True
-            if hasattr(result, "suggestions") and result.suggestions:
-                return True
-
-        # If we have improvers, do a preliminary check with the first one
-        # to see if it would make changes to the text
-        if self._improvers:
-            try:
-                # Use the first improver to check if the text needs improvement
-                improver = self._improvers[0]
-                _, result = improver.improve(text)
-
-                # If the improver would make changes, the text needs improvement
-                if result.changes_made:
-                    return True
-            except Exception:
-                # If there's an error, assume the text needs improvement
-                return True
-
-        # If we get here, the text doesn't need improvement
-        return False
 
     def _validate_text(self, text: str) -> tuple[bool, List[Any], Dict[str, Any]]:
         """Validate text and collect feedback from validators.
@@ -1068,8 +964,7 @@ class Chain:
            b. Sends the original text + feedback to the model to generate improved text
            c. Re-validates the improved text
            d. Repeats steps 4a-4c until validation passes or max iterations is reached
-        5. If validation passes and the text needs improvement:
-           a. Improves the text using configured improvers
+        5. If validation passes, returns the result immediately
         6. Returns a Result object with the final text and all validation/improvement results
 
         Returns:
@@ -1233,75 +1128,9 @@ class Chain:
                         execution_time_ms=execution_time * 1000,
                     )
 
-                # If validation passes, check if we need to apply improvers for enhancement
-                elif self._improvers and self._needs_improvement(current_text, validation_results):
-                    logger.debug("Text passed validation but needs improvement, applying improvers")
-
-                    # Apply improvers sequentially
-                    for i, improver in enumerate(self._improvers):
-                        try:
-                            with chain_context(
-                                operation=f"improvement_{i}",
-                                message_prefix=f"Failed to improve text with {improver.__class__.__name__}",
-                                suggestions=[
-                                    "Check the improver configuration",
-                                    "Verify the text format",
-                                ],
-                                metadata={
-                                    "improver_type": improver.__class__.__name__,
-                                    "text_length": len(current_text),
-                                    "improver_index": i,
-                                },
-                            ):
-                                improved_text, result = improver.improve(current_text)
-                                # Cast the result to the expected type
-                                typed_improvement_result: ResultsImprovementResult = (
-                                    ResultsImprovementResult(
-                                        _original_text=result.original_text,
-                                        _improved_text=result.improved_text,
-                                        _changes_made=result.changes_made,
-                                        message=(
-                                            result.message if hasattr(result, "message") else ""
-                                        ),
-                                        _details=(
-                                            result.details if hasattr(result, "details") else {}
-                                        ),
-                                    )
-                                )
-                                improvement_results.append(typed_improvement_result)
-                                logger.debug(
-                                    f"Improvement {i} with {improver.__class__.__name__}: "
-                                    f"changes_made={result.changes_made}, "
-                                    f"text_length_before={len(current_text)}, "
-                                    f"text_length_after={len(improved_text)}"
-                                )
-                                current_text = improved_text
-                        except Exception as e:
-                            # Log the error
-                            log_error(e, logger, component="Chain", operation=f"improvement_{i}")
-
-                            # Add the error to improvement results
-                            from sifaka.results import ImprovementResult as SifakaImprovementResult
-
-                            improvement_error_result: ResultsImprovementResult = (
-                                SifakaImprovementResult(
-                                    _original_text=current_text,
-                                    _improved_text=current_text,
-                                    _changes_made=False,
-                                    message=f"Improvement error: {str(e)}",
-                                    _details={"error_type": type(e).__name__},
-                                )
-                            )
-                            improvement_results.append(improvement_error_result)
-
-                            # Continue with the next improver
-                            continue
-
-                    # Break the loop after applying improvers
-                    break
+                # If validation passes, return the result immediately
                 else:
-                    # Validation passed and no improvement needed
-                    logger.debug("Text passed validation and does not need improvement")
+                    logger.debug("Text passed validation, returning result")
                     break
 
             # Final validation to ensure the text still passes after all improvements

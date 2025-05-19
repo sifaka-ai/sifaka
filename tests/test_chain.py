@@ -157,7 +157,11 @@ class TestChainExecution:
         assert mock_validator.validate_calls[0] == "This is a generated response."
 
     def test_run_with_critic(self, mock_model, mock_critic) -> None:
-        """Test running a Chain with a critic."""
+        """Test running a Chain with a critic.
+
+        In the new behavior, critics are only used when validation fails,
+        so this test now checks that the text is not improved when validation passes.
+        """
         mock_model.set_response("This is a generated response.")
         mock_model.set_response = (
             lambda text: text
@@ -174,16 +178,19 @@ class TestChainExecution:
         )
         result = chain.run()
 
-        assert result.text == "This is an improved response."
+        # In the new behavior, critics are not applied when validation passes
+        assert result.text == "This is a generated response."
         assert result.passed is True
-        assert len(result.improvement_results) == 1
-        assert result.improvement_results[0].changes_made is True
-        assert len(mock_critic.improve_calls) >= 1
-        assert mock_critic.improve_calls[0] == "This is a generated response."
+        assert len(result.improvement_results) == 0
+        assert len(mock_critic.improve_calls) == 0
 
     @pytest.mark.parametrize("mock_critic", [False], indirect=True)
     def test_run_with_critic_no_improvement(self, mock_model, mock_critic) -> None:
-        """Test running a Chain with a critic that doesn't improve the text."""
+        """Test running a Chain with a critic that doesn't improve the text.
+
+        In the new behavior, critics are only used when validation fails,
+        so this test now checks that the text is not improved when validation passes.
+        """
         mock_model.set_response("This is a generated response.")
         mock_model.set_response = (
             lambda text: text
@@ -199,15 +206,18 @@ class TestChainExecution:
         )
         result = chain.run()
 
+        # In the new behavior, critics are not applied when validation passes
         assert result.text == "This is a generated response."
         assert result.passed is True
-        # In the new implementation, if the critic doesn't make changes, no improvement result is added
-        # So we don't check for improvement results here
-        assert len(mock_critic.improve_calls) >= 1
-        assert mock_critic.improve_calls[0] == "This is a generated response."
+        assert len(result.improvement_results) == 0
+        assert len(mock_critic.improve_calls) == 0
 
     def test_run_with_validator_and_critic(self, mock_model, mock_validator, mock_critic) -> None:
-        """Test running a Chain with a validator and a critic."""
+        """Test running a Chain with a validator and a critic.
+
+        In the new behavior, critics are only used when validation fails,
+        so this test now checks that the text is not improved when validation passes.
+        """
         mock_model.set_response("This is a generated response.")
         mock_model.set_response = (
             lambda text: text
@@ -225,16 +235,15 @@ class TestChainExecution:
         )
         result = chain.run()
 
-        assert result.text == "This is an improved response."
+        # In the new behavior, critics are not applied when validation passes
+        assert result.text == "This is a generated response."
         assert result.passed is True
         assert len(result.validation_results) == 1
         assert result.validation_results[0].passed is True
-        assert len(result.improvement_results) == 1
-        assert result.improvement_results[0].changes_made is True
+        assert len(result.improvement_results) == 0
         assert len(mock_validator.validate_calls) >= 1
         assert mock_validator.validate_calls[0] == "This is a generated response."
-        assert len(mock_critic.improve_calls) >= 1
-        assert mock_critic.improve_calls[0] == "This is a generated response."
+        assert len(mock_critic.improve_calls) == 0
 
     @pytest.mark.parametrize("mock_validator", [False], indirect=True)
     def test_run_with_validator_fail_and_critic(
@@ -266,7 +275,11 @@ class TestChainExecution:
         assert len(mock_critic.improve_calls) == 0
 
     def test_run_with_multiple_critics(self, mock_model) -> None:
-        """Test running a Chain with multiple critics."""
+        """Test running a Chain with multiple critics.
+
+        In the new behavior, critics are only used when validation fails,
+        so this test now checks that the text is not improved when validation passes.
+        """
         # Import the MockCritic class directly from the conftest module in the current directory
         import os
         import sys
@@ -286,21 +299,6 @@ class TestChainExecution:
 
         # Set up the chain
         mock_model.set_response("This is a generated response.")
-        # Make the model return whatever is passed to it for improvement prompts
-        original_generate = mock_model.generate
-
-        def mock_generate(prompt, **options):
-            if "Original text:" in prompt and "Improved text:" in prompt:
-                # This is an improvement prompt
-                if "This is improved by critic 1 and 2." in prompt:
-                    return "This is improved by all critics."
-                elif "This is improved by critic 1." in prompt:
-                    return "This is improved by critic 1 and 2."
-                elif "This is a generated response." in prompt:
-                    return "This is improved by critic 1."
-            return original_generate(prompt, **options)
-
-        mock_model.generate = mock_generate
 
         chain = (
             Chain()
@@ -315,15 +313,15 @@ class TestChainExecution:
         )
         result = chain.run()
 
-        # Check the result
-        assert result.text == "This is improved by all critics."
+        # In the new behavior, critics are not applied when validation passes
+        assert result.text == "This is a generated response."
         assert result.passed is True
-        assert len(result.improvement_results) == 3
+        assert len(result.improvement_results) == 0
 
-        # Check that each critic was called with the output of the previous one
-        assert critic1.improve_calls[0] == "This is a generated response."
-        assert critic2.improve_calls[0] == "This is improved by critic 1."
-        assert critic3.improve_calls[0] == "This is improved by critic 1 and 2."
+        # Check that no critics were called
+        assert len(critic1.improve_calls) == 0
+        assert len(critic2.improve_calls) == 0
+        assert len(critic3.improve_calls) == 0
 
     def test_model_error_handling(self, mock_model, monkeypatch) -> None:
         """Test error handling when the model raises an error."""
@@ -409,7 +407,7 @@ class TestChainExecution:
         )
 
         # Patch the _validate_text method to return a passing validation
-        original_validate_text = Chain._validate_text
+        Chain._validate_text
 
         def mock_validate_text(self, text):
             return True, [], {}

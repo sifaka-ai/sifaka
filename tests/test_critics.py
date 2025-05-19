@@ -246,7 +246,6 @@ class TestReflexionCritic:
     def test_end_to_end_improvement(self, mock_model) -> None:
         """Test the end-to-end improvement process of ReflexionCritic."""
         # Create a mock improvement result
-        from sifaka.results import ImprovementResult
 
         original_text = "Test text"
         improved_text = "This is the improved text with more details and examples."

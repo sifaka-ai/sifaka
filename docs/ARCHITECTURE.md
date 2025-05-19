@@ -128,7 +128,7 @@ The components interact in a well-defined sequence:
    - **Critics** provide feedback on how to improve the text
    - **Model** generates improved text based on the combined feedback
    - The improved text is re-validated
-5. **Critics** improve the text if it passes validation
+5. If validation passes, the result is returned to the user
 6. **Results** are returned to the user
 
 The detailed interaction flow is as follows:
@@ -164,7 +164,7 @@ The data flows through the system as follows:
      - This process repeats until validation passes or max iterations is reached
    - If validation fails and `apply_improvers_on_validation_failure` is disabled:
      - The process stops and returns a failed result
-4. **Improvement**: Critics improve the text if validation passes
+4. **Output**: If validation passes, the result is returned to the user
 5. **Output**: The final text and results are returned to the user
 
 The detailed data flow is as follows:
@@ -225,14 +225,6 @@ The detailed data flow is as follows:
          │               │               │
          │               └───────┬───────┘
          │                       │ Yes
-         ▼                       ▼
-┌─────────────────┐              │
-│                 │              │
-│  Critics        │              │
-│  - Improve text │              │
-│                 │              │
-└────────┬────────┘              │
-         │                       │
          ▼                       ▼
 ┌─────────────────┐     ┌─────────────────┐
 │                 │     │                 │
