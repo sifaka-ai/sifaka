@@ -6,19 +6,35 @@ from setuptools import find_packages, setup
 
 # Core dependencies (required)
 requirements = [
-    "pydantic>=2.0.0",
-    "typing-extensions>=4.0.0",
-    "openai>=1.0.0",
-    "anthropic>=0.5.0",
+    "pydantic>=2.11.3",
+    "typing-extensions>=4.10.0",
+    "openai>=1.76.0",
+    "anthropic>=0.50.0",
+    "tiktoken>=0.9.0",  # Required for token counting
 ]
 
 # Optional dependencies
 extras_require = {
     # Model providers
     "openai": ["tiktoken>=0.9.0"],
-    # Retrievers
+    "google": ["google-generativeai>=0.3.2"],
+
+    # Persistence mechanisms
+    "redis": ["redis>=5.0.0"],
     "elasticsearch": ["elasticsearch>=8.0.0"],
     "milvus": ["pymilvus>=2.0.0"],
+
+    # ML/Classification
+    "ml": [
+        "detoxify>=0.5.1",
+        "torch>=2.2.1",
+        "transformers>=4.38.2",
+        "vaderSentiment>=3.3.2",
+    ],
+
+    # Integrations
+    "guardrails": ["guardrails-ai>=0.6.6", "pydantic-ai>=0.7.1"],
+
     # Dev tools
     "dev": [
         "pytest>=8.0.2",
@@ -30,6 +46,7 @@ extras_require = {
         "flake8>=5.0.0",
         "types-jsonschema>=4.21.0",
         "types-PyYAML>=6.0.0",
+        "types-requests>=2.31.0",
     ],
 }
 
@@ -38,6 +55,14 @@ extras_require["retrievers"] = [
     dep
     for name, deps in extras_require.items()
     if name in ["elasticsearch", "milvus"]
+    for dep in deps
+]
+
+# Add a persistence group that includes all persistence dependencies
+extras_require["persistence"] = [
+    dep
+    for name, deps in extras_require.items()
+    if name in ["redis", "elasticsearch", "milvus"]
     for dep in deps
 ]
 
