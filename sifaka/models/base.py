@@ -35,9 +35,10 @@ import logging
 from typing import Any, Dict, Optional, Type, Union
 
 from sifaka.core.interfaces import Model, Retriever
-from sifaka.core.thought import Document, Thought
+from sifaka.core.thought import Thought
 from sifaka.utils.error_handling import ConfigurationError, ModelError
 from sifaka.utils.logging import get_logger
+from sifaka.utils.mixins import ContextAwareMixin
 
 # Configure logger
 logger = get_logger(__name__)
@@ -123,7 +124,7 @@ def create_model(
         ) from e
 
 
-class MockModel:
+class MockModel(ContextAwareMixin):
     """Mock model implementation for testing.
 
     This class provides a simple mock implementation of the Model protocol
@@ -172,20 +173,17 @@ class MockModel:
         """
         logger.debug(f"Generating text with mock model using Thought: {self.model_name}")
 
-        # Extract information from the thought (Chain has already handled retrieval)
-        prompt = thought.prompt
-        system_prompt = thought.system_prompt or ""
+        # Use mixin to build contextualized prompt
+        full_prompt = self._build_contextualized_prompt(thought, max_docs=5)
 
-        # Process pre-generation context if available (provided by Chain)
-        context = ""
-        if thought.pre_generation_context:
-            context = "Context:\n" + "\n".join(doc.text for doc in thought.pre_generation_context)
-            logger.debug(
-                f"Using {len(thought.pre_generation_context)} context documents provided by Chain"
-            )
+        # Add system prompt if available
+        if thought.system_prompt:
+            full_prompt = f"{thought.system_prompt}\n\n{full_prompt}"
 
-        # Combine all information
-        full_prompt = f"{system_prompt}\n\n{context}\n\n{prompt}".strip()
+        # Log context usage
+        if self._has_context(thought):
+            context_summary = self._get_context_summary(thought)
+            logger.debug(f"MockModel using context: {context_summary}")
 
         return f"Mock response from {self.model_name} for: {full_prompt[:50]}..."
 

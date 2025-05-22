@@ -1,0 +1,559 @@
+"""Mixins for Sifaka critics and models.
+
+This module provides mixin classes that add common functionality to critics
+and models without requiring inheritance from a common base class. Mixins are
+a clean way to share functionality across different implementations.
+
+Available mixins:
+- ContextAwareMixin: Adds retriever context support to any critic or model
+"""
+
+import re
+from typing import Dict, List, Optional, Tuple
+
+from sifaka.core.thought import Thought
+from sifaka.utils.logging import get_logger
+
+# Configure logger
+logger = get_logger(__name__)
+
+
+class ContextAwareMixin:
+    """Mixin to add retriever context support to any critic or model.
+
+    This mixin provides standardized methods for handling retrieved context
+    from the Thought container. It can be mixed into any critic or model class
+    to add context awareness without code duplication.
+
+    Features:
+    - Context preparation from pre/post-generation documents
+    - Context availability detection
+    - Smart template enhancement with context placeholders
+    - Context relevance filtering and summarization
+    - Consistent context formatting across all critics and models
+
+    Usage for Critics:
+        ```python
+        class MyCritic(ContextAwareMixin):
+            def critique(self, thought: Thought) -> Dict[str, Any]:
+                context = self._prepare_context(thought)
+                prompt = template.format(..., context=context)
+                # ... rest of critique logic
+        ```
+
+    Usage for Models:
+        ```python
+        class MyModel(ContextAwareMixin):
+            def generate_with_thought(self, thought: Thought, **options) -> str:
+                context = self._prepare_context_for_generation(thought)
+                full_prompt = f"{thought.prompt}\n\n{context}"
+                return self.generate(full_prompt, **options)
+        ```
+    """
+
+    def _prepare_context(self, thought: Thought, max_docs: Optional[int] = None) -> str:
+        """Prepare context string from retrieved documents.
+
+        This method extracts and formats context from both pre-generation
+        and post-generation retrieved documents in the Thought container.
+
+        Args:
+            thought: The Thought container with retrieved context.
+            max_docs: Maximum number of documents to include (None for all).
+
+        Returns:
+            A formatted context string ready for use in prompts.
+        """
+        context_parts = []
+        doc_count = 0
+
+        # Add pre-generation context
+        if thought.pre_generation_context:
+            for doc in thought.pre_generation_context:
+                if max_docs and doc_count >= max_docs:
+                    break
+                context_parts.append(f"Document {doc_count + 1}: {doc.text}")
+                doc_count += 1
+
+        # Add post-generation context
+        if thought.post_generation_context:
+            for doc in thought.post_generation_context:
+                if max_docs and doc_count >= max_docs:
+                    break
+                context_parts.append(f"Additional Document {doc_count + 1}: {doc.text}")
+                doc_count += 1
+
+        if context_parts:
+            context_str = "\n\n".join(context_parts)
+            logger.debug(
+                f"Prepared context with {doc_count} documents, {len(context_str)} characters"
+            )
+            return context_str
+        else:
+            logger.debug("No retrieved context available")
+            return "No retrieved context available."
+
+    def _has_context(self, thought: Thought) -> bool:
+        """Check if the thought has any retrieved context.
+
+        Args:
+            thought: The Thought container to check.
+
+        Returns:
+            True if context is available, False otherwise.
+        """
+        has_pre = thought.pre_generation_context and len(thought.pre_generation_context) > 0
+        has_post = thought.post_generation_context and len(thought.post_generation_context) > 0
+        return has_pre or has_post
+
+    def _get_context_summary(self, thought: Thought) -> str:
+        """Get a summary of available context.
+
+        Args:
+            thought: The Thought container to summarize.
+
+        Returns:
+            A human-readable summary of available context.
+        """
+        pre_count = len(thought.pre_generation_context) if thought.pre_generation_context else 0
+        post_count = len(thought.post_generation_context) if thought.post_generation_context else 0
+        total_count = pre_count + post_count
+
+        if total_count == 0:
+            return "No context available"
+
+        parts = []
+        if pre_count > 0:
+            parts.append(f"{pre_count} pre-generation document{'s' if pre_count != 1 else ''}")
+        if post_count > 0:
+            parts.append(f"{post_count} post-generation document{'s' if post_count != 1 else ''}")
+
+        return f"Context available: {' and '.join(parts)} (total: {total_count})"
+
+    def _enhance_template_with_context(
+        self, template: str, context_label: str = "Retrieved context"
+    ) -> str:
+        """Add context placeholder to existing template if not present.
+
+        This method intelligently adds a context section to existing prompt
+        templates without breaking their structure.
+
+        Args:
+            template: The original template string.
+            context_label: Label to use for the context section.
+
+        Returns:
+            Enhanced template with context placeholder.
+        """
+        # If template already has context placeholder, return as-is
+        if "{context}" in template:
+            return template
+
+        # Smart insertion strategies
+        context_section = f"\n\n{context_label}:\n{{context}}\n"
+
+        # Strategy 1: Insert before "Please provide" or similar instructions
+        instruction_patterns = [
+            r"(Please provide.*)",
+            r"(Provide.*)",
+            r"(Your task is.*)",
+            r"(Analyze.*)",
+            r"(Evaluate.*)",
+            r"(Critique.*)",
+        ]
+
+        for pattern in instruction_patterns:
+            match = re.search(pattern, template, re.IGNORECASE)
+            if match:
+                insertion_point = match.start()
+                return template[:insertion_point] + context_section + template[insertion_point:]
+
+        # Strategy 2: Insert before the last paragraph (if multiple paragraphs)
+        paragraphs = template.split("\n\n")
+        if len(paragraphs) > 1:
+            return "\n\n".join(paragraphs[:-1]) + context_section + "\n\n" + paragraphs[-1]
+
+        # Strategy 3: Fallback - add at the end
+        return template + context_section
+
+    def _prepare_context_with_relevance(
+        self, thought: Thought, query: Optional[str] = None, max_docs: int = 5
+    ) -> str:
+        """Prepare context with relevance filtering.
+
+        This method prepares context but filters documents based on relevance
+        to a query (typically the prompt or generated text).
+
+        Args:
+            thought: The Thought container with retrieved context.
+            query: Query to use for relevance filtering (defaults to prompt).
+            max_docs: Maximum number of documents to include.
+
+        Returns:
+            A formatted context string with most relevant documents.
+        """
+        if not self._has_context(thought):
+            return "No retrieved context available."
+
+        # Use prompt as default query for relevance
+        if query is None:
+            query = thought.prompt
+
+        # Collect all documents with their sources
+        all_docs = []
+
+        if thought.pre_generation_context:
+            for doc in thought.pre_generation_context:
+                all_docs.append((doc, "pre-generation"))
+
+        if thought.post_generation_context:
+            for doc in thought.post_generation_context:
+                all_docs.append((doc, "post-generation"))
+
+        # Simple relevance scoring (can be enhanced with embeddings later)
+        scored_docs = []
+        query_lower = query.lower()
+
+        for doc, source in all_docs:
+            content_lower = doc.text.lower()
+
+            # Simple keyword overlap scoring
+            query_words = set(query_lower.split())
+            content_words = set(content_lower.split())
+            overlap = len(query_words.intersection(content_words))
+            relevance_score = overlap / len(query_words) if query_words else 0
+
+            scored_docs.append((doc, source, relevance_score))
+
+        # Sort by relevance score (descending)
+        scored_docs.sort(key=lambda x: x[2], reverse=True)
+
+        # Take top documents
+        top_docs = scored_docs[:max_docs]
+
+        # Format context
+        context_parts = []
+        for i, (doc, source, score) in enumerate(top_docs):
+            label = f"Document {i + 1} ({source}, relevance: {score:.2f})"
+            context_parts.append(f"{label}: {doc.text}")
+
+        context_str = "\n\n".join(context_parts)
+        logger.debug(
+            f"Prepared relevance-filtered context: {len(top_docs)} docs, "
+            f"avg relevance: {sum(score for _, _, score in top_docs) / len(top_docs):.2f}"
+        )
+
+        return context_str
+
+    def _context_aware_template(
+        self, template: str, thought: Thought
+    ) -> Tuple[str, Dict[str, str]]:
+        """Automatically enhance template and prepare context based on availability.
+
+        This is a convenience method that combines template enhancement and
+        context preparation in one call.
+
+        Args:
+            template: The original template string.
+            thought: The Thought container with potential context.
+
+        Returns:
+            A tuple of (enhanced_template, format_kwargs) where format_kwargs
+            contains the context value to use in template.format().
+        """
+        enhanced_template = self._enhance_template_with_context(template)
+        context = self._prepare_context(thought)
+
+        format_kwargs = {"context": context}
+
+        logger.debug(
+            f"Enhanced template with context: has_context={self._has_context(thought)}, "
+            f"context_length={len(context)}"
+        )
+
+        return enhanced_template, format_kwargs
+
+    # Model-specific methods
+    def _prepare_context_for_generation(
+        self,
+        thought: Thought,
+        max_docs: Optional[int] = None,
+        include_post_generation: bool = False,
+    ) -> str:
+        """Prepare context specifically for text generation.
+
+        This method is optimized for models that need context for generation.
+        It focuses on pre-generation context by default but can include
+        post-generation context if needed.
+
+        Args:
+            thought: The Thought container with retrieved context.
+            max_docs: Maximum number of documents to include.
+            include_post_generation: Whether to include post-generation context.
+
+        Returns:
+            A formatted context string optimized for generation.
+        """
+        context_parts = []
+        doc_count = 0
+
+        # Always include pre-generation context for models
+        if thought.pre_generation_context:
+            for doc in thought.pre_generation_context:
+                if max_docs and doc_count >= max_docs:
+                    break
+                context_parts.append(f"Reference {doc_count + 1}: {doc.text}")
+                doc_count += 1
+
+        # Optionally include post-generation context
+        if include_post_generation and thought.post_generation_context:
+            for doc in thought.post_generation_context:
+                if max_docs and doc_count >= max_docs:
+                    break
+                context_parts.append(f"Additional Reference {doc_count + 1}: {doc.text}")
+                doc_count += 1
+
+        if context_parts:
+            context_str = "\n\n".join(context_parts)
+            logger.debug(f"Prepared generation context with {doc_count} documents")
+            return f"Context:\n{context_str}\n\nTask:"
+        else:
+            logger.debug("No context available for generation")
+            return ""
+
+    def _build_contextualized_prompt(
+        self,
+        thought: Thought,
+        max_docs: Optional[int] = None,
+        context_position: str = "before",  # "before", "after", or "system"
+    ) -> str:
+        """Build a complete prompt with context for generation.
+
+        This method combines the prompt with retrieved context in an
+        optimal format for text generation.
+
+        Args:
+            thought: The Thought container with prompt and context.
+            max_docs: Maximum number of documents to include.
+            context_position: Where to place context ("before", "after", "system").
+
+        Returns:
+            A complete prompt ready for generation.
+        """
+        context = self._prepare_context_for_generation(thought, max_docs)
+        prompt = thought.prompt
+
+        if not context:
+            return prompt
+
+        if context_position == "before":
+            return f"{context}\n\n{prompt}"
+        elif context_position == "after":
+            return f"{prompt}\n\n{context}"
+        elif context_position == "system":
+            # Return tuple for system message handling
+            return prompt  # Context should be added to system prompt separately
+        else:
+            # Default to before
+            return f"{context}\n\n{prompt}"
+
+    def _get_context_for_system_prompt(
+        self, thought: Thought, max_docs: Optional[int] = None
+    ) -> str:
+        """Get context formatted for system prompts.
+
+        This method prepares context in a format suitable for system prompts,
+        which is useful for models that support system messages.
+
+        Args:
+            thought: The Thought container with retrieved context.
+            max_docs: Maximum number of documents to include.
+
+        Returns:
+            Context formatted for system prompts.
+        """
+        context = self._prepare_context_for_generation(thought, max_docs)
+
+        if not context:
+            return ""
+
+        return f"You have access to the following reference information:\n\n{context}\n\nUse this information to inform your response when relevant."
+
+    def _prepare_context_with_embeddings(
+        self,
+        thought: Thought,
+        query: Optional[str] = None,
+        max_docs: int = 5,
+        similarity_threshold: float = 0.7,
+    ) -> str:
+        """Prepare context with embedding-based relevance filtering.
+
+        This method uses semantic similarity (when available) to filter
+        the most relevant documents for the given query.
+
+        Args:
+            thought: The Thought container with retrieved context.
+            query: Query to use for relevance filtering (defaults to prompt).
+            max_docs: Maximum number of documents to include.
+            similarity_threshold: Minimum similarity score to include document.
+
+        Returns:
+            A formatted context string with most semantically relevant documents.
+        """
+        if not self._has_context(thought):
+            return "No retrieved context available."
+
+        # Use prompt as default query for relevance
+        if query is None:
+            query = thought.prompt
+
+        # Collect all documents with their sources
+        all_docs = []
+
+        if thought.pre_generation_context:
+            for doc in thought.pre_generation_context:
+                all_docs.append((doc, "pre-generation"))
+
+        if thought.post_generation_context:
+            for doc in thought.post_generation_context:
+                all_docs.append((doc, "post-generation"))
+
+        # Try to use embedding-based similarity if available
+        try:
+            # Check if documents have embedding scores
+            scored_docs = []
+            for doc, source in all_docs:
+                # Use existing score if available, otherwise fall back to keyword overlap
+                if hasattr(doc, "score") and doc.score is not None:
+                    similarity_score = doc.score
+                else:
+                    # Fall back to keyword overlap
+                    query_lower = query.lower()
+                    content_lower = doc.text.lower()
+                    query_words = set(query_lower.split())
+                    content_words = set(content_lower.split())
+                    overlap = len(query_words.intersection(content_words))
+                    similarity_score = overlap / len(query_words) if query_words else 0
+
+                # Only include documents above threshold
+                if similarity_score >= similarity_threshold:
+                    scored_docs.append((doc, source, similarity_score))
+
+            # Sort by similarity score (descending)
+            scored_docs.sort(key=lambda x: x[2], reverse=True)
+
+            # Take top documents
+            top_docs = scored_docs[:max_docs]
+
+            # Format context
+            context_parts = []
+            for i, (doc, source, score) in enumerate(top_docs):
+                label = f"Document {i + 1} ({source}, similarity: {score:.3f})"
+                context_parts.append(f"{label}: {doc.text}")
+
+            context_str = "\n\n".join(context_parts)
+            logger.debug(
+                f"Prepared embedding-based context: {len(top_docs)} docs, "
+                f"avg similarity: {sum(score for _, _, score in top_docs) / len(top_docs):.3f}"
+            )
+
+            return context_str
+
+        except Exception as e:
+            logger.warning(
+                f"Embedding-based filtering failed, falling back to keyword overlap: {e}"
+            )
+            # Fall back to keyword-based relevance
+            return self._prepare_context_with_relevance(thought, query, max_docs)
+
+    def _compress_context(
+        self, thought: Thought, max_length: int = 2000, preserve_diversity: bool = True
+    ) -> str:
+        """Compress context to fit within length limits while preserving key information.
+
+        This method intelligently truncates or summarizes context to fit
+        within token/character limits while maintaining diversity and relevance.
+
+        Args:
+            thought: The Thought container with retrieved context.
+            max_length: Maximum character length for the compressed context.
+            preserve_diversity: Whether to preserve diversity across documents.
+
+        Returns:
+            A compressed context string that fits within the length limit.
+        """
+        if not self._has_context(thought):
+            return "No retrieved context available."
+
+        # Get all documents
+        all_docs = []
+
+        if thought.pre_generation_context:
+            for doc in thought.pre_generation_context:
+                all_docs.append((doc, "pre-generation"))
+
+        if thought.post_generation_context:
+            for doc in thought.post_generation_context:
+                all_docs.append((doc, "post-generation"))
+
+        if not all_docs:
+            return "No retrieved context available."
+
+        # If total length is already under limit, return as-is
+        full_context = self._prepare_context(thought)
+        if len(full_context) <= max_length:
+            return full_context
+
+        # Strategy 1: Truncate each document proportionally
+        if preserve_diversity:
+            # Calculate how much space each document gets
+            space_per_doc = max_length // len(all_docs)
+            # Reserve some space for labels and formatting
+            content_per_doc = max(100, space_per_doc - 50)
+
+            context_parts = []
+            for i, (doc, source) in enumerate(all_docs):
+                label = f"Document {i + 1} ({source})"
+                content = doc.text
+
+                if len(content) > content_per_doc:
+                    # Truncate and add ellipsis
+                    content = content[: content_per_doc - 3] + "..."
+
+                context_parts.append(f"{label}: {content}")
+
+            compressed_context = "\n\n".join(context_parts)
+
+        else:
+            # Strategy 2: Take documents in order until we hit the limit
+            context_parts = []
+            current_length = 0
+
+            for i, (doc, source) in enumerate(all_docs):
+                label = f"Document {i + 1} ({source}): "
+                content = doc.text
+
+                # Check if we can fit this document
+                needed_length = len(label) + len(content) + 2  # +2 for \n\n
+
+                if current_length + needed_length <= max_length:
+                    context_parts.append(f"{label}{content}")
+                    current_length += needed_length
+                else:
+                    # Try to fit a truncated version
+                    remaining_space = (
+                        max_length - current_length - len(label) - 5
+                    )  # -5 for "..." and \n\n
+                    if remaining_space > 50:  # Only if we have meaningful space
+                        truncated_content = content[:remaining_space] + "..."
+                        context_parts.append(f"{label}{truncated_content}")
+                    break
+
+            compressed_context = "\n\n".join(context_parts)
+
+        logger.debug(
+            f"Compressed context from {len(full_context)} to {len(compressed_context)} characters "
+            f"({len(all_docs)} docs -> {len(context_parts)} docs)"
+        )
+
+        return compressed_context

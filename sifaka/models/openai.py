@@ -55,12 +55,13 @@ from sifaka.utils.error_handling import (
     model_context,
 )
 from sifaka.utils.logging import get_logger
+from sifaka.utils.mixins import ContextAwareMixin
 
 # Configure logger
 logger = get_logger(__name__)
 
 
-class OpenAIModel:
+class OpenAIModel(ContextAwareMixin):
     """OpenAI model implementation for generating text and counting tokens.
 
     This class implements the Model protocol for OpenAI models, supporting both
@@ -392,27 +393,20 @@ class OpenAIModel:
             logger.debug("Retrieving context for generation")
             thought = self.retriever.retrieve_for_thought(thought, is_pre_generation=True)
 
-        # Extract information from the thought
-        prompt = thought.prompt
-        system_prompt = thought.system_prompt
-
-        # Process pre-generation context if available
-        context = ""
-        if thought.pre_generation_context:
-            context_texts = [doc.text for doc in thought.pre_generation_context]
-            context = "Context:\n" + "\n".join(context_texts)
-
-        # Combine context and prompt if context is available
-        full_prompt = prompt
-        if context:
-            full_prompt = f"{context}\n\nQuestion: {prompt}"
+        # Use mixin to build contextualized prompt
+        full_prompt = self._build_contextualized_prompt(thought, max_docs=5)
 
         # Add system_prompt to options if available
         generation_options = options.copy()
-        if system_prompt:
-            generation_options["system_message"] = system_prompt
+        if thought.system_prompt:
+            generation_options["system_message"] = thought.system_prompt
 
-        # Generate text using the combined prompt and options
+        # Log context usage
+        if self._has_context(thought):
+            context_summary = self._get_context_summary(thought)
+            logger.debug(f"OpenAIModel using context: {context_summary}")
+
+        # Generate text using the contextualized prompt and options
         return self.generate(full_prompt, **generation_options)
 
     def count_tokens(self, text: str) -> int:

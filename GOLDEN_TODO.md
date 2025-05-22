@@ -43,17 +43,17 @@ The flow of execution is:
 - [x] Implement basic validators
   - [x] LengthValidator
   - [x] RegexValidator
-  - [ ] ContentValidator
-  - [ ] FormatValidator
-  - [ ] ClassifierValidator
-  - [ ] GuardrailsValidator
+  - [x] ContentValidator
+  - [x] FormatValidator
+  - [x] ClassifierValidator
+  - [x] GuardrailsValidator
 - [x] Implement basic critics
   - [x] ReflexionCritic
-  - [ ] SelfRAGCritic
-  - [ ] SelfRefineCritic
-  - [ ] ConstitutionalCritic
-  - [ ] PromptCritic
-  - [ ] NCriticsCritics
+  - [x] SelfRAGCritic
+  - [x] SelfRefineCritic
+  - [x] ConstitutionalCritic
+  - [x] PromptCritic
+  - [x] NCriticsCritic
 - [x] Implement basic retrieval mechanisms
   - [x] MockRetriever
   - [x] InMemoryRetriever

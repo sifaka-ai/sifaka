@@ -7,26 +7,29 @@ for improvement.
 Critics are used in the Sifaka chain to improve the quality of generated text
 by providing feedback that can be used to generate better text in subsequent
 iterations.
+
+Note: The ReflexionCritic has been moved to its own module at sifaka.critics.reflexion
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from sifaka.core.interfaces import Critic, Model, Retriever
-from sifaka.core.thought import CriticFeedback, Thought
+from sifaka.core.interfaces import Model
+from sifaka.core.thought import Thought
 from sifaka.models.base import create_model
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
+from sifaka.utils.mixins import ContextAwareMixin
 
 # Configure logger
 logger = get_logger(__name__)
 
 
-class ReflexionCritic:
-    """Critic that uses a language model to critique and improve text.
+class BaseCritic(ContextAwareMixin):
+    """Base critic class that provides common functionality for text critique and improvement.
 
-    This critic uses a language model to analyze text, identify issues,
-    and provide suggestions for improvement. It then uses the same model
-    to generate improved text based on the critique.
+    This base class provides a standard implementation for critics that use a language
+    model to analyze text, identify issues, and provide suggestions for improvement.
+    Other critics can inherit from this class and override specific methods as needed.
 
     Attributes:
         model: The language model to use for critique and improvement.
@@ -69,18 +72,22 @@ class ReflexionCritic:
             "Focus on clarity, coherence, accuracy, and relevance to the original prompt.\n\n"
             "Original prompt: {prompt}\n\n"
             "Text to critique:\n{text}\n\n"
+            "Retrieved context:\n{context}\n\n"
             "Please provide your critique in the following format:\n"
             "Issues:\n- [List issues here]\n\n"
-            "Suggestions:\n- [List suggestions here]"
+            "Suggestions:\n- [List suggestions here]\n\n"
+            "Consider how well the text uses information from the retrieved context (if available)."
         )
 
         self.improve_prompt_template = improve_prompt_template or (
             "Please improve the following text based on the critique provided.\n\n"
             "Original prompt: {prompt}\n\n"
             "Original text:\n{text}\n\n"
+            "Retrieved context:\n{context}\n\n"
             "Critique:\n{critique}\n\n"
             "Please provide an improved version of the text that addresses the issues "
-            "identified in the critique while staying true to the original prompt."
+            "identified in the critique while staying true to the original prompt. "
+            "Better incorporate relevant information from the context if available."
         )
 
     def critique(self, thought: Thought) -> Dict[str, Any]:
@@ -99,7 +106,7 @@ class ReflexionCritic:
             ImproverError: If the critique fails.
         """
         with critic_context(
-            critic_name="ReflexionCritic",
+            critic_name="BaseCritic",
             operation="critique",
             message_prefix="Failed to critique text",
         ):
@@ -110,16 +117,19 @@ class ReflexionCritic:
                     suggestions=["Provide text to critique"],
                 )
 
-            # Use context provided by Chain (no retrieval here)
-            if thought.post_generation_context:
-                logger.debug(
-                    f"Using {len(thought.post_generation_context)} context documents provided by Chain"
-                )
+            # Prepare context from retrieved documents (using mixin)
+            context = self._prepare_context(thought)
 
-            # Format the critique prompt
+            # Log context usage
+            if self._has_context(thought):
+                context_summary = self._get_context_summary(thought)
+                logger.debug(f"BaseCritic using context: {context_summary}")
+
+            # Format the critique prompt with context
             critique_prompt = self.critique_prompt_template.format(
                 prompt=thought.prompt,
                 text=thought.text,
+                context=context,
             )
 
             # Generate the critique
@@ -153,19 +163,18 @@ class ReflexionCritic:
                 elif in_suggestions and line.startswith("-"):
                     suggestions.append(line[1:].strip())
 
+            # Determine if improvement is needed
+            needs_improvement = len(issues) > 0 or "improvement" in critique_text.lower()
+
             # Create the critique result
             critique_result = {
+                "needs_improvement": needs_improvement,
+                "message": critique_text,
+                "critique": critique_text,
                 "critique_text": critique_text,
                 "issues": issues,
                 "suggestions": suggestions,
             }
-
-            # Add critic feedback to the thought
-            feedback = CriticFeedback(
-                critic_name="ReflexionCritic",
-                issues=issues,
-                suggestions=suggestions,
-            )
 
             return critique_result
 
@@ -185,7 +194,7 @@ class ReflexionCritic:
             ImproverError: If the improvement fails.
         """
         with critic_context(
-            critic_name="ReflexionCritic",
+            critic_name="BaseCritic",
             operation="improvement",
             message_prefix="Failed to improve text",
         ):
@@ -202,17 +211,20 @@ class ReflexionCritic:
                     suggestions=["Run critique before improvement"],
                 )
 
-            # Use context provided by Chain (no retrieval here)
-            if thought.post_generation_context:
-                logger.debug(
-                    f"Using {len(thought.post_generation_context)} context documents provided by Chain"
-                )
+            # Prepare context for improvement (using mixin)
+            context = self._prepare_context(thought)
 
-            # Format the improvement prompt
+            # Log context usage
+            if self._has_context(thought):
+                context_summary = self._get_context_summary(thought)
+                logger.debug(f"BaseCritic using context for improvement: {context_summary}")
+
+            # Format the improvement prompt with context
             improve_prompt = self.improve_prompt_template.format(
                 prompt=thought.prompt,
                 text=thought.text,
                 critique=thought.critique.get("critique_text", ""),
+                context=context,
             )
 
             # Generate the improved text
