@@ -4,43 +4,87 @@ Sifaka is a powerful framework for building reliable, robust, and responsible la
 
 ## Core Concept
 
-Sifaka's core concept is the **Chain**, which orchestrates the process of:
+Sifaka's core concept is the **Chain** consisting of a **Thought** container, a **Model**, **Validators**, and **Critics**:
 
-1. Generating text using a language model
-2. Validating the generated text against specified criteria
-3. Improving the text using specialized critics
-4. Repeating until validation passes or max attempts reached
+```
+Chain = [Thought, Model, [Validators], [Critics]]
+```
+
+The Chain orchestrates the process of:
+
+1. Creating a Thought with a Prompt
+2. Retrieving relevant context for the prompt (optional)
+3. Generating text using a language model with the prompt & context
+4. Validating the generated text against specified criteria
+5. If validation fails, improving the text using specialized critics
+6. Repeating until validation passes or max attempts reached
+
+## How Sifaka Works
+
+### The Chain Process
 
 ```mermaid
-graph TD
-    A[User Input/Prompt] --> B[Chain]
-    B --> C[Model]
-    C --> D[Generated Text]
-    D --> E{Validators}
-    E -->|Fail| F[Critics]
-    F --> G[Feedback]
-    G --> C
-    E -->|Pass| H[Final Result]
+flowchart LR
+    Prompt([Prompt]) --> Model
+    Model --> Validators
+    Validators -->|Pass| Output([Final Output])
+    Validators -->|Fail| Critics
+    Critics --> Model
 
-    style B fill:#f9f,stroke:#333,stroke-width:2px
-    style C fill:#bbf,stroke:#333
-    style E fill:#bfb,stroke:#333
-    style F fill:#fbb,stroke:#333
-    style H fill:#bff,stroke:#333
+    %% Retriever connections
+    Retriever([Retriever])
+    Model <-.-> Retriever
+    Critics <-.-> Retriever
 ```
+
+1. **Input**: A prompt is provided to the Chain
+2. **Model Generation**: The Model generates text based on the prompt and any retrieved context
+3. **Validation**: Validators check if the generated text meets specified criteria
+4. **Decision Point**:
+   - If validation passes → Return the generated text as output
+   - If validation fails → Send to Critics for improvement
+5. **Critic Improvement**: Critics analyze the text, provide feedback, and suggest improvements
+6. **Iteration**: The improved text is sent back to the Model for regeneration
+7. **Repeat**: Steps 2-6 repeat until validation passes or max iterations are reached
+
+### The Thought Container
+
+The Thought container holds all information as it flows through the Chain:
+
+- **Prompt**: The original user query or instruction
+- **Context**: Information retrieved from external sources
+  - **Pre-generation Context**: Retrieved before text generation (used by the Model)
+  - **Post-generation Context**: Retrieved after text generation (used by Validators and Critics)
+- **Generated Text**: The text produced by the Model
+- **Validation Results**: Pass/fail status and details from each Validator
+- **Critic Feedback**: Issues identified and suggestions from Critics
+- **History**: Record of previous iterations
+
+### Retriever Access
+
+- **Both Models and Critics can directly call Retrievers**
+- Models use Retrievers to get context before or during text generation
+- Critics use Retrievers to get additional context when analyzing and improving text
 
 ## Key Components
 
+- **Thought**: The central state container that passes information between all components
 - **Chain**: The main orchestrator that coordinates the generation, validation, and improvement flow
 - **Model**: Interface for text generation models (OpenAI, Anthropic, etc.)
+  - Models can directly call retrievers to get additional context
 - **Validators**: Components that check if text meets specific criteria (length, content, format, etc.)
 - **Critics**: Specialized components that analyze and improve text quality
+  - Critics can directly call retrievers to get additional context
   - **ReflexionCritic**: Uses reflection to improve text based on past feedback
   - **SelfRAGCritic**: Uses retrieval-augmented generation to improve text with external knowledge
   - **SelfRefineCritic**: Iteratively refines text through self-critique
   - **ConstitutionalCritic**: Ensures text adheres to specified principles
   - **PromptCritic**: General-purpose critic with customizable instructions
   - **NCriticsCritic**: Ensemble of specialized critics for comprehensive feedback
+- **Retrievers**: Components that find relevant documents for context
+  - Available to both models and critics
+  - **InMemoryRetriever**: Simple in-memory document retrieval
+  - **VectorDBRetriever**: Retrieval from vector databases (Milvus, Elasticsearch)
 
 ## Installation
 
@@ -70,10 +114,12 @@ The examples will automatically load these environment variables using `python-d
 ```python
 import os
 from dotenv import load_dotenv
-from sifaka import Chain
-from sifaka.validators import length, prohibited_content
-from sifaka.critics.reflexion import create_reflexion_critic
-from sifaka.models.openai import OpenAIModel
+from sifaka.chain import Chain
+from sifaka.validators.base import LengthValidator, RegexValidator
+from sifaka.critics.base import ReflexionCritic
+from sifaka.models.base import create_model
+from sifaka.retrievers.base import MockRetriever
+from sifaka.core.thought import Thought
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -84,158 +130,234 @@ if not api_key:
     raise ValueError("OPENAI_API_KEY environment variable not set")
 
 # Create a model
-model = OpenAIModel(model_name="gpt-4", api_key=api_key)
+model = create_model("openai:gpt-4", api_key=api_key)
+
+# Create validators and critics
+length_validator = LengthValidator(min_length=50, max_length=1000)
+content_validator = RegexValidator(
+    forbidden_patterns=["violent", "harmful"]
+)
+critic = ReflexionCritic(model=model)
+
+# Create a retriever
+retriever = MockRetriever()
+
+# Create a thought with the prompt
+prompt = "Write a short story about a robot."
+thought = Thought(prompt=prompt)
+
+# Add pre-generation context
+thought = retriever.retrieve_for_thought(thought, is_pre_generation=True)
 
 # Create a chain with validators and critics
-chain = (Chain()
-    .with_model(model)
-    .with_prompt("Write a short story about a robot.")
-    .validate_with(length(min_words=50, max_words=500))
-    .validate_with(prohibited_content(prohibited=["violent", "harmful"]))
-    .improve_with(create_reflexion_critic(model=model))
+chain = Chain(
+    model=model,
+    prompt=prompt,
+    max_improvement_iterations=3,
+    apply_improvers_on_validation_failure=True,
 )
+
+chain.validate_with(length_validator)
+chain.validate_with(content_validator)
+chain.improve_with(critic)
 
 # Run the chain
 result = chain.run()
 
 # Check the result
-if result.passed:
-    print("Chain execution succeeded!")
-    print(result.text)
-else:
-    print("Chain execution failed validation")
-    print(result.validation_results[0].message)
+print(f"Generated text: {result.text}")
+
+# Access validation results
+for name, validation_result in result.validation_results.items():
+    print(f"{name}: {'Passed' if validation_result.passed else 'Failed'}")
+    if validation_result.issues:
+        print(f"Issues: {validation_result.issues}")
+```
+
+## Working with the Thought Container
+
+The Thought container is the central state container in Sifaka. It passes information between all components and maintains the history of iterations.
+
+```python
+from sifaka.core.thought import Thought, Document, CriticFeedback, ValidationResult
+from datetime import datetime
+
+# Create a basic thought
+thought = Thought(
+    prompt="Write a short story about a robot.",
+    system_prompt="You are a creative writer."
+)
+
+# Add pre-generation context
+thought = thought.add_pre_generation_context([
+    Document(
+        text="Robots are machines that can be programmed to perform tasks.",
+        metadata={"source": "definition"},
+        score=0.95
+    ),
+    Document(
+        text="Asimov's Three Laws of Robotics are rules for robots in his science fiction.",
+        metadata={"source": "literature"},
+        score=0.85
+    )
+])
+
+# Set generated text
+thought = thought.set_text("Once upon a time, there was a robot named R2D2...")
+
+# Add validation results
+thought = thought.add_validation_result(
+    "LengthValidator",
+    ValidationResult(
+        passed=True,
+        message="Text meets length requirements",
+        score=1.0
+    )
+)
+
+# Add critic feedback
+thought = thought.add_critic_feedback(
+    CriticFeedback(
+        critic_name="ReflexionCritic",
+        issues=["The story lacks character development"],
+        suggestions=["Add more details about the robot's personality"]
+    )
+)
+
+# Create the next iteration
+next_thought = thought.next_iteration()
+print(f"Current iteration: {thought.iteration}")
+print(f"Next iteration: {next_thought.iteration}")
+print(f"History count: {len(next_thought.history)}")
+```
+
+## Working with Retrievers
+
+Retrievers find relevant documents for a query and can be used by both models and critics at various points in the chain:
+
+```python
+from sifaka.core.thought import Thought
+from sifaka.retrievers.base import InMemoryRetriever
+from sifaka.models.base import create_model
+from sifaka.critics.base import ReflexionCritic
+
+# Create a retriever
+retriever = InMemoryRetriever()
+
+# Add documents to the retriever
+retriever.add_document("doc1", "Robots are machines that can be programmed to perform tasks.")
+retriever.add_document("doc2", "Asimov's Three Laws of Robotics are rules for robots in his science fiction.")
+retriever.add_document("doc3", "Machine learning allows robots to learn from data and improve over time.")
+
+# Create a thought with the prompt
+thought = Thought(prompt="Write a short story about a robot that learns.")
+
+# Method 1: Standalone retrieval before model generation
+thought = retriever.retrieve_for_thought(thought, is_pre_generation=True)
+
+# Create a model with direct access to the retriever
+model = create_model("mock:default", retriever=retriever)
+
+# Method 2: Model can call the retriever directly during generation
+text = model.generate_with_thought(thought)
+thought = thought.set_text(text)
+
+# Method 3: Standalone retrieval after model generation
+thought = retriever.retrieve_for_thought(thought, is_pre_generation=False)
+
+# Create a critic with direct access to the retriever
+critic = ReflexionCritic(model=model, retriever=retriever)
+
+# Method 4: Critic can call the retriever directly during critique
+critique = critic.critique(thought)
+thought = thought.set_critique(critique)
+
+# Print the retrieved context
+print("Pre-generation context:")
+for doc in thought.pre_generation_context:
+    print(f"- {doc.text} (score: {doc.score})")
+
+print("\nPost-generation context:")
+for doc in thought.post_generation_context:
+    print(f"- {doc.text} (score: {doc.score})")
 ```
 
 ## Working with Critics
 
-Critics are the most important part of Sifaka. They analyze text and provide feedback for improvement.
+Critics analyze text, identify issues, and provide suggestions for improvement. They can also use retrievers to get additional context:
 
 ```python
-import os
-from dotenv import load_dotenv
-from sifaka import Chain
-from sifaka.models.openai import OpenAIModel
-from sifaka.critics.self_refine import create_self_refine_critic
-from sifaka.critics.reflexion import create_reflexion_critic
+from sifaka.core.thought import Thought
+from sifaka.critics.base import ReflexionCritic
+from sifaka.models.base import create_model
+from sifaka.retrievers.base import InMemoryRetriever
 
-# Load environment variables from .env file if it exists
-load_dotenv()
-
-# Get API key from environment variables
-api_key = os.environ.get("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("OPENAI_API_KEY environment variable not set")
+# Create a retriever
+retriever = InMemoryRetriever()
+retriever.add_document("doc1", "Quantum computing uses quantum bits or qubits.")
+retriever.add_document("doc2", "Superposition allows qubits to exist in multiple states simultaneously.")
+retriever.add_document("doc3", "Quantum entanglement connects qubits in ways that classical bits cannot be connected.")
 
 # Create a model
-model = OpenAIModel(model_name="gpt-4", api_key=api_key)
+model = create_model("mock:default")
 
-# Create critics
-self_refine_critic = create_self_refine_critic(
-    model=model,
-    max_refinement_iterations=3
+# Create a critic with direct access to the retriever
+critic = ReflexionCritic(model=model, retriever=retriever)
+
+# Create a thought with text
+thought = Thought(
+    prompt="Explain quantum computing to a high school student.",
+    text="Quantum computing uses qubits which can be 0 and 1 at the same time due to superposition."
 )
 
-reflexion_critic = create_reflexion_critic(
-    model=model,
-    reflection_rounds=2
-)
+# The critic can use the retriever to get additional context during critique
+critique = critic.critique(thought)
+thought = thought.set_critique(critique)
 
-# Create a chain with multiple critics
-chain = (Chain()
-    .with_model(model)
-    .with_prompt("Explain quantum computing to a high school student.")
-    .improve_with(self_refine_critic)
-    .improve_with(reflexion_critic)
-)
+# The critic can also use the retriever during improvement
+improved_text = critic.improve(thought)
+thought = thought.set_text(improved_text)
 
-# Run the chain
-result = chain.run()
-print(result.text)
+# Print the critique and improved text
+print("Critique:")
+print(f"Issues: {critique['issues']}")
+print(f"Suggestions: {critique['suggestions']}")
+print(f"\nImproved text: {improved_text}")
 ```
 
-## Advanced Configuration
+## Persistence Options
 
-Sifaka provides a centralized configuration system for all components:
+The Thought container can be persisted in various ways:
 
 ```python
-import os
-from dotenv import load_dotenv
-from sifaka import Chain
-from sifaka.config import SifakaConfig, ModelConfig, ValidatorConfig, CriticConfig
-from sifaka.validators import length, prohibited_content
-from sifaka.critics.self_refine import create_self_refine_critic
+from sifaka.core.thought import Thought
+import json
 
-# Load environment variables from .env file if it exists
-load_dotenv()
+# Create a thought
+thought = Thought(prompt="Write a short story about a robot.")
 
-# Get API key from environment variables
-api_key = os.environ.get("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("OPENAI_API_KEY environment variable not set")
+# Serialize to JSON
+thought_json = thought.model_dump_json()
 
-# Create a custom configuration
-config = SifakaConfig(
-    model=ModelConfig(
-        temperature=0.8,
-        max_tokens=500,
-        top_p=0.9,
-        api_key=api_key,  # Use environment variable for API key
-    ),
-    validator=ValidatorConfig(
-        min_words=100,
-        max_words=500,
-        prohibited_content=["violence", "hate speech"]
-    ),
-    critic=CriticConfig(
-        temperature=0.5,
-        refinement_rounds=3,
-        system_prompt="You are an expert editor that improves text for clarity and conciseness."
-    ),
-    debug=True,
-    log_level="DEBUG",
-)
+# Save to file
+with open("thought.json", "w") as f:
+    f.write(thought_json)
 
-# Create a model
-from sifaka.models.openai import OpenAIModel
-model = OpenAIModel(model_name="gpt-4", api_key=api_key)
+# Load from JSON
+with open("thought.json", "r") as f:
+    loaded_json = f.read()
+    loaded_thought = Thought.model_validate_json(loaded_json)
 
-# Use the configuration with a chain
-chain = (
-    Chain(config)
-    .with_model(model)
-    .with_prompt("Write a short story about a robot.")
-    .validate_with(length(min_words=config.validator.min_words, max_words=config.validator.max_words))
-    .validate_with(prohibited_content(prohibited=config.validator.prohibited_content))
-    .improve_with(create_self_refine_critic(model=model, max_refinement_iterations=config.critic.refinement_rounds))
-)
-
-# Run the chain
-result = chain.run()
+print(f"Loaded thought prompt: {loaded_thought.prompt}")
 ```
 
-## Choosing the Right Critic
-
-- **PromptCritic**: General-purpose text improvement with simple feedback
-- **ReflexionCritic**: When learning from past feedback is important for improvement
-- **ConstitutionalCritic**: When adherence to specific principles or guidelines is critical
-- **SelfRAGCritic**: When external knowledge is needed to validate or improve content
-- **SelfRefineCritic**: When complex text requires multiple refinement iterations
-- **NCriticsCritic**: When you need comprehensive feedback from multiple perspectives
+In the future, Sifaka will support additional persistence options:
+- Redis for caching
+- Vector databases (Milvus, Elasticsearch) for semantic search
+- PostgreSQL for relational storage with history tracking
 
 ## Documentation
 
-For more detailed information about Sifaka, check out the following documentation:
-
-- [Components Overview](docs/COMPONENTS.md) - Overview of all Sifaka components
-- [Chain Documentation](docs/CHAIN.md) - Detailed documentation for the Chain class
-- [Models Documentation](docs/MODELS.md) - Documentation for model integrations
-- [Validators Documentation](docs/VALIDATORS.md) - Documentation for validators
-- [Critics Documentation](docs/CRITICS.md) - Documentation for critics
-- [Retrievers Documentation](docs/RETRIEVERS.md) - Documentation for retrievers
-- [Classifiers Documentation](docs/CLASSIFIERS.md) - Documentation for classifiers
-- [API Reference](docs/API_REFERENCE.md) - Comprehensive API reference
-- [Architecture](docs/ARCHITECTURE.md) - Detailed architecture documentation with diagrams
 
 ## Development
 

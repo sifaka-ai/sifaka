@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mermaid Diagram Preview</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose',
+        });
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .mermaid {
+            margin: 20px 0;
+        }
+        h2 {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sifaka Diagram Preview</h1>
+    
+    <h2>1. The Chain</h2>
+    <div class="mermaid">
+        graph LR
+            %% First graph: The Chain
+            subgraph "Chain"
+                Model --> Validators
+                Validators -->|Fail| Critics
+                Critics --> Model
+                Validators -->|Pass| Output
+            end
+            
+            %% Show that a Thought flows through the Chain
+            Thought --> Chain
+            Chain --> Thought
+    </div>
+    
+    <h2>2. The Thought Container with Retrievers</h2>
+    <div class="mermaid">
+        graph TD
+            %% External components
+            Model["Model"]
+            Critic["Critic"]
+            Retriever["Retriever"]
+            
+            subgraph "Thought Container"
+                Prompt["Prompt"]
+                
+                subgraph "Context"
+                    PreContext["Pre-generation Context"]
+                    PostContext["Post-generation Context"]
+                end
+                
+                Text["Generated Text"]
+                
+                subgraph "Feedback"
+                    Validation["Validation Results"]
+                    CriticFeedback["Critic Feedback"]
+                end
+                
+                History["Past Thoughts"]
+            end
+            
+            %% Add connections to show correct flow
+            %% Retriever connections
+            Retriever --> PreContext
+            Retriever --> PostContext
+            
+            %% Model connections
+            Prompt --> Model
+            PreContext --> Model
+            Model --> Text
+            
+            %% Critic connections
+            Text --> Critic
+            PostContext --> Critic
+            Critic --> CriticFeedback
+            
+            %% History connections
+            CriticFeedback --> History
+    </div>
+</body>
+</html>
