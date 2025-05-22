@@ -45,6 +45,7 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
+from sifaka.core.interfaces import Retriever
 from sifaka.core.thought import Document, Thought
 from sifaka.utils.error_handling import (
     ConfigurationError,
@@ -98,6 +99,7 @@ class OpenAIModel:
         model_name: str,
         api_key: Optional[str] = None,
         organization: Optional[str] = None,
+        retriever: Optional[Retriever] = None,
         **options: Any,
     ):
         """Initialize the OpenAI model with the specified parameters.
@@ -108,6 +110,7 @@ class OpenAIModel:
                 OPENAI_API_KEY environment variable.
             organization: Optional organization ID to use. If not provided, it will be read
                 from the OPENAI_ORGANIZATION environment variable.
+            retriever: Optional retriever for direct access during generation.
             **options: Additional options to pass to the OpenAI API, such as:
                 - temperature: Controls randomness in generation (0.0 to 1.0).
                 - max_tokens: Maximum number of tokens to generate.
@@ -139,8 +142,9 @@ class OpenAIModel:
                 "OpenAI package not installed. Install it with 'pip install openai'."
             )
 
-        # Store model name and options
+        # Store model name, retriever, and options
         self.model_name = model_name
+        self.retriever = retriever
         self.options = options
 
         # Get API key from parameter or environment variable
@@ -383,6 +387,11 @@ class OpenAIModel:
             print(text)
             ```
         """
+        # If we have a retriever and no pre-generation context, retrieve some
+        if self.retriever and not thought.pre_generation_context:
+            logger.debug("Retrieving context for generation")
+            thought = self.retriever.retrieve_for_thought(thought, is_pre_generation=True)
+
         # Extract information from the thought
         prompt = thought.prompt
         system_prompt = thought.system_prompt
@@ -742,6 +751,7 @@ class OpenAIModel:
 
 def create_openai_model(
     model_name: str,
+    retriever: Optional[Retriever] = None,
     **options: Any,
 ) -> OpenAIModel:
     """Create an OpenAI model instance.
@@ -752,6 +762,7 @@ def create_openai_model(
 
     Args:
         model_name: The name of the OpenAI model to use (e.g., "gpt-4", "text-davinci-003").
+        retriever: Optional retriever for direct access during generation.
         **options: Additional options to pass to the OpenAI model constructor, such as:
             - api_key: The OpenAI API key to use.
             - organization: The OpenAI organization ID to use.
@@ -793,7 +804,7 @@ def create_openai_model(
 
     try:
         # Create the model
-        model = OpenAIModel(model_name=model_name, **options)
+        model = OpenAIModel(model_name=model_name, retriever=retriever, **options)
 
         # Log successful model creation
         logger.debug(f"Successfully created OpenAI model with name '{model_name}'")

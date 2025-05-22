@@ -34,7 +34,7 @@ import importlib
 import logging
 from typing import Any, Dict, Optional, Type, Union
 
-from sifaka.core.interfaces import Model
+from sifaka.core.interfaces import Model, Retriever
 from sifaka.core.thought import Document, Thought
 from sifaka.utils.error_handling import ConfigurationError, ModelError
 from sifaka.utils.logging import get_logger
@@ -45,6 +45,7 @@ logger = get_logger(__name__)
 
 def create_model(
     model_spec: str,
+    retriever: Optional[Retriever] = None,
     **kwargs: Any,
 ) -> Model:
     """Create a model instance based on provider and model name.
@@ -55,6 +56,7 @@ def create_model(
 
     Args:
         model_spec: The model specification in the format "provider:model_name" or "model_name".
+        retriever: Optional retriever to provide to the model for direct access.
         **kwargs: Additional keyword arguments to pass to the model constructor.
 
     Returns:
@@ -82,15 +84,15 @@ def create_model(
             # Import the OpenAI model implementation
             from sifaka.models.openai import create_openai_model
 
-            return create_openai_model(model_name=model_name, **kwargs)
+            return create_openai_model(model_name=model_name, retriever=retriever, **kwargs)
         elif provider == "anthropic":
             # Import the Anthropic model implementation
             from sifaka.models.anthropic import create_anthropic_model
 
-            return create_anthropic_model(model_name=model_name, **kwargs)
+            return create_anthropic_model(model_name=model_name, retriever=retriever, **kwargs)
         elif provider == "mock":
             # Create a mock model for testing
-            return MockModel(model_name=model_name, **kwargs)
+            return MockModel(model_name=model_name, retriever=retriever, **kwargs)
         else:
             raise ConfigurationError(
                 f"Unsupported model provider: {provider}",
@@ -129,14 +131,16 @@ class MockModel:
     count_tokens methods.
     """
 
-    def __init__(self, model_name: str, **kwargs: Any):
+    def __init__(self, model_name: str, retriever: Optional[Retriever] = None, **kwargs: Any):
         """Initialize the mock model.
 
         Args:
             model_name: The name of the model.
+            retriever: Optional retriever for direct access.
             **kwargs: Additional keyword arguments.
         """
         self.model_name = model_name
+        self.retriever = retriever
         self.kwargs = kwargs
         logger.debug(f"Created mock model with name: {model_name}")
 
@@ -156,6 +160,9 @@ class MockModel:
     def generate_with_thought(self, thought: Thought, **options: Any) -> str:
         """Generate text using a Thought container.
 
+        The model no longer handles retrieval - the Chain orchestrates all retrieval.
+        The model just uses whatever context is already in the Thought container.
+
         Args:
             thought: The Thought container with context for generation.
             **options: Additional options for generation.
@@ -164,21 +171,22 @@ class MockModel:
             A mock response.
         """
         logger.debug(f"Generating text with mock model using Thought: {self.model_name}")
-        
-        # Extract information from the thought
+
+        # Extract information from the thought (Chain has already handled retrieval)
         prompt = thought.prompt
         system_prompt = thought.system_prompt or ""
-        
-        # Process pre-generation context if available
+
+        # Process pre-generation context if available (provided by Chain)
         context = ""
         if thought.pre_generation_context:
-            context = "Context:\n" + "\n".join(
-                doc.text for doc in thought.pre_generation_context
+            context = "Context:\n" + "\n".join(doc.text for doc in thought.pre_generation_context)
+            logger.debug(
+                f"Using {len(thought.pre_generation_context)} context documents provided by Chain"
             )
-        
+
         # Combine all information
         full_prompt = f"{system_prompt}\n\n{context}\n\n{prompt}".strip()
-        
+
         return f"Mock response from {self.model_name} for: {full_prompt[:50]}..."
 
     def count_tokens(self, text: str) -> int:

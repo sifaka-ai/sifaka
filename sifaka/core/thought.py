@@ -85,21 +85,21 @@ class Thought(BaseModel):
 
     Attributes:
         version: The version of the Thought schema.
-        
+
         prompt: The original prompt or task.
         text: The generated text (output from the model).
         system_prompt: Optional system prompt used for generation.
-        
+
         pre_generation_context: Optional list of documents retrieved before generation.
         post_generation_context: Optional list of documents retrieved after generation.
-        
+
         validation_results: Optional dictionary of validation results.
         critique: Optional dictionary containing critique information.
         critic_feedback: Optional list of feedback from critics.
-        
+
         history: Optional list of previous Thought instances.
         parent_id: Optional ID of the parent Thought.
-        
+
         id: Unique identifier for this Thought.
         iteration: The iteration number in the chain.
         timestamp: The timestamp when the thought was created.
@@ -109,37 +109,37 @@ class Thought(BaseModel):
 
     # Version information
     version: str = "1.0.0"
-    
+
     # Core content
     prompt: str
     text: Optional[str] = None
     system_prompt: Optional[str] = None
-    
+
     # Retrieval context
     pre_generation_context: Optional[List[Document]] = None
     post_generation_context: Optional[List[Document]] = None
-    
+
     # Validation and critique information
     validation_results: Optional[Dict[str, ValidationResult]] = None
     critique: Optional[Dict[str, Any]] = None
     critic_feedback: Optional[List[CriticFeedback]] = None
-    
+
     # History tracking
     history: Optional[List["Thought"]] = None
     parent_id: Optional[str] = None
-    
+
     # Metadata
     id: str = Field(default_factory=lambda: str(uuid4()))
     iteration: int = 0
     timestamp: datetime = Field(default_factory=datetime.now)
     chain_id: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    
+
     model_config = {
         "arbitrary_types_allowed": True,
         "extra": "allow",  # Allow unknown fields for forward compatibility
     }
-    
+
     def next_iteration(self) -> "Thought":
         """Create a new Thought for the next iteration.
 
@@ -151,7 +151,7 @@ class Thought(BaseModel):
         """
         # Create a copy without history to avoid circular references
         current_without_history = self.model_copy(update={"history": None})
-        
+
         # Create the new thought
         new_thought = self.model_copy(
             update={
@@ -161,11 +161,11 @@ class Thought(BaseModel):
                 "history": [current_without_history],
             }
         )
-        
+
         # If we already have history, extend it
         if self.history:
             new_thought.history.extend(self.history)
-            
+
         return new_thought
 
     def add_pre_generation_context(self, documents: List[Document]) -> "Thought":
@@ -264,5 +264,5 @@ class Thought(BaseModel):
         if version != cls.model_fields["version"].default:
             # In the future, implement version migration logic here
             pass
-            
+
         return cls.model_validate(data)

@@ -142,17 +142,13 @@ critic = ReflexionCritic(model=model)
 # Create a retriever
 retriever = MockRetriever()
 
-# Create a thought with the prompt
+# Create a chain with model, prompt, retriever, validators and critics
+# The Chain orchestrates ALL retrieval automatically
 prompt = "Write a short story about a robot."
-thought = Thought(prompt=prompt)
-
-# Add pre-generation context
-thought = retriever.retrieve_for_thought(thought, is_pre_generation=True)
-
-# Create a chain with validators and critics
 chain = Chain(
     model=model,
     prompt=prompt,
+    retriever=retriever,  # Chain handles all retrieval
     max_improvement_iterations=3,
     apply_improvers_on_validation_failure=True,
 )
@@ -161,7 +157,7 @@ chain.validate_with(length_validator)
 chain.validate_with(content_validator)
 chain.improve_with(critic)
 
-# Run the chain
+# Run the chain - it handles all retrieval automatically
 result = chain.run()
 
 # Check the result
@@ -233,13 +229,14 @@ print(f"History count: {len(next_thought.history)}")
 
 ## Working with Retrievers
 
-Retrievers find relevant documents for a query and can be used by both models and critics at various points in the chain:
+Retrievers find relevant documents for a query. The Chain orchestrates all retrieval automatically - you just provide the retriever to the Chain and it handles everything:
 
 ```python
 from sifaka.core.thought import Thought
 from sifaka.retrievers.base import InMemoryRetriever
 from sifaka.models.base import create_model
 from sifaka.critics.base import ReflexionCritic
+from sifaka.chain import Chain
 
 # Create a retriever
 retriever = InMemoryRetriever()
@@ -249,48 +246,49 @@ retriever.add_document("doc1", "Robots are machines that can be programmed to pe
 retriever.add_document("doc2", "Asimov's Three Laws of Robotics are rules for robots in his science fiction.")
 retriever.add_document("doc3", "Machine learning allows robots to learn from data and improve over time.")
 
-# Create a thought with the prompt
-thought = Thought(prompt="Write a short story about a robot that learns.")
+# Create a model and critic (no retriever needed - Chain handles it)
+model = create_model("mock:default")
+critic = ReflexionCritic(model=model)
 
-# Method 1: Standalone retrieval before model generation
-thought = retriever.retrieve_for_thought(thought, is_pre_generation=True)
+# Create a Chain with the retriever - it orchestrates ALL retrieval
+chain = Chain(
+    model=model,
+    prompt="Write a short story about a robot that learns.",
+    retriever=retriever,  # Chain handles all retrieval automatically
+    pre_generation_retrieval=True,   # Retrieve before generation
+    post_generation_retrieval=True,  # Retrieve after generation
+    critic_retrieval=True,           # Retrieve for critics
+)
 
-# Create a model with direct access to the retriever
-model = create_model("mock:default", retriever=retriever)
+chain.improve_with(critic)
 
-# Method 2: Model can call the retriever directly during generation
-text = model.generate_with_thought(thought)
-thought = thought.set_text(text)
-
-# Method 3: Standalone retrieval after model generation
-thought = retriever.retrieve_for_thought(thought, is_pre_generation=False)
-
-# Create a critic with direct access to the retriever
-critic = ReflexionCritic(model=model, retriever=retriever)
-
-# Method 4: Critic can call the retriever directly during critique
-critique = critic.critique(thought)
-thought = thought.set_critique(critique)
+# Run the chain - it handles all retrieval automatically:
+# 1. Pre-generation retrieval: Gets context before text generation
+# 2. Text generation: Model uses the retrieved context
+# 3. Post-generation retrieval: Gets context after text generation
+# 4. Critic retrieval: Gets fresh context for critics during improvement
+result = chain.run()
 
 # Print the retrieved context
 print("Pre-generation context:")
-for doc in thought.pre_generation_context:
+for doc in result.pre_generation_context:
     print(f"- {doc.text} (score: {doc.score})")
 
 print("\nPost-generation context:")
-for doc in thought.post_generation_context:
+for doc in result.post_generation_context:
     print(f"- {doc.text} (score: {doc.score})")
 ```
 
 ## Working with Critics
 
-Critics analyze text, identify issues, and provide suggestions for improvement. They can also use retrievers to get additional context:
+Critics analyze text, identify issues, and provide suggestions for improvement. The Chain orchestrates retrieval for critics automatically:
 
 ```python
 from sifaka.core.thought import Thought
 from sifaka.critics.base import ReflexionCritic
 from sifaka.models.base import create_model
 from sifaka.retrievers.base import InMemoryRetriever
+from sifaka.chain import Chain
 
 # Create a retriever
 retriever = InMemoryRetriever()
@@ -298,31 +296,99 @@ retriever.add_document("doc1", "Quantum computing uses quantum bits or qubits.")
 retriever.add_document("doc2", "Superposition allows qubits to exist in multiple states simultaneously.")
 retriever.add_document("doc3", "Quantum entanglement connects qubits in ways that classical bits cannot be connected.")
 
-# Create a model
+# Create a model and critic (no retriever needed - Chain handles it)
 model = create_model("mock:default")
+critic = ReflexionCritic(model=model)
 
-# Create a critic with direct access to the retriever
-critic = ReflexionCritic(model=model, retriever=retriever)
-
-# Create a thought with text
-thought = Thought(
+# Create a Chain that orchestrates retrieval for critics
+chain = Chain(
+    model=model,
     prompt="Explain quantum computing to a high school student.",
-    text="Quantum computing uses qubits which can be 0 and 1 at the same time due to superposition."
+    retriever=retriever,  # Chain handles all retrieval for critics
+    critic_retrieval=True,  # Enable retrieval for critics
 )
 
-# The critic can use the retriever to get additional context during critique
-critique = critic.critique(thought)
-thought = thought.set_critique(critique)
+chain.improve_with(critic)
 
-# The critic can also use the retriever during improvement
-improved_text = critic.improve(thought)
-thought = thought.set_text(improved_text)
+# Run the chain - it automatically:
+# 1. Generates initial text
+# 2. Retrieves context for critics
+# 3. Critics use the retrieved context to provide better feedback
+result = chain.run()
 
-# Print the critique and improved text
-print("Critique:")
-print(f"Issues: {critique['issues']}")
-print(f"Suggestions: {critique['suggestions']}")
-print(f"\nImproved text: {improved_text}")
+# Print the final result
+print(f"Final text: {result.text}")
+print(f"Validation results: {result.validation_results}")
+print(f"Retrieved context documents: {len(result.post_generation_context)}")
+```
+
+## Multi-Retriever Support
+
+Sifaka supports using different retrievers for different stages of the chain. This is powerful for use cases like fact-checking, where you want models to use recent context (like Twitter posts) but critics to use authoritative sources (like Wikipedia).
+
+```python
+from sifaka.chain import Chain
+from sifaka.models.base import create_model
+from sifaka.critics.base import ReflexionCritic
+from sifaka.retrievers.specialized import TwitterRetriever, FactualDatabaseRetriever
+
+# Create specialized retrievers
+twitter_retriever = TwitterRetriever()      # Recent context for model
+factual_retriever = FactualDatabaseRetriever()  # Authoritative sources for critics
+
+# Create model and critic
+model = create_model("openai:gpt-4", api_key=api_key)
+critic = ReflexionCritic(model=model)
+
+# Create Chain with different retrievers for different stages
+chain = Chain(
+    model=model,
+    prompt="Write a news summary about recent AI developments and their implications.",
+    model_retriever=twitter_retriever,    # Model uses recent Twitter/news context
+    critic_retriever=factual_retriever,   # Critics use factual database for verification
+    pre_generation_retrieval=True,        # Get recent context before generation
+    post_generation_retrieval=True,       # Get more recent context after generation
+    critic_retrieval=True,                # Get factual context for critics
+)
+
+chain.improve_with(critic)
+
+# Run the chain - it automatically:
+# 1. Uses TwitterRetriever for pre/post-generation context (model gets recent info)
+# 2. Uses FactualDatabaseRetriever for critic context (critics verify against facts)
+result = chain.run()
+
+print("Recent context used by model:")
+for doc in result.pre_generation_context:
+    print(f"- {doc.text}")
+
+print("\nFactual context used by critics:")
+for doc in result.post_generation_context:
+    print(f"- {doc.text}")
+```
+
+### Retriever Fallback Logic
+
+- If `model_retriever` is not provided, falls back to `retriever`
+- If `critic_retriever` is not provided, falls back to `retriever`
+- If no retrievers are provided, the Chain works without retrieval
+
+```python
+# Example: Using default retriever for all stages
+chain = Chain(
+    model=model,
+    prompt="Write about AI",
+    retriever=default_retriever,  # Used for all stages
+)
+
+# Example: Mixed retrievers
+chain = Chain(
+    model=model,
+    prompt="Write about AI",
+    retriever=default_retriever,        # Fallback
+    critic_retriever=factual_retriever, # Specific for critics
+    # model_retriever not provided - uses default_retriever
+)
 ```
 
 ## Persistence Options

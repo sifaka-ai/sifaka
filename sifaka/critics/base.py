@@ -11,7 +11,7 @@ iterations.
 
 from typing import Any, Dict, List, Optional
 
-from sifaka.core.interfaces import Critic, Model
+from sifaka.core.interfaces import Critic, Model, Retriever
 from sifaka.core.thought import CriticFeedback, Thought
 from sifaka.models.base import create_model
 from sifaka.utils.error_handling import ImproverError, critic_context
@@ -44,6 +44,9 @@ class ReflexionCritic:
     ):
         """Initialize the critic.
 
+        Critics no longer handle retrieval - the Chain orchestrates all retrieval.
+        Critics just use whatever context is already in the Thought container.
+
         Args:
             model: The language model to use for critique and improvement.
             model_name: The name of the model to use if model is not provided.
@@ -51,7 +54,7 @@ class ReflexionCritic:
             improve_prompt_template: Template for the improvement prompt.
             **model_kwargs: Additional keyword arguments for model creation.
         """
-        # Set up the model
+        # Set up the model (no retriever needed - Chain handles retrieval)
         if model:
             self.model = model
         elif model_name:
@@ -83,6 +86,9 @@ class ReflexionCritic:
     def critique(self, thought: Thought) -> Dict[str, Any]:
         """Critique text and provide feedback.
 
+        Critics no longer handle retrieval - the Chain orchestrates all retrieval.
+        Critics just use whatever context is already in the Thought container.
+
         Args:
             thought: The Thought container with the text to critique.
 
@@ -102,6 +108,12 @@ class ReflexionCritic:
                 raise ImproverError(
                     "No text available for critique",
                     suggestions=["Provide text to critique"],
+                )
+
+            # Use context provided by Chain (no retrieval here)
+            if thought.post_generation_context:
+                logger.debug(
+                    f"Using {len(thought.post_generation_context)} context documents provided by Chain"
                 )
 
             # Format the critique prompt
@@ -160,6 +172,9 @@ class ReflexionCritic:
     def improve(self, thought: Thought) -> str:
         """Improve text based on critique.
 
+        Critics no longer handle retrieval - the Chain orchestrates all retrieval.
+        Critics just use whatever context is already in the Thought container.
+
         Args:
             thought: The Thought container with the text to improve and critique.
 
@@ -185,6 +200,12 @@ class ReflexionCritic:
                 raise ImproverError(
                     "No critique available for improvement",
                     suggestions=["Run critique before improvement"],
+                )
+
+            # Use context provided by Chain (no retrieval here)
+            if thought.post_generation_context:
+                logger.debug(
+                    f"Using {len(thought.post_generation_context)} context documents provided by Chain"
                 )
 
             # Format the improvement prompt
