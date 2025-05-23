@@ -11,6 +11,7 @@ and provides detailed feedback on principle violations, ensuring that generated
 content aligns with ethical guidelines and quality standards.
 """
 
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -166,18 +167,26 @@ class ConstitutionalCritic(ContextAwareMixin):
             # Calculate processing time
             processing_time = (time.time() - start_time) * 1000
 
+            # Calculate confidence based on violations found
+            confidence = 1.0 - (len(violations) / len(self.principles)) if self.principles else 1.0
+            confidence = max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
+
             logger.debug(
                 f"ConstitutionalCritic: Critique completed in {processing_time:.2f}ms, "
-                f"found {len(violations)} violations"
+                f"found {len(violations)} violations, confidence: {confidence:.2f}"
             )
 
             return {
                 "needs_improvement": needs_improvement,
-                "message": critique_response,
-                "critique": critique_response,
-                "principle_violations": violations,
-                "principles_evaluated": len(self.principles),
-                "strict_mode": self.strict_mode,
+                "violations": [v.get("description", str(v)) for v in violations],
+                "suggestions": self._extract_suggestions(critique_response),
+                "confidence": confidence,
+                "feedback": {
+                    "critique": critique_response,
+                    "principle_violations": violations,
+                    "principles_evaluated": len(self.principles),
+                    "strict_mode": self.strict_mode,
+                },
                 "processing_time_ms": processing_time,
             }
 
@@ -247,61 +256,155 @@ class ConstitutionalCritic(ContextAwareMixin):
     def _extract_violations(self, critique: str) -> List[Dict[str, Any]]:
         """Extract principle violations from critique text.
 
+        This is a fallback method for when the model doesn't return structured JSON.
+        The preferred approach is to get structured data directly from the model.
+
         Args:
             critique: The critique text to analyze.
 
         Returns:
             A list of violation dictionaries.
         """
+        # Try to find JSON in the critique first
+        import json
+
+        try:
+            # Look for JSON blocks in the critique
+            if "{" in critique and "}" in critique:
+                start = critique.find("{")
+                end = critique.rfind("}") + 1
+                json_str = critique[start:end]
+                data = json.loads(json_str)
+
+                # Extract violations from structured data
+                violations = []
+                if "violations" in data:
+                    for violation in data["violations"]:
+                        if isinstance(violation, dict):
+                            violations.append(violation)
+                        else:
+                            # Convert string to dict format
+                            violations.append(
+                                {
+                                    "type": "principle_violation",
+                                    "description": str(violation),
+                                    "severity": "unknown",
+                                }
+                            )
+                return violations
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Fallback: simple text parsing (much simpler than before)
         violations = []
-        critique_lower = critique.lower()
+        lines = critique.split("\n")
 
-        # Simple heuristic to detect violations
-        violation_indicators = [
-            "violates",
-            "violation",
-            "does not adhere",
-            "fails to",
-            "problematic",
-            "concerning",
-            "inappropriate",
-            "harmful",
-            "biased",
-            "misleading",
-            "inaccurate",
-        ]
+        for line in lines:
+            line_clean = line.strip()
+            if not line_clean:
+                continue
 
-        adherence_indicators = [
-            "adheres to all principles",
-            "no violations",
-            "follows all principles",
-            "complies with",
-            "aligns with all",
-            "satisfies all principles",
-        ]
+            # Look for lines that clearly indicate violations
+            line_lower = line_clean.lower()
+            if any(
+                phrase in line_lower
+                for phrase in [
+                    "violation:",
+                    "violates principle",
+                    "does not adhere to",
+                    "fails to meet",
+                ]
+            ):
+                # Skip obvious non-violations
+                if any(
+                    phrase in line_lower
+                    for phrase in [
+                        "no violation",
+                        "violation: none",
+                        "no violations found",
+                        "suggestions for addressing",
+                        "addressing the violation",
+                        "to address the violation",
+                    ]
+                ):
+                    continue
 
-        # Check for explicit adherence statements
-        for indicator in adherence_indicators:
-            if indicator in critique_lower:
-                return []  # No violations found
-
-        # Check for violation indicators
-        for indicator in violation_indicators:
-            if indicator in critique_lower:
-                # Extract context around the violation
-                lines = critique.split("\n")
-                for line in lines:
-                    if indicator in line.lower():
-                        violations.append(
-                            {
-                                "type": "principle_violation",
-                                "description": line.strip(),
-                                "severity": "medium",  # Default severity
-                            }
-                        )
-                break
+                violations.append(
+                    {
+                        "type": "principle_violation",
+                        "description": line_clean,
+                        "severity": "unknown",  # Let the model specify severity
+                    }
+                )
 
         return violations
+
+    def _extract_suggestions(self, critique: str) -> List[str]:
+        """Extract suggestions from critique text.
+
+        Args:
+            critique: The critique text to analyze.
+
+        Returns:
+            A list of suggestions for improvement.
+        """
+        suggestions = []
+        critique_lines = critique.split("\n")
+
+        # Look for numbered principles and their violations
+        for i, line in enumerate(critique_lines):
+            line_stripped = line.strip()
+
+            # Check for numbered principles (e.g., "1. The content should...")
+            if re.match(r"^\d+\.\s+", line_stripped):
+                suggestions.append(line_stripped)
+
+                # Check the next few lines for violation details
+                for j in range(i + 1, min(i + 3, len(critique_lines))):
+                    next_line = critique_lines[j].strip()
+                    if next_line.startswith("-") and (
+                        "not met" in next_line.lower() or "violation" in next_line.lower()
+                    ):
+                        # This principle has a violation, make sure it's included
+                        if line_stripped not in suggestions:
+                            suggestions.append(line_stripped)
+                        break
+
+        # Look for suggestion indicators in remaining lines
+        suggestion_indicators = [
+            "suggest",
+            "recommend",
+            "should",
+            "could",
+            "might",
+            "consider",
+            "try",
+            "improve",
+            "address",
+            "rewrite",
+        ]
+
+        for line in critique_lines:
+            line_lower = line.lower().strip()
+            if any(indicator in line_lower for indicator in suggestion_indicators):
+                # Clean up the suggestion
+                suggestion = line.strip()
+                if (
+                    suggestion
+                    and suggestion not in suggestions
+                    and not re.match(r"^\d+\.\s+", suggestion)
+                ):
+                    suggestions.append(suggestion)
+
+        # If no specific suggestions found, provide generic ones
+        if not suggestions:
+            suggestions = [
+                "Review the text against constitutional principles",
+                "Ensure factual accuracy and balanced perspective",
+                "Consider ethical implications of the content",
+            ]
+
+        return suggestions[:5]  # Limit to 5 suggestions
 
 
 def create_constitutional_critic(

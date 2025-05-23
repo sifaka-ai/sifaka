@@ -350,7 +350,7 @@ class OpenAIModel(ContextAwareMixin):
                 },
             )
 
-    def generate_with_thought(self, thought: Thought, **options: Any) -> str:
+    def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:
         """Generate text using a Thought container.
 
         This method allows the model to access the full context in the Thought container,
@@ -363,7 +363,7 @@ class OpenAIModel(ContextAwareMixin):
             **options: Additional options for generation.
 
         Returns:
-            The generated text.
+            A tuple of (generated_text, actual_prompt_used).
 
         Raises:
             ModelAPIError: If there is an error calling the OpenAI API.
@@ -407,7 +407,8 @@ class OpenAIModel(ContextAwareMixin):
             logger.debug(f"OpenAIModel using context: {context_summary}")
 
         # Generate text using the contextualized prompt and options
-        return self.generate(full_prompt, **generation_options)
+        generated_text = self.generate(full_prompt, **generation_options)
+        return generated_text, full_prompt
 
     def count_tokens(self, text: str) -> int:
         """Count tokens in text using the OpenAI tokenizer.

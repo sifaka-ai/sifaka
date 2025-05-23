@@ -56,20 +56,43 @@ class ValidationResult(BaseModel):
 class CriticFeedback(BaseModel):
     """Feedback from a critic.
 
-    This class represents feedback from a critic, including issues identified,
-    suggestions for improvement, and any additional metadata.
+    This class represents structured feedback from a critic, including the critic name,
+    confidence score, violations found, and suggestions for improvement.
 
     Attributes:
         critic_name: The name of the critic providing the feedback.
-        issues: List of issues identified by the critic.
+        confidence: Confidence score of the critique (0.0 to 1.0).
+        violations: List of principle/rule violations identified.
         suggestions: List of suggestions for improvement.
-        metadata: Optional metadata about the feedback.
+        feedback: Raw feedback data from the critic.
+        processing_time_ms: Time taken to generate the feedback.
     """
 
     critic_name: str
-    issues: List[str]
-    suggestions: List[str]
-    metadata: Optional[Dict[str, Any]] = None
+    confidence: float = Field(ge=0.0, le=1.0, default=0.0)
+    violations: List[str] = Field(default_factory=list)
+    suggestions: List[str] = Field(default_factory=list)
+    feedback: Dict[str, Any] = Field(default_factory=dict)
+    processing_time_ms: Optional[float] = None
+
+
+class ThoughtReference(BaseModel):
+    """Reference to a thought in the chain history.
+
+    This class provides a lightweight reference to a thought without storing
+    the full thought data, avoiding circular references and reducing memory usage.
+
+    Attributes:
+        thought_id: The unique identifier of the referenced thought.
+        iteration: The iteration number of the referenced thought.
+        timestamp: The timestamp when the referenced thought was created.
+        summary: Optional brief summary of the thought.
+    """
+
+    thought_id: str
+    iteration: int
+    timestamp: datetime
+    summary: Optional[str] = None
 
 
 class Thought(BaseModel):
@@ -111,9 +134,10 @@ class Thought(BaseModel):
     version: str = "1.0.0"
 
     # Core content
-    prompt: str
+    prompt: str  # Original user prompt
     text: Optional[str] = None
     system_prompt: Optional[str] = None
+    model_prompt: Optional[str] = None  # Actual contextualized prompt sent to model
 
     # Retrieval context
     pre_generation_context: Optional[List[Document]] = None
@@ -121,11 +145,10 @@ class Thought(BaseModel):
 
     # Validation and critique information
     validation_results: Optional[Dict[str, ValidationResult]] = None
-    critique: Optional[Dict[str, Any]] = None
     critic_feedback: Optional[List[CriticFeedback]] = None
 
-    # History tracking
-    history: Optional[List["Thought"]] = None
+    # History tracking (using references to avoid circular dependencies)
+    history: Optional[List[ThoughtReference]] = None
     parent_id: Optional[str] = None
 
     # Metadata
@@ -144,27 +167,44 @@ class Thought(BaseModel):
         """Create a new Thought for the next iteration.
 
         This method creates a new Thought instance with the same attributes as this one,
-        but with the iteration number incremented and a new timestamp.
+        but with the iteration number incremented and a new timestamp. History is
+        maintained using lightweight ThoughtReference objects.
 
         Returns:
             A new Thought instance for the next iteration.
         """
-        # Create a copy without history to avoid circular references
-        current_without_history = self.model_copy(update={"history": None})
+        # Create a reference to the current thought
+        current_ref = ThoughtReference(
+            thought_id=self.id,
+            iteration=self.iteration,
+            timestamp=self.timestamp,
+            summary=(
+                f"Iteration {self.iteration}: {len(self.text or '')} chars"
+                if self.text
+                else f"Iteration {self.iteration}"
+            ),
+        )
 
-        # Create the new thought
+        # Build new history list
+        new_history = [current_ref]
+        if self.history:
+            new_history.extend(self.history)
+
+        # Create the new thought with a new ID
+        # Preserve critic feedback from current iteration for the model to see
         new_thought = self.model_copy(
             update={
+                "id": str(uuid4()),  # Generate new ID
                 "iteration": self.iteration + 1,
                 "timestamp": datetime.now(),
                 "parent_id": self.id,
-                "history": [current_without_history],
+                "history": new_history,
+                # Keep critic feedback from previous iteration for model context
+                # Clear validation results as they're specific to each iteration
+                "validation_results": None,
+                # Note: critic_feedback is preserved so models can see previous feedback
             }
         )
-
-        # If we already have history, extend it
-        if self.history:
-            new_thought.history.extend(self.history)
 
         return new_thought
 
@@ -230,16 +270,16 @@ class Thought(BaseModel):
         """
         return self.model_copy(update={"text": text})
 
-    def set_critique(self, critique: Dict[str, Any]) -> "Thought":
-        """Set the critique for this thought.
+    def set_model_prompt(self, model_prompt: str) -> "Thought":
+        """Set the actual prompt sent to the model for this thought.
 
         Args:
-            critique: The critique information.
+            model_prompt: The contextualized prompt that was sent to the model.
 
         Returns:
-            A new Thought instance with the updated critique.
+            A new Thought instance with the updated model prompt.
         """
-        return self.model_copy(update={"critique": critique})
+        return self.model_copy(update={"model_prompt": model_prompt})
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert the Thought to a dictionary.

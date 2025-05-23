@@ -336,7 +336,7 @@ class AnthropicModel(ContextAwareMixin):
                 },
             )
 
-    def generate_with_thought(self, thought: Thought, **options: Any) -> str:
+    def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:
         """Generate text using a Thought container.
 
         This method allows the model to access the full context in the Thought container,
@@ -393,7 +393,8 @@ class AnthropicModel(ContextAwareMixin):
             logger.debug(f"AnthropicModel using context: {context_summary}")
 
         # Generate text using the contextualized prompt and options
-        return self.generate(full_prompt, **generation_options)
+        generated_text = self.generate(full_prompt, **generation_options)
+        return generated_text, full_prompt
 
     def count_tokens(self, text: str) -> int:
         """Count tokens in text using the Anthropic tokenizer.

@@ -279,17 +279,19 @@ class ContextAwareMixin:
         thought: Thought,
         max_docs: Optional[int] = None,
         include_post_generation: bool = False,
+        include_critic_feedback: bool = True,
     ) -> str:
         """Prepare context specifically for text generation.
 
         This method is optimized for models that need context for generation.
         It focuses on pre-generation context by default but can include
-        post-generation context if needed.
+        post-generation context and critic feedback from previous iterations.
 
         Args:
             thought: The Thought container with retrieved context.
             max_docs: Maximum number of documents to include.
             include_post_generation: Whether to include post-generation context.
+            include_critic_feedback: Whether to include critic feedback from previous iterations.
 
         Returns:
             A formatted context string optimized for generation.
@@ -313,9 +315,60 @@ class ContextAwareMixin:
                 context_parts.append(f"Additional Reference {doc_count + 1}: {doc.text}")
                 doc_count += 1
 
+        # Include critic feedback from current thought if available
+        if include_critic_feedback and thought.critic_feedback:
+            feedback_parts = []
+            for feedback in thought.critic_feedback:
+                # Extract key information from critic feedback
+                critic_name = feedback.critic_name
+                confidence = feedback.confidence
+
+                feedback_summary = f"Feedback from {critic_name} (confidence: {confidence:.2f}):"
+
+                # Include violations if available
+                if feedback.violations:
+                    feedback_summary += "\nViolations found:"
+                    for violation in feedback.violations[:3]:  # Limit to top 3
+                        feedback_summary += f"\n- {violation}"
+
+                # Include suggestions if available
+                if feedback.suggestions:
+                    feedback_summary += "\nSuggestions:"
+                    for suggestion in feedback.suggestions[:3]:  # Limit to top 3
+                        feedback_summary += f"\n- {suggestion}"
+
+                # For Constitutional critics, include the full critique if no violations/suggestions
+                if (
+                    not feedback.violations
+                    and not feedback.suggestions
+                    and feedback.feedback
+                    and "critique" in feedback.feedback
+                ):
+                    critique_text = feedback.feedback["critique"]
+                    # Extract key parts of the critique (first few lines)
+                    critique_lines = critique_text.split("\n")[:5]  # First 5 lines
+                    feedback_summary += "\nCritique summary:"
+                    for line in critique_lines:
+                        if line.strip():
+                            feedback_summary += f"\n- {line.strip()}"
+
+                if (
+                    not feedback.violations
+                    and not feedback.suggestions
+                    and not feedback.feedback.get("critique")
+                ):
+                    feedback_summary += "\n- No specific feedback provided"
+
+                feedback_parts.append(feedback_summary)
+
+            if feedback_parts:
+                context_parts.append("Previous Critic Feedback:\n" + "\n\n".join(feedback_parts))
+
         if context_parts:
             context_str = "\n\n".join(context_parts)
-            logger.debug(f"Prepared generation context with {doc_count} documents")
+            logger.debug(
+                f"Prepared generation context with {doc_count} documents and critic feedback"
+            )
             return f"Context:\n{context_str}\n\nTask:"
         else:
             logger.debug("No context available for generation")

@@ -94,8 +94,28 @@ class GuardrailsValidator:
                 guard_validators = []
                 for validator_name in self.validators:
                     try:
-                        # Get validator class
-                        validator_class = getattr(gd.validators, validator_name)
+                        # Try to get validator class from hub first, then from validators
+                        validator_class = None
+
+                        # Try guardrails.hub first (for installed validators)
+                        try:
+                            from guardrails.hub import GuardrailsPII
+
+                            if validator_name == "GuardrailsPII":
+                                validator_class = GuardrailsPII
+                        except ImportError:
+                            pass
+
+                        # If not found in hub, try gd.validators (for built-in validators)
+                        if validator_class is None:
+                            try:
+                                validator_class = getattr(gd.validators, validator_name)
+                            except AttributeError:
+                                pass
+
+                        # If still not found, raise error
+                        if validator_class is None:
+                            raise AttributeError(f"Validator {validator_name} not found")
 
                         # Get arguments for this validator
                         args = self.validator_args.get(validator_name, {})
@@ -115,6 +135,7 @@ class GuardrailsValidator:
                             suggestions=[
                                 "Check the validator name spelling",
                                 "Ensure the validator is available in your GuardrailsAI version",
+                                "Install the validator: guardrails hub install hub://guardrails/guardrails_pii",
                             ],
                         )
                     except Exception as e:
@@ -132,7 +153,9 @@ class GuardrailsValidator:
                         )
 
                 # Create guard
-                self._guard = gd.Guard(*guard_validators)
+                self._guard = gd.Guard()
+                for validator in guard_validators:
+                    self._guard.use(validator)
                 logger.debug(f"{self.name}: Created guard with {len(guard_validators)} validators")
             else:
                 # Create empty guard

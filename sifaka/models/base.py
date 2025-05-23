@@ -158,7 +158,7 @@ class MockModel(ContextAwareMixin):
         logger.debug(f"Generating text with mock model: {self.model_name}")
         return f"Mock response from {self.model_name} for: {prompt[:50]}..."
 
-    def generate_with_thought(self, thought: Thought, **options: Any) -> str:
+    def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:
         """Generate text using a Thought container.
 
         The model no longer handles retrieval - the Chain orchestrates all retrieval.
@@ -169,7 +169,7 @@ class MockModel(ContextAwareMixin):
             **options: Additional options for generation.
 
         Returns:
-            A mock response.
+            A tuple of (generated_text, actual_prompt_used).
         """
         logger.debug(f"Generating text with mock model using Thought: {self.model_name}")
 
@@ -185,7 +185,8 @@ class MockModel(ContextAwareMixin):
             context_summary = self._get_context_summary(thought)
             logger.debug(f"MockModel using context: {context_summary}")
 
-        return f"Mock response from {self.model_name} for: {full_prompt[:50]}..."
+        generated_text = f"Mock response from {self.model_name} for: {full_prompt[:50]}..."
+        return generated_text, full_prompt
 
     def count_tokens(self, text: str) -> int:
         """Count tokens in text.

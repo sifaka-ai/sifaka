@@ -2,6 +2,38 @@
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "sifaka"
+version = "0.1.0"
+description = "A framework for iterative text generation with validation and refinement"
+authors = [{name = "Evan Volgas", email = "evan.volgas@gmail.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0.0",
+    "typing-extensions>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "isort>=5.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+guardrails = [
+    "guardrails-ai>=0.4.0",
+]
+all = [
+    "sifaka[dev,guardrails]",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sifaka*"]
+
 [tool.black]
 line-length = 100
 target-version = ['py311']

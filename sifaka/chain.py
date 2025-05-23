@@ -61,8 +61,10 @@ class Chain:
         retriever: Optional[Retriever] = None,
         model_retriever: Optional[Retriever] = None,
         critic_retriever: Optional[Retriever] = None,
+        storage: Optional[Any] = None,
         max_improvement_iterations: int = 3,
         apply_improvers_on_validation_failure: bool = False,
+        always_apply_critics: bool = False,
         pre_generation_retrieval: bool = True,
         post_generation_retrieval: bool = True,
         critic_retrieval: bool = True,
@@ -77,6 +79,7 @@ class Chain:
             critic_retriever: Specific retriever for critics (e.g., factual database for fact-checking).
             max_improvement_iterations: Maximum number of improvement iterations.
             apply_improvers_on_validation_failure: Whether to apply improvers when validation fails.
+            always_apply_critics: Whether to always apply critics regardless of validation status.
             pre_generation_retrieval: Whether to retrieve context before generation.
             post_generation_retrieval: Whether to retrieve context after generation.
             critic_retrieval: Whether to retrieve context during critic operations.
@@ -88,12 +91,14 @@ class Chain:
         self._retriever = retriever  # Default retriever
         self._model_retriever = model_retriever or retriever  # Model-specific or default
         self._critic_retriever = critic_retriever or retriever  # Critic-specific or default
+        self._storage = storage  # Optional storage for saving intermediate thoughts
 
         self._validators: List[Validator] = []
         self._critics: List[Critic] = []
         self._options: Dict[str, Any] = {
             "max_improvement_iterations": max_improvement_iterations,
             "apply_improvers_on_validation_failure": apply_improvers_on_validation_failure,
+            "always_apply_critics": always_apply_critics,
             "pre_generation_retrieval": pre_generation_retrieval,
             "post_generation_retrieval": post_generation_retrieval,
             "critic_retrieval": critic_retrieval,
@@ -169,13 +174,16 @@ class Chain:
         3. Generates text using the model with retrieved context
         4. Post-generation retrieval: Gets context after text generation (if configured)
         5. Validates the generated text using all configured validators
-        6. If validation fails and apply_improvers_on_validation_failure is True:
+        6. Applies critics if any of these conditions are met:
+           a. Validation fails and apply_improvers_on_validation_failure is True
+           b. always_apply_critics is True (regardless of validation status)
+        7. If critics are applied:
            a. Critic retrieval: Gets additional context for critics (if configured)
            b. Gets feedback from critics on how to improve the text
            c. Sends the original text + feedback to the model to generate improved text
            d. Re-validates the improved text
-           e. Repeats steps 6a-6d until validation passes or max iterations is reached
-        7. Returns a Thought object with the final text and all validation/improvement results
+           e. Repeats steps 7a-7d until validation passes or max iterations is reached
+        8. Returns a Thought object with the final text and all validation/improvement results
 
         The Chain orchestrates ALL retrieval operations - models and critics no longer
         handle retrieval themselves.
@@ -198,6 +206,14 @@ class Chain:
             chain_id=self._chain_id,
         )
 
+        # Save the initial thought if storage is available
+        if self._storage:
+            try:
+                self._storage.save_thought(thought)
+                logger.debug(f"Saved initial thought (iteration {thought.iteration}) to storage")
+            except Exception as e:
+                logger.warning(f"Failed to save initial thought: {e}")
+
         # 1. PRE-GENERATION RETRIEVAL (Chain orchestrates this using model_retriever)
         if self._model_retriever and self._options.get("pre_generation_retrieval", True):
             with chain_context(
@@ -218,9 +234,10 @@ class Chain:
             message_prefix="Failed to generate text",
         ):
             logger.debug(f"Generating text with prompt: {self._prompt[:100]}...")
-            text = self._model.generate_with_thought(thought)
-            thought = thought.set_text(text)
+            text, model_prompt = self._model.generate_with_thought(thought)
+            thought = thought.set_text(text).set_model_prompt(model_prompt)
             logger.debug(f"Generated text of length {len(text)}")
+            logger.debug(f"Model prompt length: {len(model_prompt)} characters")
 
         # 3. POST-GENERATION RETRIEVAL (Chain orchestrates this using model_retriever)
         if self._model_retriever and self._options.get("post_generation_retrieval", True):
@@ -270,23 +287,37 @@ class Chain:
                     f"{'passed' if validation_result.passed else 'failed'}"
                 )
 
-        # 5. CRITIC IMPROVEMENT LOOP (if validation failed)
+        # 5. CRITIC IMPROVEMENT LOOP (if validation failed OR always_apply_critics is enabled)
         max_iterations = self._options.get("max_improvement_iterations", 3)
         current_iteration = 0
 
-        while (
-            not all_passed
-            and self._options.get("apply_improvers_on_validation_failure", False)
-            and current_iteration < max_iterations
-            and self._critics
-        ):
-            current_iteration += 1
-            logger.debug(
-                f"Validation failed, attempting improvement (iteration {current_iteration}/{max_iterations})"
+        # Determine if we should run critics
+        always_apply_critics = self._options.get("always_apply_critics", False)
+        apply_on_failure = self._options.get("apply_improvers_on_validation_failure", False)
+
+        while current_iteration < max_iterations and self._critics:
+            # Check if we should run critics in this iteration
+            should_run_critics = (
+                # Traditional case: validation failed and apply_improvers_on_validation_failure is True
+                (not all_passed and apply_on_failure)
+                # New case: always_apply_critics is True (run critics on every iteration)
+                or always_apply_critics
             )
 
-            # Create a new thought for this iteration
-            thought = thought.next_iteration()
+            # If we shouldn't run critics, break out of the loop
+            if not should_run_critics:
+                break
+            current_iteration += 1
+
+            # Log appropriate message based on why critics are running
+            if not all_passed:
+                logger.debug(
+                    f"Validation failed, attempting improvement (iteration {current_iteration}/{max_iterations})"
+                )
+            else:
+                logger.debug(
+                    f"Running critics for improvement (always_apply_critics=True, iteration {current_iteration}/{max_iterations})"
+                )
 
             # 5a. CRITIC RETRIEVAL (Chain orchestrates this using critic_retriever)
             if self._critic_retriever and self._options.get("critic_retrieval", True):
@@ -303,26 +334,61 @@ class Chain:
                         f"Retrieved {len(thought.post_generation_context)} documents for critics from critic_retriever"
                     )
 
-            # 5b. Apply critics to improve the text (critics no longer do retrieval)
+            # 5b. Apply critics to provide feedback (critics no longer do retrieval)
             for critic in self._critics:
                 with chain_context(
-                    operation="improvement",
-                    message_prefix=f"Failed to improve text with {critic.__class__.__name__}",
+                    operation="criticism",
+                    message_prefix=f"Failed to get criticism from {critic.__class__.__name__}",
                 ):
-                    logger.debug(f"Improving text with {critic.__class__.__name__}")
+                    logger.debug(f"Getting criticism from {critic.__class__.__name__}")
 
                     # Get critique (critic uses provided context, no retrieval)
-                    critique = critic.critique(thought)
-                    thought = thought.set_critique(critique)
+                    critique_result = critic.critique(thought)
 
-                    # Improve text (critic uses provided context, no retrieval)
-                    improved_text = critic.improve(thought)
-                    thought = thought.set_text(improved_text)
+                    # Create structured CriticFeedback from critique result
+                    from sifaka.core.thought import CriticFeedback
 
-                    logger.debug(
-                        f"Improved text with {critic.__class__.__name__}, "
-                        f"new length: {len(improved_text)}"
+                    critic_feedback = CriticFeedback(
+                        critic_name=critic.__class__.__name__,
+                        confidence=critique_result.get("confidence", 0.0),
+                        violations=critique_result.get("violations", []),
+                        suggestions=critique_result.get("suggestions", []),
+                        feedback=critique_result.get("feedback", {}),
+                        processing_time_ms=critique_result.get("processing_time_ms"),
                     )
+
+                    # Add the structured feedback to the thought
+                    thought = thought.add_critic_feedback(critic_feedback)
+                    logger.debug(f"Added criticism from {critic.__class__.__name__}")
+
+            # Save the current iteration with critic feedback
+            if self._storage:
+                try:
+                    self._storage.save_thought(thought)
+                    logger.debug(
+                        f"Saved iteration {thought.iteration} thought with critic feedback to storage"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to save iteration {thought.iteration} thought: {e}")
+
+            # 5c. Create next iteration with critic feedback preserved for model context
+            thought = thought.next_iteration()
+            logger.debug(
+                f"Created iteration {thought.iteration} with previous critic feedback preserved"
+            )
+
+            # 5d. Generate improved text using model (which now sees previous critic feedback)
+            with chain_context(
+                operation="improvement_generation",
+                message_prefix="Failed to generate improved text",
+            ):
+                logger.debug(f"Generating improved text for iteration {thought.iteration}")
+                text, model_prompt = self._model.generate_with_thought(thought)
+                thought = thought.set_text(text).set_model_prompt(model_prompt)
+                logger.debug(f"Generated improved text of length {len(text)}")
+                logger.debug(
+                    f"Model prompt included critic feedback: {len(model_prompt)} characters"
+                )
 
             # Re-validate the improved text
             all_passed = True
