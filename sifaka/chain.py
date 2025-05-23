@@ -16,7 +16,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Union
 
 from sifaka.core.interfaces import Critic, Model, Retriever, Validator
-from sifaka.core.thought import Thought, ValidationResult
+from sifaka.core.thought import Thought, ValidationResult, CriticFeedback
 from sifaka.utils.error_handling import ChainError, chain_context, log_error
 from sifaka.utils.logging import get_logger
 
@@ -225,7 +225,7 @@ class Chain:
                     thought, is_pre_generation=True
                 )
                 logger.debug(
-                    f"Retrieved {len(thought.pre_generation_context)} pre-generation documents from model_retriever"
+                    f"Retrieved {len(thought.pre_generation_context or [])} pre-generation documents from model_retriever"
                 )
 
         # 2. GENERATE TEXT (Model just generates, no retrieval)
@@ -252,7 +252,7 @@ class Chain:
                     thought, is_pre_generation=False
                 )
                 logger.debug(
-                    f"Retrieved {len(thought.post_generation_context)} post-generation documents from model_retriever"
+                    f"Retrieved {len(thought.post_generation_context or [])} post-generation documents from model_retriever"
                 )
 
         # 4. VALIDATE TEXT
@@ -264,16 +264,6 @@ class Chain:
             ):
                 logger.debug(f"Validating text with {validator.__class__.__name__}")
                 validation_result = validator.validate(thought)
-
-                # Convert to ValidationResult if needed
-                if not isinstance(validation_result, ValidationResult):
-                    validation_result = ValidationResult(
-                        passed=validation_result.get("passed", False),
-                        message=validation_result.get("message", ""),
-                        score=validation_result.get("score"),
-                        issues=validation_result.get("issues"),
-                        suggestions=validation_result.get("suggestions"),
-                    )
 
                 # Add validation result to thought
                 thought = thought.add_validation_result(
@@ -331,7 +321,7 @@ class Chain:
                         thought, is_pre_generation=False
                     )
                     logger.debug(
-                        f"Retrieved {len(thought.post_generation_context)} documents for critics from critic_retriever"
+                        f"Retrieved {len(thought.post_generation_context or [])} documents for critics from critic_retriever"
                     )
 
             # 5b. Apply critics to provide feedback (critics no longer do retrieval)
@@ -346,8 +336,6 @@ class Chain:
                     critique_result = critic.critique(thought)
 
                     # Create structured CriticFeedback from critique result
-                    from sifaka.core.thought import CriticFeedback
-
                     critic_feedback = CriticFeedback(
                         critic_name=critic.__class__.__name__,
                         confidence=critique_result.get("confidence", 0.0),
@@ -399,16 +387,6 @@ class Chain:
                 ):
                     logger.debug(f"Re-validating improved text with {validator.__class__.__name__}")
                     validation_result = validator.validate(thought)
-
-                    # Convert to ValidationResult if needed
-                    if not isinstance(validation_result, ValidationResult):
-                        validation_result = ValidationResult(
-                            passed=validation_result.get("passed", False),
-                            message=validation_result.get("message", ""),
-                            score=validation_result.get("score"),
-                            issues=validation_result.get("issues"),
-                            suggestions=validation_result.get("suggestions"),
-                        )
 
                     # Add validation result to thought
                     thought = thought.add_validation_result(

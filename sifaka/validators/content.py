@@ -70,7 +70,7 @@ class ContentValidator:
         self.name = name
 
         # Compile patterns for efficiency
-        self._compiled_patterns: List[Pattern] = []
+        self._compiled_patterns: List[Pattern[str]] = []
         self._compile_patterns()
 
     def _compile_patterns(self) -> None:
@@ -157,14 +157,16 @@ class ContentValidator:
                 )
 
             # Found prohibited content
-            match_items = [m["match"] for m in matches]
-            prohibited_items = [m["prohibited_item"] for m in matches]
+            match_items = [str(m["match"]) for m in matches]
+            prohibited_items = [str(m["prohibited_item"]) for m in matches]
 
             # Create issues and suggestions
-            issues = [f"Text contains prohibited content: {', '.join(set(match_items))}"]
+            unique_matches = set(match_items)
+            unique_prohibited = set(prohibited_items)
+            issues = [f"Text contains prohibited content: {', '.join(unique_matches)}"]
             suggestions = [
-                f"Remove or rephrase the following prohibited content: {', '.join(set(match_items))}",
-                f"Avoid using terms like: {', '.join(set(prohibited_items))}",
+                f"Remove or rephrase the following prohibited content: {', '.join(unique_matches)}",
+                f"Avoid using terms like: {', '.join(unique_prohibited)}",
             ]
 
             # Calculate score based on number of matches

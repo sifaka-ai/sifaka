@@ -265,9 +265,9 @@ def refine_with_critic(critic, thought, critic_retriever):
 
         feedback = CriticFeedback(
             critic_name="self_refine_critic",
-            issues=issues,
+            violations=issues,
             suggestions=suggestions,
-            metadata={
+            feedback={
                 "confidence": critique_result.get("confidence", 0.8),
                 "full_critique": critique_message,
                 "processing_time_ms": critique_result.get("processing_time_ms", 0),
@@ -276,7 +276,7 @@ def refine_with_critic(critic, thought, critic_retriever):
         thought = thought.add_critic_feedback(feedback)
 
         print("✓ Critic identified areas for improvement:")
-        for issue in feedback.issues:
+        for issue in feedback.violations:
             print(f"  - Issue: {issue}")
         for suggestion in feedback.suggestions:
             print(f"  - Suggestion: {suggestion}")

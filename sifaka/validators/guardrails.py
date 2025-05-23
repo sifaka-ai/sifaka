@@ -227,6 +227,15 @@ class GuardrailsValidator:
                 )
 
             try:
+                # Check if guard is available
+                if self._guard is None:
+                    return ValidationResult(
+                        passed=False,
+                        message="GuardrailsAI guard is not available",
+                        issues=["GuardrailsAI guard is not configured"],
+                        suggestions=["Configure GuardrailsAI guard or install guardrails-ai"],
+                    )
+
                 # Validate with GuardrailsAI
                 result = self._guard.validate(thought.text)
 

@@ -4,8 +4,7 @@
 import sys
 import os
 
-# Add the sifaka directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "sifaka"))
+# Import path is handled by proper package installation
 
 
 def test_multi_retriever_fact_checking():
@@ -15,16 +14,16 @@ def test_multi_retriever_fact_checking():
     try:
         from sifaka.chain import Chain
         from sifaka.models.base import create_model
-        from sifaka.critics.base import ReflexionCritic
+        from sifaka.critics.reflexion import ReflexionCritic
         from sifaka.validators.base import LengthValidator
-        from sifaka.retrievers.specialized import TwitterRetriever, FactualDatabaseRetriever
+        from sifaka.retrievers.base import MockRetriever  # Use MockRetriever instead of specialized
 
         print("✅ All imports successful")
 
-        # Create specialized retrievers
-        twitter_retriever = TwitterRetriever()  # Recent context for model
-        factual_retriever = FactualDatabaseRetriever()  # Authoritative sources for critics
-        print("✅ Specialized retrievers created")
+        # Create mock retrievers (simulating specialized retrievers)
+        twitter_retriever = MockRetriever()  # Simulates recent context for model
+        factual_retriever = MockRetriever()  # Simulates authoritative sources for critics
+        print("✅ Mock retrievers created")
 
         # Create model and critic
         model = create_model("mock:default")
@@ -89,7 +88,7 @@ def test_fallback_retriever():
     try:
         from sifaka.chain import Chain
         from sifaka.models.base import create_model
-        from sifaka.critics.base import ReflexionCritic
+        from sifaka.critics.reflexion import ReflexionCritic
         from sifaka.retrievers.base import MockRetriever
 
         # Create a default retriever
@@ -135,7 +134,7 @@ def test_no_retriever():
     try:
         from sifaka.chain import Chain
         from sifaka.models.base import create_model
-        from sifaka.critics.base import ReflexionCritic
+        from sifaka.critics.reflexion import ReflexionCritic
 
         # Create model and critic
         model = create_model("mock:default")

@@ -10,9 +10,8 @@ import time
 import importlib.util
 from pathlib import Path
 
-# Add project root to Python path for imports
+# Project root for reference
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
 
 
 def run_test_module(module_path: Path) -> tuple[bool, float, str]:
@@ -34,6 +33,9 @@ def run_test_module(module_path: Path) -> tuple[bool, float, str]:
     try:
         # Load and run the module
         spec = importlib.util.spec_from_file_location(module_path.stem, module_path)
+        if spec is None:
+            raise ImportError(f"Could not load spec for {module_path.stem} from {module_path}")
+
         module = importlib.util.module_from_spec(spec)
 
         # Capture output
@@ -43,6 +45,8 @@ def run_test_module(module_path: Path) -> tuple[bool, float, str]:
         output_buffer = io.StringIO()
 
         with contextlib.redirect_stdout(output_buffer):
+            if spec.loader is None:
+                raise ImportError(f"No loader found for {module_path.stem}")
             spec.loader.exec_module(module)
             if hasattr(module, "main"):
                 result = module.main()
@@ -68,7 +72,7 @@ def run_test_module(module_path: Path) -> tuple[bool, float, str]:
         return False, duration, error_msg
 
 
-def main():
+def main() -> int:
     """Run all tests and provide summary."""
     print("🧪 Sifaka Persistence Test Suite")
     print("=" * 60)

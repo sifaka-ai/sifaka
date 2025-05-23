@@ -11,7 +11,7 @@ from sifaka.core.thought import Thought, Document
 from sifaka.critics.prompt import PromptCritic
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.self_refine import SelfRefineCritic
-from sifaka.critics.base import ReflexionCritic
+from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.critics.n_critics import NCriticsCritic
 from sifaka.models.base import MockModel
 from sifaka.models.anthropic import AnthropicModel
@@ -107,7 +107,7 @@ def demo_all_context_aware_critics():
     )
     constitutional_result = constitutional_critic.critique(thought)
     print(f"   ✅ Needs improvement: {constitutional_result['needs_improvement']}")
-    print(f"   ✅ Violations: {len(constitutional_result['principle_violations'])}")
+    print(f"   ✅ Violations: {len(constitutional_result['violations'])}")
 
     # Demo SelfRefineCritic
     print(f"\n2️⃣ SelfRefineCritic (context-aware)")

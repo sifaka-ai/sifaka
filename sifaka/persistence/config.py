@@ -13,10 +13,10 @@ from pydantic import BaseModel, Field
 
 class PersistenceConfig(BaseModel):
     """Base configuration for persistence backends.
-    
+
     This class provides common configuration options that apply
     to all persistence backends.
-    
+
     Attributes:
         enabled: Whether persistence is enabled
         auto_save: Whether to automatically save thoughts
@@ -25,7 +25,7 @@ class PersistenceConfig(BaseModel):
         backup_enabled: Whether to enable automatic backups
         metadata: Additional configuration metadata
     """
-    
+
     enabled: bool = True
     auto_save: bool = True
     compression: bool = False
@@ -36,10 +36,10 @@ class PersistenceConfig(BaseModel):
 
 class JSONPersistenceConfig(PersistenceConfig):
     """Configuration for JSON-based persistence.
-    
+
     This class provides configuration options specific to the
     JSON file-based storage backend.
-    
+
     Attributes:
         storage_dir: Directory for storing JSON files
         auto_create_dirs: Whether to automatically create directories
@@ -52,7 +52,7 @@ class JSONPersistenceConfig(PersistenceConfig):
         cleanup_old_backups: Whether to automatically clean up old backups
         max_backup_age_days: Maximum age for backup files
     """
-    
+
     storage_dir: str = "./sifaka_storage"
     auto_create_dirs: bool = True
     enable_indexing: bool = True
@@ -63,11 +63,11 @@ class JSONPersistenceConfig(PersistenceConfig):
     backup_frequency: int = 24  # hours
     cleanup_old_backups: bool = True
     max_backup_age_days: int = 30
-    
+
     def get_storage_path(self) -> Path:
         """Get the storage directory as a Path object."""
         return Path(self.storage_dir).expanduser().resolve()
-    
+
     def get_backup_path(self) -> Optional[Path]:
         """Get the backup directory as a Path object."""
         if self.backup_dir:
@@ -77,10 +77,10 @@ class JSONPersistenceConfig(PersistenceConfig):
 
 class MilvusPersistenceConfig(PersistenceConfig):
     """Configuration for Milvus-based persistence.
-    
+
     This class provides configuration options for the Milvus
     vector database storage backend.
-    
+
     Attributes:
         host: Milvus server host
         port: Milvus server port
@@ -93,7 +93,7 @@ class MilvusPersistenceConfig(PersistenceConfig):
         connection_timeout: Connection timeout in seconds
         max_connections: Maximum number of connections
     """
-    
+
     host: str = "localhost"
     port: int = 19530
     collection_name: str = "sifaka_thoughts"
@@ -108,10 +108,10 @@ class MilvusPersistenceConfig(PersistenceConfig):
 
 class RedisPersistenceConfig(PersistenceConfig):
     """Configuration for Redis-based persistence.
-    
+
     This class provides configuration options for the Redis
     in-memory storage backend.
-    
+
     Attributes:
         host: Redis server host
         port: Redis server port
@@ -124,7 +124,7 @@ class RedisPersistenceConfig(PersistenceConfig):
         enable_clustering: Whether to enable Redis clustering
         cluster_nodes: List of cluster node addresses
     """
-    
+
     host: str = "localhost"
     port: int = 6379
     db: int = 0
@@ -134,19 +134,18 @@ class RedisPersistenceConfig(PersistenceConfig):
     key_prefix: str = "sifaka:"
     ttl_seconds: Optional[int] = None  # No expiration by default
     enable_clustering: bool = False
-    cluster_nodes: Optional[list] = None
+    cluster_nodes: Optional[list[str]] = None
 
 
 def create_json_config(
-    storage_dir: str = "./sifaka_storage",
-    **kwargs: Any
+    storage_dir: str = "./sifaka_storage", **kwargs: Any
 ) -> JSONPersistenceConfig:
     """Create a JSON persistence configuration.
-    
+
     Args:
         storage_dir: Directory for storing JSON files
         **kwargs: Additional configuration options
-        
+
     Returns:
         Configured JSONPersistenceConfig instance
     """
@@ -157,41 +156,33 @@ def create_milvus_config(
     host: str = "localhost",
     port: int = 19530,
     collection_name: str = "sifaka_thoughts",
-    **kwargs: Any
+    **kwargs: Any,
 ) -> MilvusPersistenceConfig:
     """Create a Milvus persistence configuration.
-    
+
     Args:
         host: Milvus server host
         port: Milvus server port
         collection_name: Name of the collection to use
         **kwargs: Additional configuration options
-        
+
     Returns:
         Configured MilvusPersistenceConfig instance
     """
-    return MilvusPersistenceConfig(
-        host=host,
-        port=port,
-        collection_name=collection_name,
-        **kwargs
-    )
+    return MilvusPersistenceConfig(host=host, port=port, collection_name=collection_name, **kwargs)
 
 
 def create_redis_config(
-    host: str = "localhost",
-    port: int = 6379,
-    db: int = 0,
-    **kwargs: Any
+    host: str = "localhost", port: int = 6379, db: int = 0, **kwargs: Any
 ) -> RedisPersistenceConfig:
     """Create a Redis persistence configuration.
-    
+
     Args:
         host: Redis server host
         port: Redis server port
         db: Redis database number
         **kwargs: Additional configuration options
-        
+
     Returns:
         Configured RedisPersistenceConfig instance
     """

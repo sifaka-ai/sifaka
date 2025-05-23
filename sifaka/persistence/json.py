@@ -99,7 +99,7 @@ class JSONThoughtStorage(ThoughtStorage):
             logger.info(f"Created storage directories in {self.storage_dir}")
 
     @contextmanager
-    def _file_lock(self, file_path: Path):
+    def _file_lock(self, file_path: Path) -> Any:
         """Context manager for file locking."""
         if HAS_FCNTL:
             # Use fcntl for proper file locking on Unix-like systems

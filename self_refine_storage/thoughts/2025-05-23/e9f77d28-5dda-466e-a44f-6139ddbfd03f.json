@@ -1,0 +1,89 @@
+{
+  "version": "1.0.0",
+  "prompt": "Write a comprehensive explanation of artificial intelligence and machine learning",
+  "text": "AI is cool. TODO: add more details.",
+  "system_prompt": "You are an expert technical writer explaining AI concepts to a general audience.",
+  "model_prompt": null,
+  "pre_generation_context": [
+    {
+      "text": "Machine learning is a subset of AI that enables computers to learn from data.",
+      "metadata": null,
+      "score": 0.8
+    },
+    {
+      "text": "Artificial Intelligence (AI) is the simulation of human intelligence in machines.",
+      "metadata": null,
+      "score": 0.8
+    },
+    {
+      "text": "Deep learning uses neural networks with multiple layers to process information.",
+      "metadata": null,
+      "score": 0.8
+    }
+  ],
+  "post_generation_context": null,
+  "validation_results": {
+    "length": {
+      "passed": false,
+      "message": "Text does not meet length requirements",
+      "score": 0.0,
+      "issues": [
+        "Text is too short (35 < 100 characters)"
+      ],
+      "suggestions": [
+        "Expand the text to at least 100 characters"
+      ]
+    },
+    "content": {
+      "passed": false,
+      "message": "Text contains 1 prohibited content match(es)",
+      "score": 0.75,
+      "issues": [
+        "Text contains prohibited content: TODO"
+      ],
+      "suggestions": [
+        "Remove or rephrase the following prohibited content: TODO",
+        "Avoid using terms like: TODO"
+      ]
+    },
+    "toxicity": {
+      "passed": true,
+      "message": "Text classified as 'safe' with confidence 0.900",
+      "score": 0.9,
+      "issues": null,
+      "suggestions": null
+    },
+    "bias": {
+      "passed": true,
+      "message": "Text classified as 'unbiased' with confidence 0.850",
+      "score": 0.85,
+      "issues": null,
+      "suggestions": null
+    }
+  },
+  "critic_feedback": [
+    {
+      "critic_name": "self_refine_critic",
+      "confidence": 0.0,
+      "violations": [
+        "General improvements needed"
+      ],
+      "suggestions": [
+        "Enhance clarity and completeness"
+      ],
+      "feedback": {
+        "confidence": 0.8,
+        "full_critique": "Mock response from mock for: Please critique the following text and identify ar...",
+        "processing_time_ms": 0.011920928955078125
+      },
+      "processing_time_ms": null
+    }
+  ],
+  "history": null,
+  "parent_id": null,
+  "id": "e9f77d28-5dda-466e-a44f-6139ddbfd03f",
+  "iteration": 0,
+  "timestamp": "2025-05-23T06:53:23.689883",
+  "chain_id": "ai-explanation-chain",
+  "metadata": {}
+}

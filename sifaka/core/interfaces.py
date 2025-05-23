@@ -8,7 +8,7 @@ enable components to work together seamlessly.
 
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
-from sifaka.core.thought import Thought
+from sifaka.core.thought import Thought, ValidationResult
 
 
 @runtime_checkable
@@ -34,7 +34,7 @@ class Model(Protocol):
         """
         ...
 
-    def generate_with_thought(self, thought: Thought, **options: Any) -> str:
+    def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:
         """Generate text using a Thought container.
 
         This method allows models to access the full context in the Thought container,
@@ -45,7 +45,7 @@ class Model(Protocol):
             **options: Additional options for generation.
 
         Returns:
-            The generated text.
+            A tuple of (generated_text, actual_prompt_used).
         """
         ...
 
@@ -70,14 +70,14 @@ class Validator(Protocol):
     checks if text meets certain criteria.
     """
 
-    def validate(self, thought: Thought) -> Dict[str, Any]:
+    def validate(self, thought: Thought) -> ValidationResult:
         """Validate text against specific criteria.
 
         Args:
             thought: The Thought container with the text to validate.
 
         Returns:
-            A dictionary with validation results.
+            A ValidationResult with validation results.
         """
         ...
 
@@ -134,64 +134,17 @@ class Retriever(Protocol):
         """
         ...
 
-
-@runtime_checkable
-class Chain(Protocol):
-    """Protocol defining the interface for chains.
-
-    This protocol defines the minimum interface that all chain
-    implementations must follow. It requires methods for running
-    the chain and configuring it.
-    """
-
-    def run(self) -> Thought:
-        """Run the chain and return the result.
-
-        Returns:
-            The final Thought container with the result.
-        """
-        ...
-
-    def with_model(self, model: Model) -> "Chain":
-        """Set the model for the chain.
+    def retrieve_for_thought(self, thought: Thought, is_pre_generation: bool = True) -> Thought:
+        """Retrieve documents and add them to a thought.
 
         Args:
-            model: The model to use.
+            thought: The thought to add documents to.
+            is_pre_generation: Whether this is pre-generation or post-generation retrieval.
 
         Returns:
-            The chain instance for method chaining.
+            The thought with retrieved documents added.
         """
         ...
 
-    def with_prompt(self, prompt: str) -> "Chain":
-        """Set the prompt for the chain.
 
-        Args:
-            prompt: The prompt to use.
-
-        Returns:
-            The chain instance for method chaining.
-        """
-        ...
-
-    def validate_with(self, validator: Validator) -> "Chain":
-        """Add a validator to the chain.
-
-        Args:
-            validator: The validator to add.
-
-        Returns:
-            The chain instance for method chaining.
-        """
-        ...
-
-    def improve_with(self, critic: Critic) -> "Chain":
-        """Add a critic to the chain.
-
-        Args:
-            critic: The critic to add.
-
-        Returns:
-            The chain instance for method chaining.
-        """
-        ...
+# Chain protocol removed to avoid circular imports with the concrete Chain class

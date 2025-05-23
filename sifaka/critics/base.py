@@ -205,7 +205,7 @@ class BaseCritic(ContextAwareMixin):
                     suggestions=["Provide text to improve"],
                 )
 
-            if not thought.critique:
+            if not thought.critic_feedback:
                 raise ImproverError(
                     "No critique available for improvement",
                     suggestions=["Run critique before improvement"],
@@ -220,10 +220,21 @@ class BaseCritic(ContextAwareMixin):
                 logger.debug(f"BaseCritic using context for improvement: {context_summary}")
 
             # Format the improvement prompt with context
+            critique_text = ""
+            if thought.critic_feedback:
+                # Extract critique text from the first critic feedback
+                first_feedback = thought.critic_feedback[0]
+                if hasattr(first_feedback, "feedback") and first_feedback.feedback:
+                    critique_text = first_feedback.feedback.get("critique_text", "")
+                elif hasattr(first_feedback, "violations") and first_feedback.violations:
+                    critique_text = "; ".join(first_feedback.violations)
+                elif hasattr(first_feedback, "suggestions") and first_feedback.suggestions:
+                    critique_text = "; ".join(first_feedback.suggestions)
+
             improve_prompt = self.improve_prompt_template.format(
                 prompt=thought.prompt,
                 text=thought.text,
-                critique=thought.critique.get("critique_text", ""),
+                critique=critique_text,
                 context=context,
             )
 

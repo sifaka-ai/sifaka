@@ -603,7 +603,7 @@ class OpenAIModel(ContextAwareMixin):
 
         # Send request to OpenAI
         response = self.client.chat.completions.create(
-            model=self.model_name, messages=messages, **openai_params
+            model=self.model_name, messages=messages, **openai_params  # type: ignore
         )
 
         # Ensure we return a string

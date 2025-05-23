@@ -4,7 +4,7 @@ This module provides a classifier for detecting toxic, harmful, or abusive
 language using machine learning with fallback to rule-based detection.
 """
 
-from typing import List, Optional
+from typing import List
 
 from sifaka.classifiers.base import (
     ClassificationResult,
@@ -154,7 +154,7 @@ class ToxicityClassifier(TextClassifier):
             y = [1] * len(TOXIC_SAMPLES) + [0] * len(NON_TOXIC_SAMPLES)
 
             # Create and train the model
-            self.model = Pipeline(
+            model = Pipeline(
                 [
                     (
                         "vectorizer",
@@ -175,7 +175,8 @@ class ToxicityClassifier(TextClassifier):
             )
 
             # Train the model
-            self.model.fit(X, y)
+            model.fit(X, y)
+            self.model = model
 
             logger.debug(f"Initialized toxicity classifier with {len(X)} training samples")
 
@@ -207,7 +208,7 @@ class ToxicityClassifier(TextClassifier):
 
         try:
             if self.model is not None:
-                return self._classify_with_ml(text)
+                return self._classify_with_ml(text)  # type: ignore[unreachable]
             else:
                 return self._classify_with_rules(text)
 
@@ -221,8 +222,15 @@ class ToxicityClassifier(TextClassifier):
 
     def _classify_with_ml(self, text: str) -> ClassificationResult:
         """Classify using machine learning model."""
+        if self.model is None:
+            raise ClassifierError(
+                message="ML model is not available",
+                component="ToxicityClassifier",
+                operation="ml_classification",
+            )
+
         # Get prediction probabilities
-        probabilities = self.model.predict_proba([text])[0]
+        probabilities = self.model.predict_proba([text])[0]  # type: ignore[unreachable]
 
         # Get the predicted class (0 = non_toxic, 1 = toxic)
         predicted_class = self.model.predict([text])[0]
@@ -334,7 +342,7 @@ class CachedToxicityClassifier(CachedTextClassifier):
             y = [1] * len(TOXIC_SAMPLES) + [0] * len(NON_TOXIC_SAMPLES)
 
             # Create and train the model
-            self.model = Pipeline(
+            model = Pipeline(
                 [
                     (
                         "vectorizer",
@@ -355,7 +363,8 @@ class CachedToxicityClassifier(CachedTextClassifier):
             )
 
             # Train the model
-            self.model.fit(X, y)
+            model.fit(X, y)
+            self.model = model
 
             logger.debug(f"Initialized cached toxicity classifier with {len(X)} training samples")
 
@@ -376,7 +385,7 @@ class CachedToxicityClassifier(CachedTextClassifier):
 
         try:
             if self.model is not None:
-                return self._classify_with_ml(text)
+                return self._classify_with_ml(text)  # type: ignore[unreachable]
             else:
                 return self._classify_with_rules(text)
 
@@ -390,7 +399,14 @@ class CachedToxicityClassifier(CachedTextClassifier):
 
     def _classify_with_ml(self, text: str) -> ClassificationResult:
         """Classify using machine learning model."""
-        probabilities = self.model.predict_proba([text])[0]
+        if self.model is None:
+            raise ClassifierError(
+                message="ML model is not available",
+                component="CachedToxicityClassifier",
+                operation="ml_classification",
+            )
+
+        probabilities = self.model.predict_proba([text])[0]  # type: ignore[unreachable]
         predicted_class = self.model.predict([text])[0]
         confidence = float(probabilities[predicted_class])
 

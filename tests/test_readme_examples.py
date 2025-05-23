@@ -4,8 +4,7 @@
 import sys
 import os
 
-# Add the sifaka directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "sifaka"))
+# Import path is handled by proper package installation
 
 
 def test_basic_readme_example():
@@ -15,7 +14,7 @@ def test_basic_readme_example():
     try:
         from sifaka.chain import Chain
         from sifaka.validators.base import LengthValidator, RegexValidator
-        from sifaka.critics.base import ReflexionCritic
+        from sifaka.critics.reflexion import ReflexionCritic
         from sifaka.models.base import create_model
         from sifaka.retrievers.base import MockRetriever
 
@@ -83,7 +82,7 @@ def test_chain_orchestrated_retrieval():
         from sifaka.core.thought import Thought
         from sifaka.retrievers.base import InMemoryRetriever
         from sifaka.models.base import create_model
-        from sifaka.critics.base import ReflexionCritic
+        from sifaka.critics.reflexion import ReflexionCritic
         from sifaka.chain import Chain
 
         # Create a retriever

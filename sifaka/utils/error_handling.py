@@ -5,10 +5,9 @@ This module provides utility functions and context managers for consistent
 error handling across the Sifaka framework.
 """
 
-import functools
 import logging
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
+from typing import Any, Dict, List, Optional, Type, TypeVar
 
 # Type variables for generic functions
 T = TypeVar("T")
@@ -273,7 +272,7 @@ def error_context(
         # Create the new exception
         if issubclass(error_class, SifakaError):
             # If the target is a SifakaError, use its constructor with all parameters
-            new_exception = error_class(
+            new_exception: Exception = error_class(
                 message=new_message,
                 component=component,
                 operation=operation,

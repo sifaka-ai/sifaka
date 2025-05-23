@@ -14,7 +14,7 @@ import time
 from typing import List
 
 
-def test_redis_availability():
+def test_redis_availability() -> bool:
     """Test if Redis is available and can be imported."""
     try:
         import redis
@@ -26,7 +26,7 @@ def test_redis_availability():
         return False
 
 
-def test_redis_connection():
+def test_redis_connection() -> bool:
     """Test if Redis server is running and accessible."""
     try:
         import redis
@@ -41,7 +41,7 @@ def test_redis_connection():
         return False
 
 
-def test_redis_retriever_import():
+def test_redis_retriever_import() -> bool:
     """Test if RedisRetriever can be imported."""
     try:
         from sifaka.retrievers.redis import RedisRetriever, create_redis_retriever
@@ -53,7 +53,7 @@ def test_redis_retriever_import():
         return False
 
 
-def test_standalone_redis_retriever():
+def test_standalone_redis_retriever() -> bool:
     """Test RedisRetriever in standalone mode."""
     try:
         from sifaka.retrievers.redis import RedisRetriever
@@ -103,7 +103,7 @@ def test_standalone_redis_retriever():
         return False
 
 
-def test_caching_redis_retriever():
+def test_caching_redis_retriever() -> bool:
     """Test RedisRetriever as a caching wrapper."""
     try:
         from sifaka.retrievers.redis import RedisRetriever
@@ -163,7 +163,7 @@ def test_caching_redis_retriever():
         return False
 
 
-def test_redis_retriever_with_thought():
+def test_redis_retriever_with_thought() -> bool:
     """Test RedisRetriever with Thought container."""
     try:
         from sifaka.retrievers.redis import RedisRetriever
@@ -189,9 +189,12 @@ def test_redis_retriever_with_thought():
         # Test pre-generation retrieval
         updated_thought = retriever.retrieve_for_thought(thought, is_pre_generation=True)
 
-        print(
-            f"✅ Pre-generation retrieval: {len(updated_thought.pre_generation_context)} documents"
+        pre_gen_count = (
+            len(updated_thought.pre_generation_context)
+            if updated_thought.pre_generation_context
+            else 0
         )
+        print(f"✅ Pre-generation retrieval: {pre_gen_count} documents")
 
         # Add some generated text
         updated_thought = updated_thought.set_text("Python is a versatile programming language.")
@@ -199,9 +202,12 @@ def test_redis_retriever_with_thought():
         # Test post-generation retrieval
         final_thought = retriever.retrieve_for_thought(updated_thought, is_pre_generation=False)
 
-        print(
-            f"✅ Post-generation retrieval: {len(final_thought.post_generation_context)} documents"
+        post_gen_count = (
+            len(final_thought.post_generation_context)
+            if final_thought.post_generation_context
+            else 0
         )
+        print(f"✅ Post-generation retrieval: {post_gen_count} documents")
 
         # Clean up
         retriever.clear_cache("test:thought:retriever:*")
@@ -214,7 +220,7 @@ def test_redis_retriever_with_thought():
         return False
 
 
-def test_factory_function():
+def test_factory_function() -> bool:
     """Test the create_redis_retriever factory function."""
     try:
         from sifaka.retrievers.redis import create_redis_retriever
@@ -247,7 +253,7 @@ def test_factory_function():
         return False
 
 
-def main():
+def main() -> None:
     """Run all Redis retriever tests."""
     print("🧪 Testing RedisRetriever Implementation")
     print("=" * 50)

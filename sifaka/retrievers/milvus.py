@@ -25,8 +25,7 @@ Example:
 
 import json
 import hashlib
-from typing import Any, Dict, List, Optional, Union
-import logging
+from typing import Any, Dict, List, Optional
 
 try:
     from pymilvus import (
@@ -36,7 +35,6 @@ try:
         DataType,
         FieldSchema,
         utility,
-        MilvusException,
     )
 
     MILVUS_AVAILABLE = True
@@ -130,7 +128,7 @@ class MilvusRetriever(BaseVectorDBRetriever):
 
         # Store embedding configuration
         self.custom_embedding_function = embedding_function
-        self.embedding_model = embedding_model
+        self.embedding_model = embedding_model or "default"
 
         # Initialize connection and collection
         self._connect(uri, token, **connection_kwargs)
@@ -204,7 +202,7 @@ class MilvusRetriever(BaseVectorDBRetriever):
             self._embedding_initialized = True
 
         if self.embedding_function:
-            try:
+            try:  # type: ignore[unreachable]
                 # Use BGE-M3 embedding
                 embeddings = self.embedding_function.encode_documents([text])
                 return embeddings["dense"][0].tolist()

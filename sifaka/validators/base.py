@@ -11,11 +11,10 @@ of the chain.
 """
 
 import re
-from typing import Any, Dict, List, Optional, Pattern
+from typing import List, Optional, Pattern
 
-from sifaka.core.interfaces import Validator
 from sifaka.core.thought import Thought, ValidationResult
-from sifaka.utils.error_handling import ValidationError, validation_context
+from sifaka.utils.error_handling import validation_context
 from sifaka.utils.logging import get_logger
 
 # Configure logger
@@ -129,10 +128,10 @@ class RegexValidator:
         self.forbidden_patterns = forbidden_patterns or []
 
         # Compile patterns for efficiency
-        self.required_compiled: List[Pattern] = [
+        self.required_compiled: List[Pattern[str]] = [
             re.compile(pattern) for pattern in self.required_patterns
         ]
-        self.forbidden_compiled: List[Pattern] = [
+        self.forbidden_compiled: List[Pattern[str]] = [
             re.compile(pattern) for pattern in self.forbidden_patterns
         ]
 
@@ -172,7 +171,9 @@ class RegexValidator:
                 if not pattern.search(thought.text):
                     pattern_str = self.required_patterns[i]
                     issues.append(f"Text does not match required pattern: {pattern_str}")
-                    suggestions.append(f"Modify the text to include content matching: {pattern_str}")
+                    suggestions.append(
+                        f"Modify the text to include content matching: {pattern_str}"
+                    )
 
             # Check forbidden patterns
             for i, pattern in enumerate(self.forbidden_compiled):

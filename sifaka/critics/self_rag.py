@@ -237,12 +237,12 @@ class SelfRAGCritic:
         # Add pre-generation context
         if thought.pre_generation_context:
             for i, doc in enumerate(thought.pre_generation_context):
-                context_parts.append(f"Document {i+1}: {doc.content}")
+                context_parts.append(f"Document {i+1}: {doc.text}")
 
         # Add post-generation context
         if thought.post_generation_context:
             for i, doc in enumerate(thought.post_generation_context):
-                context_parts.append(f"Additional Document {i+1}: {doc.content}")
+                context_parts.append(f"Additional Document {i+1}: {doc.text}")
 
         return "\n\n".join(context_parts) if context_parts else "No retrieved context available."
 

@@ -29,19 +29,14 @@ Example:
 
 from typing import List
 
-# Import core components
-from sifaka.chain import Chain
-from sifaka.core.thought import Thought
-
-# Import key interfaces
-from sifaka.core.interfaces import Model, Validator, Critic
+# Core components available for import but not imported at package level
+# to avoid circular import issues. Import them directly:
+# from sifaka.chain import Chain
+# from sifaka.core.thought import Thought
+# from sifaka.core.interfaces import Model, Validator, Critic
 
 __all__: List[str] = [
-    "Chain",
-    "Thought",
-    "Model",
-    "Validator",
-    "Critic",
+    # Components available for direct import
 ]
 
 # Version info

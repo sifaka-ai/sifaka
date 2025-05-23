@@ -88,10 +88,38 @@ The Thought container holds all information as it flows through the Chain:
 
 ## Installation
 
+### Quick Start
 ```bash
-pip install sifaka
-pip install python-dotenv  # For loading environment variables
+pip install sifaka[models,retrievers,classifiers]
 ```
+
+### Modular Installation
+Sifaka uses a modular dependency system. Install only what you need:
+
+```bash
+# Core installation
+pip install sifaka
+
+# With OpenAI models
+pip install sifaka[openai]
+
+# With all model providers
+pip install sifaka[models]
+
+# With retrievers and vector databases
+pip install sifaka[retrievers]
+
+# With ML classifiers
+pip install sifaka[classifiers]
+
+# Everything for production
+pip install sifaka[all]
+
+# Development installation
+pip install sifaka[full]
+```
+
+See [INSTALLATION.md](INSTALLATION.md) for detailed installation options.
 
 ## Environment Setup
 
@@ -215,7 +243,7 @@ thought = thought.add_validation_result(
 thought = thought.add_critic_feedback(
     CriticFeedback(
         critic_name="ReflexionCritic",
-        issues=["The story lacks character development"],
+        violations=["The story lacks character development"],
         suggestions=["Add more details about the robot's personality"]
     )
 )

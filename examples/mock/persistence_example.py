@@ -86,12 +86,12 @@ def main():
     # Add critic feedback
     critic_feedback = CriticFeedback(
         critic_name="technical_accuracy_critic",
-        issues=["Could benefit from more recent developments"],
+        violations=["Could benefit from more recent developments"],
         suggestions=[
             "Include information about large language models",
             "Mention recent breakthroughs in computer vision",
         ],
-        metadata={"confidence": 0.87, "review_time": datetime.now().isoformat()},
+        feedback={"confidence": 0.87, "review_time": datetime.now().isoformat()},
     )
     thought1 = thought1.add_critic_feedback(critic_feedback)
 

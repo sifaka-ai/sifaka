@@ -9,7 +9,7 @@ Available mixins:
 """
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from sifaka.core.thought import Thought
 from sifaka.utils.logging import get_logger
@@ -102,8 +102,10 @@ class ContextAwareMixin:
         Returns:
             True if context is available, False otherwise.
         """
-        has_pre = thought.pre_generation_context and len(thought.pre_generation_context) > 0
-        has_post = thought.post_generation_context and len(thought.post_generation_context) > 0
+        has_pre = bool(thought.pre_generation_context and len(thought.pre_generation_context) > 0)
+        has_post = bool(
+            thought.post_generation_context and len(thought.post_generation_context) > 0
+        )
         return has_pre or has_post
 
     def _get_context_summary(self, thought: Thought) -> str:

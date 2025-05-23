@@ -17,7 +17,7 @@ Example:
     ```python
     from sifaka.retrievers import MockRetriever, InMemoryRetriever, RedisRetriever
     from sifaka.retrievers.vector_db_base import create_vector_db_retriever
-    from sifaka.chain import Chain
+    # from sifaka.chain import Chain  # Import when needed to avoid circular imports
     from sifaka.models.base import create_model
 
     # Create retrievers
@@ -28,9 +28,10 @@ Example:
     # Redis retriever as cache wrapper
     redis_retriever = RedisRetriever(base_retriever=memory_retriever)
 
-    # Use in chain
-    model = create_model("mock:default")
-    chain = Chain(model=model, prompt="Tell me about AI", retriever=redis_retriever)
+    # Use in chain (import Chain when needed)
+    # from sifaka.chain import Chain
+    # model = create_model("mock:default")
+    # chain = Chain(model=model, prompt="Tell me about AI", retriever=redis_retriever)
     ```
 """
 
@@ -72,9 +73,8 @@ except ImportError:
     pass
 
 # Import specialized retrievers if they exist
-try:
-    from sifaka.retrievers.specialized import *
-
-    # Note: specialized module may not exist yet
-except ImportError:
-    pass
+# Note: specialized module may not exist yet - commented out for now
+# try:
+#     from sifaka.retrievers.specialized import *
+# except ImportError:
+#     pass

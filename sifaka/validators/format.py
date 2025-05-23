@@ -256,6 +256,14 @@ class FormatValidator:
         Returns:
             A ValidationResult indicating whether the text passes custom validation.
         """
+        if self.custom_validator is None:
+            return ValidationResult(
+                passed=False,
+                message="No custom validator function provided",
+                issues=["Custom validator function is None"],
+                suggestions=["Provide a custom validator function"],
+            )
+
         try:
             is_valid = self.custom_validator(text)
 

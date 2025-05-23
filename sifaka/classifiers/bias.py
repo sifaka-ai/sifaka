@@ -5,7 +5,6 @@ including gender bias, racial bias, political bias, and other forms of
 discriminatory language using machine learning.
 """
 
-import logging
 from typing import Any, List, Optional
 
 from sifaka.classifiers.base import (
@@ -155,6 +154,13 @@ class BiasClassifier(TextClassifier):
 
     def _classify_with_ml(self, text: str) -> ClassificationResult:
         """Classify using machine learning model."""
+        if self.model is None:
+            raise ClassifierError(
+                message="ML model is not available",
+                component="BiasClassifier",
+                operation="ml_classification",
+            )
+
         # Get prediction probabilities
         probabilities = self.model.predict_proba([text])[0]
 
@@ -333,6 +339,13 @@ class CachedBiasClassifier(CachedTextClassifier):
 
     def _classify_with_ml(self, text: str) -> ClassificationResult:
         """Classify using machine learning model."""
+        if self.model is None:
+            raise ClassifierError(
+                message="ML model is not available",
+                component="CachedBiasClassifier",
+                operation="ml_classification",
+            )
+
         # Get prediction probabilities
         probabilities = self.model.predict_proba([text])[0]
 

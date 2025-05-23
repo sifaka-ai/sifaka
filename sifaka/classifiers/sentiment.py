@@ -120,7 +120,7 @@ class SentimentClassifier(TextClassifier):
         """Initialize TextBlob for sentiment analysis."""
         try:
             # Try to use TextBlob
-            self.textblob = importlib.import_module("textblob")
+            self.textblob = importlib.import_module("textblob")  # type: ignore
             logger.debug("Initialized sentiment classifier with TextBlob")
 
         except ImportError:
@@ -151,7 +151,7 @@ class SentimentClassifier(TextClassifier):
 
         try:
             if self.textblob is not None:
-                return self._classify_with_textblob(text)
+                return self._classify_with_textblob(text)  # type: ignore[unreachable]
             else:
                 return self._classify_with_lexicon(text)
 
@@ -165,7 +165,14 @@ class SentimentClassifier(TextClassifier):
 
     def _classify_with_textblob(self, text: str) -> ClassificationResult:
         """Classify using TextBlob sentiment analysis."""
-        try:
+        if self.textblob is None:
+            raise ClassifierError(
+                message="TextBlob is not available",
+                component="SentimentClassifier",
+                operation="textblob_classification",
+            )
+
+        try:  # type: ignore[unreachable]
             blob = self.textblob.TextBlob(text)
             polarity = blob.sentiment.polarity  # Range: -1 (negative) to 1 (positive)
             subjectivity = blob.sentiment.subjectivity  # Range: 0 (objective) to 1 (subjective)
@@ -262,7 +269,7 @@ class CachedSentimentClassifier(CachedTextClassifier):
     def _initialize_textblob(self) -> None:
         """Initialize TextBlob for sentiment analysis."""
         try:
-            self.textblob = importlib.import_module("textblob")
+            self.textblob = importlib.import_module("textblob")  # type: ignore
             logger.debug("Initialized cached sentiment classifier with TextBlob")
         except ImportError:
             logger.warning(
@@ -281,7 +288,7 @@ class CachedSentimentClassifier(CachedTextClassifier):
 
         try:
             if self.textblob is not None:
-                return self._classify_with_textblob(text)
+                return self._classify_with_textblob(text)  # type: ignore[unreachable]
             else:
                 return self._classify_with_lexicon(text)
         except Exception as e:
@@ -294,7 +301,14 @@ class CachedSentimentClassifier(CachedTextClassifier):
 
     def _classify_with_textblob(self, text: str) -> ClassificationResult:
         """Classify using TextBlob sentiment analysis."""
-        try:
+        if self.textblob is None:
+            raise ClassifierError(
+                message="TextBlob is not available",
+                component="CachedSentimentClassifier",
+                operation="textblob_classification",
+            )
+
+        try:  # type: ignore[unreachable]
             blob = self.textblob.TextBlob(text)
             polarity = blob.sentiment.polarity
             subjectivity = blob.sentiment.subjectivity

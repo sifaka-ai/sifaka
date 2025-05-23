@@ -52,16 +52,18 @@ def print_thought_details(thought: Thought) -> None:
                 for suggestion in result.suggestions:
                     print(f"      - {suggestion}")
 
-    if thought.critique:
-        print("\nCritique:")
-        if "issues" in thought.critique:
-            print("  Issues:")
-            for issue in thought.critique["issues"]:
-                print(f"    - {issue}")
-        if "suggestions" in thought.critique:
-            print("  Suggestions:")
-            for suggestion in thought.critique["suggestions"]:
-                print(f"    - {suggestion}")
+    if thought.critic_feedback:
+        print("\nCritic Feedback:")
+        for feedback in thought.critic_feedback:
+            print(f"  Critic: {feedback.critic_name}")
+            if feedback.violations:
+                print("    Violations:")
+                for violation in feedback.violations:
+                    print(f"      - {violation}")
+            if feedback.suggestions:
+                print("    Suggestions:")
+                for suggestion in feedback.suggestions:
+                    print(f"      - {suggestion}")
 
     if thought.post_generation_context:
         print("\nPost-Generation Context:")
@@ -144,17 +146,12 @@ def main() -> None:
     if result.history:
         print("\n📚 Thought History:")
         print("-" * 40)
-        for i, historical_thought in enumerate(result.history):
-            print(f"\n📖 Historical Thought {i+1} (Iteration {historical_thought.iteration}):")
-            print(f"   Prompt: {historical_thought.prompt}")
-            if historical_thought.text:
-                print(f"   Text: {historical_thought.text[:100]}...")
-            if historical_thought.validation_results:
-                passed_count = sum(
-                    1 for r in historical_thought.validation_results.values() if r.passed
-                )
-                total_count = len(historical_thought.validation_results)
-                print(f"   Validations: {passed_count}/{total_count} passed")
+        for i, thought_ref in enumerate(result.history):
+            print(f"\n📖 Historical Thought {i+1} (Iteration {thought_ref.iteration}):")
+            print(f"   Thought ID: {thought_ref.thought_id}")
+            print(f"   Timestamp: {thought_ref.timestamp}")
+            if thought_ref.summary:
+                print(f"   Summary: {thought_ref.summary}")
 
     print(f"\n🎉 Example completed successfully!")
 
