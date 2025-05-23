@@ -191,7 +191,7 @@ class Thought(BaseModel):
             new_history.extend(self.history)
 
         # Create the new thought with a new ID
-        # Preserve critic feedback from current iteration for the model to see
+        # Preserve critic feedback and validation results from current iteration for the model to see
         new_thought = self.model_copy(
             update={
                 "id": str(uuid4()),  # Generate new ID
@@ -200,9 +200,8 @@ class Thought(BaseModel):
                 "parent_id": self.id,
                 "history": new_history,
                 # Keep critic feedback from previous iteration for model context
-                # Clear validation results as they're specific to each iteration
-                "validation_results": None,
-                # Note: critic_feedback is preserved so models can see previous feedback
+                # Keep validation results from previous iteration for model context
+                # Note: Both critic_feedback and validation_results are preserved so models can see previous feedback
             }
         )
 

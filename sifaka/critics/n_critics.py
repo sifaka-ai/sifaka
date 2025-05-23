@@ -88,13 +88,19 @@ class NCriticsCritic(ContextAwareMixin):
             "Original task: {prompt}\n\n"
             "Text to critique:\n{text}\n\n"
             "Retrieved context:\n{context}\n\n"
-            "Provide a focused critique addressing:\n"
-            "1. How well does the text perform in your area of expertise?\n"
-            "2. What specific issues do you identify?\n"
-            "3. What improvements would you recommend?\n"
-            "4. Rate the text from 1-10 in your area of focus\n"
-            "5. How well does the text use information from the retrieved context (if available)?\n\n"
-            "Be specific and constructive in your feedback."
+            "Previous validation results:\n{validation_context}\n\n"
+            "Provide a structured critique with the following format:\n\n"
+            "PERFORMANCE: [How well does the text perform in your area of expertise?]\n\n"
+            "ISSUES: [List specific problems you identify, one per line]\n"
+            "- [Issue 1]\n"
+            "- [Issue 2]\n\n"
+            "SUGGESTIONS: [List specific improvements you recommend, one per line]\n"
+            "- [Suggestion 1]\n"
+            "- [Suggestion 2]\n\n"
+            "SCORE: [Rate the text from 1-10 in your area of focus]\n\n"
+            "CONTEXT USAGE: [How well does the text use information from the retrieved context?]\n\n"
+            "VALIDATION ANALYSIS: [How do your findings relate to the validation results above?]\n\n"
+            "Be specific, constructive, and focus on your area of expertise. Pay special attention to any validation failures and provide targeted feedback to address them."
         )
 
         self.improve_prompt_template = improve_prompt_template or (
@@ -155,18 +161,29 @@ class NCriticsCritic(ContextAwareMixin):
                 critique.get("needs_improvement", True) for critique in critic_critiques
             )
 
+            # Extract and aggregate violations and suggestions from individual critics
+            all_violations = []
+            all_suggestions = []
+            for critique in critic_critiques:
+                if "issues" in critique:
+                    all_violations.extend(critique["issues"])
+                if "suggestions" in critique:
+                    all_suggestions.extend(critique["suggestions"])
+
             # Calculate processing time
             processing_time = (time.time() - start_time) * 1000
 
             logger.debug(
                 f"NCriticsCritic: Critique completed in {processing_time:.2f}ms "
-                f"with {len(critic_critiques)} critics"
+                f"with {len(critic_critiques)} critics, {len(all_violations)} violations, {len(all_suggestions)} suggestions"
             )
 
             return {
                 "needs_improvement": needs_improvement,
                 "message": aggregated_critique["summary"],
                 "critique": aggregated_critique["summary"],
+                "violations": all_violations,  # Add top-level violations for chain compatibility
+                "suggestions": all_suggestions,  # Add top-level suggestions for chain compatibility
                 "critic_feedback": critic_critiques,
                 "aggregated_score": aggregated_critique["average_score"],
                 "num_critics": len(critic_critiques),
@@ -244,12 +261,16 @@ class NCriticsCritic(ContextAwareMixin):
         # Prepare context for this critic (using mixin)
         context = self._prepare_context(thought)
 
+        # Prepare validation context if available
+        validation_context = self._prepare_validation_context(thought)
+
         # Create critique prompt for this specific critic with context
         critique_prompt = self.critique_prompt_template.format(
             role=role,
             prompt=thought.prompt,
             text=thought.text,
             context=context,
+            validation_context=validation_context,
         )
 
         # Generate critique
@@ -262,11 +283,16 @@ class NCriticsCritic(ContextAwareMixin):
         score = self._extract_score_from_critique(critique_response)
         needs_improvement = score < 7.0
 
+        # Parse structured feedback from the critique response
+        issues, suggestions = self._parse_structured_feedback(critique_response)
+
         return {
             "role": role,
             "critique": critique_response,
             "score": score,
             "needs_improvement": needs_improvement,
+            "issues": issues,
+            "suggestions": suggestions,
         }
 
     def _aggregate_critiques(self, critic_critiques: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -305,6 +331,148 @@ class NCriticsCritic(ContextAwareMixin):
             "individual_scores": scores,
             "num_critics": len(critic_critiques),
         }
+
+    def _parse_structured_feedback(self, critique: str) -> tuple[List[str], List[str]]:
+        """Parse structured feedback from critique response.
+
+        Args:
+            critique: The critique text to parse.
+
+        Returns:
+            A tuple of (issues, suggestions) lists.
+        """
+        import re
+
+        issues = []
+        suggestions = []
+
+        # Look for structured format first (ISSUES: and SUGGESTIONS: sections)
+        # Extract ISSUES section
+        issues_match = re.search(
+            r"ISSUES:\s*(.*?)(?=SUGGESTIONS:|SCORE:|$)", critique, re.DOTALL | re.IGNORECASE
+        )
+        if issues_match:
+            issues_text = issues_match.group(1).strip()
+            # Extract bullet points
+            issue_lines = re.findall(r"[-*•]\s*(.+)", issues_text)
+            for issue in issue_lines:
+                if issue.strip() and not issue.strip().startswith("["):
+                    issues.append(issue.strip())
+
+        # Extract SUGGESTIONS section
+        suggestions_match = re.search(
+            r"SUGGESTIONS:\s*(.*?)(?=SCORE:|CONTEXT USAGE:|$)", critique, re.DOTALL | re.IGNORECASE
+        )
+        if suggestions_match:
+            suggestions_text = suggestions_match.group(1).strip()
+            # Extract bullet points
+            suggestion_lines = re.findall(r"[-*•]\s*(.+)", suggestions_text)
+            for suggestion in suggestion_lines:
+                if suggestion.strip() and not suggestion.strip().startswith("["):
+                    suggestions.append(suggestion.strip())
+
+        # Fallback to less structured patterns if structured format not found
+        if not issues and not suggestions:
+            critique_lower = critique.lower()
+
+            # Extract issues/problems
+            issue_patterns = [
+                r"issues?[:\s]+(.*?)(?:\n|$)",
+                r"problems?[:\s]+(.*?)(?:\n|$)",
+                r"concerns?[:\s]+(.*?)(?:\n|$)",
+                r"violations?[:\s]+(.*?)(?:\n|$)",
+                r"bias[:\s]+(.*?)(?:\n|$)",
+                r"stereotypes?[:\s]+(.*?)(?:\n|$)",
+            ]
+
+            for pattern in issue_patterns:
+                matches = re.findall(pattern, critique, re.IGNORECASE | re.MULTILINE)
+                for match in matches:
+                    if match.strip():
+                        issues.append(match.strip())
+
+            # Extract suggestions/recommendations
+            suggestion_patterns = [
+                r"suggestions?[:\s]+(.*?)(?:\n|$)",
+                r"recommendations?[:\s]+(.*?)(?:\n|$)",
+                r"improvements?[:\s]+(.*?)(?:\n|$)",
+                r"should[:\s]+(.*?)(?:\n|$)",
+                r"consider[:\s]+(.*?)(?:\n|$)",
+                r"try[:\s]+(.*?)(?:\n|$)",
+            ]
+
+            for pattern in suggestion_patterns:
+                matches = re.findall(pattern, critique, re.IGNORECASE | re.MULTILINE)
+                for match in matches:
+                    if match.strip():
+                        suggestions.append(match.strip())
+
+            # If no structured feedback found, extract from general content
+            if not issues and not suggestions:
+                # Look for negative sentiment as issues
+                if any(
+                    word in critique_lower
+                    for word in ["bias", "stereotype", "unfair", "problematic"]
+                ):
+                    issues.append("Potential bias or unfair generalizations detected")
+
+                # Look for improvement language as suggestions
+                if any(
+                    word in critique_lower for word in ["improve", "better", "consider", "should"]
+                ):
+                    suggestions.append("Consider revising for more balanced and inclusive language")
+
+        # Ensure we have at least some feedback
+        if not issues and not suggestions:
+            critique_lower = critique.lower()
+            if "good" in critique_lower or "well" in critique_lower:
+                suggestions.append("Content is generally good, minor improvements possible")
+            else:
+                issues.append("General improvement needed")
+                suggestions.append("Revise content for better quality")
+
+        return issues, suggestions
+
+    def _prepare_validation_context(self, thought: Thought) -> str:
+        """Prepare validation context for critics.
+
+        Args:
+            thought: The Thought container with validation results.
+
+        Returns:
+            A formatted string with validation results for critics to consider.
+        """
+        if not thought.validation_results:
+            return "No validation results available."
+
+        validation_parts = []
+        for validator_name, validation_result in thought.validation_results.items():
+            status = "PASSED" if validation_result.passed else "FAILED"
+            validation_summary = f"• {validator_name}: {status}"
+
+            # Include score if available
+            if validation_result.score is not None:
+                validation_summary += f" (score: {validation_result.score:.3f})"
+
+            # Include specific issues if validation failed
+            if not validation_result.passed and validation_result.issues:
+                validation_summary += "\n  Issues:"
+                for issue in validation_result.issues:
+                    validation_summary += f"\n    - {issue}"
+
+            # Include suggestions if available
+            if validation_result.suggestions:
+                validation_summary += "\n  Suggestions:"
+                for suggestion in validation_result.suggestions:
+                    validation_summary += f"\n    - {suggestion}"
+
+            # Include validation message if available
+            if validation_result.message:
+                validation_summary += f"\n  Message: {validation_result.message}"
+
+            validation_parts.append(validation_summary)
+
+        return "\n\n".join(validation_parts)
 
     def _extract_score_from_critique(self, critique: str) -> float:
         """Extract numerical score from critique text.

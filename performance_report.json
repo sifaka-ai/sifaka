@@ -1,0 +1,115 @@
+{
+  "total_operations": 7,
+  "total_time": 0.0003044589830096811,
+  "avg_time_per_operation": 4.349414042995444e-05,
+  "slowest_operations": [
+    [
+      "chain_execution_77d178de-87b1-4848-b5a5-db813a559402",
+      0.00016337500710505992
+    ],
+    [
+      "pre_generation_retrieval",
+      3.979199391324073e-05
+    ],
+    [
+      "validation",
+      3.7416990380734205e-05
+    ],
+    [
+      "validation_LengthValidator",
+      1.8459002603776753e-05
+    ],
+    [
+      "text_generation",
+      1.8125007045455277e-05
+    ]
+  ],
+  "most_frequent_operations": [
+    [
+      "pre_generation_retrieval",
+      1
+    ],
+    [
+      "text_generation",
+      1
+    ],
+    [
+      "post_generation_retrieval",
+      1
+    ],
+    [
+      "validation_LengthValidator",
+      1
+    ],
+    [
+      "validation_RegexValidator",
+      1
+    ]
+  ],
+  "unique_operations": 7,
+  "operations": {
+    "pre_generation_retrieval": {
+      "name": "pre_generation_retrieval",
+      "total_time": 3.979199391324073e-05,
+      "call_count": 1,
+      "avg_time": 3.979199391324073e-05,
+      "min_time": 3.979199391324073e-05,
+      "max_time": 3.979199391324073e-05,
+      "recent_avg_time": 3.979199391324073e-05
+    },
+    "text_generation": {
+      "name": "text_generation",
+      "total_time": 1.8125007045455277e-05,
+      "call_count": 1,
+      "avg_time": 1.8125007045455277e-05,
+      "min_time": 1.8125007045455277e-05,
+      "max_time": 1.8125007045455277e-05,
+      "recent_avg_time": 1.8125007045455277e-05
+    },
+    "post_generation_retrieval": {
+      "name": "post_generation_retrieval",
+      "total_time": 1.5165991499088705e-05,
+      "call_count": 1,
+      "avg_time": 1.5165991499088705e-05,
+      "min_time": 1.5165991499088705e-05,
+      "max_time": 1.5165991499088705e-05,
+      "recent_avg_time": 1.5165991499088705e-05
+    },
+    "validation_LengthValidator": {
+      "name": "validation_LengthValidator",
+      "total_time": 1.8459002603776753e-05,
+      "call_count": 1,
+      "avg_time": 1.8459002603776753e-05,
+      "min_time": 1.8459002603776753e-05,
+      "max_time": 1.8459002603776753e-05,
+      "recent_avg_time": 1.8459002603776753e-05
+    },
+    "validation_RegexValidator": {
+      "name": "validation_RegexValidator",
+      "total_time": 1.2124990462325513e-05,
+      "call_count": 1,
+      "avg_time": 1.2124990462325513e-05,
+      "min_time": 1.2124990462325513e-05,
+      "max_time": 1.2124990462325513e-05,
+      "recent_avg_time": 1.2124990462325513e-05
+    },
+    "validation": {
+      "name": "validation",
+      "total_time": 3.7416990380734205e-05,
+      "call_count": 1,
+      "avg_time": 3.7416990380734205e-05,
+      "min_time": 3.7416990380734205e-05,
+      "max_time": 3.7416990380734205e-05,
+      "recent_avg_time": 3.7416990380734205e-05
+    },
+    "chain_execution_77d178de-87b1-4848-b5a5-db813a559402": {
+      "name": "chain_execution_77d178de-87b1-4848-b5a5-db813a559402",
+      "total_time": 0.00016337500710505992,
+      "call_count": 1,
+      "avg_time": 0.00016337500710505992,
+      "min_time": 0.00016337500710505992,
+      "max_time": 0.00016337500710505992,
+      "recent_avg_time": 0.00016337500710505992
+    }
+  }
+}

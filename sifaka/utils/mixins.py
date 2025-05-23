@@ -282,18 +282,20 @@ class ContextAwareMixin:
         max_docs: Optional[int] = None,
         include_post_generation: bool = False,
         include_critic_feedback: bool = True,
+        include_validation_results: bool = True,
     ) -> str:
         """Prepare context specifically for text generation.
 
         This method is optimized for models that need context for generation.
         It focuses on pre-generation context by default but can include
-        post-generation context and critic feedback from previous iterations.
+        post-generation context, validation results, and critic feedback from previous iterations.
 
         Args:
             thought: The Thought container with retrieved context.
             max_docs: Maximum number of documents to include.
             include_post_generation: Whether to include post-generation context.
             include_critic_feedback: Whether to include critic feedback from previous iterations.
+            include_validation_results: Whether to include validation results from previous iterations.
 
         Returns:
             A formatted context string optimized for generation.
@@ -316,6 +318,42 @@ class ContextAwareMixin:
                     break
                 context_parts.append(f"Additional Reference {doc_count + 1}: {doc.text}")
                 doc_count += 1
+
+        # Include validation results from current thought if available
+        if include_validation_results and thought.validation_results:
+            validation_parts = []
+            for validator_name, validation_result in thought.validation_results.items():
+                status = "PASSED" if validation_result.passed else "FAILED"
+                validation_summary = f"Validation by {validator_name}: {status}"
+
+                # Include score if available
+                if validation_result.score is not None:
+                    validation_summary += f" (score: {validation_result.score:.3f})"
+
+                # Include specific issues if validation failed
+                if not validation_result.passed and validation_result.issues:
+                    validation_summary += "\nIssues found:"
+                    for issue in validation_result.issues[:3]:  # Limit to top 3
+                        validation_summary += f"\n- {issue}"
+
+                # Include suggestions if available
+                if validation_result.suggestions:
+                    validation_summary += "\nSuggestions:"
+                    for suggestion in validation_result.suggestions[:3]:  # Limit to top 3
+                        validation_summary += f"\n- {suggestion}"
+
+                # Include validation message if available and different from issues
+                if validation_result.message and validation_result.message not in str(
+                    validation_result.issues
+                ):
+                    validation_summary += f"\nMessage: {validation_result.message}"
+
+                validation_parts.append(validation_summary)
+
+            if validation_parts:
+                context_parts.append(
+                    "Previous Validation Results:\n" + "\n\n".join(validation_parts)
+                )
 
         # Include critic feedback from current thought if available
         if include_critic_feedback and thought.critic_feedback:
@@ -369,7 +407,7 @@ class ContextAwareMixin:
         if context_parts:
             context_str = "\n\n".join(context_parts)
             logger.debug(
-                f"Prepared generation context with {doc_count} documents and critic feedback"
+                f"Prepared generation context with {doc_count} documents, validation results, and critic feedback"
             )
             return f"Context:\n{context_str}\n\nTask:"
         else:
