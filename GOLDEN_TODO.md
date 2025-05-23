@@ -52,6 +52,16 @@ The new Sifaka architecture is fully implemented with:
 **Retrievers:**
 - [x] MockRetriever for testing
 - [x] InMemoryRetriever for simple collections
+- [x] RedisRetriever for caching and performance
+
+**Vector Database Architecture:**
+- [x] VectorDBRetriever protocol/interface for generic vector DB support
+- [x] MilvusRetriever implementation with BGE-M3 embeddings
+- [x] Factory function (create_vector_db_retriever) for provider selection
+- [x] Support for Milvus Lite (embedded) and Milvus server
+- [x] Semantic search with cosine similarity
+- [ ] PineconeRetriever implementation (future)
+- [ ] WeaviateRetriever implementation (future)
 
 **Persistence:**
 - [x] JSON persistence implementation
@@ -64,9 +74,7 @@ The new Sifaka architecture is fully implemented with:
 
 ### 🔄 IN PROGRESS / REMAINING TASKS
 
-**Advanced Retrievers:**
-- [ ] VectorDBRetriever (Milvus integration)
-- [ ] RedisRetriever for caching
+
 
 **Enhanced Persistence:**
 - [ ] Milvus persistence for embeddings
@@ -146,7 +154,7 @@ The new Sifaka architecture is fully implemented with:
 
 ### 🎯 High Priority
 1. **Enhanced Testing**: Comprehensive unit tests for validators and critics
-2. **Advanced Retrievers**: Milvus and Redis integration for production use
+2. **Enhanced Persistence**: Milvus and Redis persistence layers for production use
 3. **Performance Optimization**: Caching, async support, and benchmarking
 4. **Documentation**: API reference and architecture diagrams
 

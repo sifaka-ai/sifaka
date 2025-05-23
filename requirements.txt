@@ -24,6 +24,8 @@ python-dotenv>=1.0.1
 requests>=2.31.0
 httpx>=0.28.1
 tenacity>=8.2.3
+redis>=5.0.0  # For Redis caching and retrieval
+pymilvus>=2.4.0  # For vector database retrieval
 
 # Optional integrations
 guardrails-ai>=0.6.6  # Updated to latest version to fix pkg_resources deprecation

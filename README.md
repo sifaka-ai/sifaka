@@ -279,6 +279,68 @@ for doc in result.post_generation_context:
     print(f"- {doc.text} (score: {doc.score})")
 ```
 
+### Available Retrievers
+
+Sifaka provides several retriever implementations:
+
+- **MockRetriever**: Returns predefined documents for testing
+- **InMemoryRetriever**: Simple keyword-based retrieval from in-memory documents
+- **RedisRetriever**: Redis-based caching retriever that can wrap other retrievers for performance
+
+### Redis Caching for Performance
+
+The RedisRetriever provides powerful caching capabilities to improve performance:
+
+```python
+from sifaka.retrievers.redis import RedisRetriever, create_redis_retriever
+from sifaka.retrievers.base import InMemoryRetriever
+
+# Create a base retriever
+base_retriever = InMemoryRetriever()
+base_retriever.add_document("doc1", "Python is excellent for AI development.")
+base_retriever.add_document("doc2", "Machine learning frameworks like TensorFlow use Python.")
+
+# Wrap with Redis caching (recommended approach)
+cached_retriever = RedisRetriever(
+    base_retriever=base_retriever,
+    redis_host="localhost",  # Default
+    redis_port=6379,         # Default
+    cache_ttl=300,           # 5 minutes cache
+)
+
+# Use in chain for automatic caching
+chain = Chain(
+    model=model,
+    prompt="Explain Python's role in AI development.",
+    retriever=cached_retriever,  # Automatic caching for all retrievals
+)
+
+# First run: cache miss, retrieves from base_retriever and caches
+result1 = chain.run()
+
+# Second run: cache hit, much faster retrieval
+result2 = chain.run()
+
+# Check cache statistics
+stats = cached_retriever.get_cache_stats()
+print(f"Cached queries: {stats['cached_queries']}")
+```
+
+You can also use RedisRetriever as a standalone document store:
+
+```python
+# Standalone Redis document store
+redis_store = RedisRetriever(cache_ttl=3600)  # 1 hour cache
+
+# Add documents directly
+redis_store.add_document("ai_doc", "Artificial intelligence is transforming technology.")
+redis_store.add_document("ml_doc", "Machine learning enables computers to learn from data.")
+
+# Retrieve documents
+results = redis_store.retrieve("artificial intelligence machine learning")
+print(f"Found {len(results)} relevant documents")
+```
+
 ## Working with Critics
 
 Critics analyze text, identify issues, and provide suggestions for improvement. The Chain orchestrates retrieval for critics automatically:
@@ -417,10 +479,10 @@ with open("thought.json", "r") as f:
 print(f"Loaded thought prompt: {loaded_thought.prompt}")
 ```
 
-In the future, Sifaka will support additional persistence options:
-- Redis for caching
-- Vector databases (Milvus, Elasticsearch) for semantic search
-- PostgreSQL for relational storage with history tracking
+Sifaka also supports Redis for caching and performance optimization:
+- **Redis caching**: Available now via RedisRetriever for fast retrieval caching
+- **Vector databases**: Planned support for Milvus and Elasticsearch for semantic search
+- **PostgreSQL**: Planned support for relational storage with history tracking
 
 ## Documentation
 
