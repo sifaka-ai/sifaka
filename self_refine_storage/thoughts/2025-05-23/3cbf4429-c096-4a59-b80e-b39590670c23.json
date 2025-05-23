@@ -74,16 +74,16 @@
       "feedback": {
         "confidence": 0.8,
         "full_critique": "Mock response from mock for: Please critique the following text and identify ar...",
-        "processing_time_ms": 0.011920928955078125
+        "processing_time_ms": 0.013113021850585938
       },
       "processing_time_ms": null
     }
   ],
   "history": null,
   "parent_id": null,
-  "id": "e9f77d28-5dda-466e-a44f-6139ddbfd03f",
+  "id": "3cbf4429-c096-4a59-b80e-b39590670c23",
   "iteration": 0,
-  "timestamp": "2025-05-23T06:53:23.689883",
+  "timestamp": "2025-05-23T07:13:25.979543",
   "chain_id": "ai-explanation-chain",
   "metadata": {}
 }

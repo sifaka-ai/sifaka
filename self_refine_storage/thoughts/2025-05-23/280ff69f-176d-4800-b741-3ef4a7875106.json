@@ -80,23 +80,23 @@
       "feedback": {
         "confidence": 0.8,
         "full_critique": "Mock response from mock for: Please critique the following text and identify ar...",
-        "processing_time_ms": 0.011920928955078125
+        "processing_time_ms": 0.013113021850585938
       },
       "processing_time_ms": null
     }
   ],
   "history": [
     {
-      "thought_id": "e9f77d28-5dda-466e-a44f-6139ddbfd03f",
+      "thought_id": "3cbf4429-c096-4a59-b80e-b39590670c23",
       "iteration": 0,
-      "timestamp": "2025-05-23T06:53:23.689883",
+      "timestamp": "2025-05-23T07:13:25.979543",
       "summary": "Iteration 0: 35 chars"
     }
   ],
-  "parent_id": "e9f77d28-5dda-466e-a44f-6139ddbfd03f",
-  "id": "16af6943-df16-4438-b78e-b09696a06561",
+  "parent_id": "3cbf4429-c096-4a59-b80e-b39590670c23",
+  "id": "280ff69f-176d-4800-b741-3ef4a7875106",
   "iteration": 1,
-  "timestamp": "2025-05-23T06:53:23.691031",
+  "timestamp": "2025-05-23T07:13:25.980682",
   "chain_id": "ai-explanation-chain",
   "metadata": {}
 }

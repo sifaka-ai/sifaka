@@ -19,6 +19,7 @@ from sifaka.core.interfaces import Critic, Model, Retriever, Validator
 from sifaka.core.thought import Thought, ValidationResult, CriticFeedback
 from sifaka.utils.error_handling import ChainError, chain_context, log_error
 from sifaka.utils.logging import get_logger
+from sifaka.utils.performance import time_operation, PerformanceMonitor
 
 # Configure logger
 logger = get_logger(__name__)
@@ -194,210 +195,272 @@ class Chain:
         Raises:
             ChainError: If the chain is not properly configured or an error occurs during execution.
         """
-        # Check that the chain is properly configured
-        if not self._model:
-            raise ChainError("No model specified for the chain")
-        if not self._prompt:
-            raise ChainError("No prompt specified for the chain")
+        # Start performance monitoring for the entire chain execution
+        with time_operation(f"chain_execution_{self._chain_id}"):
+            # Check that the chain is properly configured
+            if not self._model:
+                raise ChainError("No model specified for the chain")
+            if not self._prompt:
+                raise ChainError("No prompt specified for the chain")
 
-        # Create initial thought
-        thought = Thought(
-            prompt=self._prompt,
-            chain_id=self._chain_id,
-        )
-
-        # Save the initial thought if storage is available
-        if self._storage:
-            try:
-                self._storage.save_thought(thought)
-                logger.debug(f"Saved initial thought (iteration {thought.iteration}) to storage")
-            except Exception as e:
-                logger.warning(f"Failed to save initial thought: {e}")
-
-        # 1. PRE-GENERATION RETRIEVAL (Chain orchestrates this using model_retriever)
-        if self._model_retriever and self._options.get("pre_generation_retrieval", True):
-            with chain_context(
-                operation="pre_generation_retrieval",
-                message_prefix="Failed to retrieve pre-generation context",
-            ):
-                logger.debug("Chain orchestrating pre-generation retrieval with model_retriever...")
-                thought = self._model_retriever.retrieve_for_thought(
-                    thought, is_pre_generation=True
-                )
-                logger.debug(
-                    f"Retrieved {len(thought.pre_generation_context or [])} pre-generation documents from model_retriever"
-                )
-
-        # 2. GENERATE TEXT (Model just generates, no retrieval)
-        with chain_context(
-            operation="generation",
-            message_prefix="Failed to generate text",
-        ):
-            logger.debug(f"Generating text with prompt: {self._prompt[:100]}...")
-            text, model_prompt = self._model.generate_with_thought(thought)
-            thought = thought.set_text(text).set_model_prompt(model_prompt)
-            logger.debug(f"Generated text of length {len(text)}")
-            logger.debug(f"Model prompt length: {len(model_prompt)} characters")
-
-        # 3. POST-GENERATION RETRIEVAL (Chain orchestrates this using model_retriever)
-        if self._model_retriever and self._options.get("post_generation_retrieval", True):
-            with chain_context(
-                operation="post_generation_retrieval",
-                message_prefix="Failed to retrieve post-generation context",
-            ):
-                logger.debug(
-                    "Chain orchestrating post-generation retrieval with model_retriever..."
-                )
-                thought = self._model_retriever.retrieve_for_thought(
-                    thought, is_pre_generation=False
-                )
-                logger.debug(
-                    f"Retrieved {len(thought.post_generation_context or [])} post-generation documents from model_retriever"
-                )
-
-        # 4. VALIDATE TEXT
-        all_passed = True
-        for validator in self._validators:
-            with chain_context(
-                operation="validation",
-                message_prefix=f"Failed to validate text with {validator.__class__.__name__}",
-            ):
-                logger.debug(f"Validating text with {validator.__class__.__name__}")
-                validation_result = validator.validate(thought)
-
-                # Add validation result to thought
-                thought = thought.add_validation_result(
-                    validator.__class__.__name__, validation_result
-                )
-
-                # Update all_passed flag
-                all_passed = all_passed and validation_result.passed
-                logger.debug(
-                    f"Validation with {validator.__class__.__name__} "
-                    f"{'passed' if validation_result.passed else 'failed'}"
-                )
-
-        # 5. CRITIC IMPROVEMENT LOOP (if validation failed OR always_apply_critics is enabled)
-        max_iterations = self._options.get("max_improvement_iterations", 3)
-        current_iteration = 0
-
-        # Determine if we should run critics
-        always_apply_critics = self._options.get("always_apply_critics", False)
-        apply_on_failure = self._options.get("apply_improvers_on_validation_failure", False)
-
-        while current_iteration < max_iterations and self._critics:
-            # Check if we should run critics in this iteration
-            should_run_critics = (
-                # Traditional case: validation failed and apply_improvers_on_validation_failure is True
-                (not all_passed and apply_on_failure)
-                # New case: always_apply_critics is True (run critics on every iteration)
-                or always_apply_critics
+            # Create initial thought
+            thought = Thought(
+                prompt=self._prompt,
+                chain_id=self._chain_id,
             )
 
-            # If we shouldn't run critics, break out of the loop
-            if not should_run_critics:
-                break
-            current_iteration += 1
-
-            # Log appropriate message based on why critics are running
-            if not all_passed:
-                logger.debug(
-                    f"Validation failed, attempting improvement (iteration {current_iteration}/{max_iterations})"
-                )
-            else:
-                logger.debug(
-                    f"Running critics for improvement (always_apply_critics=True, iteration {current_iteration}/{max_iterations})"
-                )
-
-            # 5a. CRITIC RETRIEVAL (Chain orchestrates this using critic_retriever)
-            if self._critic_retriever and self._options.get("critic_retrieval", True):
-                with chain_context(
-                    operation="critic_retrieval",
-                    message_prefix="Failed to retrieve context for critics",
-                ):
-                    logger.debug("Chain orchestrating critic retrieval with critic_retriever...")
-                    # For critics, we might want fresh post-generation context from the critic_retriever
-                    thought = self._critic_retriever.retrieve_for_thought(
-                        thought, is_pre_generation=False
-                    )
-                    logger.debug(
-                        f"Retrieved {len(thought.post_generation_context or [])} documents for critics from critic_retriever"
-                    )
-
-            # 5b. Apply critics to provide feedback (critics no longer do retrieval)
-            for critic in self._critics:
-                with chain_context(
-                    operation="criticism",
-                    message_prefix=f"Failed to get criticism from {critic.__class__.__name__}",
-                ):
-                    logger.debug(f"Getting criticism from {critic.__class__.__name__}")
-
-                    # Get critique (critic uses provided context, no retrieval)
-                    critique_result = critic.critique(thought)
-
-                    # Create structured CriticFeedback from critique result
-                    critic_feedback = CriticFeedback(
-                        critic_name=critic.__class__.__name__,
-                        confidence=critique_result.get("confidence", 0.0),
-                        violations=critique_result.get("violations", []),
-                        suggestions=critique_result.get("suggestions", []),
-                        feedback=critique_result.get("feedback", {}),
-                        processing_time_ms=critique_result.get("processing_time_ms"),
-                    )
-
-                    # Add the structured feedback to the thought
-                    thought = thought.add_critic_feedback(critic_feedback)
-                    logger.debug(f"Added criticism from {critic.__class__.__name__}")
-
-            # Save the current iteration with critic feedback
+            # Save the initial thought if storage is available
             if self._storage:
                 try:
                     self._storage.save_thought(thought)
                     logger.debug(
-                        f"Saved iteration {thought.iteration} thought with critic feedback to storage"
+                        f"Saved initial thought (iteration {thought.iteration}) to storage"
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to save iteration {thought.iteration} thought: {e}")
+                    logger.warning(f"Failed to save initial thought: {e}")
 
-            # 5c. Create next iteration with critic feedback preserved for model context
-            thought = thought.next_iteration()
-            logger.debug(
-                f"Created iteration {thought.iteration} with previous critic feedback preserved"
-            )
+            # 1. PRE-GENERATION RETRIEVAL (Chain orchestrates this using model_retriever)
+            if self._model_retriever and self._options.get("pre_generation_retrieval", True):
+                with time_operation("pre_generation_retrieval"):
+                    with chain_context(
+                        operation="pre_generation_retrieval",
+                        message_prefix="Failed to retrieve pre-generation context",
+                    ):
+                        logger.debug(
+                            "Chain orchestrating pre-generation retrieval with model_retriever..."
+                        )
+                        thought = self._model_retriever.retrieve_for_thought(
+                            thought, is_pre_generation=True
+                        )
+                        logger.debug(
+                            f"Retrieved {len(thought.pre_generation_context or [])} pre-generation documents from model_retriever"
+                        )
 
-            # 5d. Generate improved text using model (which now sees previous critic feedback)
-            with chain_context(
-                operation="improvement_generation",
-                message_prefix="Failed to generate improved text",
-            ):
-                logger.debug(f"Generating improved text for iteration {thought.iteration}")
-                text, model_prompt = self._model.generate_with_thought(thought)
-                thought = thought.set_text(text).set_model_prompt(model_prompt)
-                logger.debug(f"Generated improved text of length {len(text)}")
-                logger.debug(
-                    f"Model prompt included critic feedback: {len(model_prompt)} characters"
+            # 2. GENERATE TEXT (Model just generates, no retrieval)
+            with time_operation("text_generation"):
+                with chain_context(
+                    operation="generation",
+                    message_prefix="Failed to generate text",
+                ):
+                    logger.debug(f"Generating text with prompt: {self._prompt[:100]}...")
+                    text, model_prompt = self._model.generate_with_thought(thought)
+                    thought = thought.set_text(text).set_model_prompt(model_prompt)
+                    logger.debug(f"Generated text of length {len(text)}")
+                    logger.debug(f"Model prompt length: {len(model_prompt)} characters")
+
+            # 3. POST-GENERATION RETRIEVAL (Chain orchestrates this using model_retriever)
+            if self._model_retriever and self._options.get("post_generation_retrieval", True):
+                with time_operation("post_generation_retrieval"):
+                    with chain_context(
+                        operation="post_generation_retrieval",
+                        message_prefix="Failed to retrieve post-generation context",
+                    ):
+                        logger.debug(
+                            "Chain orchestrating post-generation retrieval with model_retriever..."
+                        )
+                        thought = self._model_retriever.retrieve_for_thought(
+                            thought, is_pre_generation=False
+                        )
+                        logger.debug(
+                            f"Retrieved {len(thought.post_generation_context or [])} post-generation documents from model_retriever"
+                        )
+
+            # 4. VALIDATE TEXT
+            all_passed = True
+            with time_operation("validation"):
+                for validator in self._validators:
+                    with time_operation(f"validation_{validator.__class__.__name__}"):
+                        with chain_context(
+                            operation="validation",
+                            message_prefix=f"Failed to validate text with {validator.__class__.__name__}",
+                        ):
+                            logger.debug(f"Validating text with {validator.__class__.__name__}")
+                            validation_result = validator.validate(thought)
+
+                            # Add validation result to thought
+                            thought = thought.add_validation_result(
+                                validator.__class__.__name__, validation_result
+                            )
+
+                            # Update all_passed flag
+                            all_passed = all_passed and validation_result.passed
+                            logger.debug(
+                                f"Validation with {validator.__class__.__name__} "
+                                f"{'passed' if validation_result.passed else 'failed'}"
+                            )
+
+            # 5. CRITIC IMPROVEMENT LOOP (if validation failed OR always_apply_critics is enabled)
+            max_iterations = self._options.get("max_improvement_iterations", 3)
+            current_iteration = 0
+
+            # Determine if we should run critics
+            always_apply_critics = self._options.get("always_apply_critics", False)
+            apply_on_failure = self._options.get("apply_improvers_on_validation_failure", False)
+
+            while current_iteration < max_iterations and self._critics:
+                # Check if we should run critics in this iteration
+                should_run_critics = (
+                    # Traditional case: validation failed and apply_improvers_on_validation_failure is True
+                    (not all_passed and apply_on_failure)
+                    # New case: always_apply_critics is True (run critics on every iteration)
+                    or always_apply_critics
                 )
 
-            # Re-validate the improved text
-            all_passed = True
-            for validator in self._validators:
-                with chain_context(
-                    operation="validation",
-                    message_prefix=f"Failed to validate improved text with {validator.__class__.__name__}",
-                ):
-                    logger.debug(f"Re-validating improved text with {validator.__class__.__name__}")
-                    validation_result = validator.validate(thought)
+                # If we shouldn't run critics, break out of the loop
+                if not should_run_critics:
+                    break
+                current_iteration += 1
 
-                    # Add validation result to thought
-                    thought = thought.add_validation_result(
-                        validator.__class__.__name__, validation_result
-                    )
-
-                    # Update all_passed flag
-                    all_passed = all_passed and validation_result.passed
+                # Log appropriate message based on why critics are running
+                if not all_passed:
                     logger.debug(
-                        f"Re-validation with {validator.__class__.__name__} "
-                        f"{'passed' if validation_result.passed else 'failed'}"
+                        f"Validation failed, attempting improvement (iteration {current_iteration}/{max_iterations})"
+                    )
+                else:
+                    logger.debug(
+                        f"Running critics for improvement (always_apply_critics=True, iteration {current_iteration}/{max_iterations})"
                     )
 
-        return thought
+                # 5a. CRITIC RETRIEVAL (Chain orchestrates this using critic_retriever)
+                if self._critic_retriever and self._options.get("critic_retrieval", True):
+                    with time_operation("critic_retrieval"):
+                        with chain_context(
+                            operation="critic_retrieval",
+                            message_prefix="Failed to retrieve context for critics",
+                        ):
+                            logger.debug(
+                                "Chain orchestrating critic retrieval with critic_retriever..."
+                            )
+                            # For critics, we might want fresh post-generation context from the critic_retriever
+                            thought = self._critic_retriever.retrieve_for_thought(
+                                thought, is_pre_generation=False
+                            )
+                            logger.debug(
+                                f"Retrieved {len(thought.post_generation_context or [])} documents for critics from critic_retriever"
+                            )
+
+                # 5b. Apply critics to provide feedback (critics no longer do retrieval)
+                with time_operation("critic_feedback"):
+                    for critic in self._critics:
+                        with time_operation(f"critic_{critic.__class__.__name__}"):
+                            with chain_context(
+                                operation="criticism",
+                                message_prefix=f"Failed to get criticism from {critic.__class__.__name__}",
+                            ):
+                                logger.debug(f"Getting criticism from {critic.__class__.__name__}")
+
+                                # Get critique (critic uses provided context, no retrieval)
+                                critique_result = critic.critique(thought)
+
+                                # Create structured CriticFeedback from critique result
+                                critic_feedback = CriticFeedback(
+                                    critic_name=critic.__class__.__name__,
+                                    confidence=critique_result.get("confidence", 0.0),
+                                    violations=critique_result.get("violations", []),
+                                    suggestions=critique_result.get("suggestions", []),
+                                    feedback=critique_result.get("feedback", {}),
+                                    processing_time_ms=critique_result.get("processing_time_ms"),
+                                )
+
+                                # Add the structured feedback to the thought
+                                thought = thought.add_critic_feedback(critic_feedback)
+                                logger.debug(f"Added criticism from {critic.__class__.__name__}")
+
+                # Save the current iteration with critic feedback
+                if self._storage:
+                    try:
+                        self._storage.save_thought(thought)
+                        logger.debug(
+                            f"Saved iteration {thought.iteration} thought with critic feedback to storage"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to save iteration {thought.iteration} thought: {e}")
+
+                # 5c. Create next iteration with critic feedback preserved for model context
+                thought = thought.next_iteration()
+                logger.debug(
+                    f"Created iteration {thought.iteration} with previous critic feedback preserved"
+                )
+
+                # 5d. Generate improved text using model (which now sees previous critic feedback)
+                with time_operation("improvement_generation"):
+                    with chain_context(
+                        operation="improvement_generation",
+                        message_prefix="Failed to generate improved text",
+                    ):
+                        logger.debug(f"Generating improved text for iteration {thought.iteration}")
+                        text, model_prompt = self._model.generate_with_thought(thought)
+                        thought = thought.set_text(text).set_model_prompt(model_prompt)
+                        logger.debug(f"Generated improved text of length {len(text)}")
+                        logger.debug(
+                            f"Model prompt included critic feedback: {len(model_prompt)} characters"
+                        )
+
+                # Re-validate the improved text
+                all_passed = True
+                with time_operation("revalidation"):
+                    for validator in self._validators:
+                        with time_operation(f"revalidation_{validator.__class__.__name__}"):
+                            with chain_context(
+                                operation="validation",
+                                message_prefix=f"Failed to validate improved text with {validator.__class__.__name__}",
+                            ):
+                                logger.debug(
+                                    f"Re-validating improved text with {validator.__class__.__name__}"
+                                )
+                                validation_result = validator.validate(thought)
+
+                                # Add validation result to thought
+                                thought = thought.add_validation_result(
+                                    validator.__class__.__name__, validation_result
+                                )
+
+                                # Update all_passed flag
+                                all_passed = all_passed and validation_result.passed
+                                logger.debug(
+                                    f"Re-validation with {validator.__class__.__name__} "
+                                    f"{'passed' if validation_result.passed else 'failed'}"
+                                )
+
+            return thought
+
+    def get_performance_summary(self) -> Dict[str, Any]:
+        """Get performance summary for the chain execution.
+
+        Returns:
+            Dictionary containing performance metrics and timing information.
+        """
+        monitor = PerformanceMonitor.get_instance()
+        summary = monitor.get_summary()
+        stats = monitor.get_stats()
+
+        # Add detailed operation stats to the summary
+        summary["operations"] = stats
+        return summary
+
+    def clear_performance_data(self) -> None:
+        """Clear all performance monitoring data."""
+        monitor = PerformanceMonitor.get_instance()
+        monitor.clear()
+
+    def get_performance_bottlenecks(self) -> List[str]:
+        """Identify performance bottlenecks in chain execution.
+
+        Returns:
+            List of operation names that are taking the most time.
+        """
+        summary = self.get_performance_summary()
+        if not summary.get("operations"):
+            return []
+
+        # Sort operations by average time and return top 3 slowest
+        operations = summary["operations"]
+        sorted_ops = sorted(operations.items(), key=lambda x: x[1].get("avg_time", 0), reverse=True)
+
+        bottlenecks = []
+        for op_name, metrics in sorted_ops[:3]:
+            avg_time = metrics.get("avg_time", 0)
+            if avg_time > 0.1:  # Only consider operations taking > 100ms
+                bottlenecks.append(f"{op_name} (avg: {avg_time:.2f}s)")
+
+        return bottlenecks
