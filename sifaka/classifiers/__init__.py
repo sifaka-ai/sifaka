@@ -30,35 +30,57 @@ Example:
 from typing import List
 
 # Import base classes and protocols
-from sifaka.classifiers.base import ClassificationResult, TextClassifier
+from sifaka.classifiers.base import ClassificationResult, TextClassifier, CachedTextClassifier
 
 # Import classifier implementations
 __all__: List[str] = [
     "ClassificationResult",
     "TextClassifier",
+    "CachedTextClassifier",
 ]
 
 # Import classifiers - these should always work since they have fallbacks
-from sifaka.classifiers.bias import BiasClassifier, create_bias_validator
+from sifaka.classifiers.bias import (
+    BiasClassifier,
+    create_bias_validator,
+    CachedBiasClassifier,
+    create_cached_bias_validator,
+)
 from sifaka.classifiers.language import LanguageClassifier, create_language_validator
 from sifaka.classifiers.profanity import ProfanityClassifier, create_profanity_validator
-from sifaka.classifiers.sentiment import SentimentClassifier, create_sentiment_validator
+from sifaka.classifiers.sentiment import (
+    SentimentClassifier,
+    create_sentiment_validator,
+    CachedSentimentClassifier,
+    create_cached_sentiment_validator,
+)
 from sifaka.classifiers.spam import SpamClassifier, create_spam_validator
-from sifaka.classifiers.toxicity import ToxicityClassifier, create_toxicity_validator
+from sifaka.classifiers.toxicity import (
+    ToxicityClassifier,
+    create_toxicity_validator,
+    CachedToxicityClassifier,
+    create_cached_toxicity_validator,
+)
 
 __all__.extend(
     [
         "BiasClassifier",
         "create_bias_validator",
+        "CachedBiasClassifier",
+        "create_cached_bias_validator",
         "LanguageClassifier",
         "create_language_validator",
         "ProfanityClassifier",
         "create_profanity_validator",
         "SentimentClassifier",
         "create_sentiment_validator",
+        "CachedSentimentClassifier",
+        "create_cached_sentiment_validator",
         "SpamClassifier",
         "create_spam_validator",
         "ToxicityClassifier",
         "create_toxicity_validator",
+        "CachedToxicityClassifier",
+        "create_cached_toxicity_validator",
     ]
 )
