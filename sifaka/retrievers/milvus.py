@@ -1,58 +1,40 @@
-"""Milvus vector database retriever implementation.
+"""Milvus vector database retriever using MCP.
 
-This module provides a MilvusRetriever that uses Milvus vector database
-for semantic document retrieval. It supports both Milvus Lite (embedded)
-and Milvus server connections.
+This module provides a MilvusRetriever that uses MCP (Model Context Protocol)
+to communicate with a Milvus MCP server for semantic document retrieval.
 
 Example:
     ```python
     from sifaka.retrievers.milvus import MilvusRetriever
+    from sifaka.retrievers.mcp_base import MCPServerConfig, MCPTransportType
 
-    # Create retriever with Milvus Lite (embedded)
+    # Create MCP server configuration
+    config = MCPServerConfig(
+        name="milvus-server",
+        transport_type=MCPTransportType.WEBSOCKET,
+        url="ws://localhost:8080/mcp/milvus"
+    )
+
+    # Create retriever
     retriever = MilvusRetriever(
+        mcp_config=config,
         collection_name="documents",
         embedding_model="BAAI/bge-m3"
     )
 
     # Add documents
     retriever.add_document("doc1", "This is about artificial intelligence.")
-    retriever.add_document("doc2", "This is about machine learning.")
 
     # Retrieve similar documents
     results = retriever.retrieve("Tell me about AI")
     ```
 """
 
-import json
-import hashlib
+import asyncio
 from typing import Any, Dict, List, Optional
 
-try:
-    from pymilvus import (
-        connections,
-        Collection,
-        CollectionSchema,
-        DataType,
-        FieldSchema,
-        utility,
-    )
-
-    MILVUS_AVAILABLE = True
-except ImportError:
-    MILVUS_AVAILABLE = False
-    MilvusException = Exception  # Fallback for type hints
-
-# Optional embedding functions - users can provide their own
-try:
-    from pymilvus.model.hybrid import BGEM3EmbeddingFunction
-
-    PYMILVUS_MODEL_AVAILABLE = True
-except ImportError:
-    PYMILVUS_MODEL_AVAILABLE = False
-    BGEM3EmbeddingFunction = None
-
-from sifaka.core.thought import Document, Thought
-from sifaka.retrievers.vector_db_base import BaseVectorDBRetriever
+from sifaka.core.thought import Thought
+from sifaka.retrievers.base import BaseMCPRetriever, MCPServerConfig, MCPRequest
 from sifaka.utils.error_handling import RetrieverError, error_context
 from sifaka.utils.logging import get_logger
 
@@ -60,244 +42,65 @@ from sifaka.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-class MilvusRetriever(BaseVectorDBRetriever):
-    """Milvus vector database retriever for semantic search.
+class MilvusRetriever:
+    """Milvus vector database retriever using MCP.
 
-    This retriever uses Milvus vector database to store document embeddings
-    and perform semantic similarity search. It supports both Milvus Lite
-    (embedded) and Milvus server connections.
+    This retriever uses MCP (Model Context Protocol) for all communication with
+    the Milvus database, providing standardized communication, better error
+    handling, and improved scalability.
 
     Attributes:
         collection_name: Name of the Milvus collection.
         embedding_model: Name or path of the embedding model.
         dimension: Dimension of the embedding vectors.
         max_results: Maximum number of documents to return.
-        connection_alias: Alias for the Milvus connection.
-        collection: The Milvus collection object.
-        embedding_function: Function to generate embeddings.
+        mcp_retriever: Internal MCP-based retriever.
     """
 
     def __init__(
         self,
+        mcp_config: MCPServerConfig,
         collection_name: str = "sifaka_documents",
         embedding_model: Optional[str] = None,
-        embedding_function: Optional[Any] = None,
-        dimension: int = 384,  # Common default for many models
+        dimension: int = 384,
         max_results: int = 3,
-        connection_alias: str = "default",
-        uri: Optional[str] = None,
-        token: Optional[str] = None,
         schema_config: Optional[Dict[str, Any]] = None,
         index_config: Optional[Dict[str, Any]] = None,
-        device: str = "cpu",
-        **connection_kwargs: Any,
     ):
-        """Initialize the Milvus retriever.
+        """Initialize the Milvus retriever with MCP backend.
 
         Args:
+            mcp_config: MCP server configuration.
             collection_name: Name of the Milvus collection.
-            embedding_model: Name/path of embedding model (for built-in functions).
-            embedding_function: Custom embedding function (takes precedence).
+            embedding_model: Name/path of embedding model.
             dimension: Dimension of the embedding vectors.
             max_results: Maximum number of documents to return.
-            connection_alias: Alias for the Milvus connection.
-            uri: URI for Milvus connection (None for Milvus Lite).
-            token: Token for Milvus connection authentication.
             schema_config: Custom schema configuration.
             index_config: Custom index configuration.
-            device: Device for embedding computation ("cpu", "cuda", etc.).
-            **connection_kwargs: Additional connection parameters.
         """
-        if not MILVUS_AVAILABLE:
-            raise RetrieverError(
-                "pymilvus is not installed. Please install it with: pip install 'pymilvus[model]'"
-            )
-
-        # Call parent constructor
-        super().__init__(
-            collection_name=collection_name,
-            embedding_model=embedding_model or "default",
-            dimension=dimension,
-            max_results=max_results,
-        )
-
-        self.connection_alias = connection_alias
-        self.device = device
+        # Store configuration
+        self.collection_name = collection_name
+        self.embedding_model = embedding_model or "BAAI/bge-m3"
+        self.dimension = dimension
+        self.max_results = max_results
         self.schema_config = schema_config or {}
         self.index_config = index_config or {}
 
-        # Store embedding configuration
-        self.custom_embedding_function = embedding_function
-        self.embedding_model = embedding_model or "default"
+        # Create internal MCP-based retriever
+        self.mcp_retriever = BaseMCPRetriever(mcp_config, max_results)
+        self._loop = None
 
-        # Initialize connection and collection
-        self._connect(uri, token, **connection_kwargs)
-        self._initialize_collection()
+        logger.info(f"Initialized MilvusRetriever with MCP backend: {mcp_config.name}")
 
-        # Defer embedding function initialization until first use
-        self.embedding_function = None
-        self._embedding_initialized = False
-
-    def _connect(
-        self, uri: Optional[str] = None, token: Optional[str] = None, **kwargs: Any
-    ) -> None:
-        """Connect to Milvus database."""
-        with error_context(
-            component="MilvusRetriever",
-            operation="connection",
-            error_class=RetrieverError,
-            message_prefix="Failed to connect to Milvus",
-        ):
-            connection_params = {"alias": self.connection_alias, **kwargs}
-
-            if uri:
-                connection_params["uri"] = uri
-            else:
-                # Use Milvus Lite (embedded)
-                connection_params["uri"] = "./milvus_lite.db"
-
-            if token:
-                connection_params["token"] = token
-
-            connections.connect(**connection_params)
-            logger.info(f"Connected to Milvus with alias: {self.connection_alias}")
-
-    def _initialize_embedding_function(self) -> None:
-        """Initialize the embedding function."""
-        with error_context(
-            component="MilvusRetriever",
-            operation="embedding initialization",
-            error_class=RetrieverError,
-            message_prefix="Failed to initialize embedding function",
-        ):
-            # Use custom embedding function if provided
-            if self.custom_embedding_function:
-                self.embedding_function = self.custom_embedding_function
-                logger.info("Using custom embedding function")
-                return
-
-            # Try to use built-in embedding functions if available
-            if self.embedding_model and PYMILVUS_MODEL_AVAILABLE and BGEM3EmbeddingFunction:
-                try:
-                    # Use BGE-M3 or other pymilvus embedding functions
-                    self.embedding_function = BGEM3EmbeddingFunction(
-                        model_name=self.embedding_model,
-                        use_fp16=False,
-                        device=self.device,
-                    )
-                    logger.info(f"Initialized pymilvus embedding: {self.embedding_model}")
-                    return
-                except Exception as e:
-                    logger.warning(f"Failed to initialize pymilvus embedding: {e}")
-
-            # Fallback to hash-based embedding for testing
-            self.embedding_function = None
-            logger.info("Using fallback hash-based embeddings")
-
-    def _generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding for text."""
-        # Initialize embedding function on first use
-        if not self._embedding_initialized:
-            self._initialize_embedding_function()
-            self._embedding_initialized = True
-
-        if self.embedding_function:
-            try:  # type: ignore[unreachable]
-                # Use BGE-M3 embedding
-                embeddings = self.embedding_function.encode_documents([text])
-                return embeddings["dense"][0].tolist()
-            except Exception as e:
-                logger.warning(f"BGE-M3 embedding failed: {e}, using fallback")
-
-        # Fallback: simple hash-based embedding (for testing only)
-        hash_obj = hashlib.md5(text.encode())
-        hash_bytes = hash_obj.digest()
-
-        # Convert to float vector of specified dimension
-        embedding = []
-        for i in range(self.dimension):
-            byte_idx = i % len(hash_bytes)
-            embedding.append(float(hash_bytes[byte_idx]) / 255.0)
-
-        return embedding
-
-    def _initialize_collection(self) -> None:
-        """Initialize the Milvus collection."""
-        with error_context(
-            component="MilvusRetriever",
-            operation="collection initialization",
-            error_class=RetrieverError,
-            message_prefix="Failed to initialize collection",
-        ):
-            # Use custom schema if provided, otherwise use default
-            if self.schema_config.get("fields"):
-                fields = self.schema_config["fields"]
-            else:
-                # Default schema
-                fields = [
-                    FieldSchema(
-                        name="id",
-                        dtype=DataType.VARCHAR,
-                        max_length=self.schema_config.get("id_max_length", 512),
-                        is_primary=True,
-                    ),
-                    FieldSchema(
-                        name="text",
-                        dtype=DataType.VARCHAR,
-                        max_length=self.schema_config.get("text_max_length", 65535),
-                    ),
-                    FieldSchema(
-                        name="metadata",
-                        dtype=DataType.VARCHAR,
-                        max_length=self.schema_config.get("metadata_max_length", 65535),
-                    ),
-                    FieldSchema(
-                        name="embedding",
-                        dtype=DataType.FLOAT_VECTOR,
-                        dim=self.dimension,
-                    ),
-                ]
-
-            description = self.schema_config.get(
-                "description", f"{self.collection_name} collection for semantic search"
-            )
-            schema = CollectionSchema(fields=fields, description=description)
-
-            # Create collection if it doesn't exist
-            if not utility.has_collection(self.collection_name, using=self.connection_alias):
-                self.collection = Collection(
-                    name=self.collection_name,
-                    schema=schema,
-                    using=self.connection_alias,
-                )
-                logger.info(f"Created collection: {self.collection_name}")
-            else:
-                self.collection = Collection(
-                    name=self.collection_name,
-                    using=self.connection_alias,
-                )
-                logger.info(f"Loaded existing collection: {self.collection_name}")
-
-            # Create index for vector field with configurable parameters
-            default_index_params = {
-                "metric_type": "COSINE",
-                "index_type": "IVF_FLAT",
-                "params": {"nlist": 128},
-            }
-            index_params = {**default_index_params, **self.index_config}
-
-            # Check if index exists for the embedding field specifically
+    def _get_loop(self):
+        """Get or create event loop for async operations."""
+        if self._loop is None:
             try:
-                self.collection.describe_index(field_name="embedding")
-                logger.info("Vector index already exists")
-            except Exception:
-                # Index doesn't exist, create it
-                self.collection.create_index(field_name="embedding", index_params=index_params)
-                logger.info("Created vector index")
-
-            # Load collection
-            self.collection.load()
-            logger.info("Collection loaded and ready")
+                self._loop = asyncio.get_event_loop()
+            except RuntimeError:
+                self._loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self._loop)
+        return self._loop
 
     def add_document(
         self,
@@ -316,24 +119,23 @@ class MilvusRetriever(BaseVectorDBRetriever):
             component="MilvusRetriever",
             operation="add document",
             error_class=RetrieverError,
-            message_prefix="Failed to add document to vector database",
+            message_prefix="Failed to add document to Milvus via MCP",
         ):
-            # Generate embedding
-            embedding = self._generate_embedding(text)
+            # Add collection context to metadata
+            enhanced_metadata = {
+                "collection_name": self.collection_name,
+                "embedding_model": self.embedding_model,
+                "dimension": self.dimension,
+                **(metadata or {}),
+            }
 
-            # Prepare data
-            data = [
-                [doc_id],  # id
-                [text],  # text
-                [json.dumps(metadata or {})],  # metadata
-                [embedding],  # embedding
-            ]
+            # Use async operation via event loop
+            loop = self._get_loop()
+            loop.run_until_complete(
+                self.mcp_retriever.add_document(doc_id, text, enhanced_metadata)
+            )
 
-            # Insert into collection
-            self.collection.insert(data)
-            self.collection.flush()
-
-            logger.debug(f"Added document {doc_id} to vector database")
+            logger.debug(f"Added document {doc_id} to Milvus collection: {self.collection_name}")
 
     def retrieve(self, query: str) -> List[str]:
         """Retrieve relevant documents for a query.
@@ -348,36 +150,16 @@ class MilvusRetriever(BaseVectorDBRetriever):
             component="MilvusRetriever",
             operation="retrieval",
             error_class=RetrieverError,
-            message_prefix="Failed to retrieve documents",
+            message_prefix="Failed to retrieve documents from Milvus via MCP",
         ):
             logger.debug(f"Retrieving documents for query: {query[:50]}...")
 
-            # Generate query embedding
-            query_embedding = self._generate_embedding(query)
+            # Use async operation via event loop
+            loop = self._get_loop()
+            document_texts = loop.run_until_complete(self.mcp_retriever.retrieve(query))
 
-            # Search parameters (configurable via index_config)
-            default_search_params = {
-                "metric_type": self.index_config.get("metric_type", "COSINE"),
-                "params": {"nprobe": 10},
-            }
-            search_params = self.index_config.get("search_params", default_search_params)
-
-            # Perform vector search
-            results = self.collection.search(
-                data=[query_embedding],
-                anns_field="embedding",
-                param=search_params,
-                limit=self.max_results,
-                output_fields=["text", "metadata"],
-            )
-
-            # Extract document texts
-            documents = []
-            for hit in results[0]:
-                documents.append(hit.entity.get("text"))
-
-            logger.debug(f"Retrieved {len(documents)} documents")
-            return documents
+            logger.debug(f"Retrieved {len(document_texts)} documents from Milvus")
+            return document_texts
 
     def retrieve_for_thought(self, thought: Thought, is_pre_generation: bool = True) -> Thought:
         """Retrieve documents and add them to a thought.
@@ -393,37 +175,32 @@ class MilvusRetriever(BaseVectorDBRetriever):
             component="MilvusRetriever",
             operation="retrieval for thought",
             error_class=RetrieverError,
-            message_prefix="Failed to retrieve documents for thought",
+            message_prefix="Failed to retrieve documents for thought from Milvus via MCP",
         ):
-            # Determine the query based on whether this is pre or post-generation
-            if is_pre_generation:
-                query = thought.prompt
-            else:
-                # For post-generation, use both the prompt and the generated text
-                query = f"{thought.prompt}\n\n{thought.text}"
+            # Use async operation via event loop
+            loop = self._get_loop()
+            enhanced_thought = loop.run_until_complete(
+                self.mcp_retriever.retrieve_for_thought(thought, is_pre_generation)
+            )
 
-            # Retrieve documents
-            document_texts = self.retrieve(query)
+            # Enhance document metadata with Milvus-specific info
+            context_docs = (
+                enhanced_thought.pre_generation_context
+                if is_pre_generation
+                else enhanced_thought.post_generation_context
+            )
 
-            # Convert to Document objects
-            documents = [
-                Document(
-                    text=text,
-                    metadata={
-                        "source": "vector_db",
-                        "query": query,
+            for doc in context_docs:
+                doc.metadata.update(
+                    {
+                        "source": "milvus_mcp",
                         "collection": self.collection_name,
-                    },
-                    score=1.0 - (i * 0.1),  # Simple scoring based on rank
+                        "embedding_model": self.embedding_model,
+                        "dimension": self.dimension,
+                    }
                 )
-                for i, text in enumerate(document_texts)
-            ]
 
-            # Add documents to the thought
-            if is_pre_generation:
-                return thought.add_pre_generation_context(documents)
-            else:
-                return thought.add_post_generation_context(documents)
+            return enhanced_thought
 
     def clear_collection(self) -> None:
         """Clear all documents from the collection."""
@@ -431,12 +208,29 @@ class MilvusRetriever(BaseVectorDBRetriever):
             component="MilvusRetriever",
             operation="clear collection",
             error_class=RetrieverError,
-            message_prefix="Failed to clear collection",
+            message_prefix="Failed to clear Milvus collection via MCP",
         ):
-            # Delete all entities
-            self.collection.delete(expr="id != ''")
-            self.collection.flush()
-            logger.info(f"Cleared collection: {self.collection_name}")
+
+            async def _clear_collection():
+                if not self.mcp_retriever.mcp_client._connected:
+                    await self.mcp_retriever.mcp_client.connect()
+
+                request = MCPRequest(
+                    method="clear_collection", params={"collection_name": self.collection_name}
+                )
+
+                response = await self.mcp_retriever.mcp_client.transport.send_request(request)
+                success = response.result is not None and response.result.get("success", False)
+
+                if success:
+                    logger.info(f"Cleared Milvus collection: {self.collection_name}")
+                else:
+                    logger.error(f"Failed to clear collection: {response.error}")
+
+                return success
+
+            loop = self._get_loop()
+            loop.run_until_complete(_clear_collection())
 
     def get_collection_stats(self) -> Dict[str, Any]:
         """Get statistics about the collection.
@@ -448,30 +242,40 @@ class MilvusRetriever(BaseVectorDBRetriever):
             component="MilvusRetriever",
             operation="get collection stats",
             error_class=RetrieverError,
-            message_prefix="Failed to get collection statistics",
+            message_prefix="Failed to get Milvus collection stats via MCP",
         ):
-            # Get collection statistics using the correct API
-            try:
-                stats = self.collection.num_entities
-                row_count = stats
-            except Exception:
-                # Fallback if num_entities doesn't work
-                row_count = 0
 
-            return {
-                "collection_name": self.collection_name,
-                "row_count": row_count,
-                "dimension": self.dimension,
-                "embedding_model": self.embedding_model,
-            }
+            async def _get_stats():
+                if not self.mcp_retriever.mcp_client._connected:
+                    await self.mcp_retriever.mcp_client.connect()
+
+                request = MCPRequest(
+                    method="get_collection_stats", params={"collection_name": self.collection_name}
+                )
+
+                response = await self.mcp_retriever.mcp_client.transport.send_request(request)
+
+                if response.result:
+                    return response.result
+                else:
+                    return {
+                        "collection_name": self.collection_name,
+                        "error": response.error or "Unknown error",
+                        "embedding_model": self.embedding_model,
+                        "dimension": self.dimension,
+                    }
+
+            loop = self._get_loop()
+            return loop.run_until_complete(_get_stats())
 
     def disconnect(self) -> None:
-        """Disconnect from Milvus."""
+        """Disconnect from the MCP server."""
         try:
-            connections.disconnect(alias=self.connection_alias)
-            logger.info(f"Disconnected from Milvus: {self.connection_alias}")
+            loop = self._get_loop()
+            loop.run_until_complete(self.mcp_retriever.disconnect())
+            logger.info(f"Disconnected from Milvus MCP server")
         except Exception as e:
-            logger.warning(f"Error disconnecting from Milvus: {e}")
+            logger.warning(f"Error disconnecting from Milvus MCP server: {e}")
 
     def __del__(self) -> None:
         """Cleanup when object is destroyed."""

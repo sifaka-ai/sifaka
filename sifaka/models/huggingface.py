@@ -36,10 +36,8 @@ Example:
     ```
 """
 
-import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
-from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
 # Try to import HuggingFace dependencies
 try:
@@ -49,7 +47,6 @@ try:
         AutoModelForCausalLM,
         AutoModelForSeq2SeqLM,
         AutoConfig,
-        pipeline,
         BitsAndBytesConfig,
     )
     import torch
@@ -66,7 +63,6 @@ except ImportError:
     BitsAndBytesConfig = None
     torch = None
 
-from sifaka.core.interfaces import Retriever
 from sifaka.core.thought import Thought
 from sifaka.utils.error_handling import ConfigurationError, ModelError, model_context
 from sifaka.utils.mixins import ContextAwareMixin
@@ -379,7 +375,6 @@ class HuggingFaceModel(ContextAwareMixin):
         api_token: Optional[str] = None,
         device: str = "auto",
         quantization: Optional[str] = None,
-        retriever: Optional[Retriever] = None,
         **options: Any,
     ):
         """Initialize the HuggingFace model.
@@ -404,7 +399,6 @@ class HuggingFaceModel(ContextAwareMixin):
         self.api_token = api_token
         self.device = device
         self.quantization = quantization
-        self.retriever = retriever
         self.options = options
 
         # Initialize based on mode

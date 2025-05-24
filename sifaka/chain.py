@@ -10,14 +10,12 @@ for generation, add validators to check if the generated text meets requirements
 add critics to enhance the quality of the generated text, and configure model options.
 """
 
-import logging
-import time
 import uuid
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from sifaka.core.interfaces import Critic, Model, Retriever, Validator
-from sifaka.core.thought import Thought, ValidationResult, CriticFeedback
-from sifaka.utils.error_handling import ChainError, chain_context, log_error
+from sifaka.core.thought import Thought, CriticFeedback
+from sifaka.utils.error_handling import ChainError, chain_context
 from sifaka.utils.logging import get_logger
 from sifaka.utils.performance import time_operation, PerformanceMonitor
 
@@ -59,40 +57,27 @@ class Chain:
         self,
         model: Optional[Model] = None,
         prompt: Optional[str] = None,
-        retriever: Optional[Retriever] = None,
-        model_retriever: Optional[Retriever] = None,
-        critic_retriever: Optional[Retriever] = None,
+        retrievers: Optional[List[Retriever]] = None,
         storage: Optional[Any] = None,
         max_improvement_iterations: int = 3,
         apply_improvers_on_validation_failure: bool = False,
         always_apply_critics: bool = False,
-        pre_generation_retrieval: bool = True,
-        post_generation_retrieval: bool = True,
-        critic_retrieval: bool = True,
     ):
         """Initialize the Chain with optional model, prompt, and retrievers.
 
         Args:
             model: Optional language model to use for text generation.
             prompt: Optional prompt to use for text generation.
-            retriever: Default retriever for all stages (if specific retrievers not provided).
-            model_retriever: Specific retriever for model generation (e.g., recent context like Twitter).
-            critic_retriever: Specific retriever for critics (e.g., factual database for fact-checking).
+            retrievers: Optional list of retrievers to use for context retrieval.
+            storage: Optional storage for saving intermediate thoughts.
             max_improvement_iterations: Maximum number of improvement iterations.
             apply_improvers_on_validation_failure: Whether to apply improvers when validation fails.
             always_apply_critics: Whether to always apply critics regardless of validation status.
-            pre_generation_retrieval: Whether to retrieve context before generation.
-            post_generation_retrieval: Whether to retrieve context after generation.
-            critic_retrieval: Whether to retrieve context during critic operations.
         """
         self._model = model
         self._prompt = prompt
-
-        # Set up retrievers with fallback logic
-        self._retriever = retriever  # Default retriever
-        self._model_retriever = model_retriever or retriever  # Model-specific or default
-        self._critic_retriever = critic_retriever or retriever  # Critic-specific or default
-        self._storage = storage  # Optional storage for saving intermediate thoughts
+        self._retrievers = retrievers or []
+        self._storage = storage
 
         self._validators: List[Validator] = []
         self._critics: List[Critic] = []
@@ -100,9 +85,6 @@ class Chain:
             "max_improvement_iterations": max_improvement_iterations,
             "apply_improvers_on_validation_failure": apply_improvers_on_validation_failure,
             "always_apply_critics": always_apply_critics,
-            "pre_generation_retrieval": pre_generation_retrieval,
-            "post_generation_retrieval": post_generation_retrieval,
-            "critic_retrieval": critic_retrieval,
         }
         self._chain_id = str(uuid.uuid4())
 
@@ -219,21 +201,20 @@ class Chain:
                 except Exception as e:
                     logger.warning(f"Failed to save initial thought: {e}")
 
-            # 1. PRE-GENERATION RETRIEVAL (Chain orchestrates this using model_retriever)
-            if self._model_retriever and self._options.get("pre_generation_retrieval", True):
+            # 1. PRE-GENERATION RETRIEVAL (Chain orchestrates this using retrievers)
+            if self._retrievers:
                 with time_operation("pre_generation_retrieval"):
                     with chain_context(
                         operation="pre_generation_retrieval",
                         message_prefix="Failed to retrieve pre-generation context",
                     ):
+                        logger.debug("Chain orchestrating pre-generation retrieval...")
+                        for retriever in self._retrievers:
+                            thought = retriever.retrieve_for_thought(
+                                thought, is_pre_generation=True
+                            )
                         logger.debug(
-                            "Chain orchestrating pre-generation retrieval with model_retriever..."
-                        )
-                        thought = self._model_retriever.retrieve_for_thought(
-                            thought, is_pre_generation=True
-                        )
-                        logger.debug(
-                            f"Retrieved {len(thought.pre_generation_context or [])} pre-generation documents from model_retriever"
+                            f"Retrieved {len(thought.pre_generation_context or [])} pre-generation documents"
                         )
 
             # 2. GENERATE TEXT (Model just generates, no retrieval)
@@ -248,21 +229,20 @@ class Chain:
                     logger.debug(f"Generated text of length {len(text)}")
                     logger.debug(f"Model prompt length: {len(model_prompt)} characters")
 
-            # 3. POST-GENERATION RETRIEVAL (Chain orchestrates this using model_retriever)
-            if self._model_retriever and self._options.get("post_generation_retrieval", True):
+            # 3. POST-GENERATION RETRIEVAL (Chain orchestrates this using retrievers)
+            if self._retrievers:
                 with time_operation("post_generation_retrieval"):
                     with chain_context(
                         operation="post_generation_retrieval",
                         message_prefix="Failed to retrieve post-generation context",
                     ):
+                        logger.debug("Chain orchestrating post-generation retrieval...")
+                        for retriever in self._retrievers:
+                            thought = retriever.retrieve_for_thought(
+                                thought, is_pre_generation=False
+                            )
                         logger.debug(
-                            "Chain orchestrating post-generation retrieval with model_retriever..."
-                        )
-                        thought = self._model_retriever.retrieve_for_thought(
-                            thought, is_pre_generation=False
-                        )
-                        logger.debug(
-                            f"Retrieved {len(thought.post_generation_context or [])} post-generation documents from model_retriever"
+                            f"Retrieved {len(thought.post_generation_context or [])} post-generation documents"
                         )
 
             # 4. VALIDATE TEXT
@@ -321,22 +301,21 @@ class Chain:
                         f"Running critics for improvement (always_apply_critics=True, iteration {current_iteration}/{max_iterations})"
                     )
 
-                # 5a. CRITIC RETRIEVAL (Chain orchestrates this using critic_retriever)
-                if self._critic_retriever and self._options.get("critic_retrieval", True):
+                # 5a. CRITIC RETRIEVAL (Chain orchestrates this using retrievers)
+                if self._retrievers:
                     with time_operation("critic_retrieval"):
                         with chain_context(
                             operation="critic_retrieval",
                             message_prefix="Failed to retrieve context for critics",
                         ):
+                            logger.debug("Chain orchestrating critic retrieval...")
+                            # For critics, we might want fresh post-generation context
+                            for retriever in self._retrievers:
+                                thought = retriever.retrieve_for_thought(
+                                    thought, is_pre_generation=False
+                                )
                             logger.debug(
-                                "Chain orchestrating critic retrieval with critic_retriever..."
-                            )
-                            # For critics, we might want fresh post-generation context from the critic_retriever
-                            thought = self._critic_retriever.retrieve_for_thought(
-                                thought, is_pre_generation=False
-                            )
-                            logger.debug(
-                                f"Retrieved {len(thought.post_generation_context or [])} documents for critics from critic_retriever"
+                                f"Retrieved {len(thought.post_generation_context or [])} documents for critics"
                             )
 
                 # 5b. Apply critics to provide feedback (critics no longer do retrieval)

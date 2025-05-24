@@ -33,13 +33,12 @@ Example:
 
 import json
 import logging
-from typing import Any, List, Optional
+from typing import Any, List
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from sifaka.core.interfaces import Retriever
 from sifaka.core.thought import Thought
 from sifaka.utils.error_handling import ConfigurationError, ModelError, model_context
 from sifaka.utils.mixins import ContextAwareMixin
@@ -249,7 +248,6 @@ class OllamaModel(ContextAwareMixin):
         self,
         model_name: str,
         base_url: str = "http://localhost:11434",
-        retriever: Optional[Retriever] = None,
         timeout: int = 60,
         **options: Any,
     ):
@@ -258,7 +256,6 @@ class OllamaModel(ContextAwareMixin):
         Args:
             model_name: The name of the Ollama model to use.
             base_url: The base URL for the Ollama server.
-            retriever: Optional retriever for direct access.
             timeout: Request timeout in seconds.
             **options: Additional options for the model.
 
@@ -268,7 +265,6 @@ class OllamaModel(ContextAwareMixin):
         """
         self.model_name = model_name
         self.base_url = base_url
-        self.retriever = retriever
         self.timeout = timeout
         self.options = options
 
@@ -401,7 +397,6 @@ class OllamaModel(ContextAwareMixin):
 def create_ollama_model(
     model_name: str,
     base_url: str = "http://localhost:11434",
-    retriever: Optional[Retriever] = None,
     **kwargs: Any,
 ) -> OllamaModel:
     """Create an Ollama model instance.
@@ -413,7 +408,6 @@ def create_ollama_model(
     Args:
         model_name: The name of the Ollama model to use.
         base_url: The base URL for the Ollama server.
-        retriever: Optional retriever for direct access.
         **kwargs: Additional keyword arguments to pass to the model constructor.
 
     Returns:
@@ -450,7 +444,7 @@ def create_ollama_model(
 
     try:
         # Create the model instance
-        model = OllamaModel(model_name=model_name, base_url=base_url, retriever=retriever, **kwargs)
+        model = OllamaModel(model_name=model_name, base_url=base_url, **kwargs)
 
         logger.debug(f"Successfully created Ollama model: {model_name}")
         return model

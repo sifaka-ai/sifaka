@@ -2,7 +2,6 @@
 """Test script to verify if README examples actually work."""
 
 import sys
-import os
 
 # Import path is handled by proper package installation
 
@@ -79,7 +78,6 @@ def test_chain_orchestrated_retrieval():
     print("\nTesting Chain-orchestrated retrieval...")
 
     try:
-        from sifaka.core.thought import Thought
         from sifaka.retrievers.base import InMemoryRetriever
         from sifaka.models.base import create_model
         from sifaka.critics.reflexion import ReflexionCritic
@@ -109,10 +107,7 @@ def test_chain_orchestrated_retrieval():
         chain = Chain(
             model=model,
             prompt="Write a short story about a robot that learns.",
-            retriever=retriever,  # Chain handles all retrieval automatically
-            pre_generation_retrieval=True,  # Retrieve before generation
-            post_generation_retrieval=True,  # Retrieve after generation
-            critic_retrieval=True,  # Retrieve for critics
+            retrievers=[retriever],  # Chain handles all retrieval automatically
         )
 
         chain.improve_with(critic)

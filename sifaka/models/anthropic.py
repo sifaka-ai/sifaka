@@ -35,18 +35,16 @@ Example:
 
 import os
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional
 
 try:
-    import anthropic
     from anthropic import Anthropic, APIError, RateLimitError
 
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
-from sifaka.core.interfaces import Retriever
-from sifaka.core.thought import Document, Thought
+from sifaka.core.thought import Thought
 from sifaka.utils.error_handling import (
     ConfigurationError,
     ModelAPIError,
@@ -96,7 +94,6 @@ class AnthropicModel(ContextAwareMixin):
         self,
         model_name: str,
         api_key: Optional[str] = None,
-        retriever: Optional[Retriever] = None,
         **options: Any,
     ):
         """Initialize the Anthropic model with the specified parameters.
@@ -105,7 +102,6 @@ class AnthropicModel(ContextAwareMixin):
             model_name: The name of the Anthropic model to use (e.g., "claude-3-opus-20240229").
             api_key: Optional API key to use. If not provided, it will be read from the
                 ANTHROPIC_API_KEY environment variable.
-            retriever: Optional retriever for direct access during generation.
             **options: Additional options to pass to the Anthropic API, such as:
                 - temperature: Controls randomness in generation (0.0 to 1.0).
                 - max_tokens: Maximum number of tokens to generate.
@@ -135,9 +131,8 @@ class AnthropicModel(ContextAwareMixin):
                 "Anthropic package not installed. Install it with 'pip install anthropic'."
             )
 
-        # Store model name, retriever, and options
+        # Store model name and options
         self.model_name = model_name
-        self.retriever = retriever
         self.options = options
 
         # Get API key from parameter or environment variable
@@ -374,11 +369,6 @@ class AnthropicModel(ContextAwareMixin):
             print(text)
             ```
         """
-        # If we have a retriever and no pre-generation context, retrieve some
-        if self.retriever and not thought.pre_generation_context:
-            logger.debug("Retrieving context for generation")
-            thought = self.retriever.retrieve_for_thought(thought, is_pre_generation=True)
-
         # Use mixin to build contextualized prompt
         full_prompt = self._build_contextualized_prompt(thought, max_docs=5)
 
@@ -529,7 +519,6 @@ class AnthropicModel(ContextAwareMixin):
 
 def create_anthropic_model(
     model_name: str,
-    retriever: Optional[Retriever] = None,
     **options: Any,
 ) -> AnthropicModel:
     """Create an Anthropic model instance.
@@ -540,7 +529,6 @@ def create_anthropic_model(
 
     Args:
         model_name: The name of the Anthropic model to use (e.g., "claude-3-opus-20240229").
-        retriever: Optional retriever for direct access during generation.
         **options: Additional options to pass to the Anthropic model constructor, such as:
             - api_key: The Anthropic API key to use.
             - temperature: Controls randomness in generation (0.0 to 1.0).
@@ -581,7 +569,7 @@ def create_anthropic_model(
 
     try:
         # Create the model
-        model = AnthropicModel(model_name=model_name, retriever=retriever, **options)
+        model = AnthropicModel(model_name=model_name, **options)
 
         # Log successful model creation
         logger.debug(f"Successfully created Anthropic model with name '{model_name}'")

@@ -170,13 +170,13 @@ critic = ReflexionCritic(model=model)
 # Create a retriever
 retriever = MockRetriever()
 
-# Create a chain with model, prompt, retriever, validators and critics
+# Create a chain with model, prompt, retrievers, validators and critics
 # The Chain orchestrates ALL retrieval automatically
 prompt = "Write a short story about a robot."
 chain = Chain(
     model=model,
     prompt=prompt,
-    retriever=retriever,  # Chain handles all retrieval
+    retrievers=[retriever],  # Chain handles all retrieval
     max_improvement_iterations=3,
     apply_improvers_on_validation_failure=True,
 )
@@ -434,11 +434,7 @@ critic = ReflexionCritic(model=model)
 chain = Chain(
     model=model,
     prompt="Write a news summary about recent AI developments and their implications.",
-    model_retriever=twitter_retriever,    # Model uses recent Twitter/news context
-    critic_retriever=factual_retriever,   # Critics use factual database for verification
-    pre_generation_retrieval=True,        # Get recent context before generation
-    post_generation_retrieval=True,       # Get more recent context after generation
-    critic_retrieval=True,                # Get factual context for critics
+    retrievers=[twitter_retriever, factual_retriever],  # Chain orchestrates retrieval
 )
 
 chain.improve_with(critic)

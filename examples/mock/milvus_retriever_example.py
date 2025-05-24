@@ -19,7 +19,7 @@ Usage:
     python examples/mock/vector_db_retriever_example.py
 """
 
-from typing import Dict, Any
+from typing import Dict
 
 from sifaka.chain import Chain
 from sifaka.models.base import create_model
@@ -27,8 +27,8 @@ from sifaka.validators.base import LengthValidator
 from sifaka.critics import ReflexionCritic
 
 try:
-    from sifaka.retrievers.vector_db_base import create_vector_db_retriever, create_milvus_retriever
     from sifaka.retrievers.milvus import MilvusRetriever
+    from sifaka.retrievers.base import MCPServerConfig, MCPTransportType
 
     VECTOR_DB_AVAILABLE = True
 except ImportError:
@@ -102,17 +102,23 @@ def create_sample_documents() -> Dict[str, str]:
 
 def demonstrate_basic_retrieval():
     """Demonstrate basic document storage and retrieval."""
-    print("=== Basic VectorDB Retrieval Demo ===")
+    print("=== Basic Milvus Retrieval Demo ===")
 
     if not VECTOR_DB_AVAILABLE:
-        print("Skipping VectorDB demo - pymilvus not available")
+        print("Skipping Milvus demo - pymilvus not available")
         return
 
-    # Create retriever with Milvus Lite (embedded database)
+    # Create MCP configuration for Milvus
+    mcp_config = MCPServerConfig(
+        name="milvus-server",
+        transport_type=MCPTransportType.WEBSOCKET,
+        url="ws://localhost:8080/mcp/milvus",
+    )
+
+    # Create retriever with MCP configuration
     retriever = MilvusRetriever(
+        mcp_config=mcp_config,
         collection_name="demo_collection",
-        embedding_model="BAAI/bge-m3",  # BGE-M3 model for embeddings
-        dimension=1024,  # BGE-M3 dense embedding dimension
         max_results=3,
     )
 
@@ -166,8 +172,16 @@ def demonstrate_chain_integration():
         print("Skipping chain integration demo - pymilvus not available")
         return
 
+    # Create MCP configuration for Milvus
+    mcp_config = MCPServerConfig(
+        name="milvus-server",
+        transport_type=MCPTransportType.WEBSOCKET,
+        url="ws://localhost:8080/mcp/milvus",
+    )
+
     # Create retriever and populate with documents
     retriever = MilvusRetriever(
+        mcp_config=mcp_config,
         collection_name="chain_demo_collection",
         max_results=2,  # Fewer results for cleaner output
     )
@@ -188,17 +202,14 @@ def demonstrate_chain_integration():
     chain = Chain(
         model=model,
         prompt="Write a comprehensive explanation of how artificial intelligence and machine learning are transforming modern technology. Include specific examples and applications.",
-        retriever=retriever,
-        pre_generation_retrieval=True,
-        post_generation_retrieval=True,
-        critic_retrieval=True,
+        retrievers=[retriever],  # New API uses list of retrievers
     )
 
     # Add validator and critic
     chain.validate_with(validator)
     chain.improve_with(critic)
 
-    print("Running chain with VectorDB retrieval...")
+    print("Running chain with Milvus retrieval...")
     result = chain.run()
 
     print(f"\nFinal result (iteration {result.iteration}):")
@@ -221,8 +232,8 @@ def demonstrate_chain_integration():
 
 
 def main():
-    """Run the VectorDB retriever examples."""
-    print("VectorDB Retriever Example")
+    """Run the Milvus retriever examples."""
+    print("Milvus Retriever Example")
     print("=" * 50)
 
     try:
@@ -239,7 +250,7 @@ def main():
         traceback.print_exc()
 
     print("\n" + "=" * 50)
-    print("VectorDB Retriever example completed!")
+    print("Milvus Retriever example completed!")
 
 
 if __name__ == "__main__":

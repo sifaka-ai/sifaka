@@ -7,31 +7,47 @@ Chain to provide context to models and critics.
 Available retrievers:
 - MockRetriever: Returns predefined documents for testing
 - InMemoryRetriever: Simple keyword-based retrieval from in-memory documents
-- RedisRetriever: Redis-based caching retriever with optional base retriever
+- RedisRetriever: Redis-based caching retriever with optional base retriever (uses MCP internally)
 
 Vector Database Retrievers:
-- MilvusRetriever: Milvus-based semantic search using vector embeddings
-- create_vector_db_retriever: Factory function for vector database retrievers
+- MilvusRetriever: Milvus-based semantic search using vector embeddings (uses MCP internally)
 
 Example:
     ```python
-    from sifaka.retrievers import MockRetriever, InMemoryRetriever, RedisRetriever
-    from sifaka.retrievers.vector_db_base import create_vector_db_retriever
-    # from sifaka.chain import Chain  # Import when needed to avoid circular imports
-    from sifaka.models.base import create_model
+    from sifaka.retrievers import (
+        MockRetriever, InMemoryRetriever, RedisRetriever, MilvusRetriever,
+        MCPServerConfig, MCPTransportType
+    )
 
-    # Create retrievers
+    # Create basic retrievers
     mock_retriever = MockRetriever()
     memory_retriever = InMemoryRetriever()
     memory_retriever.add_document("doc1", "This is about AI.")
 
-    # Redis retriever as cache wrapper
-    redis_retriever = RedisRetriever(base_retriever=memory_retriever)
+    # MCP server configurations
+    milvus_config = MCPServerConfig(
+        name="milvus-server",
+        transport_type=MCPTransportType.WEBSOCKET,
+        url="ws://localhost:8080/mcp/milvus"
+    )
 
-    # Use in chain (import Chain when needed)
-    # from sifaka.chain import Chain
-    # model = create_model("mock:default")
-    # chain = Chain(model=model, prompt="Tell me about AI", retriever=redis_retriever)
+    redis_config = MCPServerConfig(
+        name="redis-server",
+        transport_type=MCPTransportType.WEBSOCKET,
+        url="ws://localhost:8080/mcp/redis"
+    )
+
+    # Retrievers using MCP internally
+    milvus_retriever = MilvusRetriever(
+        mcp_config=milvus_config,
+        collection_name="documents",
+        embedding_model="BAAI/bge-m3"
+    )
+
+    redis_retriever = RedisRetriever(
+        mcp_config=redis_config,
+        base_retriever=memory_retriever
+    )
     ```
 """
 
@@ -51,25 +67,33 @@ except ImportError:
 
 # Import Vector Database retrievers with error handling
 try:
-    from sifaka.retrievers.vector_db_base import (
-        create_vector_db_retriever,
-        create_milvus_retriever,
-        create_pinecone_retriever,
-        create_weaviate_retriever,
-    )
     from sifaka.retrievers.milvus import MilvusRetriever
+    from sifaka.retrievers.redis import RedisRetriever, create_redis_retriever
 
     __all__.extend(
         [
             "MilvusRetriever",
-            "create_vector_db_retriever",
-            "create_milvus_retriever",
-            "create_pinecone_retriever",
-            "create_weaviate_retriever",
+            "RedisRetriever",
+            "create_redis_retriever",
         ]
     )
 except ImportError:
     # Vector DB dependencies not available
+    pass
+
+# Import MCP base classes for configuration
+try:
+    from sifaka.retrievers.base import MCPServerConfig, MCPTransportType, MCPClient
+
+    __all__.extend(
+        [
+            "MCPServerConfig",
+            "MCPTransportType",
+            "MCPClient",
+        ]
+    )
+except ImportError:
+    # MCP dependencies not available
     pass
 
 # Import specialized retrievers if they exist
