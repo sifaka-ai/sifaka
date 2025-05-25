@@ -276,7 +276,7 @@ def example_chain_integration():
     chain = Chain(
         model=model,
         prompt="Write a beginner's guide to Python programming, focusing on its strengths and use cases.",
-        retrievers=[cached_retriever],  # New API uses list of retrievers
+        model_retrievers=[cached_retriever],  # Use cached retriever for model context
     )
 
     chain.validate_with(validator)
@@ -290,8 +290,8 @@ def example_chain_integration():
     print(f"\n📝 Generated text ({len(result.text)} chars):")
     print(f"   {result.text[:100]}...")
 
-    print(f"\n📚 Pre-generation context: {len(result.pre_generation_context)} documents")
-    print(f"📚 Post-generation context: {len(result.post_generation_context)} documents")
+    print(f"\n📚 Pre-generation context: {len(result.pre_generation_context or [])} documents")
+    print(f"📚 Post-generation context: {len(result.post_generation_context or [])} documents")
 
     # Show cache effectiveness
     stats = cached_retriever.get_cache_stats()

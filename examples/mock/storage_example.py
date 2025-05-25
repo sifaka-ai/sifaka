@@ -23,26 +23,54 @@ def main():
     print("=" * 50)
 
     # 1. Setup unified storage
-    print("\n1. Setting up unified storage (Memory → Redis → Milvus)...")
+    print("\n1. Setting up flexible storage backends...")
 
-    # Configure Redis MCP server
+    # Configure Redis MCP server (optional)
     redis_config = MCPServerConfig(
         name="redis-server",
         transport_type=MCPTransportType.STDIO,
         url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379",
     )
 
-    # Configure Milvus MCP server
+    # Configure Milvus MCP server (optional)
     milvus_config = MCPServerConfig(
         name="milvus-server",
         transport_type=MCPTransportType.STDIO,
         url="npx -y @milvus-io/mcp-server-milvus",
     )
 
-    # Create unified storage manager
-    storage_manager = SifakaStorage(redis_config, milvus_config)
+    # Demonstrate different storage configurations
+    print("  Trying different storage configurations:")
+
+    # Option 1: Memory-only (simplest)
+    print("  - Memory-only storage...")
+    memory_storage = SifakaStorage()
+    print("    ✓ Memory-only storage created")
+
+    # Option 2: Memory + Redis (caching)
+    print("  - Memory + Redis caching...")
+    try:
+        redis_storage = SifakaStorage(redis_config=redis_config)
+        print("    ✓ Memory + Redis storage created")
+    except Exception as e:
+        print(f"    ⚠ Redis not available: {e}")
+        redis_storage = None
+
+    # Option 3: Full 3-tier (memory + cache + persistence)
+    print("  - Full 3-tier storage...")
+    try:
+        full_storage = SifakaStorage(redis_config, milvus_config)
+        print("    ✓ Full 3-tier storage created")
+        storage_manager = full_storage
+    except Exception as e:
+        print(f"    ⚠ Full storage not available: {e}")
+        print("    → Falling back to memory-only storage")
+        storage_manager = memory_storage
+
     storage = storage_manager.get_thought_storage()
-    print(f"✓ Unified storage created with 3-tier architecture")
+    print(
+        f"✓ Using storage with enabled backends: {storage_manager.enable_memory and 'memory'}, {storage_manager.enable_redis and 'redis'}, {storage_manager.enable_milvus and 'milvus'}"
+    )
 
     # 2. Create and save thoughts
     print("\n2. Creating and saving thoughts...")
@@ -171,9 +199,14 @@ def main():
     health = storage.health_check()
     print(f"✓ Storage status: {health['status']}")
     print(f"✓ Total thoughts: {health['total_thoughts']}")
-    print(f"✓ Storage size: {health['total_size_mb']} MB")
-    print(f"✓ Directories exist: {health['directories_exist']}")
-    print(f"✓ Writable: {health['writable']}")
+    print(f"✓ Test passed: {health.get('test_passed', 'N/A')}")
+    print(f"✓ Timestamp: {health.get('timestamp', 'N/A')}")
+    if "storage_stats" in health:
+        stats = health["storage_stats"]
+        if "memory" in stats:
+            print(f"✓ Memory utilization: {stats['memory'].get('utilization', 0):.1%}")
+        if "cache" in stats:
+            print(f"✓ Cache hit rate: {stats['cache'].get('hit_rate', 0):.1%}")
 
     # 6. Advanced querying
     print("\n6. Advanced querying...")

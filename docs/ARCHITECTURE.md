@@ -165,10 +165,9 @@ thought = retriever.retrieve_for_thought(thought, is_pre_generation=True)
 ```
 
 Available types:
-- **MockRetriever**: Returns predefined documents for testing
-- **InMemoryRetriever**: Keyword search in memory
+- **MockRetriever**: Returns predefined documents for testing with optional retry/fallback
+- **InMemoryRetriever**: Keyword search in memory with optional retry/fallback
 - **CachedRetriever**: Wraps any retriever with 3-tier caching
-- **ResilientRetriever**: Adds error recovery with fallbacks
 
 ## Design Principles
 

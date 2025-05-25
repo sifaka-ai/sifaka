@@ -42,16 +42,16 @@ class TestExamples:
         assert result.returncode == 0, f"Example failed with error: {result.stderr}"
         assert "Examples completed!" in result.stdout
 
-    def test_persistence_example(self):
-        """Test that persistence_example.py runs without errors."""
+    def test_storage_example(self):
+        """Test that storage_example.py runs without errors."""
         result = subprocess.run(
-            [sys.executable, "examples/mock/persistence_example.py"],
+            [sys.executable, "examples/mock/storage_example.py"],
             capture_output=True,
             text=True,
             timeout=30,
         )
         assert result.returncode == 0, f"Example failed with error: {result.stderr}"
-        assert "Example completed!" in result.stdout or "completed successfully!" in result.stdout
+        assert "completed successfully!" in result.stdout
 
     def test_redis_retriever_example(self):
         """Test that redis_retriever_example.py runs without errors."""
@@ -129,7 +129,7 @@ class TestExampleStructure:
             "basic_chain.py",
             "critics_example.py",
             "validators_example.py",
-            "persistence_example.py",
+            "storage_example.py",
             "redis_retriever_example.py",
             "vector_db_retriever_example.py",
             "self_refine_example.py",
@@ -188,8 +188,8 @@ class TestDocumentation:
 
         content = arch_doc.read_text()
         assert len(content) > 1000, "Architecture doc seems too short"
-        assert "# Sifaka Architecture Documentation" in content
-        assert "## Core Architecture" in content
+        assert "# Sifaka Architecture" in content
+        assert "## Core Components" in content
 
     def test_examples_docs_exist(self):
         """Test that examples documentation exists."""

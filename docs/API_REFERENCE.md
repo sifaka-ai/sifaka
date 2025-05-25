@@ -415,7 +415,7 @@ def unreliable_function():
 
 ```python
 from sifaka.models.resilient import ResilientModel
-from sifaka.retrievers.resilient import ResilientRetriever
+from sifaka.retrievers import InMemoryRetriever, MockRetriever
 
 # Create resilient model
 resilient_model = ResilientModel(
@@ -425,9 +425,10 @@ resilient_model = ResilientModel(
     retry_config=RetryConfig(max_attempts=3)
 )
 
-# Create resilient retriever
-resilient_retriever = ResilientRetriever(
-    primary_retriever=primary_retriever,
+# Create enhanced retriever with retry/fallback
+fallback_retriever = MockRetriever(max_results=3)
+enhanced_retriever = InMemoryRetriever(
+    max_retries=3,
     fallback_retrievers=[fallback_retriever]
 )
 ```

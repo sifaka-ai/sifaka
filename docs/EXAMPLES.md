@@ -549,31 +549,28 @@ print(f"Generated text: {result.text}")
 print(f"Model used: {result.model_name}")  # Shows which model was actually used
 ```
 
-### Resilient Retriever
+### Enhanced Retrievers with Retry/Fallback
 
 ```python
-from sifaka.retrievers.resilient import ResilientRetriever
-from sifaka.retrievers.simple import InMemoryRetriever, MockRetriever
+from sifaka.retrievers import InMemoryRetriever, MockRetriever
 
-# Create primary and fallback retrievers
-primary_retriever = InMemoryRetriever()
-primary_retriever.add_document("doc1", "Primary knowledge base content...")
+# Create fallback retriever
+fallback_retriever = MockRetriever(max_results=3)
 
-fallback_retriever = MockRetriever()
-
-# Create resilient retriever
-resilient_retriever = ResilientRetriever(
-    primary_retriever=primary_retriever,
-    fallback_retrievers=[fallback_retriever],
-    circuit_breaker_config=CircuitBreakerConfig(failure_threshold=2),
-    retry_config=RetryConfig(max_attempts=2)
+# Create primary retriever with retry/fallback capabilities
+primary_retriever = InMemoryRetriever(
+    max_retries=3,
+    fallback_retrievers=[fallback_retriever]
 )
+
+# Add documents
+primary_retriever.add_document("doc1", "Primary knowledge base content...")
 
 # Use in chain
 chain = Chain(
     model=model,
     prompt="Explain machine learning concepts.",
-    retrievers=[resilient_retriever]
+    retrievers=[primary_retriever]
 )
 
 result = chain.run()

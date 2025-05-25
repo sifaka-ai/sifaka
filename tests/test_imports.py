@@ -85,10 +85,11 @@ def test_all_imports_integration():
     chain.validate_with(validator)
     chain.improve_with(critic)
 
-    assert chain._model is not None
-    assert chain._prompt == "Test prompt"
-    assert len(chain._validators) == 1
-    assert len(chain._critics) == 1
+    # Test new modular architecture
+    assert chain._config.model is not None
+    assert chain._config.prompt == "Test prompt"
+    assert len(chain._config.validators) == 1
+    assert len(chain._config.critics) == 1
 
 
 if __name__ == "__main__":

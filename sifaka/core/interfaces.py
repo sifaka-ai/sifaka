@@ -6,9 +6,11 @@ These interfaces ensure consistent behavior across different implementations and
 enable components to work together seamlessly.
 """
 
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, runtime_checkable, TYPE_CHECKING
 
-from sifaka.core.thought import Thought, ValidationResult
+# Use TYPE_CHECKING imports to avoid circular dependencies
+if TYPE_CHECKING:
+    from sifaka.core.thought import Thought, ValidationResult
 
 
 @runtime_checkable
@@ -34,7 +36,7 @@ class Model(Protocol):
         """
         ...
 
-    def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:
+    def generate_with_thought(self, thought: "Thought", **options: Any) -> tuple[str, str]:
         """Generate text using a Thought container.
 
         This method allows models to access the full context in the Thought container,
@@ -70,7 +72,7 @@ class Validator(Protocol):
     checks if text meets certain criteria.
     """
 
-    def validate(self, thought: Thought) -> ValidationResult:
+    def validate(self, thought: "Thought") -> "ValidationResult":
         """Validate text against specific criteria.
 
         Args:
@@ -91,7 +93,7 @@ class Critic(Protocol):
     and improving text.
     """
 
-    def critique(self, thought: Thought) -> Dict[str, Any]:
+    def critique(self, thought: "Thought") -> Dict[str, Any]:
         """Critique text and provide feedback.
 
         Args:
@@ -102,7 +104,7 @@ class Critic(Protocol):
         """
         ...
 
-    def improve(self, thought: Thought) -> str:
+    def improve(self, thought: "Thought") -> str:
         """Improve text based on critique.
 
         Args:
@@ -134,7 +136,7 @@ class Retriever(Protocol):
         """
         ...
 
-    def retrieve_for_thought(self, thought: Thought, is_pre_generation: bool = True) -> Thought:
+    def retrieve_for_thought(self, thought: "Thought", is_pre_generation: bool = True) -> "Thought":
         """Retrieve documents and add them to a thought.
 
         Args:

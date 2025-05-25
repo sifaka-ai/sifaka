@@ -1,89 +1,59 @@
-"""Unified storage system for Sifaka.
+"""Simple, flexible storage system for Sifaka.
 
-This package provides a unified 3-tier storage architecture across all Sifaka components:
+By default, everything is stored in memory with no persistence. Users can optionally
+choose to persist data to files, Redis, Milvus, or other backends as needed.
 
-Tier 1 (L1): In-Memory Storage
-- Fastest access (microseconds)
-- LRU eviction for memory management
-- Process-local hot data cache
-
-Tier 2 (L2): Redis Cache
-- Fast network access (1-5ms)
-- Cross-process shared cache
-- TTL-based expiration
-
-Tier 3 (L3): Milvus Persistence
-- Persistent storage with semantic search (10-1000ms)
-- Vector similarity search capabilities
-- Long-term data retention
-
-All storage components follow the same pattern:
-- Get: Check L1 → L2 → L3, cache results in faster tiers
-- Set: Save to L1, async save to L2 + L3
-- Search: Use L3 for semantic/vector search, cache results
+The storage system follows a simple protocol:
+- get(key) -> value or None
+- set(key, value) -> None
+- search(query, limit) -> List[results] (for vector search)
+- clear() -> None
 
 Example:
     ```python
-    from sifaka.storage import SifakaStorage
-    from sifaka.mcp import MCPServerConfig, MCPTransportType
+    from sifaka.storage import MemoryStorage, FileStorage, RedisStorage
+    from sifaka.core import Chain
+    from sifaka.models import create_model
 
-    # Configure storage backends
-    redis_config = MCPServerConfig(
-        name="redis-server",
-        transport_type=MCPTransportType.STDIO,
-        url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379"
+    # Default: Memory only (no persistence)
+    model = create_model("openai:gpt-4")
+    chain = Chain(model=model, prompt="Write about AI")
+    result = chain.run()  # Thoughts stored in memory only
+
+    # Simple file persistence
+    chain = Chain(
+        model=model,
+        prompt="Write about AI",
+        storage=FileStorage("./my_thoughts.json")
     )
 
-    milvus_config = MCPServerConfig(
-        name="milvus-server",
-        transport_type=MCPTransportType.STDIO,
-        url="npx -y @milvus-io/mcp-server-milvus"
+    # Redis persistence
+    chain = Chain(
+        model=model,
+        storage=RedisStorage(redis_config)
     )
 
-    # Create unified storage manager
-    storage = SifakaStorage(redis_config, milvus_config)
-
-    # Get component-specific storage
-    thought_storage = storage.get_thought_storage()
-    checkpoint_storage = storage.get_checkpoint_storage()
-    cached_retriever = storage.get_retriever_cache(base_retriever)
+    # Compose storage layers if needed
+    storage = CachedStorage(
+        memory=MemoryStorage(),
+        persistence=FileStorage("./backup.json")
+    )
+    chain = Chain(model=model, storage=storage)
     ```
 """
 
-from .base import (
-    StorageError,
-    InMemoryStorage,
-    RedisCache,
-    MilvusStorage,
-    CachedStorage,
-)
-
-from .manager import SifakaStorage
-from .protocols import Retriever
-
-from .thoughts import CachedThoughtStorage, ThoughtStorage, ThoughtQuery, ThoughtQueryResult
-from .checkpoints import CachedCheckpointStorage, ChainCheckpoint
-from .retrievers import CachedRetriever
-from .metrics import CachedMetricsStorage
+from .protocol import Storage
+from .memory import MemoryStorage
+from .file import FileStorage
+from .redis import RedisStorage
+from .milvus import MilvusStorage
+from .cached import CachedStorage
 
 __all__ = [
-    # Core storage classes
-    "StorageError",
-    "InMemoryStorage",
-    "RedisCache",
+    "Storage",
+    "MemoryStorage",
+    "FileStorage",
+    "RedisStorage",
     "MilvusStorage",
     "CachedStorage",
-    # Storage manager
-    "SifakaStorage",
-    # Protocols
-    "Retriever",
-    # Component-specific storage
-    "CachedThoughtStorage",
-    "ThoughtStorage",
-    "ThoughtQuery",
-    "ThoughtQueryResult",
-    "CachedCheckpointStorage",
-    "ChainCheckpoint",
-    "CachedRetriever",
-    "CachedMetricsStorage",
 ]

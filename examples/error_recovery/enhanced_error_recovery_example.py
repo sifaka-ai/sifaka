@@ -27,7 +27,7 @@ from sifaka.core.chain import Chain
 from sifaka.models.base import create_model
 from sifaka.models.resilient import ResilientModel
 from sifaka.retrievers.simple import InMemoryRetriever, MockRetriever
-from sifaka.retrievers.resilient import ResilientRetriever
+
 from sifaka.validators.base import LengthValidator
 from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.utils import (
@@ -239,14 +239,16 @@ def demonstrate_resilient_model():
 
 
 def demonstrate_resilient_retriever():
-    """Demonstrate resilient retriever wrapper."""
+    """Demonstrate enhanced base retrievers with retry/fallback capabilities."""
     print("\n" + "=" * 60)
-    print("RESILIENT RETRIEVER DEMONSTRATION")
+    print("ENHANCED RETRIEVER DEMONSTRATION")
     print("=" * 60)
 
-    # Create retrievers
-    primary_retriever = InMemoryRetriever()
+    # Create fallback retriever
     fallback_retriever = MockRetriever(max_results=3)
+
+    # Create primary retriever with retry/fallback capabilities
+    primary_retriever = InMemoryRetriever(max_retries=3, fallback_retrievers=[fallback_retriever])
 
     # Add some documents to primary retriever
     docs = {
@@ -258,31 +260,20 @@ def demonstrate_resilient_retriever():
     for doc_id, text in docs.items():
         primary_retriever.add_document(doc_id, text)
 
-    # Create resilient retriever
-    resilient_retriever = ResilientRetriever(
-        primary_retriever=primary_retriever,
-        fallback_retrievers=[fallback_retriever],
-        circuit_breaker_config=CircuitBreakerConfig(failure_threshold=2),
-        retry_config=RetryConfig(max_attempts=2),
-        fallback_config=FallbackConfig(max_fallbacks=1),
-    )
-
     # Test retrieval
     queries = ["error recovery", "circuit breaker", "retry mechanisms"]
 
     for query in queries:
         print(f"\nTesting query: '{query}'")
         try:
-            results = resilient_retriever.retrieve(query)
+            results = primary_retriever.retrieve(query)
             print(f"  Results: {len(results)} documents found")
             for i, result in enumerate(results[:1]):  # Show first result
                 print(f"    {i+1}: {result[:100]}...")
         except Exception as e:
             print(f"  Retrieval failed: {e}")
 
-    # Show health status
-    health = resilient_retriever.get_health_status()
-    print(f"\nRetriever health: {health['is_healthy']}")
+    print("\nEnhanced retriever demonstration completed.")
 
 
 def demonstrate_integrated_chain():
@@ -303,9 +294,11 @@ def demonstrate_integrated_chain():
         else:
             model = create_model("anthropic:claude-3-haiku")
 
-        # Create resilient retriever
-        primary_retriever = InMemoryRetriever()
+        # Create enhanced retriever with retry/fallback capabilities
         fallback_retriever = MockRetriever(max_results=3)
+        primary_retriever = InMemoryRetriever(
+            max_retries=3, fallback_retrievers=[fallback_retriever]
+        )
 
         # Add documents
         docs = {
@@ -317,15 +310,11 @@ def demonstrate_integrated_chain():
         for doc_id, text in docs.items():
             primary_retriever.add_document(doc_id, text)
 
-        resilient_retriever = ResilientRetriever(
-            primary_retriever=primary_retriever, fallback_retrievers=[fallback_retriever]
-        )
-
-        # Create chain with resilient components
+        # Create chain with enhanced retriever
         chain = Chain(
             model=model,
             prompt="Explain the importance of error recovery in software systems",
-            retrievers=[resilient_retriever],
+            retrievers=[primary_retriever],
             max_improvement_iterations=2,
             apply_improvers_on_validation_failure=True,
         )

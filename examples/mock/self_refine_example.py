@@ -14,11 +14,8 @@ This example shows the full pipeline:
 5. All thoughts are persisted with full history
 """
 
-import os
-import tempfile
-from datetime import datetime
-from sifaka.core.thought import Thought, Document, ValidationResult, CriticFeedback
-from sifaka.persistence.json import JSONThoughtStorage
+from sifaka.core.thought import Thought, Document, CriticFeedback
+from sifaka.storage import SifakaStorage, ThoughtQuery
 from sifaka.validators.base import LengthValidator
 from sifaka.validators.content import ContentValidator
 from sifaka.validators.classifier import ClassifierValidator
@@ -293,15 +290,10 @@ def main():
     print("🧠 Sifaka Self-Refine Example with Full Pipeline")
     print("=" * 60)
 
-    # Setup storage
-    storage_dir = "./self_refine_storage"
-    if os.path.exists(storage_dir):
-        import shutil
-
-        shutil.rmtree(storage_dir)
-
-    storage = JSONThoughtStorage(storage_dir=storage_dir)
-    print(f"✓ Storage initialized at: {storage_dir}")
+    # Setup storage (using memory-only for demo)
+    storage_manager = SifakaStorage()
+    storage = storage_manager.get_thought_storage()
+    print("✓ Storage initialized (memory-only for demo)")
 
     # Setup components
     model_retriever, critic_retriever = setup_retrievers()
@@ -394,8 +386,8 @@ def main():
     health = storage.health_check()
     print(f"\n📊 Storage Statistics:")
     print(f"  Total thoughts: {health['total_thoughts']}")
-    print(f"  Storage size: {health['total_size_mb']} MB")
-    print(f"  Storage location: {os.path.abspath(storage_dir)}")
+    print(f"  Storage status: {health['status']}")
+    print(f"  Storage type: Memory-only (demo mode)")
 
     # Query examples
     print(f"\n🔍 Query Examples:")
@@ -405,8 +397,6 @@ def main():
     print(f"  Chain thoughts: {len(chain_thoughts)}")
 
     # Get thoughts with validation results
-    from sifaka.persistence.base import ThoughtQuery
-
     validated_query = ThoughtQuery(has_validation_results=True)
     validated_thoughts = storage.query_thoughts(validated_query)
     print(f"  Validated thoughts: {validated_thoughts.total_count}")
@@ -416,7 +406,7 @@ def main():
     feedback_thoughts = storage.query_thoughts(feedback_query)
     print(f"  Thoughts with feedback: {feedback_thoughts.total_count}")
 
-    print(f"\n✨ Example completed! Check {storage_dir} for persisted thoughts.")
+    print(f"\n✨ Example completed! All thoughts stored in memory.")
 
 
 if __name__ == "__main__":

@@ -5,10 +5,11 @@ dependencies. These are primarily used for testing and as base components for
 the unified storage system.
 
 Available retrievers:
-- MockRetriever: Returns predefined documents for testing
-- InMemoryRetriever: Simple keyword-based retrieval from in-memory documents
+- MockRetriever: Returns predefined documents for testing with optional retry/fallback
+- InMemoryRetriever: Simple keyword-based retrieval from in-memory documents with optional retry/fallback
 """
 
+import time
 from typing import Any, Dict, List, Optional, Protocol
 
 from sifaka.core.thought import Document, Thought
@@ -54,23 +55,29 @@ class MockRetriever:
     """Mock retriever for testing.
 
     This retriever returns predefined documents for any query, making it useful
-    for testing and development.
+    for testing and development. Includes optional retry logic and fallback support.
 
     Attributes:
         documents: List of documents to return for any query.
         max_results: Maximum number of documents to return.
+        max_retries: Maximum number of retry attempts on failure.
+        fallback_retrievers: Optional list of fallback retrievers to try on failure.
     """
 
     def __init__(
         self,
         documents: Optional[List[str]] = None,
         max_results: int = 3,
+        max_retries: int = 3,
+        fallback_retrievers: Optional[List["Retriever"]] = None,
     ):
         """Initialize the retriever.
 
         Args:
             documents: List of documents to return for any query.
             max_results: Maximum number of documents to return.
+            max_retries: Maximum number of retry attempts on failure.
+            fallback_retrievers: Optional list of fallback retrievers to try on failure.
         """
         self.documents = documents or [
             "This is a mock document about artificial intelligence.",
@@ -80,6 +87,13 @@ class MockRetriever:
             "This is a mock document about neural networks.",
         ]
         self.max_results = max_results
+        self.max_retries = max_retries
+        self.fallback_retrievers = fallback_retrievers or []
+
+        logger.debug(
+            f"Initialized MockRetriever with {len(self.documents)} documents, "
+            f"{max_retries} max retries, {len(self.fallback_retrievers)} fallbacks"
+        )
 
     def retrieve(self, query: str) -> List[str]:
         """Retrieve relevant documents for a query.
@@ -90,20 +104,65 @@ class MockRetriever:
         Returns:
             A list of relevant document texts.
         """
-        with error_context(
-            component="MockRetriever",
-            operation="retrieval",
-            error_class=RetrieverError,
-            message_prefix="Failed to retrieve documents",
-        ):
-            logger.debug(f"Retrieving documents for query: {query[:50]}...")
+        # Try primary retrieval with retries
+        for attempt in range(self.max_retries):
+            try:
+                with error_context(
+                    component="MockRetriever",
+                    operation="retrieval",
+                    error_class=RetrieverError,
+                    message_prefix="Failed to retrieve documents",
+                ):
+                    logger.debug(
+                        f"Retrieving documents for query: {query[:50]}... (attempt {attempt + 1})"
+                    )
 
-            # In a real implementation, this would search for relevant documents
-            # For the mock, we just return the predefined documents
-            results = self.documents[: self.max_results]
+                    # In a real implementation, this would search for relevant documents
+                    # For the mock, we just return the predefined documents
+                    results = self.documents[: self.max_results]
 
-            logger.debug(f"Retrieved {len(results)} documents")
-            return results
+                    logger.debug(f"Retrieved {len(results)} documents")
+                    return results
+
+            except Exception as e:
+                if attempt == self.max_retries - 1:
+                    # Last attempt failed, try fallbacks
+                    logger.warning(
+                        f"Primary retrieval failed after {self.max_retries} attempts: {e}"
+                    )
+                    return self._try_fallbacks(query)
+                else:
+                    # Exponential backoff
+                    delay = 2**attempt
+                    logger.debug(
+                        f"Retrieval attempt {attempt + 1} failed, retrying in {delay}s: {e}"
+                    )
+                    time.sleep(delay)
+
+        # Should not reach here, but return empty list as fallback
+        return []
+
+    def _try_fallbacks(self, query: str) -> List[str]:
+        """Try fallback retrievers in order.
+
+        Args:
+            query: The query to retrieve documents for.
+
+        Returns:
+            A list of relevant document texts from the first successful fallback.
+        """
+        for i, fallback in enumerate(self.fallback_retrievers):
+            try:
+                logger.debug(f"Trying fallback retriever {i + 1}")
+                results = fallback.retrieve(query)
+                logger.info(f"Fallback retriever {i + 1} succeeded")
+                return results
+            except Exception as e:
+                logger.debug(f"Fallback retriever {i + 1} failed: {e}")
+                continue
+
+        logger.warning("All fallback retrievers failed")
+        return []
 
     def retrieve_for_thought(self, thought: Thought, is_pre_generation: bool = True) -> Thought:
         """Retrieve documents for a thought.
@@ -152,12 +211,14 @@ class InMemoryRetriever:
     """In-memory retriever for simple document collections.
 
     This retriever stores documents in memory and performs simple keyword matching
-    to retrieve relevant documents for a query.
+    to retrieve relevant documents for a query. Includes optional retry logic and fallback support.
 
     Attributes:
         documents: Dictionary mapping document IDs to document texts.
         metadata: Dictionary mapping document IDs to metadata.
         max_results: Maximum number of documents to return.
+        max_retries: Maximum number of retry attempts on failure.
+        fallback_retrievers: Optional list of fallback retrievers to try on failure.
     """
 
     def __init__(
@@ -165,6 +226,8 @@ class InMemoryRetriever:
         documents: Optional[Dict[str, str]] = None,
         metadata: Optional[Dict[str, Dict[str, Any]]] = None,
         max_results: int = 3,
+        max_retries: int = 3,
+        fallback_retrievers: Optional[List["Retriever"]] = None,
     ):
         """Initialize the retriever.
 
@@ -172,10 +235,19 @@ class InMemoryRetriever:
             documents: Dictionary mapping document IDs to document texts.
             metadata: Dictionary mapping document IDs to metadata.
             max_results: Maximum number of documents to return.
+            max_retries: Maximum number of retry attempts on failure.
+            fallback_retrievers: Optional list of fallback retrievers to try on failure.
         """
         self.documents = documents or {}
         self.metadata = metadata or {}
         self.max_results = max_results
+        self.max_retries = max_retries
+        self.fallback_retrievers = fallback_retrievers or []
+
+        logger.debug(
+            f"Initialized InMemoryRetriever with {len(self.documents)} documents, "
+            f"{max_retries} max retries, {len(self.fallback_retrievers)} fallbacks"
+        )
 
     def add_document(
         self,
@@ -203,34 +275,79 @@ class InMemoryRetriever:
         Returns:
             A list of relevant document texts.
         """
-        with error_context(
-            component="InMemoryRetriever",
-            operation="retrieval",
-            error_class=RetrieverError,
-            message_prefix="Failed to retrieve documents",
-        ):
-            logger.debug(f"Retrieving documents for query: {query[:50]}...")
+        # Try primary retrieval with retries
+        for attempt in range(self.max_retries):
+            try:
+                with error_context(
+                    component="InMemoryRetriever",
+                    operation="retrieval",
+                    error_class=RetrieverError,
+                    message_prefix="Failed to retrieve documents",
+                ):
+                    logger.debug(
+                        f"Retrieving documents for query: {query[:50]}... (attempt {attempt + 1})"
+                    )
 
-            # Simple keyword matching
-            query_terms = set(query.lower().split())
-            results = []
+                    # Simple keyword matching
+                    query_terms = set(query.lower().split())
+                    results = []
 
-            for doc_id, text in self.documents.items():
-                # Count how many query terms appear in the document
-                doc_terms = set(text.lower().split())
-                matches = len(query_terms.intersection(doc_terms))
+                    for doc_id, text in self.documents.items():
+                        # Count how many query terms appear in the document
+                        doc_terms = set(text.lower().split())
+                        matches = len(query_terms.intersection(doc_terms))
 
-                if matches > 0:
-                    results.append((doc_id, text, matches))
+                        if matches > 0:
+                            results.append((doc_id, text, matches))
 
-            # Sort by number of matches (descending)
-            results.sort(key=lambda x: x[2], reverse=True)
+                    # Sort by number of matches (descending)
+                    results.sort(key=lambda x: x[2], reverse=True)
 
-            # Return the top results
-            top_results = [text for _, text, _ in results[: self.max_results]]
+                    # Return the top results
+                    top_results = [text for _, text, _ in results[: self.max_results]]
 
-            logger.debug(f"Retrieved {len(top_results)} documents")
-            return top_results
+                    logger.debug(f"Retrieved {len(top_results)} documents")
+                    return top_results
+
+            except Exception as e:
+                if attempt == self.max_retries - 1:
+                    # Last attempt failed, try fallbacks
+                    logger.warning(
+                        f"Primary retrieval failed after {self.max_retries} attempts: {e}"
+                    )
+                    return self._try_fallbacks(query)
+                else:
+                    # Exponential backoff
+                    delay = 2**attempt
+                    logger.debug(
+                        f"Retrieval attempt {attempt + 1} failed, retrying in {delay}s: {e}"
+                    )
+                    time.sleep(delay)
+
+        # Should not reach here, but return empty list as fallback
+        return []
+
+    def _try_fallbacks(self, query: str) -> List[str]:
+        """Try fallback retrievers in order.
+
+        Args:
+            query: The query to retrieve documents for.
+
+        Returns:
+            A list of relevant document texts from the first successful fallback.
+        """
+        for i, fallback in enumerate(self.fallback_retrievers):
+            try:
+                logger.debug(f"Trying fallback retriever {i + 1}")
+                results = fallback.retrieve(query)
+                logger.info(f"Fallback retriever {i + 1} succeeded")
+                return results
+            except Exception as e:
+                logger.debug(f"Fallback retriever {i + 1} failed: {e}")
+                continue
+
+        logger.warning("All fallback retrievers failed")
+        return []
 
     def retrieve_for_thought(self, thought: Thought, is_pre_generation: bool = True) -> Thought:
         """Retrieve documents for a thought.

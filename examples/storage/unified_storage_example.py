@@ -55,22 +55,55 @@ def create_storage_configs():
 
 
 def demonstrate_unified_storage():
-    """Demonstrate the unified storage architecture."""
-    print("🏗️  Unified Storage Architecture Demo")
+    """Demonstrate the flexible storage architecture."""
+    print("🏗️  Flexible Storage Architecture Demo")
     print("=" * 50)
 
-    # Create storage manager
+    # Create storage configurations
     redis_config, milvus_config = create_storage_configs()
-    storage = SifakaStorage(
-        redis_config=redis_config,
-        milvus_config=milvus_config,
-        memory_size=100,  # Small for demo
-        cache_ttl=300,  # 5 minutes
-    )
 
-    print(f"✅ Created unified storage manager")
-    print(f"   Memory size: 100 items")
-    print(f"   Cache TTL: 300 seconds")
+    # Try different storage configurations
+    print("Testing different storage configurations:")
+
+    # Option 1: Memory-only (always works)
+    print("  1. Memory-only storage...")
+    memory_storage = SifakaStorage(memory_size=100)
+    print("     ✅ Memory-only storage created")
+
+    # Option 2: Try memory + Redis
+    print("  2. Memory + Redis caching...")
+    try:
+        redis_storage = SifakaStorage(redis_config=redis_config, memory_size=100, cache_ttl=300)
+        print("     ✅ Memory + Redis storage created")
+        storage = redis_storage
+    except Exception as e:
+        print(f"     ⚠ Redis not available: {e}")
+        storage = memory_storage
+
+    # Option 3: Try full 3-tier
+    print("  3. Full 3-tier storage...")
+    try:
+        full_storage = SifakaStorage(
+            redis_config=redis_config, milvus_config=milvus_config, memory_size=100, cache_ttl=300
+        )
+        print("     ✅ Full 3-tier storage created")
+        storage = full_storage
+    except Exception as e:
+        print(f"     ⚠ Full storage not available: {e}")
+        print("     → Using previously configured storage")
+
+    # Show what we're using
+    enabled_backends = []
+    if storage.enable_memory:
+        enabled_backends.append("memory")
+    if storage.enable_redis:
+        enabled_backends.append("redis")
+    if storage.enable_milvus:
+        enabled_backends.append("milvus")
+
+    print(f"\n✅ Using storage with backends: {', '.join(enabled_backends)}")
+    print(f"   Memory size: {storage.memory_size} items")
+    print(f"   Cache TTL: {storage.cache_ttl} seconds")
     print()
 
     return storage
@@ -340,18 +373,19 @@ def main():
         demonstrate_metrics_storage(storage)
         demonstrate_cross_component_consistency(storage)
 
-        print("🎉 Unified Storage Demo Completed Successfully!")
+        print("🎉 Flexible Storage Demo Completed Successfully!")
         print("\n💡 Key Benefits Demonstrated:")
-        print("   • Consistent 3-tier architecture across all components")
-        print("   • Fast memory access with automatic caching")
-        print("   • Vector similarity search for semantic queries")
+        print("   • Flexible backend configuration (memory, Redis, Milvus)")
+        print("   • Graceful degradation when backends unavailable")
+        print("   • Fast memory access with optional caching")
+        print("   • Vector similarity search when Milvus available")
         print("   • Unified configuration and management")
         print("   • Predictable performance characteristics")
         print("   • Easy testing and debugging")
 
     except Exception as e:
         print(f"\n❌ Demo failed: {e}")
-        print("Make sure Redis and Milvus MCP servers are available.")
+        print("Note: Demo will work with memory-only storage even if Redis/Milvus unavailable.")
         import traceback
 
         traceback.print_exc()

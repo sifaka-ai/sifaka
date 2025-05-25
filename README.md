@@ -97,10 +97,9 @@ model = create_model("mock:default")
 
 ### Available Retrievers
 
-- **🧪 MockRetriever**: Returns predefined documents for testing
-- **💭 InMemoryRetriever**: Simple keyword-based retrieval from in-memory documents
+- **🧪 MockRetriever**: Returns predefined documents for testing with optional retry/fallback
+- **💭 InMemoryRetriever**: Simple keyword-based retrieval from in-memory documents with optional retry/fallback
 - **🔄 CachedRetriever**: Wraps any retriever with 3-tier caching (Memory → Redis → Milvus)
-- **🛡️ ResilientRetriever**: Adds error recovery with circuit breakers and fallbacks
 
 ## Installation
 
@@ -449,15 +448,15 @@ print(f"Validation results: {result.validation_results}")
 print(f"Retrieved context documents: {len(result.post_generation_context)}")
 ```
 
-## Redis & 3-Tier Storage Setup
+## Storage Setup (Optional)
 
-Sifaka uses a unified 3-tier storage architecture: **Memory → Redis → Milvus** for optimal performance.
+Sifaka works out of the box with memory storage. For persistence, you can optionally set up Redis and/or Milvus.
 
-### Setting up Redis
+### Setting up Redis (Optional)
 
 1. **Start Redis with Docker**:
    ```bash
-   docker run -d -p 6379:6379 redis:latest
+   docker run -d -p 6379:6379 redis:alpine
    ```
 
 2. **Install Redis MCP Server**:
@@ -465,49 +464,49 @@ Sifaka uses a unified 3-tier storage architecture: **Memory → Redis → Milvus
    npm install -g @modelcontextprotocol/server-redis
    ```
 
+### Setting up Milvus (Optional)
+
+1. **Start Milvus with Docker Compose**:
+   ```bash
+   # Download Milvus docker-compose.yml
+   wget https://github.com/milvus-io/milvus/releases/download/v2.3.3/milvus-standalone-docker-compose.yml -O docker-compose.yml
+
+   # Start Milvus
+   docker-compose up -d
+   ```
+
+2. **Or use Milvus Lite (simpler for development)**:
+   ```bash
+   pip install milvus-lite
+   ```
+
 3. **Install Milvus MCP Server**:
    ```bash
    npm install -g @milvus-io/mcp-server-milvus
    ```
 
-### Using 3-Tier Storage
+### Quick Start with Storage
 
 ```python
-from sifaka.storage import SifakaStorage
-from sifaka.mcp import MCPServerConfig, MCPTransportType
-from sifaka.retrievers import InMemoryRetriever
+from sifaka.storage import MemoryStorage, FileStorage, CachedStorage
+from sifaka.core import Chain
+from sifaka.models import create_model
 
-# Configure storage backends
-redis_config = MCPServerConfig(
-    name="redis-server",
-    transport_type=MCPTransportType.STDIO,
-    url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379"
+# Default: Memory only (no setup required)
+model = create_model("openai:gpt-4")
+chain = Chain(model=model, prompt="Write about AI")
+result = chain.run()
+
+# Add file persistence
+storage = FileStorage("./thoughts.json")
+chain = Chain(model=model, prompt="Write about AI", storage=storage)
+
+# Or layer memory + file for best performance
+layered = CachedStorage(
+    cache=MemoryStorage(),
+    persistence=FileStorage("./thoughts.json")
 )
-
-milvus_config = MCPServerConfig(
-    name="milvus-server",
-    transport_type=MCPTransportType.STDIO,
-    url="npx -y @milvus-io/mcp-server-milvus"
-)
-
-# Create unified storage manager
-storage = SifakaStorage(
-    redis_config=redis_config,
-    milvus_config=milvus_config,
-    memory_size=100,  # L1 cache size
-    cache_ttl=300     # L2 cache TTL (5 minutes)
-)
-
-# Wrap any retriever with 3-tier caching
-base_retriever = InMemoryRetriever()
-cached_retriever = storage.get_retriever_cache(base_retriever)
-
-# Use in chain - automatic L1 → L2 → L3 caching
-chain = Chain(
-    model=model,
-    prompt="Your prompt here",
-    retrievers=[cached_retriever]
-)
+chain = Chain(model=model, storage=layered)
 ```
 
 ### Using Different Retrievers for Models vs Critics
@@ -556,7 +555,7 @@ Sifaka provides robust error recovery mechanisms to handle failures gracefully:
 
 ```python
 from sifaka.models.resilient import ResilientModel
-from sifaka.retrievers.resilient import ResilientRetriever
+from sifaka.retrievers import InMemoryRetriever, MockRetriever
 from sifaka.utils.circuit_breaker import CircuitBreakerConfig
 from sifaka.utils.retry import RetryConfig
 from sifaka.utils.fallback import FallbackConfig
@@ -578,62 +577,113 @@ chain = Chain(model=resilient_model, prompt="Write about AI safety.")
 result = chain.run()  # Automatically handles failures with retries and fallbacks
 ```
 
-## Persistence
+## Storage
 
-Sifaka provides built-in persistence for thoughts and chain state using the unified storage system:
+Sifaka provides a simple, flexible storage system. **By default, everything is stored in memory** with no external dependencies. You can optionally add persistence as needed.
+
+### Default: Memory Storage
 
 ```python
-from sifaka.core.thought import Thought
-from sifaka.storage import SifakaStorage
+from sifaka.core import Chain
+from sifaka.models import create_model
 
-# Create storage manager (same as above)
-storage = SifakaStorage(redis_config=redis_config, milvus_config=milvus_config)
-
-# Get thought storage
-thought_storage = storage.get_thought_storage()
-
-# Save a thought
-thought = Thought(prompt="Write about AI", text="AI is transforming...")
-thought_storage.save_thought(thought)
-
-# Load thoughts with vector search
-similar_thoughts = thought_storage.search_thoughts("artificial intelligence", limit=5)
-print(f"Found {len(similar_thoughts)} similar thoughts")
-
-# Load specific thought
-loaded_thought = thought_storage.load_thought(thought.id)
-print(f"Loaded thought prompt: {loaded_thought.prompt}")
+# Default: Memory storage (no persistence)
+model = create_model("openai:gpt-4")
+chain = Chain(model=model, prompt="Write about AI")
+result = chain.run()  # Thoughts stored in memory only
 ```
 
-The unified storage system provides:
-- **Memory caching**: Fastest access for recent thoughts
-- **Redis caching**: Cross-process shared cache with TTL
-- **Milvus persistence**: Vector search and long-term storage
+### File Persistence
 
-### Simple JSON Persistence
+```python
+from sifaka.storage import FileStorage
 
-For basic use cases, you can also use simple JSON serialization:
+# Simple file persistence
+storage = FileStorage("./my_thoughts.json")
+chain = Chain(model=model, prompt="Write about AI", storage=storage)
+result = chain.run()  # Thoughts saved to file
+```
+
+### Redis Caching
+
+```python
+from sifaka.storage import RedisStorage
+from sifaka.mcp import MCPServerConfig, MCPTransportType
+
+# Redis for cross-process caching
+redis_config = MCPServerConfig(
+    name="redis-server",
+    transport_type=MCPTransportType.STDIO,
+    url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379"
+)
+storage = RedisStorage(redis_config)
+chain = Chain(model=model, storage=storage)
+```
+
+### Milvus Vector Storage
+
+```python
+from sifaka.storage import MilvusStorage
+
+# Milvus for semantic search
+milvus_config = MCPServerConfig(
+    name="milvus-server",
+    transport_type=MCPTransportType.STDIO,
+    url="npx -y @milvus-io/mcp-server-milvus"
+)
+storage = MilvusStorage(milvus_config, collection_name="my_thoughts")
+chain = Chain(model=model, storage=storage)
+
+# Search thoughts semantically
+results = storage.search("artificial intelligence", limit=5)
+```
+
+### Layered Storage
+
+Combine multiple storage backends for optimal performance:
+
+```python
+from sifaka.storage import MemoryStorage, RedisStorage, MilvusStorage, CachedStorage
+
+# Create storage layers
+memory = MemoryStorage()           # L1: Fastest cache
+redis = RedisStorage(redis_config) # L2: Cross-process cache
+milvus = MilvusStorage(milvus_config) # L3: Persistent + search
+
+# Layer them: Memory → Redis → Milvus
+redis_cached = CachedStorage(cache=memory, persistence=redis)
+full_storage = CachedStorage(cache=redis_cached, persistence=milvus)
+
+# Use in chain
+chain = Chain(model=model, storage=full_storage)
+result = chain.run()
+
+# Automatic cache hierarchy:
+# - Writes go to all layers
+# - Reads check Memory → Redis → Milvus
+# - Search uses Milvus (best for semantic search)
+```
+
+### Working with Thoughts
 
 ```python
 from sifaka.core.thought import Thought
-import json
 
-# Create a thought
-thought = Thought(prompt="Write a short story about a robot.")
+# Create and store thoughts manually
+thought = Thought(prompt="What is AI?", text="AI is artificial intelligence...")
+thought_key = f"thought_{thought.chain_id}_{thought.iteration}"
 
-# Serialize to JSON
-thought_json = thought.model_dump_json()
+# Store in any storage backend
+storage.set(thought_key, thought.model_dump())
 
-# Save to file
-with open("thought.json", "w") as f:
-    f.write(thought_json)
+# Retrieve and reconstruct
+stored_data = storage.get(thought_key)
+if stored_data:
+    retrieved_thought = Thought.model_validate(stored_data)
+    print(f"Retrieved: {retrieved_thought.prompt}")
 
-# Load from JSON
-with open("thought.json", "r") as f:
-    loaded_json = f.read()
-    loaded_thought = Thought.model_validate_json(loaded_json)
-
-print(f"Loaded thought prompt: {loaded_thought.prompt}")
+# Search across thoughts (works best with Milvus)
+results = storage.search("machine learning", limit=10)
 ```
 
 ## Documentation

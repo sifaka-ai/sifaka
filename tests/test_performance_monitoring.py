@@ -32,7 +32,9 @@ class TestPerformanceMonitoring:
         validator = LengthValidator(min_length=10, max_length=500)
 
         chain = Chain(
-            model=model, prompt="Test prompt for performance monitoring", retrievers=[retriever]
+            model=model,
+            prompt="Test prompt for performance monitoring",
+            model_retrievers=[retriever],
         )
         chain.validate_with(validator)
 
@@ -113,7 +115,9 @@ class TestPerformanceMonitoring:
         critic = ReflexionCritic(model_name="mock:critic")
 
         chain = Chain(
-            model=model, prompt="Test prompt that will fail validation", retrievers=[retriever]
+            model=model,
+            prompt="Test prompt that will fail validation",
+            model_retrievers=[retriever],
         )
         chain.validate_with(validator)
         chain.improve_with(critic)

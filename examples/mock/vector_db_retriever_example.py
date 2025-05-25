@@ -126,7 +126,7 @@ def main() -> None:
     chain = Chain(
         model=model,
         prompt=prompt,
-        retrievers=[vector_retriever],  # Use vector database retriever
+        model_retrievers=[vector_retriever],  # Use vector database retriever for model context
         max_improvement_iterations=2,
         apply_improvers_on_validation_failure=True,
     )
