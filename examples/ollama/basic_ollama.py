@@ -16,7 +16,7 @@ import logging
 import os
 from typing import Optional
 
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.core.thought import Thought
 from sifaka.models.base import create_model
 from sifaka.utils.logging import configure_logging
@@ -35,7 +35,7 @@ def test_ollama_model_direct():
         prompt = "Write a very short story about a robot in exactly 2 sentences."
         print(f"Prompt: {prompt}")
 
-        response = model.generate(prompt, temperature=0.7, max_tokens=100)
+        response = model.generate(prompt, temperature=0.7, max_tokens=300)
         print(f"Response: {response}")
 
         # Test token counting
@@ -65,7 +65,7 @@ def test_ollama_with_thought():
 
         # Generate with thought
         response, actual_prompt = model.generate_with_thought(
-            thought, temperature=0.7, max_tokens=100
+            thought, temperature=0.7, max_tokens=300
         )
         print(f"Generated text: {response}")
         print(f"Actual prompt used: {actual_prompt[:100]}...")

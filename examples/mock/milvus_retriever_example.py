@@ -26,7 +26,7 @@ The example demonstrates:
 
 from typing import Dict
 
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.models.base import create_model
 from sifaka.validators.base import LengthValidator
 from sifaka.critics import ReflexionCritic

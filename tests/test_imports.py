@@ -38,7 +38,7 @@ def test_utils_imports():
 
 def test_chain_import():
     """Test that the main Chain class can be imported."""
-    from sifaka.chain import Chain  # noqa: F401
+    from sifaka.core.chain import Chain  # noqa: F401
 
 
 def test_models_imports():
@@ -65,7 +65,7 @@ def test_retrievers_imports():
 def test_all_imports_integration():
     """Integration test that imports all major components together."""
     # Import all major components in one test to catch interaction issues
-    from sifaka.chain import Chain
+    from sifaka.core.chain import Chain
     from sifaka.core.thought import Thought
     from sifaka.models.base import create_model
     from sifaka.validators.base import LengthValidator
@@ -79,7 +79,7 @@ def test_all_imports_integration():
     retriever = MockRetriever()
 
     # Verify we can create a chain
-    chain = Chain(model=model, prompt="Test prompt", retrievers=[retriever])
+    chain = Chain(model=model, prompt="Test prompt", model_retrievers=[retriever])
 
     # Verify chain configuration
     chain.validate_with(validator)

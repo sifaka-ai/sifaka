@@ -12,11 +12,11 @@ def test_multi_retriever_fact_checking():
     print("Testing multi-retriever fact-checking scenario...")
 
     try:
-        from sifaka.chain import Chain
+        from sifaka.core.chain import Chain
         from sifaka.models.base import create_model
         from sifaka.critics.reflexion import ReflexionCritic
         from sifaka.validators.base import LengthValidator
-        from sifaka.retrievers.base import MockRetriever  # Use MockRetriever instead of specialized
+        from sifaka.retrievers import MockRetriever  # Use MockRetriever instead of specialized
 
         print("✅ All imports successful")
 
@@ -34,11 +34,12 @@ def test_multi_retriever_fact_checking():
         )  # Mock response will be too short
         print("✅ Model, critic, and validator created")
 
-        # Create Chain with retrievers
+        # Create Chain with model and critic retrievers
         chain = Chain(
             model=model,
             prompt="Write a news summary about recent AI developments and their implications.",
-            retrievers=[twitter_retriever],  # Use twitter retriever for context
+            model_retrievers=[twitter_retriever],  # Recent context for model
+            critic_retrievers=[factual_retriever],  # Authoritative context for critics
             apply_improvers_on_validation_failure=True,  # Enable critic improvement on validation failure
         )
 
@@ -84,10 +85,10 @@ def test_fallback_retriever():
     print("\nTesting fallback retriever behavior...")
 
     try:
-        from sifaka.chain import Chain
+        from sifaka.core.chain import Chain
         from sifaka.models.base import create_model
         from sifaka.critics.reflexion import ReflexionCritic
-        from sifaka.retrievers.base import MockRetriever
+        from sifaka.retrievers import MockRetriever
 
         # Create a default retriever
         default_retriever = MockRetriever()
@@ -96,11 +97,12 @@ def test_fallback_retriever():
         model = create_model("mock:default")
         critic = ReflexionCritic(model=model)
 
-        # Create Chain with only default retriever (should fallback for all stages)
+        # Create Chain with same retriever for both model and critics
         chain = Chain(
             model=model,
             prompt="Write about AI developments.",
-            retrievers=[default_retriever],  # Only default retriever provided
+            model_retrievers=[default_retriever],  # Use for model context
+            critic_retrievers=[default_retriever],  # Use for critic context
         )
 
         chain.improve_with(critic)
@@ -131,7 +133,7 @@ def test_no_retriever():
     print("\nTesting Chain with no retrievers...")
 
     try:
-        from sifaka.chain import Chain
+        from sifaka.core.chain import Chain
         from sifaka.models.base import create_model
         from sifaka.critics.reflexion import ReflexionCritic
 

@@ -5,16 +5,192 @@ persistence with a unified memory → cache → persistence pattern that include
 vector search capabilities.
 """
 
+from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, Field
 
 from sifaka.core.thought import Thought
-from sifaka.persistence.base import ThoughtStorage, ThoughtQuery, ThoughtQueryResult
 from sifaka.utils.logging import get_logger
 
 from .base import CachedStorage, StorageError
 
 logger = get_logger(__name__)
+
+
+class ThoughtQuery(BaseModel):
+    """Query parameters for searching thoughts.
+
+    This class defines the parameters that can be used to query
+    stored thoughts, including filters, sorting, and pagination.
+    """
+
+    # ID filters
+    thought_ids: Optional[List[str]] = None
+    chain_ids: Optional[List[str]] = None
+    parent_ids: Optional[List[str]] = None
+
+    # Content filters
+    prompts: Optional[List[str]] = None
+    text_contains: Optional[str] = None
+
+    # Iteration filters
+    min_iteration: Optional[int] = None
+    max_iteration: Optional[int] = None
+
+    # Date filters
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+
+    # Feature filters
+    has_validation_results: Optional[bool] = None
+    has_critic_feedback: Optional[bool] = None
+    has_context: Optional[bool] = None
+
+    # Pagination and sorting
+    limit: Optional[int] = Field(default=100, ge=1, le=10000)
+    offset: Optional[int] = Field(default=0, ge=0)
+    sort_by: Optional[str] = Field(default="timestamp")
+    sort_order: Optional[str] = Field(default="desc", pattern="^(asc|desc)$")
+
+
+class ThoughtQueryResult(BaseModel):
+    """Result of a thought query operation.
+
+    This class contains the results of querying thoughts,
+    including the matching thoughts and metadata about the query.
+    """
+
+    thoughts: List[Thought]
+    total_count: int
+    query: ThoughtQuery
+    execution_time_ms: float
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ThoughtStorage(ABC):
+    """Abstract base class for thought storage backends.
+
+    This class defines the interface that all thought storage backends
+    must implement. It provides methods for storing, retrieving, and
+    querying thoughts.
+    """
+
+    @abstractmethod
+    def save_thought(self, thought: Thought) -> None:
+        """Save a thought to storage.
+
+        Args:
+            thought: The thought to save
+
+        Raises:
+            StorageError: If the save operation fails
+        """
+        pass
+
+    @abstractmethod
+    def get_thought(self, thought_id: str) -> Optional[Thought]:
+        """Retrieve a thought by ID.
+
+        Args:
+            thought_id: The ID of the thought to retrieve
+
+        Returns:
+            The thought if found, None otherwise
+
+        Raises:
+            StorageError: If the retrieval operation fails
+        """
+        pass
+
+    @abstractmethod
+    def delete_thought(self, thought_id: str) -> bool:
+        """Delete a thought from storage.
+
+        Args:
+            thought_id: The ID of the thought to delete
+
+        Returns:
+            True if the thought was deleted, False if it didn't exist
+
+        Raises:
+            StorageError: If the delete operation fails
+        """
+        pass
+
+    @abstractmethod
+    def query_thoughts(self, query: Optional[ThoughtQuery] = None) -> ThoughtQueryResult:
+        """Query thoughts based on criteria.
+
+        Args:
+            query: Query parameters, or None for all thoughts
+
+        Returns:
+            Query result containing matching thoughts and metadata
+
+        Raises:
+            StorageError: If the query operation fails
+        """
+        pass
+
+    @abstractmethod
+    def get_thought_history(self, thought_id: str) -> List[Thought]:
+        """Get the complete history of a thought.
+
+        Args:
+            thought_id: The ID of the thought
+
+        Returns:
+            List of thoughts in the history chain, ordered by iteration
+
+        Raises:
+            StorageError: If the operation fails
+        """
+        pass
+
+    @abstractmethod
+    def get_chain_thoughts(self, chain_id: str) -> List[Thought]:
+        """Get all thoughts in a chain.
+
+        Args:
+            chain_id: The ID of the chain
+
+        Returns:
+            List of thoughts in the chain, ordered by timestamp
+
+        Raises:
+            StorageError: If the operation fails
+        """
+        pass
+
+    @abstractmethod
+    def count_thoughts(self, query: Optional[ThoughtQuery] = None) -> int:
+        """Count thoughts matching query criteria.
+
+        Args:
+            query: Query parameters, or None for all thoughts
+
+        Returns:
+            Number of thoughts matching the criteria
+
+        Raises:
+            StorageError: If the count operation fails
+        """
+        pass
+
+    @abstractmethod
+    def health_check(self) -> Dict[str, Any]:
+        """Check the health of the storage backend.
+
+        Returns:
+            Dictionary containing health status and metrics
+
+        Raises:
+            StorageError: If the health check fails
+        """
+        pass
 
 
 class CachedThoughtStorage(ThoughtStorage):
@@ -169,18 +345,15 @@ class CachedThoughtStorage(ThoughtStorage):
             if query is None:
                 query = ThoughtQuery(limit=10)
 
-            # Use semantic search if query text is provided
-            if query.text_contains:
-                thoughts = self.find_similar_thoughts_by_text(
-                    query.text_contains, query.limit or 10
-                )
-            else:
-                # For now, return recent thoughts from memory
-                # In a full implementation, this would query persistence layer
-                thoughts = self._get_recent_thoughts(query.limit or 10)
+            # Get all thoughts from memory storage first
+            all_thoughts = self._get_all_thoughts()
 
-            # Apply filters
-            filtered_thoughts = self._apply_filters(thoughts, query)
+            # Apply text filter if provided
+            if query.text_contains:
+                all_thoughts = self._filter_by_text(all_thoughts, query.text_contains)
+
+            # Apply other filters
+            filtered_thoughts = self._apply_filters(all_thoughts, query)
 
             # Sort results
             if query.sort_by:
@@ -275,16 +448,16 @@ class CachedThoughtStorage(ThoughtStorage):
         Returns:
             List of thoughts for the chain, sorted by iteration.
         """
-        # This would ideally use a more efficient query on the persistence layer
-        # For now, we'll use a text search approach
-        query_text = f"chain_id:{chain_id}"
-        thoughts = self.find_similar_thoughts_by_text(query_text, limit=100)
+        # Get all thoughts from memory storage and filter by chain_id
+        thoughts = []
+        for key, value in self.storage.memory.data.items():
+            if key.startswith("thought:") and isinstance(value, Thought):
+                if value.chain_id == chain_id:
+                    thoughts.append(value)
 
-        # Filter and sort by chain_id and iteration
-        chain_thoughts = [t for t in thoughts if t.chain_id == chain_id]
-        chain_thoughts.sort(key=lambda t: t.iteration)
-
-        return chain_thoughts
+        # Sort by iteration
+        thoughts.sort(key=lambda t: t.iteration)
+        return thoughts
 
     def count_thoughts(self, query: Optional[ThoughtQuery] = None) -> int:
         """Count thoughts matching query criteria.
@@ -323,9 +496,13 @@ class CachedThoughtStorage(ThoughtStorage):
             # Get storage stats
             stats = self.get_stats()
 
+            # Count total thoughts
+            total_thoughts = stats.get("thought_count_in_memory", 0)
+
             return {
                 "status": "healthy" if retrieved is not None else "degraded",
                 "test_passed": retrieved is not None,
+                "total_thoughts": total_thoughts,
                 "storage_stats": stats,
                 "timestamp": datetime.now().isoformat(),
             }
@@ -349,6 +526,30 @@ class CachedThoughtStorage(ThoughtStorage):
         # Sort by timestamp (most recent first)
         thoughts.sort(key=lambda t: t.timestamp, reverse=True)
         return thoughts[:limit]
+
+    def _get_all_thoughts(self) -> List[Thought]:
+        """Get all thoughts from memory storage."""
+        thoughts = []
+        for key, value in self.storage.memory.data.items():
+            if key.startswith("thought:") and isinstance(value, Thought):
+                thoughts.append(value)
+        return thoughts
+
+    def _filter_by_text(self, thoughts: List[Thought], text_contains: str) -> List[Thought]:
+        """Filter thoughts by text content."""
+        filtered = []
+        text_lower = text_contains.lower()
+
+        for thought in thoughts:
+            # Check prompt, text, and system_prompt
+            if (
+                (thought.prompt and text_lower in thought.prompt.lower())
+                or (thought.text and text_lower in thought.text.lower())
+                or (thought.system_prompt and text_lower in thought.system_prompt.lower())
+            ):
+                filtered.append(thought)
+
+        return filtered
 
     def _apply_filters(self, thoughts: List[Thought], query: ThoughtQuery) -> List[Thought]:
         """Apply query filters to thoughts."""

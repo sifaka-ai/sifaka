@@ -31,7 +31,7 @@ from typing import List
 
 # Core components available for import but not imported at package level
 # to avoid circular import issues. Import them directly:
-# from sifaka.chain import Chain
+# from sifaka.core.chain import Chain
 # from sifaka.core.thought import Thought
 # from sifaka.core.interfaces import Model, Validator, Critic
 

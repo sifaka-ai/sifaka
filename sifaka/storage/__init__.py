@@ -61,7 +61,7 @@ from .base import (
 from .manager import SifakaStorage
 from .protocols import Retriever
 
-from .thoughts import CachedThoughtStorage
+from .thoughts import CachedThoughtStorage, ThoughtStorage, ThoughtQuery, ThoughtQueryResult
 from .checkpoints import CachedCheckpointStorage, ChainCheckpoint
 from .retrievers import CachedRetriever
 from .metrics import CachedMetricsStorage
@@ -79,6 +79,9 @@ __all__ = [
     "Retriever",
     # Component-specific storage
     "CachedThoughtStorage",
+    "ThoughtStorage",
+    "ThoughtQuery",
+    "ThoughtQueryResult",
     "CachedCheckpointStorage",
     "ChainCheckpoint",
     "CachedRetriever",

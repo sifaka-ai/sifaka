@@ -23,7 +23,7 @@ from sifaka.validators.base import LengthValidator
 from sifaka.validators.content import ContentValidator
 from sifaka.validators.classifier import ClassifierValidator
 from sifaka.critics.self_refine import SelfRefineCritic
-from sifaka.retrievers.base import InMemoryRetriever
+from sifaka.retrievers import InMemoryRetriever
 from sifaka.models.base import create_model
 
 

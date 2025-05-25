@@ -346,24 +346,240 @@ chain = Chain(
 result = chain.run("Write about renewable energy")
 ```
 
-### Persistence Example
+### Storage Example
 
 ```python
-from sifaka.persistence.json import JSONPersistence
+from sifaka.storage import SifakaStorage
+from sifaka.mcp import MCPServerConfig, MCPTransportType
 
-# Set up persistence
-persistence = JSONPersistence(file_path="thought_history.json")
+# Configure unified storage
+redis_config = MCPServerConfig(
+    name="redis-server",
+    transport_type=MCPTransportType.STDIO,
+    url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379"
+)
+
+milvus_config = MCPServerConfig(
+    name="milvus-server",
+    transport_type=MCPTransportType.STDIO,
+    url="npx -y @milvus-io/mcp-server-milvus"
+)
+
+# Create storage manager
+storage = SifakaStorage(redis_config, milvus_config)
+thought_storage = storage.get_thought_storage()
 
 # Run chain and save results
 result = chain.run("Explain blockchain technology")
-persistence.save_thought(result)
+thought_storage.save_thought(result)
 
-# Load previous thoughts
-previous_thoughts = persistence.load_thoughts()
-print(f"Loaded {len(previous_thoughts)} previous thoughts")
+# Find similar thoughts using vector search
+similar_thoughts = thought_storage.find_similar_thoughts_by_text("blockchain", limit=5)
+print(f"Found {len(similar_thoughts)} similar thoughts")
 ```
 
-**Run persistence example**: `python examples/mock/persistence_example.py`
+**Run storage example**: `python examples/mock/storage_example.py`
+
+## Performance Monitoring Examples
+
+### Basic Performance Monitoring
+
+```python
+from sifaka.core.chain import Chain
+from sifaka.models.base import create_model
+from sifaka.validators.base import LengthValidator
+from sifaka.critics.reflexion import ReflexionCritic
+
+# Create chain with performance monitoring
+model = create_model("openai:gpt-4", api_key="your-api-key")
+validator = LengthValidator(min_length=50, max_length=500)
+critic = ReflexionCritic(model=model)
+
+chain = Chain(
+    model=model,
+    prompt="Write about the future of AI in healthcare."
+)
+chain.validate_with(validator)
+chain.improve_with(critic)
+
+# Clear previous performance data
+chain.clear_performance_data()
+
+# Run with automatic performance monitoring
+result = chain.run()
+
+# Get performance summary
+performance = chain.get_performance_summary()
+print(f"Total execution time: {performance['total_time']:.2f}s")
+print(f"Number of operations: {performance['total_operations']}")
+
+# Identify bottlenecks
+bottlenecks = chain.get_performance_bottlenecks()
+for bottleneck in bottlenecks:
+    print(f"Bottleneck: {bottleneck}")
+
+# Export performance data
+import json
+with open("performance_report.json", "w") as f:
+    json.dump(performance, f, indent=2)
+```
+
+### Custom Performance Monitoring
+
+```python
+from sifaka.utils.performance import timer, time_operation, PerformanceMonitor
+
+# Use timer decorator
+@timer("custom_operation")
+def my_custom_function():
+    # Your code here
+    time.sleep(0.1)  # Simulate work
+    return "result"
+
+# Use context manager
+with time_operation("database_query"):
+    # Simulate database operation
+    time.sleep(0.05)
+
+# Get performance stats
+monitor = PerformanceMonitor.get_instance()
+stats = monitor.get_stats()
+summary = monitor.get_summary()
+
+print(f"Custom operation avg time: {stats['custom_operation']['avg_time']:.3f}s")
+print(f"Database query avg time: {stats['database_query']['avg_time']:.3f}s")
+```
+
+**Run performance example**: `python examples/performance/performance_demo.py`
+
+## Error Recovery Examples
+
+### Circuit Breaker Pattern
+
+```python
+from sifaka.utils.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+
+# Configure circuit breaker
+config = CircuitBreakerConfig(
+    failure_threshold=3,
+    recovery_timeout=30.0,
+    expected_exception=ConnectionError
+)
+
+breaker = CircuitBreaker("external-service", config)
+
+# Use as decorator
+@breaker.protect
+def call_external_api():
+    # Simulate API call that might fail
+    import random
+    if random.random() < 0.3:  # 30% failure rate
+        raise ConnectionError("Service unavailable")
+    return "API response"
+
+# Test circuit breaker
+for i in range(10):
+    try:
+        result = call_external_api()
+        print(f"Call {i+1}: {result}")
+    except Exception as e:
+        print(f"Call {i+1}: Failed - {e}")
+```
+
+### Retry with Backoff
+
+```python
+from sifaka.utils.retry import RetryConfig, retry_with_backoff, BackoffStrategy
+
+# Configure retry behavior
+config = RetryConfig(
+    max_attempts=3,
+    base_delay=1.0,
+    max_delay=30.0,
+    backoff_strategy=BackoffStrategy.EXPONENTIAL,
+    jitter=True
+)
+
+@retry_with_backoff(config)
+def unreliable_function():
+    import random
+    if random.random() < 0.7:  # 70% failure rate
+        raise ConnectionError("Temporary failure")
+    return "Success!"
+
+# Test retry mechanism
+try:
+    result = unreliable_function()
+    print(f"Result: {result}")
+except Exception as e:
+    print(f"Failed after retries: {e}")
+```
+
+### Resilient Model with Fallbacks
+
+```python
+from sifaka.models.resilient import ResilientModel
+from sifaka.models.base import create_model
+from sifaka.utils.circuit_breaker import CircuitBreakerConfig
+from sifaka.utils.retry import RetryConfig
+from sifaka.utils.fallback import FallbackConfig
+
+# Create primary and fallback models
+primary_model = create_model("openai:gpt-4", api_key="your-openai-key")
+fallback_model = create_model("anthropic:claude-3-sonnet", api_key="your-anthropic-key")
+
+# Create resilient model
+resilient_model = ResilientModel(
+    primary_model=primary_model,
+    fallback_models=[fallback_model],
+    circuit_breaker_config=CircuitBreakerConfig(failure_threshold=3),
+    retry_config=RetryConfig(max_attempts=3, backoff_factor=2.0),
+    fallback_config=FallbackConfig(max_fallbacks=2)
+)
+
+# Use in chain - automatic error recovery
+chain = Chain(
+    model=resilient_model,
+    prompt="Write about AI safety and alignment."
+)
+
+# Run with automatic fallback on failures
+result = chain.run()
+print(f"Generated text: {result.text}")
+print(f"Model used: {result.model_name}")  # Shows which model was actually used
+```
+
+### Resilient Retriever
+
+```python
+from sifaka.retrievers.resilient import ResilientRetriever
+from sifaka.retrievers.simple import InMemoryRetriever, MockRetriever
+
+# Create primary and fallback retrievers
+primary_retriever = InMemoryRetriever()
+primary_retriever.add_document("doc1", "Primary knowledge base content...")
+
+fallback_retriever = MockRetriever()
+
+# Create resilient retriever
+resilient_retriever = ResilientRetriever(
+    primary_retriever=primary_retriever,
+    fallback_retrievers=[fallback_retriever],
+    circuit_breaker_config=CircuitBreakerConfig(failure_threshold=2),
+    retry_config=RetryConfig(max_attempts=2)
+)
+
+# Use in chain
+chain = Chain(
+    model=model,
+    prompt="Explain machine learning concepts.",
+    retrievers=[resilient_retriever]
+)
+
+result = chain.run()
+```
+
+**Run error recovery example**: `python examples/error_recovery/enhanced_error_recovery_example.py`
 
 ## Testing Examples
 
@@ -372,11 +588,11 @@ print(f"Loaded {len(previous_thoughts)} previous thoughts")
 ```python
 def test_length_validator():
     validator = LengthValidator(min_length=10, max_length=100)
-    
+
     # Test valid text
     result = validator.validate("This is a valid length text.")
     assert result.passed
-    
+
     # Test too short
     result = validator.validate("Short")
     assert not result.passed
@@ -394,7 +610,7 @@ def test_basic_chain():
         validators=[LengthValidator(min_length=10)],
         critics=[]
     )
-    
+
     result = chain.run("Test prompt")
     assert result.text is not None
     assert result.iteration >= 0
@@ -450,7 +666,14 @@ All examples are located in the `examples/` directory:
 python examples/mock/basic_chain.py
 python examples/mock/critics_example.py
 python examples/mock/validators_example.py
-python examples/mock/persistence_example.py
+python examples/mock/storage_example.py
+
+# Performance monitoring examples
+python examples/performance/performance_demo.py
+python examples/performance/pii_detection_demo.py  # Requires OpenAI + Guardrails API keys
+
+# Error recovery examples
+python examples/error_recovery/enhanced_error_recovery_example.py
 
 # Advanced examples (require API keys)
 python examples/openai/always_apply_critics_example.py
@@ -462,6 +685,10 @@ python examples/mixed/advanced_chain_example.py
 1. **Start Simple**: Begin with mock models and basic validators
 2. **Iterate Gradually**: Add complexity step by step
 3. **Test Components**: Test validators and critics independently
-4. **Monitor Performance**: Track iterations and validation success rates
-5. **Use Appropriate Models**: Match model capabilities to task complexity
-6. **Configure Thoughtfully**: Set reasonable iteration limits and thresholds
+4. **Monitor Performance**: Use performance monitoring to identify bottlenecks
+5. **Plan for Failures**: Use resilient wrappers for production deployments
+6. **Use Appropriate Models**: Match model capabilities to task complexity
+7. **Configure Thoughtfully**: Set reasonable iteration limits and thresholds
+8. **Enable Error Recovery**: Use circuit breakers and retry mechanisms for external services
+9. **Track Metrics**: Export performance data for analysis and optimization
+10. **Implement Fallbacks**: Always have backup models and retrievers for critical applications

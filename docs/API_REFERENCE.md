@@ -37,32 +37,44 @@ The main orchestrator that coordinates models, validators, and critics.
 
 ```python
 from sifaka.core.chain import Chain
-from sifaka.models.mock import MockModel
-from sifaka.validators.length import LengthValidator
+from sifaka.models.base import create_model
+from sifaka.validators.base import LengthValidator
 from sifaka.critics.reflexion import ReflexionCritic
 
 # Create chain components
-model = MockModel()
-validators = [LengthValidator(min_length=50)]
-critics = [ReflexionCritic()]
+model = create_model("mock:default")
+validator = LengthValidator(min_length=50)
+critic = ReflexionCritic(model=model)
 
 # Create and configure chain
 chain = Chain(
     model=model,
-    validators=validators,
-    critics=critics,
-    max_iterations=3
+    prompt="Write about AI",
+    model_retrievers=[model_retriever],    # Optional: retrievers for model context
+    critic_retrievers=[critic_retriever],  # Optional: retrievers for critic context
+    max_improvement_iterations=3
 )
+chain.validate_with(validator)
+chain.improve_with(critic)
+
+# Or using fluent API
+chain = Chain(model=model, prompt="Write about AI") \
+    .with_model_retrievers([model_retriever]) \
+    .with_critic_retrievers([critic_retriever]) \
+    .validate_with(validator) \
+    .improve_with(critic)
 
 # Run the chain
-result = chain.run("Write about AI")
+result = chain.run()
 ```
 
 #### Configuration Options
 
-- `max_iterations` - Maximum number of iterations (default: 3)
+- `max_improvement_iterations` - Maximum number of improvement iterations (default: 3)
 - `always_apply_critics` - Apply critics even when validation passes (default: False)
-- `retriever` - Optional retriever for context
+- `apply_improvers_on_validation_failure` - Apply critics when validation fails (default: False)
+- `model_retrievers` - Optional list of retrievers for model context (pre-generation)
+- `critic_retrievers` - Optional list of retrievers for critic context (post-generation)
 
 ## Models
 
@@ -81,29 +93,25 @@ class CustomModel(Model):
 
 #### MockModel
 ```python
-from sifaka.models.mock import MockModel
+from sifaka.models.base import create_model
 
-model = MockModel(name="test-model")
+model = create_model("mock:default")
 ```
 
 #### OpenAI Models
 ```python
-from sifaka.models.openai import OpenAIModel
+from sifaka.models.base import create_model
 
-model = OpenAIModel(
-    model_name="gpt-4",
-    api_key="your-api-key"  # or set OPENAI_API_KEY env var
-)
+model = create_model("openai:gpt-4")
+# API key from OPENAI_API_KEY environment variable
 ```
 
 #### Anthropic Models
 ```python
-from sifaka.models.anthropic import AnthropicModel
+from sifaka.models.base import create_model
 
-model = AnthropicModel(
-    model_name="claude-3-sonnet-20240229",
-    api_key="your-api-key"  # or set ANTHROPIC_API_KEY env var
-)
+model = create_model("anthropic:claude-3-sonnet")
+# API key from ANTHROPIC_API_KEY environment variable
 ```
 
 ## Validators
@@ -123,12 +131,11 @@ class CustomValidator(Validator):
 
 #### Length Validator
 ```python
-from sifaka.validators.length import LengthValidator
+from sifaka.validators.base import LengthValidator
 
 validator = LengthValidator(
     min_length=10,
-    max_length=1000,
-    name="LengthCheck"
+    max_length=1000
 )
 ```
 
@@ -138,28 +145,25 @@ from sifaka.validators.content import ContentValidator
 
 validator = ContentValidator(
     required_phrases=["machine learning"],
-    prohibited_phrases=["spam"],
-    name="ContentCheck"
+    prohibited_phrases=["spam"]
 )
 ```
 
 #### Regex Validator
 ```python
-from sifaka.validators.regex import RegexValidator
+from sifaka.validators.base import RegexValidator
 
 validator = RegexValidator(
-    pattern=r"machine learning|ML",
-    name="MLMentionCheck"
+    pattern=r"machine learning|ML"
 )
 ```
 
 #### Format Validators
 ```python
-from sifaka.validators.format import JSONValidator, MarkdownValidator, EmailValidator
+from sifaka.validators.format import FormatValidator
 
-json_validator = JSONValidator()
-markdown_validator = MarkdownValidator()
-email_validator = EmailValidator()
+json_validator = FormatValidator(format_type="json")
+markdown_validator = FormatValidator(format_type="markdown")
 ```
 
 #### Classifier Validators
@@ -180,8 +184,8 @@ validator = ClassifierValidator(
 from sifaka.validators.guardrails import GuardrailsValidator
 
 validator = GuardrailsValidator(
-    guard_name="pii_detection",
-    api_key="your-api-key"  # or set GUARDRAILS_API_KEY env var
+    guard_name="pii_detection"
+    # API key from GUARDRAILS_API_KEY environment variable
 )
 ```
 
@@ -254,7 +258,7 @@ class CustomRetriever(Retriever):
     def retrieve(self, query: str) -> List[str]:
         # Return list of document texts
         pass
-    
+
     def retrieve_for_thought(self, thought: Thought, is_pre_generation: bool = True) -> Thought:
         # Return thought with added context
         pass
@@ -264,32 +268,32 @@ class CustomRetriever(Retriever):
 
 #### Mock Retriever
 ```python
-from sifaka.retrievers.mock import MockRetriever
+from sifaka.retrievers import MockRetriever
 
-retriever = MockRetriever(max_results=3)
+retriever = MockRetriever()
 ```
 
-#### Redis Retriever
+#### In-Memory Retriever
 ```python
-from sifaka.retrievers.redis import RedisRetriever
+from sifaka.retrievers import InMemoryRetriever
 
-retriever = RedisRetriever(
-    host="localhost",
-    port=6379,
-    db=0,
-    max_results=5
-)
+retriever = InMemoryRetriever()
+# Add documents
+retriever.add_document("doc1", "This is about AI")
+retriever.add_document("doc2", "This is about ML")
 ```
 
-#### Milvus Retriever
+#### Cached Retriever (3-Tier Storage)
 ```python
-from sifaka.retrievers.milvus import MilvusRetriever
+from sifaka.storage import SifakaStorage
+from sifaka.retrievers import InMemoryRetriever
 
-retriever = MilvusRetriever(
-    collection_name="documents",
-    embedding_model="BAAI/bge-m3",
-    max_results=3
-)
+# Create storage manager
+storage = SifakaStorage(redis_config=redis_config, milvus_config=milvus_config)
+
+# Wrap any retriever with caching
+base_retriever = InMemoryRetriever()
+cached_retriever = storage.get_retriever_cache(base_retriever)
 ```
 
 ## Classifiers
@@ -358,24 +362,145 @@ with error_context(
     pass
 ```
 
+## Error Recovery
+
+### Circuit Breaker
+
+```python
+from sifaka.utils.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+
+# Configure circuit breaker
+config = CircuitBreakerConfig(
+    failure_threshold=5,
+    recovery_timeout=30.0,
+    expected_exception=ConnectionError
+)
+
+breaker = CircuitBreaker("redis-service", config)
+
+# Use as decorator
+@breaker.protect
+def call_external_service():
+    # Your service call here
+    pass
+
+# Use as context manager
+with breaker:
+    # Your service call here
+    pass
+```
+
+### Retry Manager
+
+```python
+from sifaka.utils.retry import RetryConfig, retry_with_backoff, BackoffStrategy
+
+# Configure retry behavior
+config = RetryConfig(
+    max_attempts=3,
+    base_delay=1.0,
+    max_delay=30.0,
+    backoff_strategy=BackoffStrategy.EXPONENTIAL,
+    jitter=True
+)
+
+# Use as decorator
+@retry_with_backoff(config)
+def unreliable_function():
+    # Your code here
+    pass
+```
+
+### Resilient Wrappers
+
+```python
+from sifaka.models.resilient import ResilientModel
+from sifaka.retrievers.resilient import ResilientRetriever
+
+# Create resilient model
+resilient_model = ResilientModel(
+    primary_model=primary_model,
+    fallback_models=[fallback_model],
+    circuit_breaker_config=CircuitBreakerConfig(failure_threshold=3),
+    retry_config=RetryConfig(max_attempts=3)
+)
+
+# Create resilient retriever
+resilient_retriever = ResilientRetriever(
+    primary_retriever=primary_retriever,
+    fallback_retrievers=[fallback_retriever]
+)
+```
+
+## Performance Monitoring
+
+### Performance Monitor
+
+```python
+from sifaka.utils.performance import PerformanceMonitor, timer, time_operation
+
+# Get singleton instance
+monitor = PerformanceMonitor.get_instance()
+
+# Use timer decorator
+@timer("my_operation")
+def my_function():
+    # Your code here
+    pass
+
+# Use context manager
+with time_operation("database_query"):
+    # Your database operation
+    pass
+
+# Get performance stats
+stats = monitor.get_stats()
+summary = monitor.get_summary()
+
+# Clear performance data
+monitor.clear()
+```
+
+### Chain Performance Methods
+
+```python
+from sifaka.chain import Chain
+from sifaka.utils.performance import PerformanceMonitor
+
+# Create and run chain
+chain = Chain(model=model, prompt="Test prompt")
+result = chain.run()
+
+# Get performance data from monitor
+monitor = PerformanceMonitor.get_instance()
+stats = monitor.get_stats()
+summary = monitor.get_summary()
+
+print(f"Performance summary: {summary}")
+
+# Clear performance data
+monitor.clear()
+```
+
 ## Configuration
 
 ### Environment Variables
 
 - `OPENAI_API_KEY` - OpenAI API key
-- `ANTHROPIC_API_KEY` - Anthropic API key  
+- `ANTHROPIC_API_KEY` - Anthropic API key
 - `GUARDRAILS_API_KEY` - GuardrailsAI API key
 - `REDIS_URL` - Redis connection URL
 
 ### Installation
 
 ```bash
-# Basic installation
-pip install sifaka
+# Install from source (development)
+git clone https://github.com/sifaka-ai/sifaka.git
+cd sifaka
+pip install -e .
 
-# With specific extras
-pip install sifaka[models]           # OpenAI/Anthropic models
-pip install sifaka[retrievers]       # Vector database retrievers
-pip install sifaka[classifiers]      # ML classifiers
-pip install sifaka[all]             # Everything
+# Install dependencies for specific features
+pip install openai anthropic         # For OpenAI/Anthropic models
+pip install redis                    # For Redis caching
+pip install guardrails-ai            # For GuardrailsAI validation
 ```

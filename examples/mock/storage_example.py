@@ -1,42 +1,48 @@
 #!/usr/bin/env python3
 """
-Example demonstrating Sifaka's JSON persistence capabilities.
+Example demonstrating Sifaka's unified storage capabilities.
 
 This example shows how to:
-1. Create and configure JSON storage
+1. Create and configure unified storage (Memory → Redis → Milvus)
 2. Save thoughts with context, validation results, and critic feedback
-3. Query thoughts with various filters
+3. Query thoughts with various filters and semantic search
 4. Work with thought history and iterations
-5. Perform health checks and maintenance
+5. Perform health checks and view storage statistics
 """
 
-import os
-import shutil
 from datetime import datetime, timedelta
 
 from sifaka.core.thought import Thought, Document, ValidationResult, CriticFeedback
-from sifaka.persistence import JSONThoughtStorage, create_json_config
+from sifaka.storage import SifakaStorage, ThoughtQuery
+from sifaka.mcp import MCPServerConfig, MCPTransportType
 
 
 def main():
-    """Demonstrate persistence capabilities."""
-    print("🧠 Sifaka Persistence Example")
+    """Demonstrate unified storage capabilities."""
+    print("🧠 Sifaka Unified Storage Example")
     print("=" * 50)
 
-    # 1. Setup storage
-    print("\n1. Setting up JSON storage...")
-    storage_dir = "./example_storage"
+    # 1. Setup unified storage
+    print("\n1. Setting up unified storage (Memory → Redis → Milvus)...")
 
-    # Clean up any existing storage
-    if os.path.exists(storage_dir):
-        shutil.rmtree(storage_dir)
-
-    # Create storage with configuration
-    config = create_json_config(storage_dir=storage_dir, enable_indexing=True, pretty_print=True)
-    storage = JSONThoughtStorage(
-        storage_dir=config.storage_dir, enable_indexing=config.enable_indexing
+    # Configure Redis MCP server
+    redis_config = MCPServerConfig(
+        name="redis-server",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379",
     )
-    print(f"✓ Storage created at: {storage_dir}")
+
+    # Configure Milvus MCP server
+    milvus_config = MCPServerConfig(
+        name="milvus-server",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @milvus-io/mcp-server-milvus",
+    )
+
+    # Create unified storage manager
+    storage_manager = SifakaStorage(redis_config, milvus_config)
+    storage = storage_manager.get_thought_storage()
+    print(f"✓ Unified storage created with 3-tier architecture")
 
     # 2. Create and save thoughts
     print("\n2. Creating and saving thoughts...")
@@ -132,8 +138,6 @@ def main():
     print(f"✓ Total thoughts: {all_thoughts.total_count}")
 
     # Query by chain ID
-    from sifaka.persistence.base import ThoughtQuery
-
     ai_chain_query = ThoughtQuery(chain_ids=["ai-guide-chain"])
     ai_thoughts = storage.query_thoughts(ai_chain_query)
     print(f"✓ AI guide chain thoughts: {ai_thoughts.total_count}")
@@ -203,21 +207,27 @@ def main():
         print(f"  - Has validation: {bool(retrieved_thought.validation_results)}")
         print(f"  - Has feedback: {len(retrieved_thought.critic_feedback or [])}")
 
-    # 8. Cleanup
-    print("\n8. Cleanup...")
-    if os.path.exists(storage_dir):
-        shutil.rmtree(storage_dir)
-        print("✓ Storage cleaned up")
+    # 8. Storage statistics
+    print("\n8. Storage statistics...")
+    try:
+        stats = storage.get_stats()
+        print(f"✓ Memory cache: {stats.get('memory', {}).get('size', 0)} items")
+        print(f"✓ Memory hit rate: {stats.get('memory', {}).get('hit_rate', 0):.2%}")
+        print(f"✓ Redis cache hits: {stats.get('redis', {}).get('hits', 0)}")
+        print(f"✓ Vector storage: Available for semantic search")
+    except Exception as e:
+        print(f"  Could not get storage stats: {e}")
 
     print("\n" + "=" * 50)
-    print("🎉 Persistence example completed successfully!")
+    print("🎉 Unified storage example completed successfully!")
     print("\nKey features demonstrated:")
-    print("  ✓ JSON storage with rich metadata")
+    print("  ✓ 3-tier storage architecture (Memory → Redis → Milvus)")
     print("  ✓ Thought history and iterations")
     print("  ✓ Context preservation (documents, validation, feedback)")
     print("  ✓ Flexible querying with filters")
+    print("  ✓ Semantic search capabilities")
     print("  ✓ Health monitoring and statistics")
-    print("  ✓ Performance tracking")
+    print("  ✓ Automatic caching and performance optimization")
 
 
 if __name__ == "__main__":

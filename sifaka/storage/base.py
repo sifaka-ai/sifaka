@@ -599,21 +599,28 @@ class CachedStorage:
         if value is not None:
             return value
 
-        # L2: Check Redis cache
-        value = self.cache.get(key)
-        if value is not None:
-            # Cache in memory for next time
-            self.memory.set(key, value)
-            return value
+        # L2: Check Redis cache if available
+        if self.cache is not None:
+            value = self.cache.get(key)
+            if value is not None:
+                # Cache in memory for next time
+                self.memory.set(key, value)
+                return value
 
-        # L3: Check persistent storage
-        value = self.persistence.get(key)
-        if value is not None:
-            # Cache in both faster tiers
-            self.memory.set(key, value)
-            # Async cache in Redis (don't block)
-            asyncio.create_task(self.cache._set_async(key, value))
-            return value
+        # L3: Check persistent storage if available
+        if self.persistence is not None:
+            value = self.persistence.get(key)
+            if value is not None:
+                # Cache in both faster tiers
+                self.memory.set(key, value)
+                # Async cache in Redis (don't block) if available
+                if self.cache is not None:
+                    try:
+                        asyncio.create_task(self.cache._set_async(key, value))
+                    except RuntimeError:
+                        # No event loop running, skip async caching
+                        pass
+                return value
 
         return None
 
@@ -629,19 +636,34 @@ class CachedStorage:
         self.memory.set(key, value)
 
         # L2+L3: Async save to cache and persistence (don't block)
-        asyncio.create_task(self._async_persist(key, value, metadata))
+        # Only if we have cache or persistence configured
+        if self.cache is not None or self.persistence is not None:
+            try:
+                # Try to create task if event loop is running
+                asyncio.create_task(self._async_persist(key, value, metadata))
+            except RuntimeError:
+                # No event loop running, skip async persistence
+                logger.debug(f"No event loop for async persistence of key: {key}")
 
     async def _async_persist(
         self, key: str, value: Any, metadata: Optional[Dict[str, Any]] = None
     ) -> None:
         """Async persistence to L2 and L3."""
         try:
-            # Save to both cache and persistence concurrently
-            await asyncio.gather(
-                self.cache._set_async(key, value),
-                self.persistence._set_async(key, value, metadata),
-                return_exceptions=True,
-            )
+            tasks = []
+
+            # Add cache task if available
+            if self.cache is not None:
+                tasks.append(self.cache._set_async(key, value))
+
+            # Add persistence task if available
+            if self.persistence is not None:
+                tasks.append(self.persistence._set_async(key, value, metadata))
+
+            # Run tasks concurrently if any exist
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+
         except Exception as e:
             logger.warning(f"Async persistence failed for key {key}: {e}")
 
@@ -655,27 +677,37 @@ class CachedStorage:
         Returns:
             List of similar items.
         """
-        # Use L3 for semantic search
-        results = self.persistence.search_similar(query, limit)
+        # Use L3 for semantic search if available
+        if self.persistence is not None:
+            results = self.persistence.search_similar(query, limit)
 
-        # Cache results in faster tiers
-        for result in results:
-            if hasattr(result, "id"):
-                key = f"search_result:{result.id}"
-                self.memory.set(key, result)
+            # Cache results in faster tiers
+            for result in results:
+                if hasattr(result, "id"):
+                    key = f"search_result:{result.id}"
+                    self.memory.set(key, result)
 
-        return results
+            return results
+
+        # No persistence layer, return empty results
+        return []
 
     def clear(self) -> None:
         """Clear all tiers."""
         self.memory.clear()
-        self.cache.clear()
-        self.persistence.clear()
+        if self.cache is not None:
+            self.cache.clear()
+        if self.persistence is not None:
+            self.persistence.clear()
 
     def get_stats(self) -> Dict[str, Any]:
         """Get statistics from all tiers."""
-        return {
-            "memory": self.memory.get_stats(),
-            "cache": self.cache.get_stats(),
-            "persistence": self.persistence.get_stats(),
-        }
+        stats = {"memory": self.memory.get_stats()}
+
+        if self.cache is not None:
+            stats["cache"] = self.cache.get_stats()
+
+        if self.persistence is not None:
+            stats["persistence"] = self.persistence.get_stats()
+
+        return stats

@@ -11,11 +11,11 @@ def test_basic_readme_example():
     print("Testing basic README example...")
 
     try:
-        from sifaka.chain import Chain
+        from sifaka.core.chain import Chain
         from sifaka.validators.base import LengthValidator, RegexValidator
         from sifaka.critics.reflexion import ReflexionCritic
         from sifaka.models.base import create_model
-        from sifaka.retrievers.base import MockRetriever
+        from sifaka.retrievers import MockRetriever
 
         print("✅ All imports successful")
 
@@ -39,7 +39,7 @@ def test_basic_readme_example():
         chain = Chain(
             model=model,
             prompt=prompt,
-            retriever=retriever,  # Chain handles all retrieval
+            model_retrievers=[retriever],  # Chain handles model retrieval
             max_improvement_iterations=3,
             apply_improvers_on_validation_failure=True,
         )
@@ -78,10 +78,10 @@ def test_chain_orchestrated_retrieval():
     print("\nTesting Chain-orchestrated retrieval...")
 
     try:
-        from sifaka.retrievers.base import InMemoryRetriever
+        from sifaka.retrievers import InMemoryRetriever
         from sifaka.models.base import create_model
         from sifaka.critics.reflexion import ReflexionCritic
-        from sifaka.chain import Chain
+        from sifaka.core.chain import Chain
 
         # Create a retriever
         retriever = InMemoryRetriever()
@@ -107,7 +107,7 @@ def test_chain_orchestrated_retrieval():
         chain = Chain(
             model=model,
             prompt="Write a short story about a robot that learns.",
-            retrievers=[retriever],  # Chain handles all retrieval automatically
+            model_retrievers=[retriever],  # Chain handles model retrieval automatically
         )
 
         chain.improve_with(critic)

@@ -26,7 +26,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.models.anthropic import create_anthropic_model
 from sifaka.critics.prompt import PromptCritic
 from sifaka.validators.classifier import ClassifierValidator

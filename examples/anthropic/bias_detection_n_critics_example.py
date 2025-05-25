@@ -27,19 +27,18 @@ Requirements:
 """
 
 import os
-import tempfile
-from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.models.anthropic import create_anthropic_model
 from sifaka.critics.n_critics import create_n_critics_critic
 from sifaka.validators.classifier import ClassifierValidator
 from sifaka.classifiers.bias import BiasClassifier
-from sifaka.persistence.json import JSONThoughtStorage
+from sifaka.storage import SifakaStorage
+from sifaka.mcp import MCPServerConfig, MCPTransportType
 from sifaka.utils.logging import configure_logging
 
 
@@ -142,23 +141,32 @@ def create_n_critics(critic_model):
     return n_critics
 
 
-def setup_persistence():
-    """Set up JSON persistence for thought history."""
-    print("💾 Setting up JSON persistence...")
+def setup_storage():
+    """Set up unified storage for thought history."""
+    print("💾 Setting up unified storage...")
 
-    # Create a temporary directory for this example
-    temp_dir = tempfile.mkdtemp(prefix="sifaka_bias_example_")
-    storage_dir = Path(temp_dir)
-
-    # Create JSON storage
-    storage = JSONThoughtStorage(
-        storage_dir=str(storage_dir),
-        auto_create_dirs=True,
-        enable_indexing=True,
+    # Configure Redis MCP server (using default localhost)
+    redis_config = MCPServerConfig(
+        name="redis-server",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379",
     )
 
-    print(f"  ✅ Created JSON storage at: {storage_dir}")
-    return storage, storage_dir
+    # Configure Milvus MCP server (using default localhost)
+    milvus_config = MCPServerConfig(
+        name="milvus-server",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @milvus-io/mcp-server-milvus",
+    )
+
+    # Create unified storage manager
+    storage_manager = SifakaStorage(redis_config, milvus_config)
+
+    # Get thought storage
+    storage = storage_manager.get_thought_storage()
+
+    print(f"  ✅ Created unified storage with Redis + Milvus")
+    return storage, storage_manager
 
 
 def create_chain(generator, validator, n_critics, storage):
@@ -196,7 +204,7 @@ def demonstrate_bias_detection_and_correction():
         generator, critic_model = create_models()
         validator = create_bias_validator()
         n_critics = create_n_critics(critic_model)
-        storage, storage_dir = setup_persistence()
+        storage, storage_manager = setup_storage()
         chain = create_chain(generator, validator, n_critics, storage)
 
         # Create a prompt that might generate biased content
@@ -234,7 +242,7 @@ def demonstrate_bias_detection_and_correction():
         print(f"\n📄 Final generated text:")
         print(f"'{result.text}'")
 
-        return result, storage, storage_dir
+        return result, storage, storage_manager
 
     except Exception as e:
         print(f"\n❌ Example failed: {e}")
@@ -283,13 +291,13 @@ def show_iteration_details(result):
             print(f"  Iteration {ref.iteration}: {ref.summary}")
 
 
-def show_persistence_info(storage, storage_dir, result):
-    """Show information about persisted thoughts."""
-    print(f"\n💾 Persistence Information:")
+def show_storage_info(storage, storage_manager, result):
+    """Show information about stored thoughts."""
+    print(f"\n💾 Storage Information:")
     print("=" * 30)
 
     # Query all thoughts for this chain
-    from sifaka.persistence.base import ThoughtQuery
+    from sifaka.storage import ThoughtQuery
 
     chain_query = ThoughtQuery(chain_ids=[result.chain_id], sort_by="iteration", sort_order="asc")
     chain_thoughts = storage.query_thoughts(chain_query)
@@ -322,38 +330,25 @@ def show_persistence_info(storage, storage_dir, result):
                     f"    Critics: {len(thought.critic_feedback)} critics, {total_issues} issues, {total_suggestions} suggestions"
                 )
 
-            # Show file location
-            date_str = thought.timestamp.strftime("%Y-%m-%d")
-            file_path = storage_dir / "thoughts" / date_str / f"{thought.id}.json"
-            print(f"    File: {file_path}")
+            print(f"    Storage: Memory → Redis → Milvus (3-tier)")
             print()
 
-        # Show JSON structure for the latest thought
-        latest_thought = chain_thoughts.thoughts[-1]  # Last iteration
-        date_str = latest_thought.timestamp.strftime("%Y-%m-%d")
-        file_path = storage_dir / "thoughts" / date_str / f"{latest_thought.id}.json"
-
+        # Show storage statistics
         try:
-            import json
-
-            with open(file_path, "r") as f:
-                json_data = json.load(f)
-
-            print(f"📄 JSON Structure Preview (Final Iteration):")
-            print(f"  - ID: {json_data.get('id', 'N/A')}")
-            print(f"  - Iteration: {json_data.get('iteration', 'N/A')}")
-            print(f"  - Text length: {len(json_data.get('text', ''))}")
-            print(f"  - Has validation results: {'validation_results' in json_data}")
-            print(f"  - Has critic feedback: {'critic_feedback' in json_data}")
-            print(f"  - History entries: {len(json_data.get('history', []))}")
+            stats = storage.get_stats()
+            print(f"📊 Storage Statistics:")
+            print(f"  - Memory cache: {stats.get('memory', {}).get('size', 0)} items")
+            print(f"  - Memory hit rate: {stats.get('memory', {}).get('hit_rate', 0):.2%}")
+            print(f"  - Redis cache: {stats.get('redis', {}).get('hits', 0)} hits")
+            print(f"  - Vector storage: Available for semantic search")
         except Exception as e:
-            print(f"  Could not read JSON file: {e}")
+            print(f"  Could not get storage stats: {e}")
 
 
 def main():
     """Run the bias detection and n-critics example."""
     print("🛡️ Sifaka Bias Detection with N-Critics Example")
-    print("Using Claude models with JSON persistence")
+    print("Using Claude models with unified storage (Memory → Redis → Milvus)")
     print("=" * 70)
 
     try:
@@ -361,13 +356,13 @@ def main():
         configure_logging(level="INFO")
 
         # Run the demonstration
-        result, storage, storage_dir = demonstrate_bias_detection_and_correction()
+        result, storage, storage_manager = demonstrate_bias_detection_and_correction()
 
         # Show detailed analysis
         show_iteration_details(result)
 
-        # Show persistence information
-        show_persistence_info(storage, storage_dir, result)
+        # Show storage information
+        show_storage_info(storage, storage_manager, result)
 
         print(f"\n🎉 Bias detection example completed successfully!")
 
@@ -393,8 +388,8 @@ def main():
         print(f"  ✓ Used Claude-3-Haiku for n-critics (temperature=0.3)")
         print(f"  ✓ Bias detection with ML classifier (threshold=0.6)")
         print(f"  ✓ N-critics with 3 specialized roles for bias correction")
-        print(f"  ✓ JSON persistence with thought history tracking")
-        print(f"  ✓ Storage location: {storage_dir}")
+        print(f"  ✓ Unified storage with 3-tier architecture (Memory → Redis → Milvus)")
+        print(f"  ✓ Automatic semantic search and caching enabled")
 
     except Exception as e:
         print(f"\n💥 Example failed with error: {e}")

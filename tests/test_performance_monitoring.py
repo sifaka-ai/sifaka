@@ -7,11 +7,11 @@ ensuring that timing data is collected correctly and performance analysis works 
 """
 
 import pytest
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.models.base import create_model
 from sifaka.validators.base import LengthValidator
 from sifaka.critics.reflexion import ReflexionCritic
-from sifaka.retrievers.base import MockRetriever
+from sifaka.retrievers import MockRetriever
 from sifaka.utils.performance import PerformanceMonitor
 
 

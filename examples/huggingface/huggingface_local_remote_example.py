@@ -23,7 +23,7 @@ Features:
 
 import os
 from sifaka.core.thought import Thought, ValidationResult
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.models.huggingface import create_huggingface_model
 from sifaka.critics.prompt import PromptCritic
 from sifaka.validators.base import LengthValidator

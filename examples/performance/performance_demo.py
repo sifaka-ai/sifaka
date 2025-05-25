@@ -7,11 +7,11 @@ added to the Sifaka Chain class.
 """
 
 import json
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.models.base import create_model
 from sifaka.validators.base import LengthValidator, RegexValidator
 from sifaka.critics.reflexion import ReflexionCritic
-from sifaka.retrievers.base import MockRetriever
+from sifaka.retrievers import MockRetriever
 
 
 def main():

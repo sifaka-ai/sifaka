@@ -1,8 +1,15 @@
 """
 Error handling utilities for Sifaka.
 
-This module provides utility functions and context managers for consistent
-error handling across the Sifaka framework.
+This module provides comprehensive error handling utilities including:
+- Custom exception classes with rich context
+- Error context managers for consistent error handling
+- Error logging utilities
+- Error formatting and suggestion generation
+- Integration with circuit breakers and retry mechanisms
+
+The error handling system is designed to provide actionable feedback
+to users and developers, with consistent formatting and logging.
 """
 
 import logging
@@ -434,4 +441,301 @@ def chain_context(
         suggestions=suggestions,
         metadata=metadata,
     ) as context:
-        yield
+        yield context
+
+
+# Enhanced error recovery exception types
+
+
+class CircuitBreakerError(SifakaError):
+    """Error raised when circuit breaker is open."""
+
+    pass
+
+
+class RetryExhaustedError(SifakaError):
+    """Error raised when all retry attempts are exhausted."""
+
+    pass
+
+
+class FallbackError(SifakaError):
+    """Error raised when all fallback options fail."""
+
+    pass
+
+
+class ServiceUnavailableError(SifakaError):
+    """Error raised when a service is temporarily unavailable."""
+
+    pass
+
+
+class DegradedServiceError(SifakaError):
+    """Error raised when service is running in degraded mode."""
+
+    pass
+
+
+# Enhanced error context managers for recovery mechanisms
+
+
+@contextmanager
+def circuit_breaker_context(
+    service_name: str,
+    operation: Optional[str] = None,
+    message_prefix: Optional[str] = None,
+    suggestions: Optional[List[str]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """Context manager for circuit breaker operations.
+
+    Args:
+        service_name: Name of the service.
+        operation: Optional operation name.
+        message_prefix: Optional prefix for the error message.
+        suggestions: Optional list of suggestions.
+        metadata: Optional metadata to include.
+
+    Yields:
+        ErrorContext: A context object for additional metadata.
+
+    Raises:
+        CircuitBreakerError with additional context.
+    """
+    default_suggestions = [
+        f"Check if {service_name} is healthy and responding",
+        "Wait for the circuit breaker to reset automatically",
+        "Check service logs for underlying issues",
+        "Consider using fallback mechanisms",
+    ]
+
+    with error_context(
+        component="CircuitBreaker",
+        operation=operation,
+        error_class=CircuitBreakerError,
+        message_prefix=message_prefix,
+        suggestions=suggestions or default_suggestions,
+        metadata=metadata,
+    ) as context:
+        context.metadata["service_name"] = service_name
+        yield context
+
+
+@contextmanager
+def retry_context(
+    max_attempts: int,
+    operation: Optional[str] = None,
+    message_prefix: Optional[str] = None,
+    suggestions: Optional[List[str]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """Context manager for retry operations.
+
+    Args:
+        max_attempts: Maximum number of retry attempts.
+        operation: Optional operation name.
+        message_prefix: Optional prefix for the error message.
+        suggestions: Optional list of suggestions.
+        metadata: Optional metadata to include.
+
+    Yields:
+        ErrorContext: A context object for additional metadata.
+
+    Raises:
+        RetryExhaustedError with additional context.
+    """
+    default_suggestions = [
+        "Check if the underlying service is available",
+        "Verify network connectivity",
+        "Consider increasing retry limits or delays",
+        "Check for rate limiting or quota issues",
+    ]
+
+    with error_context(
+        component="RetryManager",
+        operation=operation,
+        error_class=RetryExhaustedError,
+        message_prefix=message_prefix,
+        suggestions=suggestions or default_suggestions,
+        metadata=metadata,
+    ) as context:
+        context.metadata["max_attempts"] = max_attempts
+        yield context
+
+
+@contextmanager
+def fallback_context(
+    service_name: str,
+    attempted_fallbacks: Optional[List[str]] = None,
+    operation: Optional[str] = None,
+    message_prefix: Optional[str] = None,
+    suggestions: Optional[List[str]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """Context manager for fallback operations.
+
+    Args:
+        service_name: Name of the service.
+        attempted_fallbacks: List of attempted fallback names.
+        operation: Optional operation name.
+        message_prefix: Optional prefix for the error message.
+        suggestions: Optional list of suggestions.
+        metadata: Optional metadata to include.
+
+    Yields:
+        ErrorContext: A context object for additional metadata.
+
+    Raises:
+        FallbackError with additional context.
+    """
+    default_suggestions = [
+        f"Check if {service_name} and its fallbacks are configured correctly",
+        "Verify that fallback services are healthy",
+        "Consider adding more fallback options",
+        "Check service dependencies and network connectivity",
+    ]
+
+    with error_context(
+        component="FallbackChain",
+        operation=operation,
+        error_class=FallbackError,
+        message_prefix=message_prefix,
+        suggestions=suggestions or default_suggestions,
+        metadata=metadata,
+    ) as context:
+        context.metadata["service_name"] = service_name
+        if attempted_fallbacks:
+            context.metadata["attempted_fallbacks"] = attempted_fallbacks
+        yield context
+
+
+# Utility functions for enhanced error messages
+
+
+def create_actionable_suggestions(error: Exception, component: Optional[str] = None) -> List[str]:
+    """Create actionable suggestions based on error type and component.
+
+    Args:
+        error: The exception that occurred.
+        component: Optional component name.
+
+    Returns:
+        List of actionable suggestions.
+    """
+    suggestions = []
+    error_type = type(error).__name__
+
+    # Connection-related errors
+    if "Connection" in error_type or "Network" in error_type:
+        suggestions.extend(
+            [
+                "Check network connectivity",
+                "Verify service endpoints are correct",
+                "Check if firewall or proxy is blocking connections",
+                "Ensure the service is running and accessible",
+            ]
+        )
+
+    # Timeout errors
+    elif "Timeout" in error_type:
+        suggestions.extend(
+            [
+                "Increase timeout values",
+                "Check if the service is overloaded",
+                "Verify network latency is acceptable",
+                "Consider using async operations for long-running tasks",
+            ]
+        )
+
+    # Authentication errors
+    elif "Auth" in error_type or "Permission" in error_type:
+        suggestions.extend(
+            [
+                "Check API keys and credentials",
+                "Verify permissions and access rights",
+                "Ensure tokens are not expired",
+                "Check if the service requires authentication",
+            ]
+        )
+
+    # Rate limiting errors
+    elif "Rate" in error_type or "Limit" in error_type:
+        suggestions.extend(
+            [
+                "Implement exponential backoff",
+                "Reduce request frequency",
+                "Check rate limit quotas",
+                "Consider upgrading service plan for higher limits",
+            ]
+        )
+
+    # Configuration errors
+    elif "Config" in error_type or "Setting" in error_type:
+        suggestions.extend(
+            [
+                "Check configuration files and environment variables",
+                "Verify all required settings are provided",
+                "Ensure configuration values are valid",
+                "Check for typos in configuration keys",
+            ]
+        )
+
+    # Component-specific suggestions
+    if component:
+        if component.lower() in ["model", "llm"]:
+            suggestions.extend(
+                [
+                    "Verify model name is correct and available",
+                    "Check if model supports the requested parameters",
+                    "Ensure sufficient API quota for model usage",
+                ]
+            )
+        elif component.lower() in ["retriever", "vector", "database"]:
+            suggestions.extend(
+                [
+                    "Check database connection and credentials",
+                    "Verify index exists and is properly configured",
+                    "Ensure vector dimensions match expected values",
+                ]
+            )
+        elif component.lower() in ["validator", "critic"]:
+            suggestions.extend(
+                [
+                    "Check if validation rules are correctly configured",
+                    "Verify input format matches expected schema",
+                    "Ensure all required dependencies are available",
+                ]
+            )
+
+    return suggestions[:5]  # Limit to top 5 suggestions
+
+
+def enhance_error_message(
+    error: Exception, component: Optional[str] = None, operation: Optional[str] = None
+) -> str:
+    """Enhance error message with context and suggestions.
+
+    Args:
+        error: The exception that occurred.
+        component: Optional component name.
+        operation: Optional operation name.
+
+    Returns:
+        Enhanced error message.
+    """
+    base_message = str(error)
+
+    # Add component and operation context
+    if component:
+        base_message = f"[{component}] {base_message}"
+    if operation:
+        base_message = f"{base_message} (during {operation})"
+
+    # Add actionable suggestions
+    suggestions = create_actionable_suggestions(error, component)
+    if suggestions:
+        suggestion_text = "; ".join(suggestions)
+        base_message = f"{base_message}. Suggestions: {suggestion_text}"
+
+    return base_message

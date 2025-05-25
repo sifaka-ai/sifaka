@@ -16,11 +16,11 @@ import json
 import os
 from dotenv import load_dotenv
 
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.models.base import create_model
 from sifaka.validators.guardrails import GuardrailsValidator
 from sifaka.critics.reflexion import ReflexionCritic
-from sifaka.retrievers.base import MockRetriever
+from sifaka.retrievers import MockRetriever
 
 # Load environment variables
 load_dotenv()

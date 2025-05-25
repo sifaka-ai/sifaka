@@ -87,6 +87,16 @@ def create_model(
             from sifaka.models.anthropic import create_anthropic_model
 
             return create_anthropic_model(model_name=model_name, **kwargs)
+        elif provider == "huggingface":
+            # Import the HuggingFace model implementation
+            from sifaka.models.huggingface import create_huggingface_model
+
+            return create_huggingface_model(model_name=model_name, **kwargs)
+        elif provider == "ollama":
+            # Import the Ollama model implementation
+            from sifaka.models.ollama import create_ollama_model
+
+            return create_ollama_model(model_name=model_name, **kwargs)
         elif provider == "mock":
             # Create a mock model for testing
             return MockModel(model_name=model_name, **kwargs)
@@ -96,6 +106,8 @@ def create_model(
                 suggestions=[
                     "Use 'openai' for OpenAI models",
                     "Use 'anthropic' for Anthropic models",
+                    "Use 'huggingface' for HuggingFace models",
+                    "Use 'ollama' for Ollama models",
                     "Use 'mock' for mock models",
                 ],
             )

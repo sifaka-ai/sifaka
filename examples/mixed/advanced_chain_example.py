@@ -19,12 +19,12 @@ import os
 import tempfile
 from datetime import datetime
 
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.core.thought import Thought, Document
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.models.base import create_model
 from sifaka.persistence.json import JSONThoughtStorage
-from sifaka.retrievers.base import InMemoryRetriever
+from sifaka.retrievers import InMemoryRetriever
 from sifaka.utils.logging import configure_logging
 from sifaka.validators.base import LengthValidator
 from sifaka.validators.content import ContentValidator

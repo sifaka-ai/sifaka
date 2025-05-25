@@ -15,7 +15,7 @@ from typing import List, Dict, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from sifaka.core.thought import Thought, Document
-from sifaka.retrievers.base import MCPServerConfig, MCPTransportType, MCPResponse
+from sifaka.mcp import MCPServerConfig, MCPTransportType, MCPResponse
 from sifaka.utils.error_handling import RetrieverError
 
 # Import retrievers with error handling

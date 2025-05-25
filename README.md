@@ -1,90 +1,106 @@
 # Sifaka: A Framework for Reliable LLM Applications
 
-Sifaka is a powerful framework for building reliable, robust, and responsible language model applications. It provides a modular architecture for text generation, validation, improvement, and evaluation with built-in guardrails.
+[![Tests](https://img.shields.io/badge/tests-129%20passing-brightgreen)](https://github.com/sifaka-ai/sifaka)
+[![Python](https://img.shields.io/badge/python-3.11+-blue)](https://python.org)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## Core Concept
+Sifaka is a production-ready framework for building reliable AI text generation chains with validation, critique, error recovery, and performance monitoring.
 
-Sifaka's core concept is the **Chain** consisting of a **Thought** container, a **Model**, **Validators**, and **Critics**:
+## 🎯 Core Concept
+
+Sifaka's core concept is the **Chain** that orchestrates:
 
 ```
-Chain = [Thought, Model, [Validators], [Critics]]
+Chain = [Model + Validators + Critics]
 ```
 
-The Chain orchestrates the process of:
+Where Models and Critics may be augmented by Retrievers for context.
 
-1. Creating a Thought with a Prompt
-2. Retrieving relevant context for the prompt (optional)
-3. Generating text using a language model with the prompt & context
-4. Validating the generated text against specified criteria
-5. If validation fails, improving the text using specialized critics
-6. Repeating until validation passes or max attempts reached
+The Chain process:
 
-## How Sifaka Works
+1. **Generate** text using a language model (with optional retrieval context)
+2. **Validate** the generated text against criteria
+3. **Improve** the text using critics if validation fails (with optional retrieval context)
+4. **Repeat** until validation passes or max iterations reached
 
-### The Chain Process
+## 🏗️ Architecture
 
 ```mermaid
-flowchart LR
-    Prompt([Prompt]) --> Model
-    Model --> Validators
-    Validators -->|Pass| Output([Final Output])
-    Validators -->|Fail| Critics
-    Critics --> Model
-
-    %% Retriever connections
-    Retriever([Retriever])
-    Model <-.-> Retriever
-    Critics <-.-> Retriever
+graph TD
+    A[Prompt] --> B[Thought]
+    B --> C[Chain]
+    C --> D[Model + Retrievers]
+    D --> E[Validators]
+    E --> F{Valid?}
+    F -->|No| G[Critics + Retrievers]
+    G --> H[Updated Thought]
+    H --> D
+    F -->|Yes| I[Final Thought]
 ```
 
-1. **Input**: A prompt is provided to the Chain
-2. **Model Generation**: The Model generates text based on the prompt and any retrieved context
-3. **Validation**: Validators check if the generated text meets specified criteria
-4. **Decision Point**:
-   - If validation passes → Return the generated text as output
-   - If validation fails → Send to Critics for improvement
-5. **Critic Improvement**: Critics analyze the text, provide feedback, and suggest improvements
-6. **Iteration**: The improved text is sent back to the Model for regeneration
-7. **Repeat**: Steps 2-6 repeat until validation passes or max iterations are reached
+**Thoughts** flow through the Chain, carrying state between components.
 
-### The Thought Container
+## 🧩 Key Components
 
-The Thought container holds all information as it flows through the Chain:
+- **🧠 Thought**: Central state container
+- **⛓️ Chain**: Main orchestrator
+- **🤖 Models**: Text generation (OpenAI, Anthropic, etc.)
+- **✅ Validators**: Text quality checks
+- **🔍 Critics**: Text improvement suggestions
+- **📚 Retrievers**: Document retrieval for context
+- **🛡️ Error Recovery**: Automatic failure handling
+- **📊 Performance**: Real-time monitoring
 
-- **Prompt**: The original user query or instruction
-- **Context**: Information retrieved from external sources
-  - **Pre-generation Context**: Retrieved before text generation (used by the Model)
-  - **Post-generation Context**: Retrieved after text generation (used by Validators and Critics)
-- **Generated Text**: The text produced by the Model
-- **Validation Results**: Pass/fail status and details from each Validator
-- **Critic Feedback**: Issues identified and suggestions from Critics
-- **History**: Record of previous iterations
+### Available Models
 
-### Retriever Access
+```python
+from sifaka.models.base import create_model
 
-- **Both Models and Critics can directly call Retrievers**
-- Models use Retrievers to get context before or during text generation
-- Critics use Retrievers to get additional context when analyzing and improving text
+# OpenAI Models
+model = create_model("openai:gpt-4")
+model = create_model("openai:gpt-3.5-turbo")
 
-## Key Components
+# Anthropic Models
+model = create_model("anthropic:claude-3-sonnet")
+model = create_model("anthropic:claude-3-haiku")
 
-- **Thought**: The central state container that passes information between all components
-- **Chain**: The main orchestrator that coordinates the generation, validation, and improvement flow
-- **Model**: Interface for text generation models (OpenAI, Anthropic, etc.)
-  - Models can directly call retrievers to get additional context
-- **Validators**: Components that check if text meets specific criteria (length, content, format, etc.)
-- **Critics**: Specialized components that analyze and improve text quality
-  - Critics can directly call retrievers to get additional context
-  - **ReflexionCritic**: Uses reflection to improve text based on past feedback
-  - **SelfRAGCritic**: Uses retrieval-augmented generation to improve text with external knowledge
-  - **SelfRefineCritic**: Iteratively refines text through self-critique
-  - **ConstitutionalCritic**: Ensures text adheres to specified principles
-  - **PromptCritic**: General-purpose critic with customizable instructions
-  - **NCriticsCritic**: Ensemble of specialized critics for comprehensive feedback
-- **Retrievers**: Components that find relevant documents for context
-  - Available to both models and critics
-  - **InMemoryRetriever**: Simple in-memory document retrieval
-  - **VectorDBRetriever**: Retrieval from vector databases (Milvus, Elasticsearch)
+# HuggingFace Models
+model = create_model("huggingface:microsoft/DialoGPT-medium", use_inference_api=True, api_token="your_hf_token")
+model = create_model("huggingface:microsoft/DialoGPT-small", use_inference_api=False, device="auto")
+
+# Ollama Models (Local)
+model = create_model("ollama:llama3.2:1b")
+model = create_model("ollama:mistral")
+model = create_model("ollama:codellama")
+
+# Mock Models (Testing)
+model = create_model("mock:default")
+```
+
+### Available Critics
+
+- **🔄 ReflexionCritic**: Uses reflection to improve text based on past feedback
+- **🔍 SelfRefineCritic**: Iteratively refines text through self-critique
+- **⚖️ ConstitutionalCritic**: Ensures text adheres to specified principles
+- **📝 PromptCritic**: General-purpose critic with customizable instructions
+- **🤖 SelfRAGCritic**: Retrieval-augmented generation with self-critique
+- **👥 NCriticsCritic**: Ensemble of specialized critics for comprehensive feedback
+
+### Available Validators
+
+- **📏 LengthValidator**: Checks text length constraints
+- **🔤 RegexValidator**: Pattern matching and forbidden content detection
+- **📊 ContentValidator**: Checks for prohibited content and words
+- **📋 FormatValidator**: Validates text format (JSON, Markdown, custom)
+- **🤖 ClassifierValidator**: Uses ML classifiers for validation
+- **️ GuardrailsValidator**: Integrates GuardrailsAI for PII detection, content safety, and more
+
+### Available Retrievers
+
+- **🧪 MockRetriever**: Returns predefined documents for testing
+- **💭 InMemoryRetriever**: Simple keyword-based retrieval from in-memory documents
+- **🔄 CachedRetriever**: Wraps any retriever with 3-tier caching (Memory → Redis → Milvus)
+- **🛡️ ResilientRetriever**: Adds error recovery with circuit breakers and fallbacks
 
 ## Installation
 
@@ -140,62 +156,83 @@ The examples will automatically load these environment variables using `python-d
 ## Quick Start
 
 ```python
-import os
-from dotenv import load_dotenv
-from sifaka.chain import Chain
-from sifaka.validators.base import LengthValidator, RegexValidator
-from sifaka.critics.base import ReflexionCritic
+from sifaka.core.chain import Chain
 from sifaka.models.base import create_model
-from sifaka.retrievers.base import MockRetriever
-from sifaka.core.thought import Thought
+from sifaka.validators.base import LengthValidator, RegexValidator
+from sifaka.critics.reflexion import ReflexionCritic
+from sifaka.retrievers import MockRetriever
 
-# Load environment variables from .env file if it exists
-load_dotenv()
+# Create a model (using mock for this example)
+model = create_model("mock:example-model")
 
-# Get API key from environment variables
-api_key = os.environ.get("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("OPENAI_API_KEY environment variable not set")
-
-# Create a model
-model = create_model("openai:gpt-4", api_key=api_key)
-
-# Create validators and critics
+# Create validators
 length_validator = LengthValidator(min_length=50, max_length=1000)
 content_validator = RegexValidator(
-    forbidden_patterns=["violent", "harmful"]
+    required_patterns=[r"robot|AI"],
+    forbidden_patterns=[r"violent|harmful"]
 )
-critic = ReflexionCritic(model=model)
 
-# Create a retriever
-retriever = MockRetriever()
+# Create a critic
+critic = ReflexionCritic(model_name="mock:critic-model")
 
-# Create a chain with model, prompt, retrievers, validators and critics
-# The Chain orchestrates ALL retrieval automatically
-prompt = "Write a short story about a robot."
+# Create a retriever with relevant documents
+retriever = MockRetriever(
+    documents=[
+        "Robots are machines that can be programmed to perform tasks.",
+        "Artificial Intelligence enables machines to learn and adapt.",
+        "The future of robotics includes autonomous systems and smart assistants."
+    ]
+)
+
+# Create and configure the chain
 chain = Chain(
     model=model,
-    prompt=prompt,
-    retrievers=[retriever],  # Chain handles all retrieval
-    max_improvement_iterations=3,
+    prompt="Write a short story about a robot learning to help humans.",
+    model_retrievers=[retriever],  # Context for the model
+    max_improvement_iterations=2,
     apply_improvers_on_validation_failure=True,
 )
 
-chain.validate_with(length_validator)
-chain.validate_with(content_validator)
-chain.improve_with(critic)
+# Add validators and critics using the fluent API
+chain.validate_with(length_validator).validate_with(content_validator).improve_with(critic)
 
-# Run the chain - it handles all retrieval automatically
-result = chain.run()
+# Run the chain - returns a Thought object
+thought = chain.run()
 
-# Check the result
-print(f"Generated text: {result.text}")
+# Extract all information from the thought
+print(f"Generated text: {thought.text}")
+print(f"Iteration: {thought.iteration}")
+print(f"Thought ID: {thought.id}")
+print(f"Chain ID: {thought.chain_id}")
 
 # Access validation results
-for name, validation_result in result.validation_results.items():
-    print(f"{name}: {'Passed' if validation_result.passed else 'Failed'}")
-    if validation_result.issues:
-        print(f"Issues: {validation_result.issues}")
+if thought.validation_results:
+    for name, validation_result in thought.validation_results.items():
+        status = "✅ Passed" if validation_result.passed else "❌ Failed"
+        print(f"{name}: {status}")
+        if validation_result.message:
+            print(f"  Message: {validation_result.message}")
+
+# Access critic feedback
+if thought.critic_feedback:
+    for feedback in thought.critic_feedback:
+        print(f"Critic {feedback.critic_name}: {feedback.feedback}")
+
+# Access retrieved context
+if thought.pre_generation_context:
+    print("Pre-generation context:")
+    for doc in thought.pre_generation_context:
+        print(f"- {doc.text} (score: {doc.score})")
+
+# Access the complete history
+if thought.history:
+    print(f"Total iterations in history: {len(thought.history)}")
+    for ref in thought.history:
+        print(f"- Iteration {ref.iteration}: {ref.summary}")
+
+# The thought is a complete Pydantic model - you can serialize it
+thought_json = thought.model_dump_json()
+print(f"Serialized thought: {thought_json[:100]}...")
 ```
 
 ## Working with the Thought Container
@@ -412,74 +449,170 @@ print(f"Validation results: {result.validation_results}")
 print(f"Retrieved context documents: {len(result.post_generation_context)}")
 ```
 
-## Multi-Retriever Support
+## Redis & 3-Tier Storage Setup
 
-Sifaka supports using different retrievers for different stages of the chain. This is powerful for use cases like fact-checking, where you want models to use recent context (like Twitter posts) but critics to use authoritative sources (like Wikipedia).
+Sifaka uses a unified 3-tier storage architecture: **Memory → Redis → Milvus** for optimal performance.
+
+### Setting up Redis
+
+1. **Start Redis with Docker**:
+   ```bash
+   docker run -d -p 6379:6379 redis:latest
+   ```
+
+2. **Install Redis MCP Server**:
+   ```bash
+   npm install -g @modelcontextprotocol/server-redis
+   ```
+
+3. **Install Milvus MCP Server**:
+   ```bash
+   npm install -g @milvus-io/mcp-server-milvus
+   ```
+
+### Using 3-Tier Storage
 
 ```python
+from sifaka.storage import SifakaStorage
+from sifaka.mcp import MCPServerConfig, MCPTransportType
+from sifaka.retrievers import InMemoryRetriever
+
+# Configure storage backends
+redis_config = MCPServerConfig(
+    name="redis-server",
+    transport_type=MCPTransportType.STDIO,
+    url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379"
+)
+
+milvus_config = MCPServerConfig(
+    name="milvus-server",
+    transport_type=MCPTransportType.STDIO,
+    url="npx -y @milvus-io/mcp-server-milvus"
+)
+
+# Create unified storage manager
+storage = SifakaStorage(
+    redis_config=redis_config,
+    milvus_config=milvus_config,
+    memory_size=100,  # L1 cache size
+    cache_ttl=300     # L2 cache TTL (5 minutes)
+)
+
+# Wrap any retriever with 3-tier caching
+base_retriever = InMemoryRetriever()
+cached_retriever = storage.get_retriever_cache(base_retriever)
+
+# Use in chain - automatic L1 → L2 → L3 caching
+chain = Chain(
+    model=model,
+    prompt="Your prompt here",
+    retrievers=[cached_retriever]
+)
+```
+
+### Using Different Retrievers for Models vs Critics
+
+The Chain supports separate retrievers for models and critics, enabling powerful use cases like fact-checking:
+
+```python
+# Example: Different retrievers for models vs critics
 from sifaka.chain import Chain
-from sifaka.models.base import create_model
-from sifaka.critics.base import ReflexionCritic
-from sifaka.retrievers.specialized import TwitterRetriever, FactualDatabaseRetriever
+from sifaka.retrievers import MockRetriever
 
 # Create specialized retrievers
-twitter_retriever = TwitterRetriever()      # Recent context for model
-factual_retriever = FactualDatabaseRetriever()  # Authoritative sources for critics
+recent_retriever = MockRetriever(documents=[
+    "Latest AI news from Twitter",
+    "Recent developments in machine learning"
+])
 
-# Create model and critic
-model = create_model("openai:gpt-4", api_key=api_key)
-critic = ReflexionCritic(model=model)
+factual_retriever = MockRetriever(documents=[
+    "Scientific papers on AI safety",
+    "Authoritative sources on machine learning"
+])
 
-# Create Chain with different retrievers for different stages
+# Use different retrievers for different purposes
 chain = Chain(
     model=model,
-    prompt="Write a news summary about recent AI developments and their implications.",
-    retrievers=[twitter_retriever, factual_retriever],  # Chain orchestrates retrieval
+    prompt="Write about recent AI developments",
+    model_retrievers=[recent_retriever],    # Model gets recent context
+    critic_retrievers=[factual_retriever]   # Critics get authoritative context
 )
 
-chain.improve_with(critic)
+# Or using fluent API
+chain = Chain(model=model, prompt="Write about AI") \
+    .with_model_retrievers([recent_retriever]) \
+    .with_critic_retrievers([factual_retriever]) \
+    .validate_with(validator) \
+    .improve_with(critic)
 
-# Run the chain - it automatically:
-# 1. Uses TwitterRetriever for pre/post-generation context (model gets recent info)
-# 2. Uses FactualDatabaseRetriever for critic context (critics verify against facts)
-result = chain.run()
-
-print("Recent context used by model:")
-for doc in result.pre_generation_context:
-    print(f"- {doc.text}")
-
-print("\nFactual context used by critics:")
-for doc in result.post_generation_context:
-    print(f"- {doc.text}")
+# The Chain calls:
+# - model_retrievers for pre-generation context (before model)
+# - critic_retrievers for post-generation context (for critics)
 ```
 
-### Retriever Fallback Logic
+## Error Recovery
 
-- If `model_retriever` is not provided, falls back to `retriever`
-- If `critic_retriever` is not provided, falls back to `retriever`
-- If no retrievers are provided, the Chain works without retrieval
+Sifaka provides robust error recovery mechanisms to handle failures gracefully:
 
 ```python
-# Example: Using default retriever for all stages
-chain = Chain(
-    model=model,
-    prompt="Write about AI",
-    retriever=default_retriever,  # Used for all stages
+from sifaka.models.resilient import ResilientModel
+from sifaka.retrievers.resilient import ResilientRetriever
+from sifaka.utils.circuit_breaker import CircuitBreakerConfig
+from sifaka.utils.retry import RetryConfig
+from sifaka.utils.fallback import FallbackConfig
+
+# Create resilient model with fallbacks
+primary_model = create_model("openai:gpt-4", api_key=api_key)
+fallback_model = create_model("anthropic:claude-3-sonnet", api_key=anthropic_key)
+
+resilient_model = ResilientModel(
+    primary_model=primary_model,
+    fallback_models=[fallback_model],
+    circuit_breaker_config=CircuitBreakerConfig(failure_threshold=3),
+    retry_config=RetryConfig(max_attempts=3, backoff_factor=2.0),
+    fallback_config=FallbackConfig(max_fallbacks=2)
 )
 
-# Example: Mixed retrievers
-chain = Chain(
-    model=model,
-    prompt="Write about AI",
-    retriever=default_retriever,        # Fallback
-    critic_retriever=factual_retriever, # Specific for critics
-    # model_retriever not provided - uses default_retriever
-)
+# Use resilient model in chain - automatic error recovery
+chain = Chain(model=resilient_model, prompt="Write about AI safety.")
+result = chain.run()  # Automatically handles failures with retries and fallbacks
 ```
 
-## Persistence Options
+## Persistence
 
-The Thought container can be persisted in various ways:
+Sifaka provides built-in persistence for thoughts and chain state using the unified storage system:
+
+```python
+from sifaka.core.thought import Thought
+from sifaka.storage import SifakaStorage
+
+# Create storage manager (same as above)
+storage = SifakaStorage(redis_config=redis_config, milvus_config=milvus_config)
+
+# Get thought storage
+thought_storage = storage.get_thought_storage()
+
+# Save a thought
+thought = Thought(prompt="Write about AI", text="AI is transforming...")
+thought_storage.save_thought(thought)
+
+# Load thoughts with vector search
+similar_thoughts = thought_storage.search_thoughts("artificial intelligence", limit=5)
+print(f"Found {len(similar_thoughts)} similar thoughts")
+
+# Load specific thought
+loaded_thought = thought_storage.load_thought(thought.id)
+print(f"Loaded thought prompt: {loaded_thought.prompt}")
+```
+
+The unified storage system provides:
+- **Memory caching**: Fastest access for recent thoughts
+- **Redis caching**: Cross-process shared cache with TTL
+- **Milvus persistence**: Vector search and long-term storage
+
+### Simple JSON Persistence
+
+For basic use cases, you can also use simple JSON serialization:
 
 ```python
 from sifaka.core.thought import Thought
@@ -502,11 +635,6 @@ with open("thought.json", "r") as f:
 
 print(f"Loaded thought prompt: {loaded_thought.prompt}")
 ```
-
-Sifaka also supports Redis for caching and performance optimization:
-- **Redis caching**: Available now via RedisRetriever for fast retrieval caching
-- **Vector databases**: Planned support for Milvus and Elasticsearch for semantic search
-- **PostgreSQL**: Planned support for relational storage with history tracking
 
 ## Documentation
 

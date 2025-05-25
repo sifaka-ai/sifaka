@@ -13,11 +13,11 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from typing import List, Dict, Any
 
 from sifaka.core.thought import Thought, Document
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.models.base import MockModel
 from sifaka.validators.base import LengthValidator
 from sifaka.critics.reflexion import ReflexionCritic
-from sifaka.retrievers.base import MCPServerConfig, MCPTransportType, MCPResponse
+from sifaka.mcp import MCPServerConfig, MCPTransportType, MCPResponse
 from sifaka.utils.error_handling import RetrieverError, ChainError
 
 # Import retrievers with error handling

@@ -9,11 +9,11 @@ with real models, validators, and critics.
 
 import logging
 
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.core.thought import Thought
 from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.models.base import create_model
-from sifaka.retrievers.base import MockRetriever
+from sifaka.retrievers import MockRetriever
 from sifaka.utils.logging import configure_logging
 from sifaka.validators.base import LengthValidator, RegexValidator
 

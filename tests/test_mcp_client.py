@@ -11,7 +11,7 @@ import pytest
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from typing import Dict, Any
 
-from sifaka.retrievers.base import (
+from sifaka.mcp import (
     MCPClient,
     MCPServerConfig,
     MCPTransportType,
@@ -277,36 +277,34 @@ class TestMCPClient:
             assert mcp_client._connected
 
     @pytest.mark.asyncio
-    async def test_client_query(self, mcp_client):
-        """Test client query method."""
+    async def test_client_call_tool(self, mcp_client):
+        """Test client call_tool method."""
         with patch.object(mcp_client.transport, "send_request") as mock_send:
             mock_response = MCPResponse(
-                result=["doc1", "doc2"],
+                result={"content": [{"type": "text", "text": "tool result"}]},
                 error=None,
-                id="query-1",  # MCPClient.query expects a list directly
+                id="tool-1",
             )
             mock_send.return_value = mock_response
             mcp_client._connected = True
 
-            results = await mcp_client.query("test query")
+            result = await mcp_client.call_tool("search", {"query": "test query"})
 
-            # Results should be Document objects
-            assert len(results) == 2
-            assert results[0].text == "doc1"
-            assert results[1].text == "doc2"
+            # Result should be the tool response
+            assert result["content"][0]["text"] == "tool result"
             mock_send.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_client_add_document(self, mcp_client):
-        """Test client add document method."""
+    async def test_client_add_tool(self, mcp_client):
+        """Test client tool call for adding data."""
         with patch.object(mcp_client.transport, "send_request") as mock_send:
             mock_response = MCPResponse(result={"success": True}, error=None, id="add-1")
             mock_send.return_value = mock_response
             mcp_client._connected = True
 
-            success = await mcp_client.add_document("doc1", "content", {"type": "text"})
+            result = await mcp_client.call_tool("set", {"key": "doc1", "value": "content"})
 
-            assert success is True
+            assert result["success"] is True
             mock_send.assert_called_once()
 
     @pytest.mark.asyncio
@@ -319,9 +317,9 @@ class TestMCPClient:
             mock_send.return_value = mock_response
             mcp_client._connected = True
 
-            # The query method should return empty list on error, not raise
-            results = await mcp_client.query("test query")
-            assert results == []
+            # The call_tool method should handle errors appropriately
+            result = await mcp_client.call_tool("search", {"query": "test query"})
+            assert result is None  # Error responses return None result
 
 
 if __name__ == "__main__":

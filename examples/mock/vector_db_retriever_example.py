@@ -9,11 +9,11 @@ with real vector databases like Milvus, Pinecone, or Weaviate.
 
 import logging
 
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.core.thought import Thought, Document
 from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.models.base import create_model
-from sifaka.retrievers.base import InMemoryRetriever
+from sifaka.retrievers import InMemoryRetriever
 from sifaka.utils.logging import configure_logging
 from sifaka.validators.base import LengthValidator
 

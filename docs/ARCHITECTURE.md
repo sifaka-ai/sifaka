@@ -1,351 +1,281 @@
-# Sifaka Architecture Documentation
+# Sifaka Architecture
 
-This document describes the architecture and design principles of the Sifaka framework.
+Sifaka is a framework for AI text generation with validation and iterative improvement. The core architecture uses a `Thought` container that flows through a `Chain` of components: Model → Validators → Critics.
 
-## Overview
+## Execution Flow
 
-Sifaka is a framework for building AI chains with validation and critique capabilities. The core architecture follows a clean separation of concerns with a central state container (Thought) that flows through different components.
+1. Create a `Thought` from the input prompt
+2. Model generates text and adds it to the `Thought`
+3. Validators check the generated text and record results in the `Thought`
+4. If validation fails or critics are configured to always run, critics provide feedback
+5. Process repeats with the feedback until validation passes or max iterations reached
 
-## Core Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Sifaka Chain                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
-│  │   Thought   │───▶│    Model    │───▶│ Validators  │         │
-│  │ (Container) │    │             │    │             │         │
-│  └─────────────┘    └─────────────┘    └─────────────┘         │
-│         │                                       │               │
-│         │            ┌─────────────┐           │               │
-│         └───────────▶│   Critics   │◀──────────┘               │
-│                      │             │                           │
-│                      └─────────────┘                           │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                    Supporting Components                        │
-│                                                                 │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
-│  │ Retrievers  │    │Classifiers  │    │Persistence  │         │
-│  │             │    │             │    │             │         │
-│  └─────────────┘    └─────────────┘    └─────────────┘         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph LR
+    A[Prompt] --> B[Thought]
+    B --> C[Model]
+    C --> D[Validators]
+    D --> E{Valid?}
+    E -->|No| F[Critics]
+    F --> C
+    E -->|Yes| G[Done]
 ```
 
-## Component Flow
+## Core Components
 
-### 1. Chain Execution Flow
+### Thought Container
+Central state object that carries data between components. Contains the prompt, generated text, validation results, critic feedback, and iteration history. Provides immutable state management and complete audit trail.
 
-```
-Start
-  │
-  ▼
-┌─────────────────┐
-│ Initialize      │
-│ Thought         │
-└─────────────────┘
-  │
-  ▼
-┌─────────────────┐
-│ Pre-Generation  │
-│ Context         │
-│ Retrieval       │
-└─────────────────┘
-  │
-  ▼
-┌─────────────────┐
-│ Model           │
-│ Generation      │
-└─────────────────┘
-  │
-  ▼
-┌─────────────────┐
-│ Validation      │
-│ Check           │
-└─────────────────┘
-  │
-  ▼
-┌─────────────────┐    Yes    ┌─────────────────┐
-│ Validation      │──────────▶│ Apply Critics?  │
-│ Passed?         │           │ (Optional)      │
-└─────────────────┘           └─────────────────┘
-  │ No                          │
-  ▼                             ▼
-┌─────────────────┐           ┌─────────────────┐
-│ Apply Critics   │           │ Complete        │
-│ for Feedback    │           │ (Success)       │
-└─────────────────┘           └─────────────────┘
-  │
-  ▼
-┌─────────────────┐
-│ Post-Generation │
-│ Context         │
-│ Retrieval       │
-└─────────────────┘
-  │
-  ▼
-┌─────────────────┐
-│ Max Iterations  │    Yes    ┌─────────────────┐
-│ Reached?        │──────────▶│ Complete        │
-└─────────────────┘           │ (Max Reached)   │
-  │ No                        └─────────────────┘
-  ▼
-┌─────────────────┐
-│ Next Iteration  │
-│ (Loop Back)     │
-└─────────────────┘
-```
-
-### 2. Thought State Management
-
-The Thought object serves as the central state container:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Thought Object                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Core Properties:                                               │
-│  • prompt: str                    - Original user prompt        │
-│  • text: str                      - Generated text             │
-│  • iteration: int                 - Current iteration          │
-│  • timestamp: datetime            - Creation time              │
-│                                                                 │
-│  Context Management:                                            │
-│  • pre_generation_context: List[Document]                      │
-│  • post_generation_context: List[Document]                     │
-│                                                                 │
-│  Validation & Critique:                                         │
-│  • validation_results: List[ValidationResult]                  │
-│  • critic_feedback: List[CriticFeedback]                       │
-│                                                                 │
-│  History & Metadata:                                            │
-│  • metadata: Dict[str, Any]       - Custom metadata           │
-│  • model_name: str                - Model used for generation  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Component Details
+### Chain
+Orchestrates the execution flow. Runs model → validators → critics in sequence, handles retrieval operations, and manages iteration limits. Entry point is `chain.run()`.
 
 ### Models
-
-Models are responsible for text generation:
-
-```
-┌─────────────────┐
-│ Model Protocol  │
-├─────────────────┤
-│ • name: str     │
-│ • generate_     │
-│   with_thought()│
-│   → (str, str)  │
-└─────────────────┘
-         △
-         │
-    ┌────┴────┐
-    │         │
-┌───▼───┐ ┌──▼──┐
-│OpenAI │ │Mock │
-│Model  │ │Model│
-└───────┘ └─────┘
-```
+Generate text from prompts. Supported types include OpenAI, Anthropic, HuggingFace, Ollama, and Mock implementations. Interface: `model.generate_with_thought(thought) → (text, prompt_used)`.
 
 ### Validators
-
-Validators check generated text against criteria:
-
-```
-┌─────────────────┐
-│Validator Protocol│
-├─────────────────┤
-│ • name: str     │
-│ • validate()    │
-│   → ValidationResult│
-└─────────────────┘
-         △
-         │
-    ┌────┼────┐
-    │    │    │
-┌───▼─┐ ┌▼──┐ ┌▼────┐
-│Length│ │Regex│ │Content│
-│Valid.│ │Valid│ │Valid. │
-└─────┘ └───┘ └─────┘
-```
+Check generated text against specified requirements. Types include length constraints, regex patterns, content filters, and ML classifiers. Interface: `validator.validate(text) → ValidationResult(passed=bool)`.
 
 ### Critics
+Provide improvement suggestions for generated text. Types include Reflexion, Self-RAG, Constitutional, and N-Critics ensemble approaches. Interface: `critic.critique(thought) → CriticFeedback(suggestions=list)`.
 
-Critics provide feedback for improvement:
+## How Chain Execution Actually Works
 
+### Basic Flow
+```python
+# This is what happens when you call chain.run()
+thought = Thought(prompt="Write a story")
+
+# 1. Model generates text
+thought.text = model.generate_with_thought(thought)
+
+# 2. Validators check quality
+for validator in validators:
+    result = validator.validate(thought.text)
+    thought.validation_results[validator.name] = result
+
+# 3. If validation fails OR always_apply_critics=True
+if not all_passed or always_apply_critics:
+    for critic in critics:
+        feedback = critic.critique(thought)
+        thought.critic_feedback.append(feedback)
+
+    # 4. Create next iteration with feedback
+    thought = thought.next_iteration()
+    # Go back to step 1 (up to max_iterations)
+
+return thought  # Final result
 ```
-┌─────────────────┐
-│ Critic Protocol │
-├─────────────────┤
-│ • name: str     │
-│ • critique()    │
-│   → CriticFeedback│
-└─────────────────┘
-         △
-         │
-    ┌────┼────┐
-    │    │    │
-┌───▼───┐ ┌──▼──┐ ┌▼────┐
-│Reflexion│ │Self │ │N-   │
-│Critic  │ │RAG  │ │Critics│
-└───────┘ └─────┘ └─────┘
+
+### With Retrievers (Optional)
+```python
+# Chain orchestrates retrieval automatically
+thought = Thought(prompt="Write about AI")
+
+# 1. PRE-generation retrieval (gives model context)
+for retriever in retrievers:
+    thought = retriever.retrieve_for_thought(thought, is_pre_generation=True)
+
+# 2. Model generates (using retrieved context)
+thought.text = model.generate_with_thought(thought)
+
+# 3. POST-generation retrieval (gives critics context)
+for retriever in retrievers:
+    thought = retriever.retrieve_for_thought(thought, is_pre_generation=False)
+
+# 4. Validators and critics run as normal
+```
+
+## The Thought Object
+
+The `Thought` object serves as the data container that flows through the chain:
+
+```python
+class Thought:
+    # Basic info
+    prompt: str              # "Write a story about robots"
+    text: str               # "Once upon a time, there was a robot..."
+    iteration: int          # 0, 1, 2... (how many times we've improved)
+
+    # Validation results
+    validation_results: dict # {"length": ValidationResult(passed=True), ...}
+
+    # Critic feedback
+    critic_feedback: list   # [CriticFeedback(suggestions=["Add more detail"]), ...]
+
+    # Retrieved context (if using retrievers)
+    pre_generation_context: list   # Documents retrieved before generation
+    post_generation_context: list  # Documents retrieved after generation
+
+    # History tracking
+    history: list           # References to previous iterations
+    parent_id: str         # ID of previous iteration
+```
+
+### Key Methods
+```python
+# Add context from retrievers
+thought = thought.add_pre_generation_context(documents)
+
+# Add validation results
+thought = thought.add_validation_result("length", ValidationResult(passed=True))
+
+# Add critic feedback
+thought = thought.add_critic_feedback(CriticFeedback(suggestions=["Be more specific"]))
+
+# Create next iteration (preserves history)
+next_thought = thought.next_iteration()
+
+# Serialize to JSON
+json_data = thought.model_dump_json()
+```
+
+## Storage & Retrieval
+
+### 3-Tier Storage System
+Memory → Redis → Milvus architecture:
+
+- **L1 (Memory)**: Fastest access, LRU cache, process-local
+- **L2 (Redis)**: Fast network access, cross-process shared cache
+- **L3 (Milvus)**: Persistent storage with vector search
+
+```python
+# All storage follows the same pattern
+storage = SifakaStorage(redis_config, milvus_config)
+
+# Get specialized storage
+thought_storage = storage.get_thought_storage()
+cached_retriever = storage.get_retriever_cache(base_retriever)
+
+# Automatic tier management
+value = storage.get(key)  # Checks L1 → L2 → L3, caches in faster tiers
+storage.set(key, value)   # Saves to L1, async saves to L2 + L3
 ```
 
 ### Retrievers
+Find relevant documents for context. The Chain orchestrates retrieval timing automatically.
 
-Retrievers provide context from external sources:
+```python
+# Chain handles retrieval for you
+chain = Chain(model=model, retrievers=[retriever])
+result = chain.run()  # Retriever runs at the right times
 
+# Manual usage (if needed)
+documents = retriever.retrieve("search query")
+thought = retriever.retrieve_for_thought(thought, is_pre_generation=True)
 ```
-┌─────────────────┐
-│Retriever Protocol│
-├─────────────────┤
-│ • retrieve()    │
-│ • retrieve_for_ │
-│   thought()     │
-└─────────────────┘
-         △
-         │
-    ┌────┼────┐
-    │    │    │
-┌───▼─┐ ┌▼───┐ ┌▼────┐
-│Mock │ │Redis│ │Milvus│
-│Retr.│ │Retr.│ │Retr. │
-└─────┘ └────┘ └─────┘
-```
+
+Available types:
+- **MockRetriever**: Returns predefined documents for testing
+- **InMemoryRetriever**: Keyword search in memory
+- **CachedRetriever**: Wraps any retriever with 3-tier caching
+- **ResilientRetriever**: Adds error recovery with fallbacks
 
 ## Design Principles
 
-### 1. Separation of Concerns
+### 1. Consistent APIs
+All components implement standardized interfaces for interoperability and type safety.
 
-Each component has a single responsibility:
-- **Thought**: State management
-- **Chain**: Orchestration
-- **Models**: Text generation
-- **Validators**: Quality checking
-- **Critics**: Improvement feedback
-- **Retrievers**: Context provision
-
-### 2. Protocol-Based Design
-
-All components implement protocols (interfaces) for:
-- Type safety
-- Extensibility
-- Testability
-- Interchangeability
-
-### 3. Immutable State Flow
-
-Thoughts are modified through controlled methods:
-- Context is added, not replaced
-- History is preserved
-- State changes are tracked
-
-### 4. Configurable Behavior
-
-Key behaviors are configurable:
-- Maximum iterations
-- Critic application strategy
-- Validation requirements
-- Context retrieval timing
-
-## Context Management
-
-### Pre-Generation Context
-
-Retrieved before model generation:
-- Used to inform the model
-- Mapped to generated text
-- Helps with factual accuracy
-
-### Post-Generation Context
-
-Retrieved after model generation:
-- Used by critics for evaluation
-- Becomes pre-generation context for next iteration
-- Enables fact-checking and improvement
-
-## Error Handling
-
-Sifaka uses structured error handling:
-
-```
-┌─────────────────┐
-│  SifakaError    │
-│   (Base)        │
-└─────────────────┘
-         △
-         │
-    ┌────┼────┐
-    │    │    │
-┌───▼─┐ ┌▼───┐ ┌▼────┐
-│Model│ │Valid│ │Critic│
-│Error│ │Error│ │Error │
-└─────┘ └────┘ └─────┘
+### 2. Composable Architecture
+Components can be mixed and matched:
+```python
+chain = Chain(
+    model=any_model,           # OpenAI, Anthropic, HuggingFace, Ollama
+    validators=[any_validators], # Length, Regex, Content, ML classifiers
+    critics=[any_critics],      # Reflexion, Self-RAG, Constitutional
+    retrievers=[any_retrievers] # Mock, InMemory, Redis, Milvus
+)
 ```
 
-Each component provides:
-- Specific error types
-- Detailed error messages
-- Context information
-- Recovery suggestions
+### 3. Immutable State Management
+- Each iteration creates a new `Thought` object
+- Previous iterations preserved in `thought.history`
+- Complete audit trail maintained
 
-## Performance Considerations
+### 4. Error Recovery
+- Circuit breakers prevent cascading failures
+- Automatic retries with exponential backoff
+- Fallback mechanisms for service failures
+- Graceful degradation when components fail
 
-### Caching
+### 5. Performance Monitoring
+- Built-in timing for all components
+- Bottleneck detection and analysis
+- JSON export for external analysis
+- Minimal performance overhead
 
-- **Classifier Caching**: LRU cache for ML model predictions
-- **Retrieval Caching**: Cache for expensive retrieval operations
-- **Model Caching**: Response caching for identical inputs
+## Error Recovery
 
-### Async Support
+The framework implements automatic error recovery:
 
-Future versions will support:
-- Async model calls
-- Parallel validation
-- Concurrent critic evaluation
+```python
+# This is what happens behind the scenes
+try:
+    result = model.generate(prompt)
+except APIError:
+    if circuit_breaker.is_open():
+        raise FastFailError("Service unavailable")
 
-## Extension Points
+    # Try with exponential backoff
+    for attempt in [1, 2, 4, 8]:  # seconds
+        try:
+            time.sleep(attempt)
+            result = model.generate(prompt)
+            break
+        except APIError:
+            continue
+    else:
+        # Use fallback model if available
+        if fallback_model:
+            result = fallback_model.generate(prompt)
+        else:
+            raise AllRetriesFailedError()
+```
 
-### Custom Components
+### Features
+- Automatic retries with exponential backoff
+- Circuit breakers to prevent cascading failures
+- Fallback mechanisms for service failures
+- Graceful degradation under partial failures
 
-Implement protocols to create:
-- Custom models
-- Domain-specific validators
-- Specialized critics
-- Novel retrievers
+## Performance Monitoring
 
-### Plugin System
+Chains automatically track execution metrics:
 
-Future plugin architecture will support:
-- Dynamic component loading
-- Configuration-driven assembly
-- Third-party integrations
+```python
+# Run your chain normally
+result = chain.run()
 
-## Testing Strategy
+# Get performance data
+perf = chain.get_performance_summary()
+print(f"Total time: {perf['total_time']:.2f}s")
+print(f"Model time: {perf['model_time']:.2f}s")
+print(f"Validation time: {perf['validation_time']:.2f}s")
 
-### Unit Testing
+# Find bottlenecks
+bottlenecks = chain.get_performance_bottlenecks()
+for component, time in bottlenecks:
+    print(f"Slow component: {component} ({time:.2f}s)")
 
-Each component is tested in isolation:
-- Mock dependencies
-- Test protocols
-- Verify behavior
+# Export for analysis
+import json
+with open("performance.json", "w") as f:
+    json.dump(perf, f)
+```
 
-### Integration Testing
+### Features
+- Zero-configuration monitoring
+- Automatic bottleneck detection
+- JSON export for external analysis
+- Minimal performance overhead
 
-End-to-end testing:
-- Full chain execution
-- Component interaction
-- Real model integration
+## Summary
 
-### Example Testing
+The architecture provides:
 
-All examples are tested:
-- Automated execution
-- Output validation
-- Documentation accuracy
+1. Simple API: `Chain(model, validators, critics, retrievers).run()`
+2. Automatic error recovery and retry mechanisms
+3. Complete audit trail via the `Thought` container
+4. Built-in performance monitoring and analysis
+5. Composable component design
+
+All data flows through the central `Thought` container, providing predictable execution and complete observability.

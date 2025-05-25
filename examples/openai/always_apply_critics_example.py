@@ -7,7 +7,7 @@ validation failures just to trigger critic feedback.
 """
 
 import os
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.models.base import create_model
 from sifaka.utils.logging import configure_logging

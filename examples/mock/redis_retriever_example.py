@@ -26,7 +26,7 @@ The example shows:
 """
 
 import time
-from sifaka.chain import Chain
+from sifaka.core.chain import Chain
 
 from sifaka.models.base import create_model
 from sifaka.retrievers import InMemoryRetriever
@@ -295,7 +295,9 @@ def example_chain_integration():
 
     # Show cache effectiveness
     stats = cached_retriever.get_cache_stats()
-    print(f"\n📊 Cache stats: {stats['cached_queries']} queries cached")
+    cached_queries = cached_retriever.get_cached_queries()
+    print(f"\n📊 Cache stats: {len(cached_queries)} queries cached")
+    print(f"📊 Cache hit rate: {stats['cache_performance']['hit_rate']:.1%}")
 
     return result
 
