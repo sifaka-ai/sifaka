@@ -36,11 +36,11 @@ import logging
 from typing import Any, List
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 from sifaka.core.thought import Thought
 from sifaka.utils.error_handling import ConfigurationError, ModelError, model_context
+from sifaka.utils.factory_utils import create_with_error_handling
+from sifaka.utils.http_utils import setup_http_session
 from sifaka.utils.mixins import ContextAwareMixin
 
 logger = logging.getLogger(__name__)
@@ -124,15 +124,11 @@ class OllamaConnection:
         self.timeout = timeout
 
         # Configure session with retries
-        self.session = requests.Session()
-        retry_strategy = Retry(
-            total=3,
+        self.session = setup_http_session(
+            max_retries=3,
             backoff_factor=1,
             status_forcelist=[429, 500, 502, 503, 504],
         )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        self.session.mount("http://", adapter)
-        self.session.mount("https://", adapter)
 
     def health_check(self) -> bool:
         """Check if the Ollama server is healthy and accessible.
@@ -393,6 +389,37 @@ class OllamaModel(ContextAwareMixin):
         """
         return self.token_counter.count_tokens(text)
 
+    # Async methods required by Model protocol
+    async def _generate_async(self, prompt: str, **options: Any) -> str:
+        """Generate text from a prompt asynchronously.
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options for generation.
+
+        Returns:
+            The generated text.
+        """
+        # For now, just call the sync method
+        # In a real implementation, you would use async HTTP calls
+        return self.generate(prompt, **options)
+
+    async def _generate_with_thought_async(
+        self, thought: Thought, **options: Any
+    ) -> tuple[str, str]:
+        """Generate text using a Thought container asynchronously.
+
+        Args:
+            thought: The Thought container with context for generation.
+            **options: Additional options for generation.
+
+        Returns:
+            A tuple of (generated_text, actual_prompt_used).
+        """
+        # For now, just call the sync method
+        # In a real implementation, you would use async HTTP calls
+        return self.generate_with_thought(thought, **options)
+
 
 def create_ollama_model(
     model_name: str,
@@ -433,28 +460,6 @@ def create_ollama_model(
         print(response)
         ```
     """
-    import logging
-
-    from sifaka.utils.error_handling import log_error
-
-    logger = logging.getLogger(__name__)
-
-    # Log model creation attempt
-    logger.debug(f"Creating Ollama model with name '{model_name}'")
-
-    try:
-        # Create the model instance
-        model = OllamaModel(model_name=model_name, base_url=base_url, **kwargs)
-
-        logger.debug(f"Successfully created Ollama model: {model_name}")
-        return model
-
-    except Exception as e:
-        # Log the error with context
-        log_error(
-            e,
-            logger_instance=logger,
-            component="OllamaModel",
-            operation="creation",
-        )
-        raise
+    return create_with_error_handling(
+        OllamaModel, "Ollama", model_name, base_url=base_url, **kwargs
+    )

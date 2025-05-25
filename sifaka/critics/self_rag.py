@@ -4,7 +4,17 @@ This module implements the Self-Reflective Retrieval-Augmented Generation (Self-
 approach for critics. Self-RAG enables language models to decide when and what to
 retrieve, and reflect on the relevance and utility of the retrieved information.
 
-Based on Self-RAG: https://arxiv.org/abs/2310.11511
+Based on Self-RAG:
+
+@misc{asai2023selfraglearningretrievegenerate,
+      title={Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection},
+      author={Akari Asai and Zeqiu Wu and Yizhong Wang and Avirup Sil and Hannaneh Hajishirzi},
+      year={2023},
+      eprint={2310.11511},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2310.11511},
+}
 
 The SelfRAGCritic uses the context already available in the Thought container
 (populated by the Chain's retrieval orchestration) to provide enhanced critique
@@ -220,6 +230,141 @@ class SelfRAGCritic:
             processing_time = (time.time() - start_time) * 1000
 
             logger.debug(f"SelfRAGCritic: Improvement completed in {processing_time:.2f}ms")
+
+            return improved_text.strip()
+
+    async def _critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Critique text using the Self-RAG approach asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync critique method but with non-blocking I/O.
+
+        Args:
+            thought: The Thought container with the text to critique.
+
+        Returns:
+            A dictionary with critique results including reflection on retrieval.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name="SelfRAGCritic",
+            operation="critique_async",
+            message_prefix="Failed to critique text with Self-RAG (async)",
+        ):
+            # Check if text is available
+            if not thought.text:
+                return {
+                    "needs_improvement": True,
+                    "message": "No text available for critique",
+                    "issues": ["Text is empty or None"],
+                    "suggestions": ["Provide text to critique"],
+                    "retrieval_reflection": "No text to analyze",
+                }
+
+            # Prepare context from retrieved documents
+            context = self._prepare_context(thought)
+
+            # Create critique prompt
+            critique_prompt = self.critique_prompt_template.format(
+                prompt=thought.prompt,
+                text=thought.text,
+                context=context,
+            )
+
+            # Generate critique (async)
+            critique_response = await self.model._generate_async(
+                prompt=critique_prompt,
+                system_message="You are an expert critic analyzing text quality and retrieval effectiveness.",
+            )
+
+            # Perform retrieval reflection if enabled
+            retrieval_reflection = ""
+            if self.reflection_enabled:
+                retrieval_reflection = self._reflect_on_retrieval(thought, critique_response)
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            logger.debug(f"SelfRAGCritic: Async critique completed in {processing_time:.2f}ms")
+
+            # Parse critique response (simplified parsing)
+            needs_improvement = (
+                "improvement" in critique_response.lower() or "issue" in critique_response.lower()
+            )
+
+            return {
+                "needs_improvement": needs_improvement,
+                "message": critique_response,
+                "critique": critique_response,
+                "retrieval_reflection": retrieval_reflection,
+                "processing_time_ms": processing_time,
+            }
+
+    async def _improve_async(self, thought: Thought) -> str:
+        """Improve text using Self-RAG approach asynchronously.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+
+        Returns:
+            The improved text based on critique and retrieved context.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name="SelfRAGCritic",
+            operation="improve_async",
+            message_prefix="Failed to improve text with Self-RAG (async)",
+        ):
+            # Check if text and critique are available
+            if not thought.text:
+                raise ImproverError(
+                    message="No text available for improvement",
+                    component="SelfRAGCritic",
+                    operation="improve_async",
+                    suggestions=["Provide text to improve"],
+                )
+
+            if not thought.critic_feedback:
+                raise ImproverError(
+                    message="No critique available for improvement",
+                    component="SelfRAGCritic",
+                    operation="improve_async",
+                    suggestions=["Run critique before improvement"],
+                )
+
+            # Extract critique from feedback
+            critique = ""
+            for feedback in thought.critic_feedback:
+                if feedback.critic_name == "SelfRAGCritic":
+                    critique = feedback.feedback.get("critique", "")
+                    break
+
+            if not critique:
+                critique = "Please improve the text based on available context and feedback."
+
+            # Prepare context from retrieved documents
+            context = self._prepare_context(thought)
+
+            # Create improvement prompt
+            improve_prompt = self.improve_prompt_template.format(
+                prompt=thought.prompt,
+                text=thought.text,
+                context=context,
+                critique=critique,
+            )
+
+            # Generate improved text (async)
+            improved_text = await self.model._generate_async(
+                prompt=improve_prompt,
+                system_message="You are an expert editor improving text based on critique and context.",
+            )
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            logger.debug(f"SelfRAGCritic: Async improvement completed in {processing_time:.2f}ms")
 
             return improved_text.strip()
 

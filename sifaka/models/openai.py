@@ -160,8 +160,16 @@ class OpenAIModel(ContextAwareMixin):
         # Get organization from parameter or environment variable
         self.organization = organization or os.environ.get("OPENAI_ORGANIZATION")
 
-        # Initialize the OpenAI client
+        # Initialize the OpenAI client (sync)
         self.client = OpenAI(
+            api_key=self.api_key,
+            organization=self.organization,
+        )
+
+        # Initialize the async OpenAI client
+        from openai import AsyncOpenAI
+
+        self.async_client = AsyncOpenAI(
             api_key=self.api_key,
             organization=self.organization,
         )
@@ -667,6 +675,188 @@ class OpenAIModel(ContextAwareMixin):
         # Most OpenAI models starting with "gpt" are chat models
         return "gpt" in self.model_name.lower()
 
+    # Internal async methods (implementing the Model protocol)
+    async def _generate_async(self, prompt: str, **options: Any) -> str:
+        """Generate text from a prompt using the OpenAI API asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync generate method but with non-blocking I/O.
+        """
+        # Merge default options with provided options
+        merged_options = {**self.options, **options}
+
+        # Determine if we should use the completion API
+        use_completion_api = merged_options.pop("use_completion_api", False)
+
+        # Extract system message if provided
+        system_message = merged_options.pop("system_message", None)
+
+        # Log generation attempt
+        logger.debug(
+            f"Generating text with OpenAI model '{self.model_name}' (async), "
+            f"prompt length={len(prompt)}, "
+            f"temperature={merged_options.get('temperature', 'default')}"
+        )
+
+        start_time = time.time()
+
+        try:
+            # Use the appropriate API based on the model and options
+            with model_context(
+                model_name=self.model_name,
+                operation="generation_async",
+                message_prefix="Failed to generate text with OpenAI model (async)",
+                suggestions=[
+                    "Check your API key and ensure it is valid",
+                    "Verify that you have sufficient quota",
+                    "Check if the model is available in your region",
+                ],
+                metadata={
+                    "model_name": self.model_name,
+                    "prompt_length": len(prompt),
+                    "temperature": merged_options.get("temperature"),
+                    "max_tokens": merged_options.get("max_tokens"),
+                },
+            ):
+                if not use_completion_api and self._is_chat_model():
+                    result = await self._generate_chat_async(
+                        prompt, system_message, **merged_options
+                    )
+                else:
+                    result = await self._generate_completion_async(prompt, **merged_options)
+
+                # Calculate processing time
+                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+                # Log successful generation
+                logger.debug(
+                    f"Successfully generated text with OpenAI model '{self.model_name}' (async) "
+                    f"in {processing_time:.2f}ms, result length={len(result)}"
+                )
+
+                return result
+
+        except Exception as e:
+            # Handle errors the same way as sync version
+            # (Error handling code would be similar to sync version)
+            logger.error(f"Async generation error: {e}")
+            raise
+
+    async def _generate_with_thought_async(
+        self, thought: "Thought", **options: Any
+    ) -> tuple[str, str]:
+        """Generate text using a Thought container asynchronously."""
+        # Use mixin to build contextualized prompt
+        full_prompt = self._build_contextualized_prompt(thought, max_docs=5)
+
+        # Add system_prompt to options if available
+        generation_options = options.copy()
+        if thought.system_prompt:
+            generation_options["system_message"] = thought.system_prompt
+
+        # Log context usage
+        if self._has_context(thought):
+            context_summary = self._get_context_summary(thought)
+            logger.debug(f"OpenAIModel using context (async): {context_summary}")
+
+        # Generate text using the contextualized prompt and options
+        generated_text = await self._generate_async(full_prompt, **generation_options)
+        return generated_text, full_prompt
+
+    async def _count_tokens_async(self, text: str) -> int:
+        """Count tokens in text asynchronously."""
+        # Token counting is CPU-bound, so we can just call the sync version
+        # In a real implementation, you might want to run this in a thread pool
+        return self.count_tokens(text)
+
+    async def _generate_chat_async(
+        self, prompt: str, system_message: Optional[str] = None, **options: Any
+    ) -> str:
+        """Generate text using the OpenAI chat completions API asynchronously."""
+        # Prepare messages
+        messages = []
+
+        # Add system message if provided
+        if system_message:
+            messages.append({"role": "system", "content": system_message})
+
+        # Add user message
+        messages.append({"role": "user", "content": prompt})
+
+        # Convert stop_sequences to stop for OpenAI compatibility
+        if "stop_sequences" in options:
+            options["stop"] = options.pop("stop_sequences")
+
+        # Filter out parameters that are not supported by the OpenAI API
+        openai_params = {
+            k: v
+            for k, v in options.items()
+            if k
+            in [
+                "temperature",
+                "top_p",
+                "n",
+                "stream",
+                "stop",
+                "max_tokens",
+                "presence_penalty",
+                "frequency_penalty",
+                "logit_bias",
+                "user",
+                "response_format",
+                "seed",
+                "tools",
+                "tool_choice",
+            ]
+        }
+
+        # Send request to OpenAI asynchronously
+        response = await self.async_client.chat.completions.create(
+            model=self.model_name, messages=messages, **openai_params  # type: ignore
+        )
+
+        # Ensure we return a string
+        result = response.choices[0].message.content
+        return str(result.strip() if result is not None else "")
+
+    async def _generate_completion_async(self, prompt: str, **options: Any) -> str:
+        """Generate text using the OpenAI completions API asynchronously."""
+        # Convert stop_sequences to stop for OpenAI compatibility
+        if "stop_sequences" in options:
+            options["stop"] = options.pop("stop_sequences")
+
+        # Filter out parameters that are not supported by the OpenAI API
+        openai_params = {
+            k: v
+            for k, v in options.items()
+            if k
+            in [
+                "temperature",
+                "top_p",
+                "n",
+                "stream",
+                "stop",
+                "max_tokens",
+                "presence_penalty",
+                "frequency_penalty",
+                "logit_bias",
+                "user",
+                "suffix",
+                "echo",
+                "logprobs",
+                "best_of",
+            ]
+        }
+
+        # Send request to OpenAI asynchronously
+        response = await self.async_client.completions.create(
+            model=self.model_name, prompt=prompt, **openai_params
+        )
+
+        # Ensure we return a string
+        result = response.choices[0].text
+        return str(result.strip() if result is not None else "")
+
     def configure(self, **options: Any) -> None:
         """Update the model configuration.
 
@@ -709,8 +899,14 @@ class OpenAIModel(ContextAwareMixin):
         # Update API key if provided
         if "api_key" in options:
             self.api_key = options["api_key"]
-            # Recreate client with new API key
+            # Recreate both sync and async clients with new API key
+            from openai import AsyncOpenAI
+
             self.client = OpenAI(
+                api_key=self.api_key,
+                organization=self.organization,
+            )
+            self.async_client = AsyncOpenAI(
                 api_key=self.api_key,
                 organization=self.organization,
             )
@@ -719,8 +915,14 @@ class OpenAIModel(ContextAwareMixin):
         # Update organization if provided
         if "organization" in options:
             self.organization = options["organization"]
-            # Recreate client with new organization
+            # Recreate both sync and async clients with new organization
+            from openai import AsyncOpenAI
+
             self.client = OpenAI(
+                api_key=self.api_key,
+                organization=self.organization,
+            )
+            self.async_client = AsyncOpenAI(
                 api_key=self.api_key,
                 organization=self.organization,
             )

@@ -516,6 +516,37 @@ class AnthropicModel(ContextAwareMixin):
 
         logger.debug(f"Successfully configured Anthropic model '{self.model_name}'")
 
+    # Async methods required by Model protocol
+    async def _generate_async(self, prompt: str, **options: Any) -> str:
+        """Generate text from a prompt asynchronously.
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options for generation.
+
+        Returns:
+            The generated text.
+        """
+        # For now, just call the sync method
+        # In a real implementation, you would use the async Anthropic client
+        return self.generate(prompt, **options)
+
+    async def _generate_with_thought_async(
+        self, thought: Thought, **options: Any
+    ) -> tuple[str, str]:
+        """Generate text using a Thought container asynchronously.
+
+        Args:
+            thought: The Thought container with context for generation.
+            **options: Additional options for generation.
+
+        Returns:
+            A tuple of (generated_text, actual_prompt_used).
+        """
+        # For now, just call the sync method
+        # In a real implementation, you would use the async Anthropic client
+        return self.generate_with_thought(thought, **options)
+
 
 def create_anthropic_model(
     model_name: str,

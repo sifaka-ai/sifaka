@@ -8,6 +8,7 @@ The PromptCritic is designed to be a versatile, general-purpose critic that can
 be adapted for different use cases through prompt engineering.
 """
 
+import asyncio
 import time
 from typing import Any, Dict, List, Optional
 
@@ -232,6 +233,139 @@ class PromptCritic(ContextAwareMixin):
             processing_time = (time.time() - start_time) * 1000
 
             logger.debug(f"PromptCritic: Improvement completed in {processing_time:.2f}ms")
+
+            return improved_text.strip()
+
+    async def _critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Critique text using the configured prompts asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync critique method but with non-blocking I/O.
+
+        Args:
+            thought: The Thought container with the text to critique.
+
+        Returns:
+            A dictionary with critique results.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name="PromptCritic",
+            operation="critique_async",
+            message_prefix="Failed to critique text with Prompt critic (async)",
+        ):
+            # Check if text is available
+            if not thought.text:
+                return {
+                    "needs_improvement": True,
+                    "message": "No text available for critique",
+                    "issues": ["Text is empty or None"],
+                    "suggestions": ["Provide text to critique"],
+                    "score": 0.0,
+                }
+
+            # Prepare context from retrieved documents (using mixin)
+            context = self._prepare_context(thought)
+
+            # Create critique prompt with context
+            critique_prompt = self.critique_prompt_template.format(
+                prompt=thought.prompt,
+                text=thought.text,
+                focus=self.critique_focus,
+                context=context,
+            )
+
+            # Generate critique (async)
+            critique_response = await self.model._generate_async(
+                prompt=critique_prompt,
+                system_message=self.system_prompt,
+            )
+
+            # Extract score and determine if improvement is needed
+            score = self._extract_score(critique_response)
+            needs_improvement = score < 7.0  # Threshold for improvement
+
+            # Extract issues and suggestions
+            issues = self._extract_issues(critique_response)
+            suggestions = self._extract_suggestions(critique_response)
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            logger.debug(
+                f"PromptCritic: Async critique completed in {processing_time:.2f}ms, "
+                f"score: {score}, needs_improvement: {needs_improvement}"
+            )
+
+            return {
+                "needs_improvement": needs_improvement,
+                "message": critique_response,
+                "critique": critique_response,
+                "score": score,
+                "issues": issues,
+                "suggestions": suggestions,
+                "focus_areas": self.critique_focus,
+                "processing_time_ms": processing_time,
+            }
+
+    async def _improve_async(self, thought: Thought) -> str:
+        """Improve text based on the critique asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync improve method but with non-blocking I/O.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+
+        Returns:
+            The improved text.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name="PromptCritic",
+            operation="improve_async",
+            message_prefix="Failed to improve text with Prompt critic (async)",
+        ):
+            # Check if text is available
+            if not thought.text:
+                raise ImproverError(
+                    message="No text available for improvement",
+                    component="PromptCritic",
+                    operation="improve_async",
+                    suggestions=["Provide text to improve"],
+                )
+
+            # Get critique from thought
+            critique = ""
+            if thought.critic_feedback:
+                for feedback in thought.critic_feedback:
+                    if feedback.critic_name == "PromptCritic":
+                        critique = feedback.feedback.get("critique", "")
+                        break
+
+            # Prepare context for improvement (using mixin)
+            context = self._prepare_context(thought)
+
+            # Create improvement prompt with context
+            improve_prompt = self.improve_prompt_template.format(
+                prompt=thought.prompt,
+                text=thought.text,
+                critique=critique,
+                context=context,
+            )
+
+            # Generate improved text (async)
+            improved_text = await self.model._generate_async(
+                prompt=improve_prompt,
+                system_message=self.system_prompt,
+            )
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            logger.debug(f"PromptCritic: Async improvement completed in {processing_time:.2f}ms")
 
             return improved_text.strip()
 

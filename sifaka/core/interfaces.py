@@ -4,11 +4,13 @@ Core interfaces for Sifaka.
 This module defines the core interfaces that all Sifaka components must implement.
 These interfaces ensure consistent behavior across different implementations and
 enable components to work together seamlessly.
+
+The interfaces are defined as Protocols with abstract methods that must be implemented
+by concrete classes. The sync methods are implemented by the concrete classes.
 """
 
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable, TYPE_CHECKING
+from typing import Any, Dict, List, Protocol, runtime_checkable, TYPE_CHECKING
 
-# Use TYPE_CHECKING imports to avoid circular dependencies
 if TYPE_CHECKING:
     from sifaka.core.thought import Thought, ValidationResult
 
@@ -59,6 +61,32 @@ class Model(Protocol):
 
         Returns:
             The number of tokens in the text.
+        """
+        ...
+
+    async def _generate_async(self, prompt: str, **options: Any) -> str:
+        """Generate text from a prompt asynchronously (internal method).
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options for generation.
+
+        Returns:
+            The generated text.
+        """
+        ...
+
+    async def _generate_with_thought_async(
+        self, thought: "Thought", **options: Any
+    ) -> tuple[str, str]:
+        """Generate text using a Thought container asynchronously (internal method).
+
+        Args:
+            thought: The Thought container with context for generation.
+            **options: Additional options for generation.
+
+        Returns:
+            A tuple of (generated_text, actual_prompt_used).
         """
         ...
 

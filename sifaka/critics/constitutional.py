@@ -4,7 +4,17 @@ This module implements a Constitutional AI approach for critics, which evaluates
 responses against a set of human-written principles (a "constitution") and provides
 natural language feedback when violations are detected.
 
-Based on Constitutional AI: https://arxiv.org/abs/2212.08073
+Based on Constitutional AI:
+
+@misc{bai2022constitutionalaiharmlessnessai,
+      title={Constitutional AI: Harmlessness from AI Feedback},
+      author={Yuntao Bai and Saurav Kadavath and Sandipan Kundu and Amanda Askell and Jackson Kernion and Andy Jones and Anna Chen and Anna Goldie and Azalia Mirhoseini and Cameron McKinnon and Carol Chen and Catherine Olsson and Christopher Olah and Danny Hernandez and Dawn Drain and Deep Ganguli and Dustin Li and Eli Tran-Johnson and Ethan Perez and Jamie Kerr and Jared Mueller and Jeffrey Ladish and Joshua Landau and Kamal Ndousse and Kamile Lukosuite and Liane Lovitt and Michael Sellitto and Nelson Elhage and Nicholas Schiefer and Noemi Mercado and Nova DasSarma and Robert Lasenby and Robin Larson and Sam Ringer and Scott Johnston and Shauna Kravec and Sheer El Showk and Stanislav Fort and Tamera Lanham and Timothy Telleen-Lawton and Tom Conerly and Tom Henighan and Tristan Hume and Samuel R. Bowman and Zac Hatfield-Dodds and Ben Mann and Dario Amodei and Nicholas Joseph and Sam McCandlish and Tom Brown and Jared Kaplan},
+      year={2022},
+      eprint={2212.08073},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2212.08073},
+}
 
 The ConstitutionalCritic evaluates text against a set of predefined principles
 and provides detailed feedback on principle violations, ensuring that generated
@@ -250,6 +260,166 @@ class ConstitutionalCritic(ContextAwareMixin):
             processing_time = (time.time() - start_time) * 1000
 
             logger.debug(f"ConstitutionalCritic: Improvement completed in {processing_time:.2f}ms")
+
+            return improved_text.strip()
+
+    async def _critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Critique text against constitutional principles asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync critique method but with non-blocking I/O.
+
+        Args:
+            thought: The Thought container with the text to critique.
+
+        Returns:
+            A dictionary with critique results including principle violations.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name="ConstitutionalCritic",
+            operation="critique_async",
+            message_prefix="Failed to critique text with Constitutional AI (async)",
+        ):
+            # Check if text is available
+            if not thought.text:
+                return {
+                    "needs_improvement": True,
+                    "violations": ["No text available for critique"],
+                    "suggestions": ["Provide text to critique"],
+                    "confidence": 0.0,
+                    "feedback": {
+                        "critique": "No text provided for critique",
+                        "principle_violations": [],
+                        "principles_evaluated": len(self.principles),
+                        "strict_mode": self.strict_mode,
+                    },
+                }
+
+            # Prepare context from retrieved documents (using mixin)
+            context = self._prepare_context(thought)
+
+            # Create principles text
+            principles_text = "\n".join([f"- {principle}" for principle in self.principles])
+
+            # Create critique prompt with context
+            critique_prompt = self.critique_prompt_template.format(
+                principles=principles_text,
+                prompt=thought.prompt,
+                text=thought.text,
+                context=context,
+            )
+
+            # Generate critique (async)
+            critique_response = await self.model._generate_async(
+                prompt=critique_prompt,
+                system_message="You are an expert evaluator of constitutional principles and ethical guidelines.",
+            )
+
+            # Parse violations and suggestions from critique
+            violations = self._extract_violations(critique_response)
+            suggestions = self._extract_suggestions(critique_response)
+
+            # Determine if improvement is needed
+            needs_improvement = len(violations) > 0
+            if self.strict_mode:
+                needs_improvement = needs_improvement or "concern" in critique_response.lower()
+
+            # Calculate confidence based on clarity of violations
+            confidence = 0.9 if violations else 0.7
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            logger.debug(
+                f"ConstitutionalCritic: Async critique completed in {processing_time:.2f}ms"
+            )
+
+            return {
+                "needs_improvement": needs_improvement,
+                "violations": [v.get("description", str(v)) for v in violations],
+                "suggestions": suggestions,
+                "confidence": confidence,
+                "feedback": {
+                    "critique": critique_response,
+                    "principle_violations": violations,
+                    "principles_evaluated": len(self.principles),
+                    "strict_mode": self.strict_mode,
+                },
+                "processing_time_ms": processing_time,
+            }
+
+    async def _improve_async(self, thought: Thought) -> str:
+        """Improve text to align with constitutional principles asynchronously.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+
+        Returns:
+            The improved text that better aligns with constitutional principles.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name="ConstitutionalCritic",
+            operation="improve_async",
+            message_prefix="Failed to improve text with Constitutional AI (async)",
+        ):
+            # Check if text and critique are available
+            if not thought.text:
+                raise ImproverError(
+                    message="No text available for improvement",
+                    component="ConstitutionalCritic",
+                    operation="improve_async",
+                    suggestions=["Provide text to improve"],
+                )
+
+            if not thought.critic_feedback:
+                raise ImproverError(
+                    message="No critique available for improvement",
+                    component="ConstitutionalCritic",
+                    operation="improve_async",
+                    suggestions=["Run critique before improvement"],
+                )
+
+            # Extract critique from feedback
+            critique = ""
+            for feedback in thought.critic_feedback:
+                if feedback.critic_name == "ConstitutionalCritic":
+                    critique = feedback.feedback.get("critique", "")
+                    break
+
+            if not critique:
+                critique = "Please improve the text to better align with constitutional principles."
+
+            # Create principles text
+            principles_text = "\n".join([f"- {principle}" for principle in self.principles])
+
+            # Prepare context for improvement (using mixin)
+            context = self._prepare_context(thought)
+
+            # Create improvement prompt with context
+            improve_prompt = self.improve_prompt_template.format(
+                principles=principles_text,
+                prompt=thought.prompt,
+                text=thought.text,
+                critique=critique,
+                context=context,
+            )
+
+            # Generate improved text (async)
+            improved_text = await self.model._generate_async(
+                prompt=improve_prompt,
+                system_message="You are an expert editor improving text to align with constitutional principles.",
+            )
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            logger.debug(
+                f"ConstitutionalCritic: Async improvement completed in {processing_time:.2f}ms"
+            )
 
             return improved_text.strip()
 

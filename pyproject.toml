@@ -29,6 +29,7 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "requests>=2.31.0",
     "httpx>=0.28.1",
+    "aiofiles>=23.0.0",
     "tenacity>=8.2.3",
 ]
 

@@ -294,6 +294,23 @@ class GuardrailsValidator:
                     ],
                 )
 
+    async def _validate_async(self, thought: Thought) -> ValidationResult:
+        """Validate text using GuardrailsAI asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync validate method but can be called concurrently with other validators.
+
+        Args:
+            thought: The Thought container with the text to validate.
+
+        Returns:
+            A ValidationResult with information about whether the validation passed,
+            any issues found, and suggestions for improvement.
+        """
+        # GuardrailsAI validation involves API calls, so this could benefit from true async
+        # For now, we'll call the sync version, but this could be improved with async HTTP
+        return self.validate(thought)
+
 
 def create_guardrails_validator(
     guard: Optional[Any] = None,

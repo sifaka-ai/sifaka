@@ -1,6 +1,5 @@
-# Milvus
-mcp-server-milvus/
-*.db
+# MCP Servers
+mcp/
 
 # Python
 __pycache__/

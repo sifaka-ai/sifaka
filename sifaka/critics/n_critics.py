@@ -6,10 +6,21 @@ the refinement process.
 
 Based on "N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics"
 
+@misc{mousavi2023ncriticsselfrefinementlargelanguage,
+      title={N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics},
+      author={Sajad Mousavi and Ricardo Luna Gutiérrez and Desik Rengarajan and Vineet Gundecha and Ashwin Ramesh Babu and Avisek Naug and Antonio Guillen and Soumyendu Sarkar},
+      year={2023},
+      eprint={2310.18679},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2310.18679},
+}
+
 The NCriticsCritic leverages multiple specialized critics, each focusing on different
 aspects of the text, to provide comprehensive feedback and guide the refinement process.
 """
 
+import asyncio
 import time
 from typing import Any, Dict, List, Optional
 
@@ -247,6 +258,207 @@ class NCriticsCritic(ContextAwareMixin):
             logger.debug(f"NCriticsCritic: Improvement completed in {processing_time:.2f}ms")
 
             return improved_text.strip()
+
+    async def _critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Critique text using N-Critics ensemble approach asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync critique method but with non-blocking I/O.
+
+        Args:
+            thought: The Thought container with the text to critique.
+
+        Returns:
+            A dictionary with aggregated critique results from multiple critics.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name="NCriticsCritic",
+            operation="critique_async",
+            message_prefix="Failed to critique text with N-Critics ensemble (async)",
+        ):
+            # Check if text is available
+            if not thought.text:
+                return {
+                    "needs_improvement": True,
+                    "message": "No text available for critique",
+                    "issues": ["Text is empty or None"],
+                    "suggestions": ["Provide text to critique"],
+                    "critic_feedback": [],
+                }
+
+            # Generate critiques from each specialized critic (async)
+            critic_tasks = []
+            for role in self.critic_roles:
+                critic_tasks.append(self._generate_critic_critique_async(thought, role))
+
+            # Wait for all critiques to complete
+            critic_critiques = await asyncio.gather(*critic_tasks, return_exceptions=True)
+
+            # Process results and handle exceptions
+            valid_critiques = []
+            for i, result in enumerate(critic_critiques):
+                if isinstance(result, Exception):
+                    logger.error(f"NCriticsCritic: Error in critic {i+1}: {result}")
+                    # Create error critique
+                    error_critique = {
+                        "role": self.critic_roles[i],
+                        "score": 0.0,
+                        "needs_improvement": True,
+                        "issues": [f"Critic error: {str(result)}"],
+                        "suggestions": ["Please try again or check the critic configuration."],
+                        "critique": f"Error in critic: {str(result)}",
+                    }
+                    valid_critiques.append(error_critique)
+                else:
+                    valid_critiques.append(result)  # type: ignore
+
+            # Aggregate feedback from all critics
+            aggregated_feedback = self._aggregate_critiques(valid_critiques)
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            logger.debug(f"NCriticsCritic: Async critique completed in {processing_time:.2f}ms")
+
+            # Extract issues and suggestions from all critics
+            all_issues: List[str] = []
+            all_suggestions: List[str] = []
+            for critique in valid_critiques:
+                if "issues" in critique and isinstance(critique["issues"], list):
+                    all_issues.extend(critique["issues"])
+                if "suggestions" in critique and isinstance(critique["suggestions"], list):
+                    all_suggestions.extend(critique["suggestions"])
+
+            # Determine if improvement is needed
+            needs_improvement = aggregated_feedback.get("average_score", 5.0) < 7.0
+
+            return {
+                "needs_improvement": needs_improvement,
+                "message": aggregated_feedback["summary"],
+                "critique": aggregated_feedback["summary"],
+                "violations": all_issues,  # Add top-level violations for chain compatibility
+                "suggestions": all_suggestions,  # Add top-level suggestions for chain compatibility
+                "critic_feedback": valid_critiques,
+                "aggregated_score": aggregated_feedback["average_score"],
+                "num_critics": len(valid_critiques),
+                "processing_time_ms": processing_time,
+            }
+
+    async def _improve_async(self, thought: Thought) -> str:
+        """Improve text using N-Critics ensemble feedback asynchronously.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+
+        Returns:
+            The improved text based on aggregated feedback from multiple critics.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name="NCriticsCritic",
+            operation="improve_async",
+            message_prefix="Failed to improve text with N-Critics ensemble (async)",
+        ):
+            # Check if text and critique are available
+            if not thought.text:
+                raise ImproverError(
+                    message="No text available for improvement",
+                    component="NCriticsCritic",
+                    operation="improve_async",
+                    suggestions=["Provide text to improve"],
+                )
+
+            if not thought.critic_feedback:
+                raise ImproverError(
+                    message="No critique available for improvement",
+                    component="NCriticsCritic",
+                    operation="improve_async",
+                    suggestions=["Run critique before improvement"],
+                )
+
+            # Extract aggregated feedback from critic feedback
+            aggregated_feedback = ""
+            for feedback in thought.critic_feedback:
+                if feedback.critic_name == "NCriticsCritic":
+                    critic_feedback_list = feedback.feedback.get("critic_feedback", [])
+                    aggregated_feedback = self._format_feedback_for_improvement(
+                        critic_feedback_list
+                    )
+                    break
+
+            if not aggregated_feedback:
+                aggregated_feedback = "Please improve the text based on the available feedback."
+
+            # Prepare context for improvement (using mixin)
+            context = self._prepare_context(thought)
+
+            # Create improvement prompt with context
+            improve_prompt = self.improve_prompt_template.format(
+                prompt=thought.prompt,
+                text=thought.text,
+                aggregated_feedback=aggregated_feedback,
+                context=context,
+            )
+
+            # Generate improved text (async)
+            improved_text = await self.model._generate_async(
+                prompt=improve_prompt,
+                system_message="You are an expert editor incorporating feedback from multiple specialized critics.",
+            )
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            logger.debug(f"NCriticsCritic: Async improvement completed in {processing_time:.2f}ms")
+
+            return improved_text.strip()
+
+    async def _generate_critic_critique_async(self, thought: Thought, role: str) -> Dict[str, Any]:
+        """Generate critique from a single specialized critic asynchronously.
+
+        Args:
+            thought: The Thought container with the text to critique.
+            role: The role/specialty of the critic.
+
+        Returns:
+            A dictionary with the critic's feedback.
+        """
+        # Prepare context from retrieved documents (using mixin)
+        context = self._prepare_context(thought)
+
+        # Create role-specific critique prompt
+        critique_prompt = self.critique_prompt_template.format(
+            role=role,
+            prompt=thought.prompt,
+            text=thought.text,
+            context=context,
+            validation_context="",  # Add empty validation context for async
+        )
+
+        # Generate critique (async)
+        critique_response = await self.model._generate_async(
+            prompt=critique_prompt,
+            system_message=f"You are a specialized critic with the role: {role}",
+        )
+
+        # Extract score and determine improvement need
+        score = self._extract_score_from_critique(critique_response)
+        needs_improvement = score < 7.0
+
+        # Parse structured feedback from the critique response
+        issues, suggestions = self._parse_structured_feedback(critique_response)
+
+        return {
+            "role": role,
+            "score": score,
+            "needs_improvement": needs_improvement,
+            "issues": issues,
+            "suggestions": suggestions,
+            "critique": critique_response,
+        }
 
     def _generate_critic_critique(self, thought: Thought, role: str) -> Dict[str, Any]:
         """Generate critique from a single specialized critic.

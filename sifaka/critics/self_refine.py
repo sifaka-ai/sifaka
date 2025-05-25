@@ -5,7 +5,17 @@ models to iteratively critique and revise their own outputs without requiring
 external feedback. The critic uses the same language model to generate critiques
 and revisions in multiple rounds.
 
-Based on Self-Refine: https://arxiv.org/abs/2303.17651
+Based on Self-Refine:
+
+@misc{madaan2023selfrefineiterativerefinementselffeedback,
+      title={Self-Refine: Iterative Refinement with Self-Feedback},
+      author={Aman Madaan and Niket Tandon and Prakhar Gupta and Skyler Hallinan and Luyu Gao and Sarah Wiegreffe and Uri Alon and Nouha Dziri and Shrimai Prabhumoye and Yiming Yang and Shashank Gupta and Bodhisattwa Prasad Majumder and Katherine Hermann and Sean Welleck and Amir Yazdanbakhsh and Peter Clark},
+      year={2023},
+      eprint={2303.17651},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2303.17651},
+}
 
 The SelfRefineCritic implements a multi-round refinement process where the model
 critiques its own output and then revises it based on that critique, leading to
@@ -304,6 +314,161 @@ class SelfRefineCritic(ContextAwareMixin):
 
         # Default to needing improvement if unclear
         return True
+
+    async def _critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Critique text using the Self-Refine approach asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync critique method but with non-blocking I/O.
+
+        Args:
+            thought: The Thought container with the text to critique.
+
+        Returns:
+            A dictionary with critique results.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name="SelfRefineCritic",
+            operation="critique_async",
+            message_prefix="Failed to critique text with Self-Refine (async)",
+        ):
+            # Check if text is available
+            if not thought.text:
+                return {
+                    "needs_improvement": True,
+                    "message": "No text available for critique",
+                    "issues": ["Text is empty or None"],
+                    "suggestions": ["Provide text to critique"],
+                    "iteration": 0,
+                }
+
+            # Prepare context from retrieved documents (using mixin)
+            context = self._prepare_context(thought)
+
+            # Create critique prompt with context
+            critique_prompt = self.critique_prompt_template.format(
+                prompt=thought.prompt,
+                text=thought.text,
+                context=context,
+            )
+
+            # Generate critique (async)
+            critique_response = await self.model._generate_async(
+                prompt=critique_prompt,
+                system_message="You are an expert critic providing detailed, constructive feedback.",
+            )
+
+            # Determine if improvement is needed based on critique content
+            needs_improvement = self._needs_improvement(critique_response)
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            logger.debug(f"SelfRefineCritic: Async critique completed in {processing_time:.2f}ms")
+
+            return {
+                "needs_improvement": needs_improvement,
+                "message": critique_response,
+                "critique": critique_response,
+                "iteration": 1,
+                "processing_time_ms": processing_time,
+            }
+
+    async def _improve_async(self, thought: Thought) -> str:
+        """Improve text using iterative Self-Refine approach asynchronously.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+
+        Returns:
+            The improved text after iterative refinement.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name="SelfRefineCritic",
+            operation="improve_async",
+            message_prefix="Failed to improve text with Self-Refine (async)",
+        ):
+            # Check if text is available
+            if not thought.text:
+                raise ImproverError(
+                    message="No text available for improvement",
+                    component="SelfRefineCritic",
+                    operation="improve_async",
+                    suggestions=["Provide text to improve"],
+                )
+
+            current_text = thought.text
+            iteration_history = []
+
+            # Prepare context once for all iterations (using mixin)
+            context = self._prepare_context(thought)
+
+            # Iterative refinement process
+            for iteration in range(self.max_iterations):
+                logger.debug(
+                    f"SelfRefineCritic: Starting async iteration {iteration + 1}/{self.max_iterations}"
+                )
+
+                # Generate critique for current text with context (async)
+                critique_prompt = self.critique_prompt_template.format(
+                    prompt=thought.prompt,
+                    text=current_text,
+                    context=context,
+                )
+
+                critique = await self.model._generate_async(
+                    prompt=critique_prompt,
+                    system_message="You are an expert critic providing detailed, constructive feedback.",
+                )
+
+                # Check if improvement is needed
+                if not self._needs_improvement(critique):
+                    logger.debug(
+                        f"SelfRefineCritic: Stopping early at async iteration {iteration + 1} - no improvement needed"
+                    )
+                    break
+
+                # Generate improved text based on critique (async)
+                improve_prompt = self.improve_prompt_template.format(
+                    prompt=thought.prompt,
+                    text=current_text,
+                    critique=critique,
+                    context=context,
+                )
+
+                improved_text = await self.model._generate_async(
+                    prompt=improve_prompt,
+                    system_message="You are an expert editor improving text based on critique.",
+                )
+
+                # Store iteration history
+                iteration_history.append(
+                    {
+                        "iteration": iteration + 1,
+                        "original_text": current_text,
+                        "critique": critique,
+                        "improved_text": improved_text.strip(),
+                    }
+                )
+
+                # Update current text for next iteration
+                current_text = improved_text.strip()
+
+                logger.debug(f"SelfRefineCritic: Completed async iteration {iteration + 1}")
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            logger.debug(
+                f"SelfRefineCritic: Async refinement completed in {processing_time:.2f}ms "
+                f"after {len(iteration_history)} iterations"
+            )
+
+            return current_text
 
 
 def create_self_refine_critic(

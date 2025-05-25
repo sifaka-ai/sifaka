@@ -71,7 +71,19 @@ class ChainOrchestrator:
             all_documents = []
             for retriever in self.config.model_retrievers:
                 try:
-                    documents = retriever.retrieve(thought.prompt)
+                    document_texts = retriever.retrieve(thought.prompt)
+                    # Convert strings to Document objects
+                    documents = [
+                        Document(
+                            text=text,
+                            metadata={
+                                "source": retriever.__class__.__name__,
+                                "query": thought.prompt,
+                            },
+                            score=1.0 - (i * 0.1),  # Simple scoring based on rank
+                        )
+                        for i, text in enumerate(document_texts)
+                    ]
                     all_documents.extend(documents)
                     logger.debug(
                         f"Retrieved {len(documents)} documents from {retriever.__class__.__name__}"
@@ -112,7 +124,19 @@ class ChainOrchestrator:
             all_documents = []
             for retriever in self.config.model_retrievers:
                 try:
-                    documents = retriever.retrieve(thought.text)
+                    document_texts = retriever.retrieve(thought.text)
+                    # Convert strings to Document objects
+                    documents = [
+                        Document(
+                            text=text,
+                            metadata={
+                                "source": retriever.__class__.__name__,
+                                "query": thought.text,
+                            },
+                            score=1.0 - (i * 0.1),  # Simple scoring based on rank
+                        )
+                        for i, text in enumerate(document_texts)
+                    ]
                     all_documents.extend(documents)
                     logger.debug(
                         f"Retrieved {len(documents)} documents from {retriever.__class__.__name__}"
@@ -154,7 +178,19 @@ class ChainOrchestrator:
             for retriever in self.config.critic_retrievers:
                 try:
                     # Use the generated text as the query for critic retrieval
-                    documents = retriever.retrieve(thought.text)
+                    document_texts = retriever.retrieve(thought.text)
+                    # Convert strings to Document objects
+                    documents = [
+                        Document(
+                            text=text,
+                            metadata={
+                                "source": retriever.__class__.__name__,
+                                "query": thought.text,
+                            },
+                            score=1.0 - (i * 0.1),  # Simple scoring based on rank
+                        )
+                        for i, text in enumerate(document_texts)
+                    ]
                     all_documents.extend(documents)
                     logger.debug(
                         f"Retrieved {len(documents)} documents from {retriever.__class__.__name__}"
@@ -213,4 +249,4 @@ class ChainOrchestrator:
         Returns:
             The maximum number of iterations.
         """
-        return self.config.get_option("max_improvement_iterations", 3)
+        return int(self.config.get_option("max_improvement_iterations", 3))

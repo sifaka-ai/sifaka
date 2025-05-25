@@ -8,6 +8,8 @@ from typing import List, Optional
 
 from sifaka.core.chain.config import ChainConfig
 from sifaka.core.thought import Thought
+from sifaka.storage.checkpoints import ChainCheckpoint
+from sifaka.recovery.manager import RecoveryAction, RecoveryStrategy
 from sifaka.utils.performance import PerformanceMonitor
 from sifaka.utils.logging import get_logger
 
@@ -28,7 +30,7 @@ class RecoveryManager:
             config: The chain configuration.
         """
         self.config = config
-        self.current_checkpoint: Optional["ChainCheckpoint"] = None
+        self.current_checkpoint: Optional[ChainCheckpoint] = None
 
     def save_checkpoint(self, step: str, thought: Thought, iteration: int) -> None:
         """Save a checkpoint for the current execution state.
@@ -45,9 +47,6 @@ class RecoveryManager:
             # Get performance data
             monitor = PerformanceMonitor.get_instance()
             performance_data = monitor.get_summary()
-
-            # Import ChainCheckpoint at runtime to avoid circular imports
-            from sifaka.storage.checkpoints import ChainCheckpoint
 
             # Create checkpoint
             checkpoint = ChainCheckpoint(
@@ -75,7 +74,7 @@ class RecoveryManager:
         except Exception as e:
             logger.warning(f"Failed to save checkpoint for step '{step}': {e}")
 
-    def get_existing_checkpoints(self) -> List["ChainCheckpoint"]:
+    def get_existing_checkpoints(self) -> List[ChainCheckpoint]:
         """Get existing checkpoints for the current chain.
 
         Returns:
@@ -90,7 +89,7 @@ class RecoveryManager:
             logger.warning(f"Failed to retrieve existing checkpoints: {e}")
             return []
 
-    def get_latest_checkpoint(self) -> Optional["ChainCheckpoint"]:
+    def get_latest_checkpoint(self) -> Optional[ChainCheckpoint]:
         """Get the latest checkpoint for the current chain.
 
         Returns:
@@ -120,8 +119,8 @@ class RecoveryManager:
         return latest is not None
 
     def analyze_failure(
-        self, checkpoint: "ChainCheckpoint", error: Exception
-    ) -> List["RecoveryAction"]:
+        self, checkpoint: ChainCheckpoint, error: Exception
+    ) -> List[RecoveryAction]:
         """Analyze a failure and suggest recovery actions.
 
         Args:
@@ -131,9 +130,6 @@ class RecoveryManager:
         Returns:
             List of suggested recovery actions.
         """
-        # Import at runtime to avoid circular imports
-        from sifaka.recovery.manager import RecoveryAction
-
         recovery_actions = []
 
         # Analyze the type of error and suggest appropriate actions
@@ -143,8 +139,9 @@ class RecoveryManager:
         if "timeout" in error_message.lower() or "connection" in error_message.lower():
             recovery_actions.append(
                 RecoveryAction(
-                    action_type="retry_with_backoff",
+                    strategy=RecoveryStrategy.RETRY_CURRENT_STEP,
                     description="Retry with exponential backoff due to connection/timeout error",
+                    confidence=0.7,
                     parameters={"max_retries": 3, "base_delay": 2},
                 )
             )
@@ -152,8 +149,9 @@ class RecoveryManager:
         if "rate limit" in error_message.lower() or "quota" in error_message.lower():
             recovery_actions.append(
                 RecoveryAction(
-                    action_type="wait_and_retry",
+                    strategy=RecoveryStrategy.RETRY_CURRENT_STEP,
                     description="Wait longer before retry due to rate limiting",
+                    confidence=0.6,
                     parameters={"delay": 60, "max_retries": 2},
                 )
             )
@@ -161,8 +159,9 @@ class RecoveryManager:
         if "validation" in error_message.lower():
             recovery_actions.append(
                 RecoveryAction(
-                    action_type="skip_validation",
+                    strategy=RecoveryStrategy.SKIP_TO_NEXT_STEP,
                     description="Skip problematic validation and continue",
+                    confidence=0.5,
                     parameters={"skip_validator": True},
                 )
             )
@@ -171,15 +170,16 @@ class RecoveryManager:
         if not recovery_actions:
             recovery_actions.append(
                 RecoveryAction(
-                    action_type="simple_retry",
+                    strategy=RecoveryStrategy.RETRY_CURRENT_STEP,
                     description="Simple retry of the failed operation",
+                    confidence=0.4,
                     parameters={"max_retries": 1},
                 )
             )
 
         return recovery_actions
 
-    def apply_recovery_action(self, action: "RecoveryAction") -> bool:
+    def apply_recovery_action(self, action: RecoveryAction) -> bool:
         """Apply a recovery action to the chain configuration.
 
         Args:
@@ -189,35 +189,27 @@ class RecoveryManager:
             True if the action was applied successfully, False otherwise.
         """
         try:
-            if action.action_type == "retry_with_backoff":
+            if action.strategy == RecoveryStrategy.RETRY_CURRENT_STEP:
                 # This would be handled by the calling code
                 logger.info(f"Applying recovery action: {action.description}")
                 return True
 
-            elif action.action_type == "wait_and_retry":
-                import time
-
-                delay = action.parameters.get("delay", 30)
-                logger.info(f"Waiting {delay} seconds before retry...")
-                time.sleep(delay)
-                return True
-
-            elif action.action_type == "skip_validation":
+            elif action.strategy == RecoveryStrategy.SKIP_TO_NEXT_STEP:
                 # Temporarily disable validators
                 logger.info("Temporarily disabling validators for recovery")
                 self.config.validators = []
                 return True
 
-            elif action.action_type == "simple_retry":
-                logger.info("Performing simple retry")
+            elif action.strategy == RecoveryStrategy.FULL_RESTART:
+                logger.info("Performing full restart")
                 return True
 
             else:
-                logger.warning(f"Unknown recovery action type: {action.action_type}")
+                logger.warning(f"Unknown recovery strategy: {action.strategy}")
                 return False
 
         except Exception as e:
-            logger.error(f"Failed to apply recovery action {action.action_type}: {e}")
+            logger.error(f"Failed to apply recovery action {action.strategy}: {e}")
             return False
 
     def cleanup_checkpoints(self, keep_latest: int = 5) -> None:
@@ -237,7 +229,7 @@ class RecoveryManager:
             # Remove older checkpoints
             to_remove = checkpoints[:-keep_latest]
             for checkpoint in to_remove:
-                self.config.checkpoint_storage.delete_checkpoint(checkpoint.chain_id, checkpoint.id)
+                self.config.checkpoint_storage.delete_checkpoint(checkpoint.checkpoint_id)
 
             logger.debug(f"Cleaned up {len(to_remove)} old checkpoints")
 

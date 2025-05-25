@@ -64,19 +64,19 @@ class Thought(BaseModel):
     chain_id: Optional[str] = None
     metadata: Dict[str, Any] = {}
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         if "id" not in data or not data["id"]:
             data["id"] = str(uuid4())
         if "timestamp" not in data or data["timestamp"] is None:
             data["timestamp"] = datetime.now()
         super().__init__(**data)
 
-    def next_iteration(self):
+    def next_iteration(self) -> "Thought":
         """Create a new Thought for the next iteration."""
         current_ref = ThoughtReference(
             thought_id=self.id,
             iteration=self.iteration,
-            timestamp=self.timestamp,
+            timestamp=self.timestamp or datetime.now(),
             summary=(
                 f"Iteration {self.iteration}: {len(self.text or '')} chars"
                 if self.text
@@ -98,33 +98,33 @@ class Thought(BaseModel):
             }
         )
 
-    def add_pre_generation_context(self, documents: List[Document]):
+    def add_pre_generation_context(self, documents: List[Document]) -> "Thought":
         """Add pre-generation context to this thought."""
         current_context = self.pre_generation_context or []
         return self.model_copy(update={"pre_generation_context": current_context + documents})
 
-    def add_post_generation_context(self, documents: List[Document]):
+    def add_post_generation_context(self, documents: List[Document]) -> "Thought":
         """Add post-generation context to this thought."""
         current_context = self.post_generation_context or []
         return self.model_copy(update={"post_generation_context": current_context + documents})
 
-    def add_validation_result(self, name: str, result: ValidationResult):
+    def add_validation_result(self, name: str, result: ValidationResult) -> "Thought":
         """Add a validation result to this thought."""
         results = dict(self.validation_results or {})
         results[name] = result
         return self.model_copy(update={"validation_results": results})
 
-    def add_critic_feedback(self, feedback: CriticFeedback):
+    def add_critic_feedback(self, feedback: CriticFeedback) -> "Thought":
         """Add critic feedback to this thought."""
         feedback_list = list(self.critic_feedback or [])
         feedback_list.append(feedback)
         return self.model_copy(update={"critic_feedback": feedback_list})
 
-    def set_text(self, text: str):
+    def set_text(self, text: str) -> "Thought":
         """Set the generated text for this thought."""
         return self.model_copy(update={"text": text})
 
-    def set_model_prompt(self, model_prompt: str):
+    def set_model_prompt(self, model_prompt: str) -> "Thought":
         """Set the actual prompt sent to the model for this thought."""
         return self.model_copy(update={"model_prompt": model_prompt})
 
@@ -133,7 +133,7 @@ class Thought(BaseModel):
         return self.model_dump(exclude={"history"})
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]):
+    def from_dict(cls, data: Dict[str, Any]) -> "Thought":
         """Create a Thought from a dictionary."""
         version = data.get("version", "1.0.0")
         if version != "1.0.0":

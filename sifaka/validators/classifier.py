@@ -226,6 +226,23 @@ class ClassifierValidator:
                     suggestions=["Check classifier implementation and input format"],
                 )
 
+    async def _validate_async(self, thought: Thought) -> ValidationResult:
+        """Validate text using ML classifier asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync validate method but can be called concurrently with other validators.
+
+        Args:
+            thought: The Thought container with the text to validate.
+
+        Returns:
+            A ValidationResult with information about whether the validation passed,
+            any issues found, and suggestions for improvement.
+        """
+        # Classification is CPU-bound and fast, so we can just call the sync version
+        # In a real implementation, you might want to run this in a thread pool for consistency
+        return self.validate(thought)
+
     def _check_label_validity(self, label: str) -> bool:
         """Check if a predicted label is valid.
 

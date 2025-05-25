@@ -42,7 +42,7 @@ from typing import Any, Dict, Optional, Tuple
 # Try to import HuggingFace dependencies
 try:
     from huggingface_hub import InferenceClient
-    from transformers import (
+    from transformers import (  # type: ignore
         AutoTokenizer,
         AutoModelForCausalLM,
         AutoModelForSeq2SeqLM,
@@ -127,14 +127,14 @@ class HuggingFaceModelLoader:
             return None
 
         if quantization == "4bit":
-            return BitsAndBytesConfig(
+            return BitsAndBytesConfig(  # type: ignore
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4",
             )
         elif quantization == "8bit":
-            return BitsAndBytesConfig(load_in_8bit=True)
+            return BitsAndBytesConfig(load_in_8bit=True)  # type: ignore
         else:
             logger.warning(f"Unknown quantization type: {quantization}")
             return None
@@ -643,6 +643,37 @@ class HuggingFaceModel(ContextAwareMixin):
         except Exception as e:
             logger.warning(f"Token counting failed, using approximation: {e}")
             return max(1, len(text) // 4)
+
+    # Async methods required by Model protocol
+    async def _generate_async(self, prompt: str, **options: Any) -> str:
+        """Generate text from a prompt asynchronously.
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options for generation.
+
+        Returns:
+            The generated text.
+        """
+        # For now, just call the sync method
+        # In a real implementation, you would use async HTTP calls for API mode
+        return self.generate(prompt, **options)
+
+    async def _generate_with_thought_async(
+        self, thought: Thought, **options: Any
+    ) -> tuple[str, str]:
+        """Generate text using a Thought container asynchronously.
+
+        Args:
+            thought: The Thought container with context for generation.
+            **options: Additional options for generation.
+
+        Returns:
+            A tuple of (generated_text, actual_prompt_used).
+        """
+        # For now, just call the sync method
+        # In a real implementation, you would use async HTTP calls for API mode
+        return self.generate_with_thought(thought, **options)
 
 
 def create_huggingface_model(

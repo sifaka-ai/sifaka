@@ -205,3 +205,50 @@ class MockModel(ContextAwareMixin):
         """
         # Simple approximation: count words
         return len(text.split())
+
+    # Internal async methods (implementing the Model protocol)
+    async def _generate_async(self, prompt: str, **options: Any) -> str:
+        """Generate text from a prompt asynchronously.
+
+        This is the internal async implementation for the mock model.
+        Since it's a mock, we just call the sync version.
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options for generation.
+
+        Returns:
+            A mock response.
+        """
+        return self.generate(prompt, **options)
+
+    async def _generate_with_thought_async(
+        self, thought: "Thought", **options: Any
+    ) -> tuple[str, str]:
+        """Generate text from a thought asynchronously.
+
+        This is the internal async implementation for the mock model.
+        Since it's a mock, we just call the sync version.
+
+        Args:
+            thought: The Thought container with prompt and context.
+            **options: Additional options for generation.
+
+        Returns:
+            A tuple of (generated_text, actual_prompt_used).
+        """
+        return self.generate_with_thought(thought, **options)
+
+    async def _count_tokens_async(self, text: str) -> int:
+        """Count tokens in text asynchronously.
+
+        This is the internal async implementation for the mock model.
+        Since it's a mock, we just call the sync version.
+
+        Args:
+            text: The text to count tokens in.
+
+        Returns:
+            A mock token count.
+        """
+        return self.count_tokens(text)

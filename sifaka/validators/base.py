@@ -8,8 +8,12 @@ any issues found, and suggestions for improvement.
 Validators are used in the Sifaka chain to ensure that generated text meets
 specified criteria before it is returned to the user or passed to the next stage
 of the chain.
+
+The validators support both sync and async implementations internally, with sync
+methods wrapping async implementations using asyncio.run() for backward compatibility.
 """
 
+import asyncio
 import re
 from typing import List, Optional, Pattern
 
@@ -100,6 +104,23 @@ class LengthValidator:
                 issues=issues if issues else None,
                 suggestions=suggestions if suggestions else None,
             )
+
+    async def _validate_async(self, thought: Thought) -> ValidationResult:
+        """Validate text against length requirements asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync validate method but can be called concurrently with other validators.
+
+        Args:
+            thought: The Thought container with the text to validate.
+
+        Returns:
+            A ValidationResult with information about whether the validation passed,
+            any issues found, and suggestions for improvement.
+        """
+        # Length validation is CPU-bound and fast, so we can just call the sync version
+        # In a real implementation, you might want to run this in a thread pool for consistency
+        return self.validate(thought)
 
 
 class RegexValidator:
@@ -197,3 +218,20 @@ class RegexValidator:
                 issues=issues if issues else None,
                 suggestions=suggestions if suggestions else None,
             )
+
+    async def _validate_async(self, thought: Thought) -> ValidationResult:
+        """Validate text against regex patterns asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync validate method but can be called concurrently with other validators.
+
+        Args:
+            thought: The Thought container with the text to validate.
+
+        Returns:
+            A ValidationResult with information about whether the validation passed,
+            any issues found, and suggestions for improvement.
+        """
+        # Regex validation is CPU-bound and fast, so we can just call the sync version
+        # In a real implementation, you might want to run this in a thread pool for consistency
+        return self.validate(thought)
