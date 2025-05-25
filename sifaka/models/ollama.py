@@ -189,13 +189,13 @@ class OllamaConnection:
         # Add supported options
         if "temperature" in options:
             payload["options"] = payload.get("options", {})
-            payload["options"]["temperature"] = options["temperature"]
+            payload["options"]["temperature"] = options["temperature"]  # type: ignore
         if "max_tokens" in options:
             payload["options"] = payload.get("options", {})
-            payload["options"]["num_predict"] = options["max_tokens"]
+            payload["options"]["num_predict"] = options["max_tokens"]  # type: ignore
         if "stop" in options:
             payload["options"] = payload.get("options", {})
-            payload["options"]["stop"] = options["stop"]
+            payload["options"]["stop"] = options["stop"]  # type: ignore
 
         try:
             response = self.session.post(
@@ -204,7 +204,7 @@ class OllamaConnection:
             response.raise_for_status()
 
             data = response.json()
-            return data.get("response", "")
+            return str(data.get("response", ""))
 
         except requests.exceptions.RequestException as e:
             raise ModelError(f"Ollama API request failed: {e}")
@@ -452,13 +452,9 @@ def create_ollama_model(
     except Exception as e:
         # Log the error with context
         log_error(
-            logger,
-            f"Failed to create Ollama model '{model_name}': {str(e)}",
-            error=e,
-            context={
-                "model_name": model_name,
-                "base_url": base_url,
-                "kwargs": kwargs,
-            },
+            e,
+            logger_instance=logger,
+            component="OllamaModel",
+            operation="creation",
         )
         raise

@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
-"""Example demonstrating MilvusRetriever for semantic search.
+"""Unified Storage Example for Sifaka - Replacing Milvus Retriever.
 
-This example shows how to use the MilvusRetriever to store documents
-in a Milvus vector database and perform semantic similarity search.
+This example demonstrates how to use the new unified storage architecture
+with vector search capabilities using the official Milvus MCP server.
+
+Setup Instructions:
+1. Start Docker Redis:
+   docker run -d -p 6379:6379 redis:latest
+
+2. Install Redis MCP Server:
+   npm install -g @modelcontextprotocol/server-redis
+
+3. Install Milvus MCP Server:
+   npm install -g @milvus-io/mcp-server-milvus
+
+4. Run this example:
+   python examples/mock/milvus_retriever_example.py
 
 The example demonstrates:
-1. Creating a MilvusRetriever with Milvus Lite (embedded)
-2. Adding documents to the vector database
-3. Performing semantic search queries
-4. Using the retriever in a Sifaka chain for context-aware generation
-5. Comparing results with different query types
-
-Requirements:
-    - pymilvus>=2.4.0 (automatically installed with Sifaka)
-    - The example uses Milvus Lite which doesn't require a separate server
-
-Usage:
-    python examples/mock/vector_db_retriever_example.py
+1. Using unified storage architecture with vector search capabilities
+2. Connecting to real MCP infrastructure (Redis + Milvus)
+3. Semantic search with 3-tier caching (memory → Redis → Milvus)
+4. Integration with Sifaka chains for context-aware generation
 """
 
 from typing import Dict
@@ -25,17 +30,11 @@ from sifaka.chain import Chain
 from sifaka.models.base import create_model
 from sifaka.validators.base import LengthValidator
 from sifaka.critics import ReflexionCritic
+from sifaka.retrievers import InMemoryRetriever
+from sifaka.mcp import MCPServerConfig, MCPTransportType
+from sifaka.storage import SifakaStorage
 
-try:
-    from sifaka.retrievers.milvus import MilvusRetriever
-    from sifaka.retrievers.base import MCPServerConfig, MCPTransportType
-
-    VECTOR_DB_AVAILABLE = True
-except ImportError:
-    VECTOR_DB_AVAILABLE = False
-    print(
-        "Vector DB retrievers not available. Please install pymilvus: pip install 'pymilvus[model]'"
-    )
+VECTOR_DB_AVAILABLE = True  # Always available with unified storage
 
 
 def create_sample_documents() -> Dict[str, str]:
@@ -101,31 +100,41 @@ def create_sample_documents() -> Dict[str, str]:
 
 
 def demonstrate_basic_retrieval():
-    """Demonstrate basic document storage and retrieval."""
-    print("=== Basic Milvus Retrieval Demo ===")
+    """Demonstrate basic document storage and retrieval with unified storage."""
+    print("=== Unified Storage Vector Retrieval Demo ===")
 
-    if not VECTOR_DB_AVAILABLE:
-        print("Skipping Milvus demo - pymilvus not available")
-        return
+    # Create MCP configurations for unified storage
+    redis_config = MCPServerConfig(
+        name="redis-server",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379",
+    )
 
-    # Create MCP configuration for Milvus
-    mcp_config = MCPServerConfig(
+    milvus_config = MCPServerConfig(
         name="milvus-server",
-        transport_type=MCPTransportType.WEBSOCKET,
-        url="ws://localhost:8080/mcp/milvus",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @milvus-io/mcp-server-milvus",
     )
 
-    # Create retriever with MCP configuration
-    retriever = MilvusRetriever(
-        mcp_config=mcp_config,
-        collection_name="demo_collection",
-        max_results=3,
+    print("Using unified storage with 3-tier architecture")
+    print("Memory → Redis → Milvus for optimal performance")
+
+    # Create unified storage manager
+    storage = SifakaStorage(
+        redis_config=redis_config,
+        milvus_config=milvus_config,
+        memory_size=50,
+        cache_ttl=300,  # 5 minutes
     )
 
-    print(f"Created MilvusRetriever with collection: {retriever.collection_name}")
+    # Create base retriever and wrap with caching
+    base_retriever = InMemoryRetriever()
+    retriever = storage.get_retriever_cache(base_retriever)
 
-    # Clear any existing data
-    retriever.clear_collection()
+    print(f"Created unified storage with vector search capabilities")
+
+    # Clear any existing cache
+    retriever.clear_cache()
 
     # Add sample documents
     documents = create_sample_documents()
@@ -140,6 +149,12 @@ def demonstrate_basic_retrieval():
     stats = retriever.get_collection_stats()
     print(f"Collection stats: {stats}")
 
+    # Add a small delay to ensure documents are indexed
+    import time
+
+    print("Waiting for documents to be indexed...")
+    time.sleep(2)
+
     # Test different types of queries
     queries = [
         "What is artificial intelligence?",
@@ -149,49 +164,64 @@ def demonstrate_basic_retrieval():
         "How does blockchain provide security?",
     ]
 
-    print("\n=== Semantic Search Results ===")
+    print("\n=== Search Results ===")
     for query in queries:
         print(f"\nQuery: {query}")
         results = retriever.retrieve(query)
-
-        for i, doc in enumerate(results, 1):
-            # Truncate for display
-            preview = doc[:100].replace("\n", " ").strip()
+        for i, doc_text in enumerate(results, 1):
+            # Truncate for display (results are now strings, not Document objects)
+            preview = doc_text[:100].replace("\n", " ").strip()
             print(f"  {i}. {preview}...")
 
-    # Cleanup
-    retriever.disconnect()
+        if not results:
+            print("  No results found.")
+
+    # Show cache stats
+    cache_stats = retriever.get_cache_stats()
+    print(f"\nCache performance:")
+    print(f"  Memory hits: {cache_stats['memory']['hits']}")
+    print(f"  Cache hits: {cache_stats['cache_performance']['hits']}")
+    print(f"  Hit rate: {cache_stats['cache_performance']['hit_rate']:.2f}")
+
     print("\nBasic retrieval demo completed!")
 
 
 def demonstrate_chain_integration():
-    """Demonstrate using MilvusRetriever in a Sifaka chain."""
+    """Demonstrate using unified storage in a Sifaka chain."""
     print("\n=== Chain Integration Demo ===")
 
-    if not VECTOR_DB_AVAILABLE:
-        print("Skipping chain integration demo - pymilvus not available")
-        return
+    # Create MCP configurations for unified storage
+    redis_config = MCPServerConfig(
+        name="redis-server",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379",
+    )
 
-    # Create MCP configuration for Milvus
-    mcp_config = MCPServerConfig(
+    milvus_config = MCPServerConfig(
         name="milvus-server",
-        transport_type=MCPTransportType.WEBSOCKET,
-        url="ws://localhost:8080/mcp/milvus",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @milvus-io/mcp-server-milvus",
     )
 
-    # Create retriever and populate with documents
-    retriever = MilvusRetriever(
-        mcp_config=mcp_config,
-        collection_name="chain_demo_collection",
-        max_results=2,  # Fewer results for cleaner output
+    # Create unified storage and cached retriever
+    storage = SifakaStorage(
+        redis_config=redis_config,
+        milvus_config=milvus_config,
+        memory_size=30,
+        cache_ttl=240,  # 4 minutes
     )
 
-    # Clear and populate
-    retriever.clear_collection()
+    base_retriever = InMemoryRetriever()
+    retriever = storage.get_retriever_cache(base_retriever)
+
+    # Clear and populate with documents
+    retriever.clear_cache()
     documents = create_sample_documents()
 
     for doc_id, text in documents.items():
-        retriever.add_document(doc_id, text.strip())
+        base_retriever.add_document(
+            doc_id=doc_id, text=text.strip(), metadata={"category": "technology", "source": "demo"}
+        )
 
     # Create model and components
     model = create_model("mock:default")
@@ -209,7 +239,7 @@ def demonstrate_chain_integration():
     chain.validate_with(validator)
     chain.improve_with(critic)
 
-    print("Running chain with Milvus retrieval...")
+    print("Running chain with unified storage retrieval...")
     result = chain.run()
 
     print(f"\nFinal result (iteration {result.iteration}):")
@@ -226,15 +256,28 @@ def demonstrate_chain_integration():
             preview = doc.text[:80].replace("\n", " ").strip()
             print(f"  {i}. {preview}...")
 
-    # Cleanup
-    retriever.disconnect()
+    # Show cache stats
+    cache_stats = retriever.get_cache_stats()
+    print(f"\nCache performance:")
+    print(f"  Memory hits: {cache_stats['memory']['hits']}")
+    print(f"  Cache hits: {cache_stats['cache_performance']['hits']}")
+    print(f"  Hit rate: {cache_stats['cache_performance']['hit_rate']:.2f}")
+
     print("\nChain integration demo completed!")
 
 
 def main():
-    """Run the Milvus retriever examples."""
-    print("Milvus Retriever Example")
-    print("=" * 50)
+    """Run the unified storage examples."""
+    # Enable debug logging
+    import logging
+
+    logging.basicConfig(level=logging.INFO)
+
+    print("Unified Storage Example for Sifaka")
+    print("=" * 60)
+    print("This example demonstrates using the unified storage architecture")
+    print("with 3-tier caching (memory → Redis → Milvus) for optimal performance.")
+    print()
 
     try:
         # Run basic retrieval demo
@@ -243,14 +286,29 @@ def main():
         # Run chain integration demo
         demonstrate_chain_integration()
 
+        print("\n🎉 All unified storage examples completed successfully!")
+        print("\n💡 Key Benefits Demonstrated:")
+        print("   • Consistent 3-tier caching across all components")
+        print("   • Vector similarity search with automatic persistence")
+        print("   • Predictable performance characteristics")
+        print("   • Clean separation of concerns")
+        print("   • Easy integration with Sifaka chains")
+
     except Exception as e:
         print(f"Error running example: {e}")
         import traceback
 
         traceback.print_exc()
 
-    print("\n" + "=" * 50)
-    print("Milvus Retriever example completed!")
+    print("\n" + "=" * 60)
+    print("Unified storage example completed!")
+    print()
+    print("Next steps:")
+    print("1. Make sure Redis is running: docker run -d -p 6379:6379 redis:latest")
+    print(
+        "2. Install MCP servers: npm install -g @modelcontextprotocol/server-redis @milvus-io/mcp-server-milvus"
+    )
+    print("3. Explore the unified storage architecture in your own chains")
 
 
 if __name__ == "__main__":

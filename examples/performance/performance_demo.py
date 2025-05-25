@@ -37,7 +37,7 @@ def main():
     chain = Chain(
         model=model,
         prompt="Write a paragraph about performance monitoring in AI systems.",
-        retriever=retriever,
+        retrievers=[retriever],
     )
 
     # Configure chain

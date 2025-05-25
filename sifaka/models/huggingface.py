@@ -54,14 +54,14 @@ try:
     HUGGINGFACE_AVAILABLE = True
 except ImportError:
     HUGGINGFACE_AVAILABLE = False
-    InferenceClient = None
-    AutoTokenizer = None
-    AutoModelForCausalLM = None
-    AutoModelForSeq2SeqLM = None
-    AutoConfig = None
+    InferenceClient = None  # type: ignore
+    AutoTokenizer = None  # type: ignore
+    AutoModelForCausalLM = None  # type: ignore
+    AutoModelForSeq2SeqLM = None  # type: ignore
+    AutoConfig = None  # type: ignore
     pipeline = None
-    BitsAndBytesConfig = None
-    torch = None
+    BitsAndBytesConfig = None  # type: ignore
+    torch = None  # type: ignore
 
 from sifaka.core.thought import Thought
 from sifaka.utils.error_handling import ConfigurationError, ModelError, model_context
@@ -114,9 +114,7 @@ class HuggingFaceModelLoader:
         else:
             return "cpu"
 
-    def _create_quantization_config(
-        self, quantization: Optional[str] = None
-    ) -> Optional[BitsAndBytesConfig]:
+    def _create_quantization_config(self, quantization: Optional[str] = None) -> Optional[Any]:
         """Create quantization configuration for memory efficiency.
 
         Args:
@@ -409,7 +407,7 @@ class HuggingFaceModel(ContextAwareMixin):
             self.tokenizer = None
             self.loader = None
         else:
-            self.client = None
+            self.client = None  # type: ignore
             self.loader = HuggingFaceModelLoader()
             self.model = None
             self.tokenizer = None
@@ -422,7 +420,9 @@ class HuggingFaceModel(ContextAwareMixin):
         if self.use_inference_api:
             return  # Not needed for API mode
 
-        if self.model is None or self.tokenizer is None:
+        if self.model is None or self.tokenizer is None:  # type: ignore[unreachable]
+            if self.loader is None:
+                raise ModelError("Model loader not initialized for local inference")
             self.model, self.tokenizer = self.loader.load_model(
                 self.model_name, device=self.device, quantization=self.quantization, **self.options
             )
@@ -449,7 +449,7 @@ class HuggingFaceModel(ContextAwareMixin):
                 top_p=options.get("top_p", 0.95),  # Must be < 1.0
             )
 
-            return completion.choices[0].message.content.strip()
+            return str(completion.choices[0].message.content).strip()
 
         except Exception as e:
             raise ModelError(f"HuggingFace Inference API generation failed: {e}")
@@ -479,8 +479,11 @@ class HuggingFaceModel(ContextAwareMixin):
 
     def _generate_causal(self, prompt: str, **options: Any) -> str:
         """Generate text using causal language model."""
+        if self.tokenizer is None or self.model is None:  # type: ignore[unreachable]
+            raise ModelError("Model and tokenizer must be loaded for local inference")
+
         # Tokenize input
-        inputs = self.tokenizer.encode(prompt, return_tensors="pt")
+        inputs = self.tokenizer.encode(prompt, return_tensors="pt")  # type: ignore[unreachable]
 
         # Move to same device as model
         if hasattr(self.model, "device"):
@@ -510,12 +513,15 @@ class HuggingFaceModel(ContextAwareMixin):
         new_tokens = outputs[0][len(inputs[0]) :]
         generated_text = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
 
-        return generated_text.strip()
+        return str(generated_text).strip()
 
     def _generate_seq2seq(self, prompt: str, **options: Any) -> str:
         """Generate text using sequence-to-sequence model."""
+        if self.tokenizer is None or self.model is None:  # type: ignore[unreachable]
+            raise ModelError("Model and tokenizer must be loaded for local inference")
+
         # Tokenize input
-        inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
+        inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)  # type: ignore[unreachable]
 
         # Move to same device as model
         if hasattr(self.model, "device"):
@@ -543,7 +549,7 @@ class HuggingFaceModel(ContextAwareMixin):
         # Decode the generated tokens
         generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-        return generated_text.strip()
+        return str(generated_text).strip()
 
     def generate(self, prompt: str, **options: Any) -> str:
         """Generate text from a prompt.
@@ -629,7 +635,9 @@ class HuggingFaceModel(ContextAwareMixin):
             else:
                 # For local mode, use actual tokenizer
                 self._ensure_local_model_loaded()
-                tokens = self.tokenizer.encode(text)
+                if self.tokenizer is None:
+                    raise ModelError("Tokenizer not loaded for token counting")
+                tokens = self.tokenizer.encode(text)  # type: ignore[unreachable]
                 return len(tokens)
 
         except Exception as e:

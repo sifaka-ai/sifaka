@@ -59,7 +59,7 @@ def test_critics_imports():
 
 def test_retrievers_imports():
     """Test that retriever implementations can be imported."""
-    from sifaka.retrievers.base import MockRetriever  # noqa: F401
+    from sifaka.retrievers import MockRetriever  # noqa: F401
 
 
 def test_all_imports_integration():
@@ -70,25 +70,21 @@ def test_all_imports_integration():
     from sifaka.models.base import create_model
     from sifaka.validators.base import LengthValidator
     from sifaka.critics.reflexion import ReflexionCritic
-    from sifaka.retrievers.base import MockRetriever
-    
+    from sifaka.retrievers import MockRetriever
+
     # Verify we can create instances
     model = create_model("mock:test")
     validator = LengthValidator(min_length=10, max_length=100)
     critic = ReflexionCritic(model_name="mock:critic")
     retriever = MockRetriever()
-    
+
     # Verify we can create a chain
-    chain = Chain(
-        model=model,
-        prompt="Test prompt",
-        retriever=retriever
-    )
-    
+    chain = Chain(model=model, prompt="Test prompt", retrievers=[retriever])
+
     # Verify chain configuration
     chain.validate_with(validator)
     chain.improve_with(critic)
-    
+
     assert chain._model is not None
     assert chain._prompt == "Test prompt"
     assert len(chain._validators) == 1
@@ -99,7 +95,7 @@ if __name__ == "__main__":
     # Run tests manually if executed directly
     print("🔍 Running Import Tests")
     print("=" * 40)
-    
+
     tests = [
         test_basic_python_imports,
         test_core_thought_imports,
@@ -112,7 +108,7 @@ if __name__ == "__main__":
         test_retrievers_imports,
         test_all_imports_integration,
     ]
-    
+
     for test_func in tests:
         try:
             test_func()

@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
 """
-Redis Retriever Example for Sifaka.
+Unified Storage Example for Sifaka - Replacing Redis Retriever.
 
-This example demonstrates how to use the RedisRetriever for caching and
-performance optimization in Sifaka chains.
+This example demonstrates how to use the new unified storage architecture
+with CachedRetriever for caching and performance optimization in Sifaka chains.
 
-Requirements:
-- Redis server running on localhost:6379
-- redis Python package installed
+Setup Instructions:
+1. Start Docker Redis:
+   docker run -d -p 6379:6379 redis:latest
+
+2. Install Redis MCP Server:
+   npm install -g @modelcontextprotocol/server-redis
+
+3. Install Milvus MCP Server:
+   npm install -g @milvus-io/mcp-server-milvus
+
+4. Run this example:
+   python examples/mock/redis_retriever_example.py
 
 The example shows:
-1. Using RedisRetriever as a standalone document store
-2. Using RedisRetriever as a caching wrapper around other retrievers
-3. Performance benefits of caching
+1. Using unified storage architecture with 3-tier caching
+2. CachedRetriever replacing the old dual-mode RedisRetriever
+3. Performance benefits of memory → cache → persistence pattern
 4. Integration with Sifaka chains
 """
 
@@ -20,8 +29,9 @@ import time
 from sifaka.chain import Chain
 
 from sifaka.models.base import create_model
-from sifaka.retrievers.base import InMemoryRetriever, MCPServerConfig, MCPTransportType
-from sifaka.retrievers.redis import RedisRetriever, create_redis_retriever
+from sifaka.retrievers import InMemoryRetriever
+from sifaka.mcp import MCPServerConfig, MCPTransportType
+from sifaka.storage import SifakaStorage
 from sifaka.validators.base import LengthValidator
 from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.utils.logging import configure_logging
@@ -45,30 +55,40 @@ def check_redis_availability():
         return False
 
 
-def example_standalone_redis_retriever():
-    """Example 1: Using RedisRetriever as a standalone document store."""
-    print("\n📚 Example 1: Standalone Redis Document Store")
+def example_standalone_cached_retriever():
+    """Example 1: Using CachedRetriever with unified storage architecture."""
+    print("\n📚 Example 1: Unified Storage with In-Memory Base Retriever")
     print("-" * 50)
 
-    # Create MCP configuration for Redis
-    mcp_config = MCPServerConfig(
+    # Create MCP configurations for unified storage
+    redis_config = MCPServerConfig(
         name="redis-server",
-        transport_type=MCPTransportType.WEBSOCKET,
-        url="ws://localhost:8080/mcp/redis",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379",
     )
 
-    # Create a standalone Redis retriever
-    retriever = RedisRetriever(
-        mcp_config=mcp_config,
-        key_prefix="example:docs",
+    milvus_config = MCPServerConfig(
+        name="milvus-server",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @milvus-io/mcp-server-milvus",
+    )
+
+    # Create unified storage manager
+    storage = SifakaStorage(
+        redis_config=redis_config,
+        milvus_config=milvus_config,
+        memory_size=100,
         cache_ttl=300,  # 5 minutes
-        max_results=5,
     )
 
-    # Clear any existing data
-    retriever.clear_cache("example:docs:*")
+    # Create base retriever and wrap with caching
+    base_retriever = InMemoryRetriever()
+    retriever = storage.get_retriever_cache(base_retriever)
 
-    # Add documents about AI and programming
+    # Clear any existing cache
+    retriever.clear_cache()
+
+    # Add documents about AI and programming to base retriever
     documents = [
         (
             "ai_basics",
@@ -100,11 +120,11 @@ def example_standalone_redis_retriever():
         ),
     ]
 
-    print("Adding documents to Redis...")
+    print("Adding documents to base retriever...")
     for doc_id, text in documents:
-        retriever.add_document(doc_id, text, metadata={"category": "ai_programming"})
+        base_retriever.add_document(doc_id, text, metadata={"category": "ai_programming"})
 
-    # Test retrieval
+    # Test retrieval with 3-tier caching
     query = "machine learning neural networks"
     print(f"\nQuerying: '{query}'")
 
@@ -116,14 +136,17 @@ def example_standalone_redis_retriever():
 
     # Show cache stats
     stats = retriever.get_cache_stats()
-    print(f"\nCache stats: {stats['stored_documents']} documents stored")
+    print(f"\nUnified storage stats:")
+    print(f"  Memory hits: {stats['memory']['hits']}")
+    print(f"  Cache hits: {stats['cache_performance']['hits']}")
+    print(f"  Total requests: {stats['cache_performance']['total_requests']}")
 
     return retriever
 
 
 def example_caching_wrapper():
-    """Example 2: Using RedisRetriever as a caching wrapper."""
-    print("\n⚡ Example 2: Redis as Caching Wrapper")
+    """Example 2: Using CachedRetriever with unified storage."""
+    print("\n⚡ Example 2: Unified Storage Caching Performance")
     print("-" * 50)
 
     # Create a base retriever with some documents
@@ -143,23 +166,30 @@ def example_caching_wrapper():
     for doc_id, text in web_docs.items():
         base_retriever.add_document(doc_id, text, {"category": "web_development"})
 
-    # Create MCP configuration for Redis
-    mcp_config = MCPServerConfig(
+    # Create MCP configurations for unified storage
+    redis_config = MCPServerConfig(
         name="redis-server",
-        transport_type=MCPTransportType.WEBSOCKET,
-        url="ws://localhost:8080/mcp/redis",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379",
     )
 
-    # Create caching Redis retriever
-    cached_retriever = RedisRetriever(
-        mcp_config=mcp_config,
-        base_retriever=base_retriever,
-        key_prefix="example:cache",
+    milvus_config = MCPServerConfig(
+        name="milvus-server",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @milvus-io/mcp-server-milvus",
+    )
+
+    # Create unified storage and cached retriever
+    storage = SifakaStorage(
+        redis_config=redis_config,
+        milvus_config=milvus_config,
         cache_ttl=180,  # 3 minutes
     )
 
+    cached_retriever = storage.get_retriever_cache(base_retriever)
+
     # Clear cache
-    cached_retriever.clear_cache("example:cache:*")
+    cached_retriever.clear_cache()
 
     query = "javascript web development framework"
     print(f"Querying: '{query}'")
@@ -192,8 +222,8 @@ def example_caching_wrapper():
 
 
 def example_chain_integration():
-    """Example 3: Using RedisRetriever in a Sifaka chain."""
-    print("\n🔗 Example 3: Chain Integration with Redis Caching")
+    """Example 3: Using CachedRetriever in a Sifaka chain."""
+    print("\n🔗 Example 3: Chain Integration with Unified Storage")
     print("-" * 50)
 
     # Create base retriever with programming knowledge
@@ -212,23 +242,30 @@ def example_chain_integration():
     for doc_id, text in programming_docs.items():
         base_retriever.add_document(doc_id, text)
 
-    # Create MCP configuration for Redis
-    mcp_config = MCPServerConfig(
+    # Create MCP configurations for unified storage
+    redis_config = MCPServerConfig(
         name="redis-server",
-        transport_type=MCPTransportType.WEBSOCKET,
-        url="ws://localhost:8080/mcp/redis",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379",
     )
 
-    # Create cached retriever
-    cached_retriever = create_redis_retriever(
-        mcp_config=mcp_config,
-        base_retriever=base_retriever,
-        key_prefix="example:chain",
+    milvus_config = MCPServerConfig(
+        name="milvus-server",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @milvus-io/mcp-server-milvus",
+    )
+
+    # Create unified storage and cached retriever
+    storage = SifakaStorage(
+        redis_config=redis_config,
+        milvus_config=milvus_config,
         cache_ttl=240,  # 4 minutes
     )
 
+    cached_retriever = storage.get_retriever_cache(base_retriever)
+
     # Clear cache
-    cached_retriever.clear_cache("example:chain:*")
+    cached_retriever.clear_cache()
 
     # Create model and components
     model = create_model("mock:default")
@@ -263,74 +300,134 @@ def example_chain_integration():
     return result
 
 
+class SlowRetriever:
+    """A deliberately slow retriever to simulate expensive operations."""
+
+    def __init__(self, delay_seconds=0.1):
+        self.delay_seconds = delay_seconds
+        self.documents = {}
+
+    def add_document(self, doc_id, text, metadata=None):
+        self.documents[doc_id] = text
+
+    def retrieve(self, query):
+        # Simulate expensive computation (e.g., vector similarity, API calls)
+        time.sleep(self.delay_seconds)
+
+        # Simple keyword matching
+        query_terms = query.lower().split()
+        results = []
+
+        for doc_id, text in self.documents.items():
+            if any(term in text.lower() for term in query_terms):
+                results.append(text)
+
+        return results[:3]  # Return top 3
+
+
 def example_performance_comparison():
-    """Example 4: Performance comparison with and without caching."""
-    print("\n📊 Example 4: Performance Comparison")
+    """Example 4: Performance comparison showing when Redis caching helps."""
+    print("\n📊 Example 4: When Redis Caching Actually Helps")
     print("-" * 50)
+    print("💡 Redis caching is beneficial when the base retrieval is expensive")
+    print("   (e.g., vector search, API calls, complex computations)")
 
-    # Create base retriever with many documents
-    base_retriever = InMemoryRetriever()
+    # Create a slow retriever to simulate expensive operations
+    slow_retriever = SlowRetriever(delay_seconds=0.1)  # 100ms delay per query
 
-    # Add many documents to simulate a larger dataset
-    for i in range(100):
+    # Add documents
+    for i in range(20):
         doc_id = f"doc_{i:03d}"
-        text = f"This is document {i} about various topics including technology, science, and programming."
-        base_retriever.add_document(doc_id, text)
+        text = f"Document {i} about technology, science, programming, and research topics."
+        slow_retriever.add_document(doc_id, text)
 
-    # Test without caching
-    print("Testing without caching...")
+    # Test queries with repeated patterns (realistic scenario)
     queries = [
         "technology programming",
         "science research",
-        "development software",
-        "technology programming",  # Repeat query
-        "science research",  # Repeat query
+        "programming development",
+        "technology programming",  # Repeat - cache hit
+        "science research",  # Repeat - cache hit
+        "programming development",  # Repeat - cache hit
+        "new unique query",  # New query - cache miss
+        "technology programming",  # Repeat - cache hit
     ]
 
+    print(f"\nTesting with {len(queries)} queries ({len(set(queries))} unique)")
+    print("Each query simulates 100ms of expensive computation...")
+
+    # Test without caching (direct slow retriever)
+    print("\n1. Without caching (direct expensive retrieval):")
     start_time = time.time()
-    for query in queries:
-        base_retriever.retrieve(query)
+    for i, query in enumerate(queries, 1):
+        results = slow_retriever.retrieve(query)
+        print(f"   Query {i}: {len(results)} results (100ms)")
     no_cache_time = time.time() - start_time
+    print(f"   Total time: {no_cache_time:.3f}s")
 
-    print(f"   Time without caching: {no_cache_time:.4f}s")
-
-    # Test with caching
-    print("Testing with Redis caching...")
-    mcp_config = MCPServerConfig(
+    # Test with unified storage caching
+    print("\n2. With unified storage caching:")
+    redis_config = MCPServerConfig(
         name="redis-server",
-        transport_type=MCPTransportType.WEBSOCKET,
-        url="ws://localhost:8080/mcp/redis",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379",
     )
 
-    cached_retriever = RedisRetriever(
-        mcp_config=mcp_config,
-        base_retriever=base_retriever,
-        key_prefix="example:perf",
+    milvus_config = MCPServerConfig(
+        name="milvus-server",
+        transport_type=MCPTransportType.STDIO,
+        url="npx -y @milvus-io/mcp-server-milvus",
+    )
+
+    storage = SifakaStorage(
+        redis_config=redis_config,
+        milvus_config=milvus_config,
         cache_ttl=120,
     )
 
-    # Clear cache
-    cached_retriever.clear_cache("example:perf:*")
+    cached_retriever = storage.get_retriever_cache(slow_retriever)
+
+    # Clear cache to start fresh
+    cached_retriever.clear_cache()
 
     start_time = time.time()
-    for query in queries:
-        cached_retriever.retrieve(query)
+    for i, query in enumerate(queries, 1):
+        query_start = time.time()
+        results = cached_retriever.retrieve(query)
+        query_time = time.time() - query_start
+
+        # Determine if this was likely a cache hit or miss
+        cache_status = "miss" if query_time > 0.05 else "hit"
+        print(
+            f"   Query {i}: {len(results)} results ({query_time*1000:.0f}ms - cache {cache_status})"
+        )
+
     cache_time = time.time() - start_time
+    print(f"   Total time: {cache_time:.3f}s")
 
-    print(f"   Time with caching: {cache_time:.4f}s")
-
-    # Show improvement
+    # Show the real benefit
     if no_cache_time > 0 and cache_time > 0:
-        improvement = ((no_cache_time - cache_time) / no_cache_time) * 100
-        print(f"\n⚡ Performance improvement: {improvement:.1f}%")
+        speedup = no_cache_time / cache_time
+        time_saved = no_cache_time - cache_time
+        print(f"\n⚡ Results:")
+        print(f"   • Speedup: {speedup:.1f}x faster")
+        print(f"   • Time saved: {time_saved:.3f}s ({time_saved/no_cache_time*100:.1f}%)")
+        print(
+            f"   • Cache hits avoid expensive {slow_retriever.delay_seconds*1000:.0f}ms computations"
+        )
+
+    print(f"\n💡 Key Insight:")
+    print(f"   Redis caching trades small network overhead (~1-5ms)")
+    print(f"   for avoiding expensive operations ({slow_retriever.delay_seconds*1000:.0f}ms)")
+    print(f"   The more expensive your base retrieval, the more beneficial caching becomes!")
 
     # Clean up
-    cached_retriever.clear_cache("example:perf:*")
+    cached_retriever.clear_cache()
 
 
 def main():
-    """Run all Redis retriever examples."""
-    print("🚀 Redis Retriever Examples for Sifaka")
+    """Run all unified storage examples."""
+    print("🚀 Unified Storage Examples for Sifaka")
     print("=" * 50)
 
     # Configure logging
@@ -345,22 +442,26 @@ def main():
 
     try:
         # Run examples
-        example_standalone_redis_retriever()
+        example_standalone_cached_retriever()
         example_caching_wrapper()
         example_chain_integration()
         example_performance_comparison()
 
-        print("\n🎉 All Redis retriever examples completed successfully!")
-        print("\n💡 Key Benefits of Redis Caching:")
-        print("   • Faster retrieval for repeated queries")
-        print("   • Reduced computation overhead")
-        print("   • Scalable caching across multiple processes")
-        print("   • Configurable TTL for cache management")
-        print("   • Can wrap any existing retriever")
+        print("\n🎉 All unified storage examples completed successfully!")
+        print("\n💡 Key Benefits of Unified Storage Architecture:")
+        print("   • Consistent 3-tier caching (memory → Redis → Milvus)")
+        print("   • Predictable performance characteristics")
+        print("   • Vector similarity search capabilities")
+        print("   • Automatic persistence without blocking")
+        print("   • Clean separation of concerns")
+        print("   • Easy testing and debugging")
 
     except Exception as e:
         print(f"\n❌ Example failed: {e}")
-        print("Make sure Redis is running and accessible.")
+        print("Make sure Redis and Milvus MCP servers are available.")
+        import traceback
+
+        traceback.print_exc()
 
 
 if __name__ == "__main__":

@@ -123,7 +123,7 @@ def main() -> None:
     chain = Chain(
         model=model,
         prompt=prompt,
-        retriever=retriever,  # Use the same retriever for all stages
+        retrievers=[retriever],  # Use the same retriever for all stages
         max_improvement_iterations=2,
         apply_improvers_on_validation_failure=True,
     )

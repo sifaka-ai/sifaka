@@ -34,15 +34,11 @@ def test_multi_retriever_fact_checking():
         )  # Mock response will be too short
         print("✅ Model, critic, and validator created")
 
-        # Create Chain with different retrievers for different stages
+        # Create Chain with retrievers
         chain = Chain(
             model=model,
             prompt="Write a news summary about recent AI developments and their implications.",
-            model_retriever=twitter_retriever,  # Model uses recent Twitter/news context
-            critic_retriever=factual_retriever,  # Critics use factual database for verification
-            pre_generation_retrieval=True,  # Get recent context before generation
-            post_generation_retrieval=True,  # Get more recent context after generation
-            critic_retrieval=True,  # Get factual context for critics
+            retrievers=[twitter_retriever],  # Use twitter retriever for context
             apply_improvers_on_validation_failure=True,  # Enable critic improvement on validation failure
         )
 
@@ -71,14 +67,16 @@ def test_multi_retriever_fact_checking():
         print(f"\nGenerated text: {result.text}")
 
         print("\n✅ Multi-retriever fact-checking works!")
-        return True
+        assert result.text is not None
+        assert len(result.pre_generation_context) > 0
+        assert len(result.post_generation_context) > 0
 
     except Exception as e:
         print(f"❌ Multi-retriever fact-checking failed: {e}")
         import traceback
 
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_fallback_retriever():
@@ -102,8 +100,7 @@ def test_fallback_retriever():
         chain = Chain(
             model=model,
             prompt="Write about AI developments.",
-            retriever=default_retriever,  # Only default retriever provided
-            # model_retriever and critic_retriever not provided - should fallback
+            retrievers=[default_retriever],  # Only default retriever provided
         )
 
         chain.improve_with(critic)
@@ -117,14 +114,16 @@ def test_fallback_retriever():
         print(f"Retrieved {len(result.post_generation_context)} post-generation documents")
 
         print("✅ Fallback retriever behavior works!")
-        return True
+        assert result.text is not None
+        assert len(result.pre_generation_context) >= 0
+        assert len(result.post_generation_context) >= 0
 
     except Exception as e:
         print(f"❌ Fallback retriever test failed: {e}")
         import traceback
 
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_no_retriever():
@@ -165,14 +164,16 @@ def test_no_retriever():
         print(f"Generated text: {result.text}")
 
         print("✅ No retriever behavior works!")
-        return True
+        assert result.text is not None
+        assert pre_context_count >= 0
+        assert post_context_count >= 0
 
     except Exception as e:
         print(f"❌ No retriever test failed: {e}")
         import traceback
 
         traceback.print_exc()
-        return False
+        raise
 
 
 if __name__ == "__main__":
