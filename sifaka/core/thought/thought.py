@@ -29,10 +29,12 @@ class CriticFeedback(BaseModel):
     """Feedback from a critic."""
 
     critic_name: str
+    feedback: str = ""  # Main feedback text
+    needs_improvement: bool = False
     confidence: float = 0.0
     violations: List[str] = []
     suggestions: List[str] = []
-    feedback: Dict[str, Any] = {}
+    metadata: Dict[str, Any] = {}
     processing_time_ms: Optional[float] = None
 
 

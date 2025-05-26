@@ -145,10 +145,12 @@ class MockModel(ContextAwareMixin):
 
         Args:
             model_name: The name of the model.
-            **kwargs: Additional keyword arguments.
+            **kwargs: Additional keyword arguments including response_text.
         """
         self.model_name = model_name
         self.kwargs = kwargs
+        # Support custom response text for testing
+        self.response_text = kwargs.get("response_text", None)
         logger.debug(f"Created mock model with name: {model_name}")
 
     def generate(self, prompt: str, **options: Any) -> str:
@@ -162,6 +164,8 @@ class MockModel(ContextAwareMixin):
             A mock response.
         """
         logger.debug(f"Generating text with mock model: {self.model_name}")
+        if self.response_text is not None:
+            return self.response_text
         return f"Mock response from {self.model_name} for: {prompt[:50]}..."
 
     def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:
@@ -191,7 +195,10 @@ class MockModel(ContextAwareMixin):
             context_summary = self._get_context_summary(thought)
             logger.debug(f"MockModel using context: {context_summary}")
 
-        generated_text = f"Mock response from {self.model_name} for: {full_prompt[:50]}..."
+        if self.response_text is not None:
+            generated_text = self.response_text
+        else:
+            generated_text = f"Mock response from {self.model_name} for: {full_prompt[:50]}..."
         return generated_text, full_prompt
 
     def count_tokens(self, text: str) -> int:

@@ -1,188 +1,91 @@
-"""Base critic implementations for Sifaka.
+"""Base critic implementation for Sifaka.
 
-This module provides base critic implementations that can be used to critique
-and improve text. Critics analyze text, identify issues, and provide suggestions
-for improvement.
-
-Critics are used in the Sifaka chain to improve the quality of generated text
-by providing feedback that can be used to generate better text in subsequent
-iterations.
-
-Note: The ReflexionCritic has been moved to its own module at sifaka.critics.reflexion
+This module provides the base class for all critics, implementing common
+functionality and defining the standard interface that all critics must follow.
 """
 
-from typing import Any, Dict, Optional
+import asyncio
+import time
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
 
-from sifaka.core.interfaces import Model
+from sifaka.core.interfaces import Critic, Model
 from sifaka.core.thought import Thought
 from sifaka.models.base import create_model
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
 from sifaka.utils.mixins import ContextAwareMixin
 
-# Configure logger
 logger = get_logger(__name__)
 
 
-class BaseCritic(ContextAwareMixin):
-    """Base critic class that provides common functionality for text critique and improvement.
-
-    This base class provides a standard implementation for critics that use a language
-    model to analyze text, identify issues, and provide suggestions for improvement.
-    Other critics can inherit from this class and override specific methods as needed.
-
-    Attributes:
-        model: The language model to use for critique and improvement.
-        critique_prompt_template: Template for the critique prompt.
-        improve_prompt_template: Template for the improvement prompt.
+class BaseCritic(ContextAwareMixin, ABC):
+    """Base class for all critics.
+    
+    This class provides common functionality for critics including:
+    - Standard critique/improve interface
+    - Context handling via ContextAwareMixin
+    - Async-under-the-hood implementation
+    - Consistent error handling
+    - Standard return schema
+    
+    All critics must inherit from this class and implement the abstract methods.
     """
 
     def __init__(
         self,
         model: Optional[Model] = None,
         model_name: Optional[str] = None,
-        critique_prompt_template: Optional[str] = None,
-        improve_prompt_template: Optional[str] = None,
         **model_kwargs: Any,
     ):
-        """Initialize the critic.
-
-        Critics no longer handle retrieval - the Chain orchestrates all retrieval.
-        Critics just use whatever context is already in the Thought container.
+        """Initialize the base critic.
 
         Args:
             model: The language model to use for critique and improvement.
             model_name: The name of the model to use if model is not provided.
-            critique_prompt_template: Template for the critique prompt.
-            improve_prompt_template: Template for the improvement prompt.
             **model_kwargs: Additional keyword arguments for model creation.
         """
-        # Set up the model (no retriever needed - Chain handles retrieval)
-        if model:
-            self.model = model
-        elif model_name:
+        super().__init__()
+        
+        # Initialize model
+        if model is None:
+            if model_name is None:
+                raise ValueError("Either model or model_name must be provided")
             self.model = create_model(model_name, **model_kwargs)
         else:
-            # Default to a mock model for testing
-            self.model = create_model("mock:default", **model_kwargs)
-
-        # Set up prompt templates
-        self.critique_prompt_template = critique_prompt_template or (
-            "Please critique the following text and identify any issues or areas for improvement. "
-            "Focus on clarity, coherence, accuracy, and relevance to the original prompt.\n\n"
-            "Original prompt: {prompt}\n\n"
-            "Text to critique:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Please provide your critique in the following format:\n"
-            "Issues:\n- [List issues here]\n\n"
-            "Suggestions:\n- [List suggestions here]\n\n"
-            "Consider how well the text uses information from the retrieved context (if available)."
-        )
-
-        self.improve_prompt_template = improve_prompt_template or (
-            "Please improve the following text based on the critique provided.\n\n"
-            "Original prompt: {prompt}\n\n"
-            "Original text:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Critique:\n{critique}\n\n"
-            "Please provide an improved version of the text that addresses the issues "
-            "identified in the critique while staying true to the original prompt. "
-            "Better incorporate relevant information from the context if available."
-        )
+            self.model = model
 
     def critique(self, thought: Thought) -> Dict[str, Any]:
         """Critique text and provide feedback.
 
-        Critics no longer handle retrieval - the Chain orchestrates all retrieval.
-        Critics just use whatever context is already in the Thought container.
+        This is the main public interface for criticism. It uses async
+        implementation internally for better performance while maintaining
+        a synchronous API for backward compatibility.
 
         Args:
             thought: The Thought container with the text to critique.
 
         Returns:
-            A dictionary with critique results.
-
-        Raises:
-            ImproverError: If the critique fails.
+            A dictionary with critique results following the standard schema.
         """
-        with critic_context(
-            critic_name="BaseCritic",
-            operation="critique",
-            message_prefix="Failed to critique text",
-        ):
-            # Check if text is available
-            if not thought.text:
-                raise ImproverError(
-                    "No text available for critique",
-                    suggestions=["Provide text to critique"],
-                )
+        # Check if we're already in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context, but this is a sync method
+            # We need to run the async version in a new thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, self._critique_async(thought))
+                return future.result()
+        except RuntimeError:
+            # No running event loop, we can use asyncio.run
+            return asyncio.run(self._critique_async(thought))
 
-            # Prepare context from retrieved documents (using mixin)
-            context = self._prepare_context(thought)
-
-            # Log context usage
-            if self._has_context(thought):
-                context_summary = self._get_context_summary(thought)
-                logger.debug(f"BaseCritic using context: {context_summary}")
-
-            # Format the critique prompt with context
-            critique_prompt = self.critique_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                context=context,
-            )
-
-            # Generate the critique
-            logger.debug("Generating critique")
-            critique_text = self.model.generate(critique_prompt)
-            logger.debug(f"Generated critique of length {len(critique_text)}")
-
-            # Parse the critique
-            issues = []
-            suggestions = []
-
-            # Simple parsing logic - can be improved
-            in_issues = False
-            in_suggestions = False
-
-            for line in critique_text.split("\n"):
-                line = line.strip()
-                if line.lower().startswith("issues:"):
-                    in_issues = True
-                    in_suggestions = False
-                    continue
-                elif line.lower().startswith("suggestions:"):
-                    in_issues = False
-                    in_suggestions = True
-                    continue
-                elif not line or line.startswith("#"):
-                    continue
-
-                if in_issues and line.startswith("-"):
-                    issues.append(line[1:].strip())
-                elif in_suggestions and line.startswith("-"):
-                    suggestions.append(line[1:].strip())
-
-            # Determine if improvement is needed
-            needs_improvement = len(issues) > 0 or "improvement" in critique_text.lower()
-
-            # Create the critique result
-            critique_result = {
-                "needs_improvement": needs_improvement,
-                "message": critique_text,
-                "critique": critique_text,
-                "critique_text": critique_text,
-                "issues": issues,
-                "suggestions": suggestions,
-            }
-
-            return critique_result
-
+    @abstractmethod
     def improve(self, thought: Thought) -> str:
         """Improve text based on critique.
 
-        Critics no longer handle retrieval - the Chain orchestrates all retrieval.
-        Critics just use whatever context is already in the Thought container.
+        Each critic must implement its own improvement strategy.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -193,54 +96,120 @@ class BaseCritic(ContextAwareMixin):
         Raises:
             ImproverError: If the improvement fails.
         """
+        pass
+
+    async def _critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Internal async implementation of critique.
+        
+        This method handles the actual critique logic and should be implemented
+        by subclasses. It provides the async foundation while the public
+        critique() method handles the sync/async coordination.
+
+        Args:
+            thought: The Thought container with the text to critique.
+
+        Returns:
+            A dictionary with critique results following the standard schema.
+        """
+        start_time = time.time()
+        
         with critic_context(
-            critic_name="BaseCritic",
-            operation="improvement",
-            message_prefix="Failed to improve text",
+            critic_name=self.__class__.__name__,
+            operation="critique",
+            message_prefix=f"Failed to critique text with {self.__class__.__name__}",
         ):
-            # Check if text and critique are available
+            # Check if text is available
             if not thought.text:
-                raise ImproverError(
-                    "No text available for improvement",
-                    suggestions=["Provide text to improve"],
+                return self._create_error_result(
+                    "No text available for critique",
+                    issues=["Text is empty or None"],
+                    suggestions=["Provide text to critique"],
+                    start_time=start_time
                 )
 
-            if not thought.critic_feedback:
-                raise ImproverError(
-                    "No critique available for improvement",
-                    suggestions=["Run critique before improvement"],
+            # Delegate to subclass implementation
+            try:
+                result = await self._perform_critique_async(thought)
+                
+                # Ensure processing time is included
+                processing_time = (time.time() - start_time) * 1000
+                result["processing_time_ms"] = processing_time
+                
+                # Validate result schema
+                self._validate_result_schema(result)
+                
+                return result
+                
+            except Exception as e:
+                logger.error(f"{self.__class__.__name__} critique failed: {e}")
+                return self._create_error_result(
+                    f"Critique failed: {str(e)}",
+                    issues=[f"Internal error: {str(e)}"],
+                    suggestions=["Please try again or check the critic configuration"],
+                    start_time=start_time
                 )
 
-            # Prepare context for improvement (using mixin)
-            context = self._prepare_context(thought)
+    @abstractmethod
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic (implemented by subclasses).
 
-            # Log context usage
-            if self._has_context(thought):
-                context_summary = self._get_context_summary(thought)
-                logger.debug(f"BaseCritic using context for improvement: {context_summary}")
+        Args:
+            thought: The Thought container with the text to critique.
 
-            # Format the improvement prompt with context
-            critique_text = ""
-            if thought.critic_feedback:
-                # Extract critique text from the first critic feedback
-                first_feedback = thought.critic_feedback[0]
-                if hasattr(first_feedback, "feedback") and first_feedback.feedback:
-                    critique_text = first_feedback.feedback.get("critique_text", "")
-                elif hasattr(first_feedback, "violations") and first_feedback.violations:
-                    critique_text = "; ".join(first_feedback.violations)
-                elif hasattr(first_feedback, "suggestions") and first_feedback.suggestions:
-                    critique_text = "; ".join(first_feedback.suggestions)
+        Returns:
+            A dictionary with critique results (without processing_time_ms).
+        """
+        pass
 
-            improve_prompt = self.improve_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                critique=critique_text,
-                context=context,
-            )
+    def _create_error_result(
+        self, 
+        message: str, 
+        issues: List[str], 
+        suggestions: List[str],
+        start_time: float
+    ) -> Dict[str, Any]:
+        """Create a standard error result.
 
-            # Generate the improved text
-            logger.debug("Generating improved text")
-            improved_text = self.model.generate(improve_prompt)
-            logger.debug(f"Generated improved text of length {len(improved_text)}")
+        Args:
+            message: The error message.
+            issues: List of issues found.
+            suggestions: List of suggestions.
+            start_time: When the operation started.
 
-            return improved_text
+        Returns:
+            A standard error result dictionary.
+        """
+        processing_time = (time.time() - start_time) * 1000
+        return {
+            "needs_improvement": True,
+            "message": message,
+            "issues": issues,
+            "suggestions": suggestions,
+            "processing_time_ms": processing_time,
+            "confidence": 0.0,
+            "metadata": {"error": True}
+        }
+
+    def _validate_result_schema(self, result: Dict[str, Any]) -> None:
+        """Validate that the result follows the standard schema.
+
+        Args:
+            result: The result dictionary to validate.
+
+        Raises:
+            ValueError: If the result doesn't follow the standard schema.
+        """
+        required_fields = ["needs_improvement", "message", "issues", "suggestions"]
+        for field in required_fields:
+            if field not in result:
+                raise ValueError(f"Missing required field '{field}' in critic result")
+
+        # Type validation
+        if not isinstance(result["needs_improvement"], bool):
+            raise ValueError("'needs_improvement' must be a boolean")
+        if not isinstance(result["message"], str):
+            raise ValueError("'message' must be a string")
+        if not isinstance(result["issues"], list):
+            raise ValueError("'issues' must be a list")
+        if not isinstance(result["suggestions"], list):
+            raise ValueError("'suggestions' must be a list")

@@ -36,17 +36,33 @@ class LengthValidator(LengthValidatorBase):
         max_length: Maximum allowed length in characters.
     """
 
-    def __init__(self, min_length: int = 0, max_length: int = 10000):
+    def __init__(
+        self,
+        min_length: int = 0,
+        max_length: int = 10000,
+        min_words: Optional[int] = None,
+        max_words: Optional[int] = None,
+        unit: str = "characters",
+    ):
         """Initialize the validator.
 
         Args:
             min_length: Minimum required length in characters.
             max_length: Maximum allowed length in characters.
+            min_words: Minimum required length in words (overrides min_length if set).
+            max_words: Maximum allowed length in words (overrides max_length if set).
+            unit: Unit of measurement ("characters" or "words").
         """
+        # If word-based parameters are provided, use them
+        if min_words is not None or max_words is not None:
+            unit = "words"
+            min_length = min_words if min_words is not None else 0
+            max_length = max_words if max_words is not None else 10000
+
         super().__init__(
             min_length=min_length if min_length > 0 else None,
             max_length=max_length if max_length < 10000 else None,
-            unit="characters",
+            unit=unit,
             name="LengthValidator",
         )
 
@@ -84,13 +100,23 @@ class RegexValidator(RegexValidatorBase):
         self,
         required_patterns: Optional[List[str]] = None,
         forbidden_patterns: Optional[List[str]] = None,
+        prohibited_patterns: Optional[List[str]] = None,
+        case_sensitive: bool = True,
     ):
         """Initialize the validator.
 
         Args:
             required_patterns: List of regex patterns that text must match.
             forbidden_patterns: List of regex patterns that text must not match.
+            prohibited_patterns: Alias for forbidden_patterns.
+            case_sensitive: Whether pattern matching should be case-sensitive.
         """
+        # Handle prohibited_patterns as alias for forbidden_patterns
+        if prohibited_patterns is not None:
+            if forbidden_patterns is not None:
+                forbidden_patterns.extend(prohibited_patterns)
+            else:
+                forbidden_patterns = prohibited_patterns
         # Convert to the format expected by the base class
         patterns = {}
 
@@ -119,6 +145,7 @@ class RegexValidator(RegexValidatorBase):
         # Store original patterns for backward compatibility
         self.required_patterns = required_patterns or []
         self.forbidden_patterns = forbidden_patterns or []
+        self.case_sensitive = case_sensitive
 
     def _validate_content(self, thought: Thought) -> ValidationResult:
         """Override to handle both required and forbidden patterns.
@@ -137,7 +164,8 @@ class RegexValidator(RegexValidatorBase):
         for pattern_str in self.required_patterns:
             import re
 
-            pattern = re.compile(pattern_str, re.IGNORECASE)
+            flags = 0 if self.case_sensitive else re.IGNORECASE
+            pattern = re.compile(pattern_str, flags)
             if not pattern.search(text):
                 issues.append(f"Text does not match required pattern: {pattern_str}")
                 suggestions.append(f"Modify the text to include content matching: {pattern_str}")
@@ -146,7 +174,8 @@ class RegexValidator(RegexValidatorBase):
         for pattern_str in self.forbidden_patterns:
             import re
 
-            pattern = re.compile(pattern_str, re.IGNORECASE)
+            flags = 0 if self.case_sensitive else re.IGNORECASE
+            pattern = re.compile(pattern_str, flags)
             if pattern.search(text):
                 issues.append(f"Text matches forbidden pattern: {pattern_str}")
                 suggestions.append(f"Remove content matching: {pattern_str}")

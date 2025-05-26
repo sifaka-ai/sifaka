@@ -39,10 +39,14 @@ class FormatValidator(BaseValidator):
     FORMAT_JSON = "json"
     FORMAT_MARKDOWN = "markdown"
     FORMAT_CUSTOM = "custom"
+    FORMAT_EMAIL = "email"
+    FORMAT_URL = "url"
+    FORMAT_CONTAINS_JSON = "contains_json"
 
     def __init__(
         self,
-        format_type: str,
+        format_type: Optional[str] = None,
+        expected_format: Optional[str] = None,
         custom_validator: Optional[Callable[[str], bool]] = None,
         schema: Optional[Dict[str, Any]] = None,
         name: str = "FormatValidator",
@@ -51,6 +55,7 @@ class FormatValidator(BaseValidator):
 
         Args:
             format_type: The format type to check for ('json', 'markdown', 'custom').
+            expected_format: Alias for format_type.
             custom_validator: A custom validation function for custom formats.
             schema: A JSON schema to validate against (for JSON format).
             name: The name of the validator.
@@ -58,14 +63,40 @@ class FormatValidator(BaseValidator):
         Raises:
             ValidationError: If the format type is unsupported or configuration is invalid.
         """
-        if format_type not in [self.FORMAT_JSON, self.FORMAT_MARKDOWN, self.FORMAT_CUSTOM]:
+        # Handle expected_format as alias for format_type
+        if expected_format is not None:
+            if format_type is not None:
+                raise ValidationError(
+                    message="Cannot specify both format_type and expected_format",
+                    component="FormatValidator",
+                    operation="initialization",
+                    suggestions=["Use either format_type or expected_format, not both"],
+                )
+            format_type = expected_format
+
+        if format_type is None:
+            raise ValidationError(
+                message="Either format_type or expected_format must be specified",
+                component="FormatValidator",
+                operation="initialization",
+                suggestions=["Provide format_type or expected_format parameter"],
+            )
+
+        supported_formats = [
+            self.FORMAT_JSON,
+            self.FORMAT_MARKDOWN,
+            self.FORMAT_CUSTOM,
+            self.FORMAT_EMAIL,
+            self.FORMAT_URL,
+            self.FORMAT_CONTAINS_JSON,
+        ]
+
+        if format_type not in supported_formats:
             raise ValidationError(
                 message=f"Unsupported format type: {format_type}",
                 component="FormatValidator",
                 operation="initialization",
-                suggestions=[
-                    f"Use one of the supported formats: {self.FORMAT_JSON}, {self.FORMAT_MARKDOWN}, {self.FORMAT_CUSTOM}"
-                ],
+                suggestions=[f"Use one of the supported formats: {', '.join(supported_formats)}"],
             )
 
         if format_type == self.FORMAT_CUSTOM and custom_validator is None:
@@ -100,6 +131,12 @@ class FormatValidator(BaseValidator):
             return self._validate_markdown(thought.text)
         elif self.format_type == self.FORMAT_CUSTOM:
             return self._validate_custom(thought.text)
+        elif self.format_type == self.FORMAT_EMAIL:
+            return self._validate_email(thought.text)
+        elif self.format_type == self.FORMAT_URL:
+            return self._validate_url(thought.text)
+        elif self.format_type == self.FORMAT_CONTAINS_JSON:
+            return self._validate_contains_json(thought.text)
         else:
             # This should never happen due to validation in __init__
             logger.error(f"{self.name}: Unsupported format type: {self.format_type}")
@@ -301,6 +338,149 @@ class FormatValidator(BaseValidator):
                 message=f"Custom validation function error: {str(e)}",
                 issues=[f"Validation function raised an exception: {str(e)}"],
                 suggestions=["Check the custom validation function implementation"],
+            )
+
+    def _validate_email(self, text: str) -> ValidationResult:
+        """Validate text as email format.
+
+        Args:
+            text: The text to validate.
+
+        Returns:
+            A ValidationResult indicating whether the text is a valid email.
+        """
+        import re
+
+        # Basic email regex pattern
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+
+        if re.match(email_pattern, text.strip()):
+            return self.create_validation_result(
+                passed=True,
+                message="Text is a valid email address",
+                score=1.0,
+                metadata={
+                    "validator": self.name,
+                    "format_type": "email",
+                },
+            )
+        else:
+            return self.create_validation_result(
+                passed=False,
+                message="Text is not a valid email address",
+                score=0.0,
+                issues=["Invalid email format"],
+                suggestions=[
+                    "Ensure the email has a valid format: user@domain.com",
+                    "Check for missing @ symbol or domain extension",
+                ],
+                metadata={
+                    "validator": self.name,
+                    "format_type": "email",
+                },
+            )
+
+    def _validate_url(self, text: str) -> ValidationResult:
+        """Validate text as URL format.
+
+        Args:
+            text: The text to validate.
+
+        Returns:
+            A ValidationResult indicating whether the text is a valid URL.
+        """
+        import re
+
+        # Basic URL regex pattern
+        url_pattern = r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:/[^\s]*)?$"
+
+        if re.match(url_pattern, text.strip()):
+            return self.create_validation_result(
+                passed=True,
+                message="Text is a valid URL",
+                score=1.0,
+                metadata={
+                    "validator": self.name,
+                    "format_type": "url",
+                },
+            )
+        else:
+            return self.create_validation_result(
+                passed=False,
+                message="Text is not a valid URL",
+                score=0.0,
+                issues=["Invalid URL format"],
+                suggestions=[
+                    "Ensure the URL starts with http:// or https://",
+                    "Check for valid domain format",
+                ],
+                metadata={
+                    "validator": self.name,
+                    "format_type": "url",
+                },
+            )
+
+    def _validate_contains_json(self, text: str) -> ValidationResult:
+        """Validate that text contains JSON.
+
+        Args:
+            text: The text to validate.
+
+        Returns:
+            A ValidationResult indicating whether the text contains valid JSON.
+        """
+        import re
+
+        # Look for JSON-like patterns in the text
+        json_pattern = r"\{[^{}]*\}"
+        json_matches = re.findall(json_pattern, text)
+
+        if not json_matches:
+            return self.create_validation_result(
+                passed=False,
+                message="Text does not contain JSON",
+                score=0.0,
+                issues=["No JSON objects found in text"],
+                suggestions=["Include JSON objects in the text"],
+                metadata={
+                    "validator": self.name,
+                    "format_type": "contains_json",
+                },
+            )
+
+        # Try to parse each JSON-like match
+        valid_json_found = False
+        for match in json_matches:
+            try:
+                json.loads(match)
+                valid_json_found = True
+                break
+            except json.JSONDecodeError:
+                continue
+
+        if valid_json_found:
+            return self.create_validation_result(
+                passed=True,
+                message="Text contains valid JSON",
+                score=1.0,
+                metadata={
+                    "validator": self.name,
+                    "format_type": "contains_json",
+                    "json_objects_found": len(json_matches),
+                },
+            )
+        else:
+            return self.create_validation_result(
+                passed=False,
+                message="Text contains JSON-like patterns but no valid JSON",
+                score=0.0,
+                issues=["JSON-like patterns found but none are valid JSON"],
+                suggestions=["Ensure JSON objects have proper syntax"],
+                metadata={
+                    "validator": self.name,
+                    "format_type": "contains_json",
+                    "json_like_patterns": len(json_matches),
+                },
             )
 
 

@@ -1,49 +1,40 @@
-"""Prompt critic for Sifaka.
+"""Prompt-based critic for Sifaka.
 
-This module provides a general-purpose critic that uses language models to evaluate,
-validate, and improve text outputs. It's a flexible critic that can be customized
-with different prompts and system instructions for various critique tasks.
+This module implements a simple, customizable prompt-based critic that allows
+users to define their own critique criteria through custom prompts.
 
-The PromptCritic is designed to be a versatile, general-purpose critic that can
-be adapted for different use cases through prompt engineering.
+The PromptCritic provides a flexible foundation for creating domain-specific
+critics without requiring complex implementations.
 """
 
-import asyncio
 import time
 from typing import Any, Dict, List, Optional
 
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
-from sifaka.models.base import create_model
+from sifaka.critics.base import BaseCritic
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
-from sifaka.utils.mixins import ContextAwareMixin
 
-# Configure logger
 logger = get_logger(__name__)
 
 
-class PromptCritic(ContextAwareMixin):
-    """General-purpose critic that uses language models for text evaluation.
+class PromptCritic(BaseCritic):
+    """A simple, customizable prompt-based critic.
 
-    This critic uses customizable prompts to evaluate and improve text. It's
-    designed to be flexible and adaptable for various critique tasks through
-    prompt engineering.
-
-    Attributes:
-        model: The language model to use for critique and improvement.
-        system_prompt: The system prompt that defines the critic's behavior.
-        critique_focus: Areas of focus for the critique (e.g., clarity, accuracy).
+    This critic allows users to define their own critique criteria through
+    custom prompts, making it easy to create domain-specific critics without
+    complex implementations.
     """
 
     def __init__(
         self,
         model: Optional[Model] = None,
         model_name: Optional[str] = None,
-        system_prompt: Optional[str] = None,
-        critique_focus: Optional[str] = None,
         critique_prompt_template: Optional[str] = None,
         improve_prompt_template: Optional[str] = None,
+        system_prompt: Optional[str] = None,
+        criteria: Optional[List[str]] = None,
         **model_kwargs: Any,
     ):
         """Initialize the Prompt critic.
@@ -51,149 +42,117 @@ class PromptCritic(ContextAwareMixin):
         Args:
             model: The language model to use for critique and improvement.
             model_name: The name of the model to use if model is not provided.
-            system_prompt: The system prompt that defines the critic's behavior.
-            critique_focus: Areas of focus for the critique.
-            critique_prompt_template: Template for the critique prompt.
-            improve_prompt_template: Template for the improvement prompt.
+            critique_prompt_template: Custom template for the critique prompt.
+            improve_prompt_template: Custom template for the improvement prompt.
+            system_prompt: Custom system prompt for the critic.
+            criteria: List of specific criteria to evaluate.
             **model_kwargs: Additional keyword arguments for model creation.
         """
-        # Set up the model
-        if model:
-            self.model = model
-        elif model_name:
-            self.model = create_model(model_name, **model_kwargs)
-        else:
-            # Default to a mock model for testing
-            self.model = create_model("mock:default", **model_kwargs)
-
-        # Set up system prompt
+        super().__init__(model=model, model_name=model_name, **model_kwargs)
+        
+        self.criteria = criteria or [
+            "Clarity and readability",
+            "Accuracy and factual correctness", 
+            "Completeness and thoroughness",
+            "Relevance to the task"
+        ]
+        
         self.system_prompt = system_prompt or (
-            "You are an expert text critic and editor. Your role is to analyze text "
-            "for quality, clarity, accuracy, and effectiveness. Provide constructive "
-            "feedback and specific suggestions for improvement."
+            "You are an expert critic providing detailed, constructive feedback on text quality."
         )
 
-        # Set up critique focus
-        self.critique_focus = critique_focus or (
-            "clarity, accuracy, coherence, completeness, and overall effectiveness"
-        )
-
-        # Set up prompt templates with context support
+        # Set up prompt templates
+        criteria_text = "\n".join(f"- {criterion}" for criterion in self.criteria)
+        
         self.critique_prompt_template = critique_prompt_template or (
-            "Please analyze the following text and provide a detailed critique.\n\n"
+            "Please critique the following text based on these criteria:\n\n"
+            f"{criteria_text}\n\n"
             "Original task: {prompt}\n\n"
             "Text to critique:\n{text}\n\n"
             "Retrieved context:\n{context}\n\n"
-            "Focus your critique on: {focus}\n\n"
-            "Please provide:\n"
-            "1. An overall assessment of the text quality\n"
-            "2. Specific strengths of the text\n"
-            "3. Areas that need improvement\n"
-            "4. Concrete suggestions for enhancement\n"
-            "5. A score from 1-10 for overall quality\n"
-            "6. How well the text uses the retrieved context (if available)\n\n"
-            "Be specific, constructive, and actionable in your feedback."
+            "Please provide your critique in the following format:\n\n"
+            "Issues:\n- [List specific issues here]\n\n"
+            "Suggestions:\n- [List specific suggestions here]\n\n"
+            "Overall Assessment: [Brief overall assessment]\n\n"
+            "Be specific and constructive in your feedback. Consider how well the text "
+            "uses information from the retrieved context (if available)."
         )
 
         self.improve_prompt_template = improve_prompt_template or (
-            "Please improve the following text based on the critique provided.\n\n"
+            "Improve the following text based on the critique provided.\n\n"
             "Original task: {prompt}\n\n"
             "Current text:\n{text}\n\n"
             "Retrieved context:\n{context}\n\n"
-            "Critique and feedback:\n{critique}\n\n"
-            "Please provide an improved version that:\n"
-            "1. Addresses all issues identified in the critique\n"
-            "2. Maintains the core message and purpose\n"
-            "3. Enhances clarity, accuracy, and effectiveness\n"
-            "4. Stays true to the original task requirements\n"
-            "5. Better incorporates relevant information from the context (if available)"
+            "Critique:\n{critique}\n\n"
+            "Please provide an improved version that addresses the issues identified "
+            "in the critique while maintaining the core message and staying true to "
+            "the original task. Better incorporate relevant information from the context if available.\n\n"
+            "Improved text:"
         )
 
-    def critique(self, thought: Thought) -> Dict[str, Any]:
-        """Critique text using the configured prompts.
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic using custom prompt.
 
         Args:
             thought: The Thought container with the text to critique.
 
         Returns:
-            A dictionary with critique results.
+            A dictionary with critique results (without processing_time_ms).
         """
-        start_time = time.time()
+        # Prepare context from retrieved documents (using mixin)
+        context = self._prepare_context(thought)
 
-        with critic_context(
-            critic_name="PromptCritic",
-            operation="critique",
-            message_prefix="Failed to critique text with Prompt critic",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return {
-                    "needs_improvement": True,
-                    "message": "No text available for critique",
-                    "issues": ["Text is empty or None"],
-                    "suggestions": ["Provide text to critique"],
-                    "score": 0.0,
-                }
+        # Create critique prompt with context
+        critique_prompt = self.critique_prompt_template.format(
+            prompt=thought.prompt,
+            text=thought.text,
+            context=context,
+        )
 
-            # Prepare context from retrieved documents (using mixin)
-            context = self._prepare_context(thought)
+        # Generate critique
+        critique_response = await self.model._generate_async(
+            prompt=critique_prompt,
+            system_message=self.system_prompt,
+        )
 
-            # Create critique prompt with context
-            critique_prompt = self.critique_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                focus=self.critique_focus,
-                context=context,
-            )
+        # Parse the critique
+        issues, suggestions = self._parse_critique(critique_response)
+        
+        # Determine if improvement is needed based on critique content
+        needs_improvement = self._needs_improvement(critique_response)
 
-            # Generate critique
-            critique_response = self.model.generate(
-                prompt=critique_prompt,
-                system_prompt=self.system_prompt,
-            )
+        logger.debug("PromptCritic: Critique completed")
 
-            # Extract score and determine if improvement is needed
-            score = self._extract_score(critique_response)
-            needs_improvement = score < 7.0  # Threshold for improvement
-
-            # Extract issues and suggestions
-            issues = self._extract_issues(critique_response)
-            suggestions = self._extract_suggestions(critique_response)
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(
-                f"PromptCritic: Critique completed in {processing_time:.2f}ms, "
-                f"score: {score}, needs_improvement: {needs_improvement}"
-            )
-
-            return {
-                "needs_improvement": needs_improvement,
-                "message": critique_response,
-                "critique": critique_response,
-                "score": score,
-                "issues": issues,
-                "suggestions": suggestions,
-                "focus_areas": self.critique_focus,
-                "processing_time_ms": processing_time,
+        return {
+            "needs_improvement": needs_improvement,
+            "message": critique_response,
+            "issues": issues,
+            "suggestions": suggestions,
+            "confidence": 0.7,  # Default confidence for prompt-based critic
+            "metadata": {
+                "criteria": self.criteria,
+                "system_prompt": self.system_prompt,
             }
+        }
 
     def improve(self, thought: Thought) -> str:
-        """Improve text based on the critique.
+        """Improve text based on prompt-based critique.
 
         Args:
             thought: The Thought container with the text to improve and critique.
 
         Returns:
             The improved text.
+
+        Raises:
+            ImproverError: If the improvement fails.
         """
         start_time = time.time()
 
         with critic_context(
             critic_name="PromptCritic",
             operation="improve",
-            message_prefix="Failed to improve text with Prompt critic",
+            message_prefix="Failed to improve text with prompt-based critic",
         ):
             # Check if text is available
             if not thought.text:
@@ -209,8 +168,23 @@ class PromptCritic(ContextAwareMixin):
             if thought.critic_feedback:
                 for feedback in thought.critic_feedback:
                     if feedback.critic_name == "PromptCritic":
-                        critique = feedback.feedback.get("critique", "")
+                        critique = feedback.feedback
                         break
+
+            # If no critique available, generate one
+            if not critique:
+                logger.debug("No critique found in thought, generating new critique")
+                import asyncio
+                try:
+                    asyncio.get_running_loop()
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, self._perform_critique_async(thought))
+                        critique_result = future.result()
+                except RuntimeError:
+                    critique_result = asyncio.run(self._perform_critique_async(thought))
+                
+                critique = critique_result["message"]
 
             # Prepare context for improvement (using mixin)
             context = self._prepare_context(thought)
@@ -236,274 +210,87 @@ class PromptCritic(ContextAwareMixin):
 
             return improved_text.strip()
 
-    async def _critique_async(self, thought: Thought) -> Dict[str, Any]:
-        """Critique text using the configured prompts asynchronously.
-
-        This is the internal async implementation that provides the same functionality
-        as the sync critique method but with non-blocking I/O.
+    def _parse_critique(self, critique: str) -> tuple[List[str], List[str]]:
+        """Parse critique text to extract issues and suggestions.
 
         Args:
-            thought: The Thought container with the text to critique.
+            critique: The critique text to parse.
 
         Returns:
-            A dictionary with critique results.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name="PromptCritic",
-            operation="critique_async",
-            message_prefix="Failed to critique text with Prompt critic (async)",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return {
-                    "needs_improvement": True,
-                    "message": "No text available for critique",
-                    "issues": ["Text is empty or None"],
-                    "suggestions": ["Provide text to critique"],
-                    "score": 0.0,
-                }
-
-            # Prepare context from retrieved documents (using mixin)
-            context = self._prepare_context(thought)
-
-            # Create critique prompt with context
-            critique_prompt = self.critique_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                focus=self.critique_focus,
-                context=context,
-            )
-
-            # Generate critique (async)
-            critique_response = await self.model._generate_async(
-                prompt=critique_prompt,
-                system_message=self.system_prompt,
-            )
-
-            # Extract score and determine if improvement is needed
-            score = self._extract_score(critique_response)
-            needs_improvement = score < 7.0  # Threshold for improvement
-
-            # Extract issues and suggestions
-            issues = self._extract_issues(critique_response)
-            suggestions = self._extract_suggestions(critique_response)
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(
-                f"PromptCritic: Async critique completed in {processing_time:.2f}ms, "
-                f"score: {score}, needs_improvement: {needs_improvement}"
-            )
-
-            return {
-                "needs_improvement": needs_improvement,
-                "message": critique_response,
-                "critique": critique_response,
-                "score": score,
-                "issues": issues,
-                "suggestions": suggestions,
-                "focus_areas": self.critique_focus,
-                "processing_time_ms": processing_time,
-            }
-
-    async def _improve_async(self, thought: Thought) -> str:
-        """Improve text based on the critique asynchronously.
-
-        This is the internal async implementation that provides the same functionality
-        as the sync improve method but with non-blocking I/O.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-
-        Returns:
-            The improved text.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name="PromptCritic",
-            operation="improve_async",
-            message_prefix="Failed to improve text with Prompt critic (async)",
-        ):
-            # Check if text is available
-            if not thought.text:
-                raise ImproverError(
-                    message="No text available for improvement",
-                    component="PromptCritic",
-                    operation="improve_async",
-                    suggestions=["Provide text to improve"],
-                )
-
-            # Get critique from thought
-            critique = ""
-            if thought.critic_feedback:
-                for feedback in thought.critic_feedback:
-                    if feedback.critic_name == "PromptCritic":
-                        critique = feedback.feedback.get("critique", "")
-                        break
-
-            # Prepare context for improvement (using mixin)
-            context = self._prepare_context(thought)
-
-            # Create improvement prompt with context
-            improve_prompt = self.improve_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                critique=critique,
-                context=context,
-            )
-
-            # Generate improved text (async)
-            improved_text = await self.model._generate_async(
-                prompt=improve_prompt,
-                system_message=self.system_prompt,
-            )
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(f"PromptCritic: Async improvement completed in {processing_time:.2f}ms")
-
-            return improved_text.strip()
-
-    def _extract_score(self, critique: str) -> float:
-        """Extract numerical score from critique text.
-
-        Args:
-            critique: The critique text to analyze.
-
-        Returns:
-            A score between 0.0 and 10.0.
-        """
-        import re
-
-        # Look for score patterns like "score: 7", "7/10", "7 out of 10"
-        score_patterns = [
-            r"score[:\s]+(\d+(?:\.\d+)?)",
-            r"(\d+(?:\.\d+)?)[/\s]*(?:out of\s*)?10",
-            r"quality[:\s]+(\d+(?:\.\d+)?)",
-            r"rating[:\s]+(\d+(?:\.\d+)?)",
-        ]
-
-        for pattern in score_patterns:
-            match = re.search(pattern, critique.lower())
-            if match:
-                try:
-                    score = float(match.group(1))
-                    # Normalize to 0-10 scale if needed
-                    if score <= 1.0:
-                        score *= 10
-                    return min(10.0, max(0.0, score))
-                except ValueError:
-                    continue
-
-        # Default score based on critique sentiment
-        if any(
-            word in critique.lower() for word in ["excellent", "great", "outstanding", "perfect"]
-        ):
-            return 8.5
-        elif any(word in critique.lower() for word in ["good", "solid", "well"]):
-            return 7.0
-        elif any(word in critique.lower() for word in ["poor", "bad", "terrible", "awful"]):
-            return 3.0
-        else:
-            return 5.5  # Neutral default
-
-    def _extract_issues(self, critique: str) -> List[str]:
-        """Extract issues from critique text.
-
-        Args:
-            critique: The critique text to analyze.
-
-        Returns:
-            A list of identified issues.
+            A tuple of (issues, suggestions) lists.
         """
         issues = []
-        lines = critique.split("\n")
+        suggestions = []
 
-        for line in lines:
-            line_lower = line.lower().strip()
-            if any(
-                indicator in line_lower
-                for indicator in [
-                    "issue",
-                    "problem",
-                    "weakness",
-                    "flaw",
-                    "error",
-                    "mistake",
-                    "unclear",
-                    "confusing",
-                    "missing",
-                    "lacks",
-                    "needs improvement",
-                ]
-            ):
-                issues.append(line.strip())
+        # Simple parsing logic
+        in_issues = False
+        in_suggestions = False
 
-        return issues[:5]  # Limit to top 5 issues
+        for line in critique.split("\n"):
+            line = line.strip()
+            if line.lower().startswith("issues:"):
+                in_issues = True
+                in_suggestions = False
+                continue
+            elif line.lower().startswith("suggestions:"):
+                in_issues = False
+                in_suggestions = True
+                continue
+            elif line.lower().startswith("overall assessment:"):
+                in_issues = False
+                in_suggestions = False
+                continue
+            elif not line or line.startswith("#"):
+                continue
 
-    def _extract_suggestions(self, critique: str) -> List[str]:
-        """Extract suggestions from critique text.
+            if in_issues and line.startswith("-"):
+                issues.append(line[1:].strip())
+            elif in_suggestions and line.startswith("-"):
+                suggestions.append(line[1:].strip())
+
+        # If no structured format found, extract from general content
+        if not issues and not suggestions:
+            critique_lower = critique.lower()
+            if any(word in critique_lower for word in ["issue", "problem", "error", "unclear"]):
+                issues.append("General issues identified in critique")
+            if any(word in critique_lower for word in ["improve", "suggest", "consider", "should"]):
+                suggestions.append("See critique for improvement suggestions")
+
+        return issues, suggestions
+
+    def _needs_improvement(self, critique: str) -> bool:
+        """Determine if text needs improvement based on critique content.
 
         Args:
             critique: The critique text to analyze.
 
         Returns:
-            A list of improvement suggestions.
+            True if improvement is needed, False otherwise.
         """
-        suggestions = []
-        lines = critique.split("\n")
+        # Simple heuristic based on common phrases in critiques
+        no_improvement_phrases = [
+            "no issues", "looks good", "well written", "excellent", "great job",
+            "perfect", "no improvement needed", "already excellent", "no changes needed",
+            "well-structured", "clear and concise", "high quality"
+        ]
 
-        for line in lines:
-            line_lower = line.lower().strip()
-            if any(
-                indicator in line_lower
-                for indicator in [
-                    "suggest",
-                    "recommend",
-                    "consider",
-                    "should",
-                    "could",
-                    "try",
-                    "improve",
-                    "enhance",
-                    "add",
-                    "remove",
-                    "clarify",
-                ]
-            ):
-                suggestions.append(line.strip())
+        improvement_phrases = [
+            "could be improved", "needs improvement", "issues", "problems",
+            "unclear", "confusing", "missing", "incorrect", "should be",
+            "consider", "suggest", "recommend", "enhance", "revise"
+        ]
 
-        return suggestions[:5]  # Limit to top 5 suggestions
+        critique_lower = critique.lower()
 
+        # Check for explicit "no improvement" indicators
+        for phrase in no_improvement_phrases:
+            if phrase in critique_lower:
+                return False
 
-def create_prompt_critic(
-    model: Optional[Model] = None,
-    model_name: Optional[str] = None,
-    system_prompt: Optional[str] = None,
-    critique_focus: Optional[str] = None,
-    **model_kwargs: Any,
-) -> PromptCritic:
-    """Create a Prompt critic.
+        # Check for improvement indicators
+        for phrase in improvement_phrases:
+            if phrase in critique_lower:
+                return True
 
-    Args:
-        model: The language model to use for critique and improvement.
-        model_name: The name of the model to use if model is not provided.
-        system_prompt: The system prompt that defines the critic's behavior.
-        critique_focus: Areas of focus for the critique.
-        **model_kwargs: Additional keyword arguments for model creation.
-
-    Returns:
-        A PromptCritic instance.
-    """
-    return PromptCritic(
-        model=model,
-        model_name=model_name,
-        system_prompt=system_prompt,
-        critique_focus=critique_focus,
-        **model_kwargs,
-    )
+        # Default to needing improvement if unclear
+        return True

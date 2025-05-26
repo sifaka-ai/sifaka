@@ -168,3 +168,23 @@ class CachedStorage:
 
         # Fall back to get() method
         return self.get(key) is not None
+
+    def save(self, key: str, value: Any) -> None:
+        """Save a value for a key (same as set).
+
+        Args:
+            key: The storage key.
+            value: The value to store.
+        """
+        self.set(key, value)
+
+    def exists(self, key: str) -> bool:
+        """Check if key exists in storage.
+
+        Args:
+            key: The storage key to check.
+
+        Returns:
+            True if the key exists, False otherwise.
+        """
+        return key in self

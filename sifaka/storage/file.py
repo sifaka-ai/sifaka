@@ -5,8 +5,6 @@ applications and development where you want to persist data between runs.
 """
 
 import json
-import os
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -32,13 +30,20 @@ class FileStorage:
         data: In-memory cache of the file contents.
     """
 
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: Optional[str] = None, directory: Optional[str] = None):
         """Initialize file storage.
 
         Args:
             file_path: Path to the JSON file for storage.
+            directory: Directory to store the default file (alternative to file_path).
         """
-        self.file_path = Path(file_path)
+        if file_path is not None:
+            self.file_path = Path(file_path)
+        elif directory is not None:
+            self.file_path = Path(directory) / "sifaka_storage.json"
+        else:
+            self.file_path = Path("sifaka_storage.json")
+
         self.data: Dict[str, Any] = {}
 
         # Create directory if it doesn't exist
@@ -139,3 +144,34 @@ class FileStorage:
     def __contains__(self, key: str) -> bool:
         """Check if key exists in storage."""
         return key in self.data
+
+    def save(self, key: str, value: Any) -> None:
+        """Save a value for a key (same as set).
+
+        Args:
+            key: The storage key.
+            value: The value to store.
+        """
+        self.set(key, value)
+
+    def exists(self, key: str) -> bool:
+        """Check if key exists in storage (same as __contains__).
+
+        Args:
+            key: The storage key to check.
+
+        Returns:
+            True if the key exists, False otherwise.
+        """
+        return key in self.data
+
+    def load(self, key: str) -> Optional[Any]:
+        """Load a value by key (same as get).
+
+        Args:
+            key: The storage key.
+
+        Returns:
+            The stored value, or None if not found.
+        """
+        return self.get(key)

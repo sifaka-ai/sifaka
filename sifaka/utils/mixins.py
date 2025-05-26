@@ -381,26 +381,16 @@ class ContextAwareMixin:
                     for suggestion in feedback.suggestions[:3]:  # Limit to top 3
                         feedback_summary += f"\n- {suggestion}"
 
-                # For Constitutional critics, include the full critique if no violations/suggestions
-                if (
-                    not feedback.violations
-                    and not feedback.suggestions
-                    and feedback.feedback
-                    and "critique" in feedback.feedback
-                ):
-                    critique_text = feedback.feedback["critique"]
-                    # Extract key parts of the critique (first few lines)
-                    critique_lines = critique_text.split("\n")[:5]  # First 5 lines
-                    feedback_summary += "\nCritique summary:"
-                    for line in critique_lines:
+                # Include the main feedback text if no specific violations/suggestions
+                if not feedback.violations and not feedback.suggestions and feedback.feedback:
+                    # Extract key parts of the feedback (first few lines)
+                    feedback_lines = feedback.feedback.split("\n")[:5]  # First 5 lines
+                    feedback_summary += "\nFeedback summary:"
+                    for line in feedback_lines:
                         if line.strip():
                             feedback_summary += f"\n- {line.strip()}"
 
-                if (
-                    not feedback.violations
-                    and not feedback.suggestions
-                    and not feedback.feedback.get("critique")
-                ):
+                if not feedback.violations and not feedback.suggestions and not feedback.feedback:
                     feedback_summary += "\n- No specific feedback provided"
 
                 feedback_parts.append(feedback_summary)

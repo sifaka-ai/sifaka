@@ -710,8 +710,8 @@ def create_troubleshooting_guide(
             "Incorrect connection parameters",
         ]
         guide["related_docs"] = [
-            "docs/STORAGE.md - Storage configuration",
-            "docs/TROUBLESHOOTING.md - Network issues",
+            "docs/guides/storage-setup.md - Storage configuration",
+            "docs/troubleshooting/common-issues.md - Network issues",
         ]
 
     elif "Auth" in error_type or "api key" in error_message.lower():
@@ -722,7 +722,7 @@ def create_troubleshooting_guide(
             "Service authentication requirements changed",
         ]
         guide["related_docs"] = [
-            "docs/API_REFERENCE.md - Authentication",
+            "docs/api/api-reference.md - Authentication",
             "README.md - Environment setup",
         ]
 

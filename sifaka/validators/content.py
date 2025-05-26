@@ -10,7 +10,7 @@ or unwanted content by checking against a list of prohibited items.
 
 import re
 import time
-from typing import List, Pattern
+from typing import List, Optional, Pattern
 
 from sifaka.core.thought import Thought, ValidationResult
 from sifaka.utils.error_handling import ValidationError
@@ -38,7 +38,8 @@ class ContentValidator(BaseValidator):
 
     def __init__(
         self,
-        prohibited: List[str],
+        prohibited: Optional[List[str]] = None,
+        required: Optional[List[str]] = None,
         case_sensitive: bool = False,
         whole_word: bool = False,
         regex: bool = False,
@@ -48,64 +49,80 @@ class ContentValidator(BaseValidator):
 
         Args:
             prohibited: List of prohibited words, phrases, or patterns.
+            required: List of required words, phrases, or patterns.
             case_sensitive: Whether the matching should be case-sensitive.
             whole_word: Whether to match whole words only.
-            regex: Whether the prohibited items are regular expressions.
+            regex: Whether the prohibited/required items are regular expressions.
             name: The name of the validator.
 
         Raises:
-            ValidationError: If the prohibited list is empty or invalid.
+            ValidationError: If both prohibited and required lists are empty or invalid.
         """
-        if not prohibited:
+        if not prohibited and not required:
             raise ValidationError(
-                message="Prohibited list cannot be empty",
+                message="Either prohibited or required list must be provided",
                 component="ContentValidator",
                 operation="initialization",
-                suggestions=["Provide at least one prohibited word, phrase, or pattern"],
+                suggestions=[
+                    "Provide at least one prohibited or required word, phrase, or pattern"
+                ],
             )
 
         # Initialize the base class
         super().__init__(name=name)
 
-        self.prohibited = prohibited
+        self.prohibited = prohibited or []
+        self.required = required or []
         self.case_sensitive = case_sensitive
         self.whole_word = whole_word
         self.regex = regex
 
         # Compile patterns for efficiency
-        self._compiled_patterns: List[Pattern[str]] = []
+        self._compiled_prohibited_patterns: List[Pattern[str]] = []
+        self._compiled_required_patterns: List[Pattern[str]] = []
         self._compile_patterns()
 
     def _compile_patterns(self) -> None:
-        """Compile prohibited items into regex patterns for efficient matching."""
-        self._compiled_patterns = []
+        """Compile prohibited and required items into regex patterns for efficient matching."""
+        self._compiled_prohibited_patterns = []
+        self._compiled_required_patterns = []
 
+        # Compile prohibited patterns
         for item in self.prohibited:
             try:
-                if self.regex:
-                    # Item is already a regex pattern
-                    pattern = item
-                else:
-                    # Escape special regex characters
-                    escaped_item = re.escape(item)
-
-                    if self.whole_word:
-                        # Add word boundaries
-                        pattern = rf"\b{escaped_item}\b"
-                    else:
-                        pattern = escaped_item
-
-                # Compile with appropriate flags
+                pattern = self._create_pattern(item)
                 flags = 0 if self.case_sensitive else re.IGNORECASE
                 compiled_pattern = re.compile(pattern, flags)
-                self._compiled_patterns.append(compiled_pattern)
-
+                self._compiled_prohibited_patterns.append(compiled_pattern)
             except re.error as e:
-                logger.warning(f"Invalid regex pattern '{item}': {e}")
-                # Skip invalid patterns but continue with others
+                logger.warning(f"Invalid prohibited regex pattern '{item}': {e}")
+
+        # Compile required patterns
+        for item in self.required:
+            try:
+                pattern = self._create_pattern(item)
+                flags = 0 if self.case_sensitive else re.IGNORECASE
+                compiled_pattern = re.compile(pattern, flags)
+                self._compiled_required_patterns.append(compiled_pattern)
+            except re.error as e:
+                logger.warning(f"Invalid required regex pattern '{item}': {e}")
+
+    def _create_pattern(self, item: str) -> str:
+        """Create a regex pattern from an item."""
+        if self.regex:
+            # Item is already a regex pattern
+            return item
+        else:
+            # Escape special regex characters
+            escaped_item = re.escape(item)
+            if self.whole_word:
+                # Add word boundaries
+                return rf"\b{escaped_item}\b"
+            else:
+                return escaped_item
 
     def _validate_content(self, thought: Thought) -> ValidationResult:
-        """Validate text against prohibited content.
+        """Validate text against prohibited and required content.
 
         Args:
             thought: The Thought container with the text to validate.
@@ -115,12 +132,14 @@ class ContentValidator(BaseValidator):
             any issues found, and suggestions for improvement.
         """
         start_time = time.time()
+        issues = []
+        suggestions = []
 
-        # Find prohibited content matches
-        matches = []
-        for i, pattern in enumerate(self._compiled_patterns):
+        # Check prohibited content
+        prohibited_matches = []
+        for i, pattern in enumerate(self._compiled_prohibited_patterns):
             for match in pattern.finditer(thought.text):
-                matches.append(
+                prohibited_matches.append(
                     {
                         "match": match.group(),
                         "start": match.start(),
@@ -130,55 +149,77 @@ class ContentValidator(BaseValidator):
                     }
                 )
 
+        # Check required content
+        missing_required = []
+        for i, pattern in enumerate(self._compiled_required_patterns):
+            if not pattern.search(thought.text):
+                missing_required.append(self.required[i])
+
         # Calculate processing time
         processing_time = (time.time() - start_time) * 1000
 
-        if not matches:
-            # No prohibited content found
-            logger.debug(f"{self.name}: No prohibited content found in {processing_time:.2f}ms")
+        # Determine if validation passed
+        passed = len(prohibited_matches) == 0 and len(missing_required) == 0
+
+        if passed:
+            # All validations passed
+            logger.debug(f"{self.name}: Content validation passed in {processing_time:.2f}ms")
             return self.create_validation_result(
                 passed=True,
-                message="Text does not contain prohibited content",
+                message="Text meets all content requirements",
                 score=1.0,
                 metadata={
                     "validator": self.name,
                     "processing_time_ms": processing_time,
-                    "patterns_checked": len(self._compiled_patterns),
+                    "prohibited_patterns_checked": len(self._compiled_prohibited_patterns),
+                    "required_patterns_checked": len(self._compiled_required_patterns),
                 },
             )
 
-        # Found prohibited content
-        match_items = [str(m["match"]) for m in matches]
-        prohibited_items = [str(m["prohibited_item"]) for m in matches]
+        # Handle prohibited content violations
+        if prohibited_matches:
+            match_items = [str(m["match"]) for m in prohibited_matches]
+            prohibited_items = [str(m["prohibited_item"]) for m in prohibited_matches]
+            unique_matches = set(match_items)
+            unique_prohibited = set(prohibited_items)
+            issues.append(f"Text contains prohibited content: {', '.join(unique_matches)}")
+            suggestions.extend(
+                [
+                    f"Remove or rephrase the following prohibited content: {', '.join(unique_matches)}",
+                    f"Avoid using terms like: {', '.join(unique_prohibited)}",
+                ]
+            )
 
-        # Create issues and suggestions
-        unique_matches = set(match_items)
-        unique_prohibited = set(prohibited_items)
-        issues = [f"Text contains prohibited content: {', '.join(unique_matches)}"]
-        suggestions = [
-            f"Remove or rephrase the following prohibited content: {', '.join(unique_matches)}",
-            f"Avoid using terms like: {', '.join(unique_prohibited)}",
-        ]
+        # Handle missing required content
+        if missing_required:
+            issues.append(f"Text is missing required content: {', '.join(missing_required)}")
+            suggestions.append(
+                f"Include the following required content: {', '.join(missing_required)}"
+            )
 
-        # Calculate score based on number of matches
-        score = max(0.0, 1.0 - (len(matches) / len(self.prohibited)))
+        # Calculate score based on violations
+        total_violations = len(prohibited_matches) + len(missing_required)
+        total_checks = len(self.prohibited) + len(self.required)
+        score = max(0.0, 1.0 - (total_violations / max(1, total_checks)))
 
         logger.debug(
-            f"{self.name}: Validation failed with {len(matches)} matches in {processing_time:.2f}ms"
+            f"{self.name}: Validation failed with {total_violations} violations in {processing_time:.2f}ms"
         )
 
         return self.create_validation_result(
             passed=False,
-            message=f"Text contains {len(matches)} prohibited content match(es)",
+            message=f"Text has {total_violations} content violation(s)",
             score=score,
             issues=issues,
             suggestions=suggestions,
             metadata={
                 "validator": self.name,
                 "processing_time_ms": processing_time,
-                "matches_found": len(matches),
-                "unique_matches": list(unique_matches),
-                "patterns_checked": len(self._compiled_patterns),
+                "prohibited_matches": len(prohibited_matches),
+                "missing_required": len(missing_required),
+                "total_violations": total_violations,
+                "prohibited_patterns_checked": len(self._compiled_prohibited_patterns),
+                "required_patterns_checked": len(self._compiled_required_patterns),
             },
         )
 

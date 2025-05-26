@@ -72,6 +72,7 @@ class ClassifierValidator(ClassifierValidatorBase):
         threshold: float = 0.5,
         valid_labels: Optional[List[str]] = None,
         invalid_labels: Optional[List[str]] = None,
+        expected_label: Optional[str] = None,
         extraction_function: Optional[Callable[[str], str]] = None,
         name: str = "ClassifierValidator",
     ):
@@ -82,12 +83,23 @@ class ClassifierValidator(ClassifierValidatorBase):
             threshold: Confidence threshold for accepting a classification.
             valid_labels: List of labels considered valid.
             invalid_labels: List of labels considered invalid.
+            expected_label: Single expected label (converted to valid_labels).
             extraction_function: Optional function to extract text for classification.
             name: The name of the validator.
 
         Raises:
             ValidationError: If the configuration is invalid.
         """
+        # Handle expected_label as alias for valid_labels
+        if expected_label is not None:
+            if valid_labels is not None:
+                raise ValidationError(
+                    message="Cannot specify both valid_labels and expected_label",
+                    component="ClassifierValidator",
+                    operation="initialization",
+                    suggestions=["Use either valid_labels or expected_label, not both"],
+                )
+            valid_labels = [expected_label]
         if not (0.0 <= threshold <= 1.0):
             raise ValidationError(
                 message=f"Threshold must be between 0.0 and 1.0, got {threshold}",
@@ -150,13 +162,19 @@ class ClassifierValidator(ClassifierValidatorBase):
                 )
 
         try:
-            # Perform classification
-            predictions = self.classifier.predict([text_to_classify])
-            probabilities = self.classifier.predict_proba([text_to_classify])
+            # Check if classifier has a classify method (test-style API)
+            if hasattr(self.classifier, "classify"):
+                result = self.classifier.classify(text_to_classify)
+                predicted_label = result["label"]
+                max_confidence = result["confidence"]
+            else:
+                # Use sklearn-style API
+                predictions = self.classifier.predict([text_to_classify])
+                probabilities = self.classifier.predict_proba([text_to_classify])
 
-            predicted_label = predictions[0]
-            prediction_probs = probabilities[0]
-            max_confidence = max(prediction_probs)
+                predicted_label = predictions[0]
+                prediction_probs = probabilities[0]
+                max_confidence = max(prediction_probs)
 
             # Calculate processing time
             processing_time = (time.time() - start_time) * 1000

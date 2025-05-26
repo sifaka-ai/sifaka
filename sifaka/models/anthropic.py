@@ -187,14 +187,17 @@ class AnthropicModel(BaseModelImplementation):
         except RateLimitError as e:
             # Use base class error handling
             self._handle_api_error(e, "generation")
+            raise  # Re-raise after handling
 
         except APIError as e:
             # Use base class error handling
             self._handle_api_error(e, "generation")
+            raise  # Re-raise after handling
 
         except Exception as e:
             # Use base class error handling
             self._handle_api_error(e, "generation")
+            raise  # Re-raise after handling
 
     def _supports_system_prompt(self) -> bool:
         """Check if the model supports system prompts.

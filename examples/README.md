@@ -171,8 +171,8 @@ python tests/test_all_examples.py
 ### Getting Help
 
 - Check the main [Sifaka documentation](../README.md)
-- Review [API reference](../docs/API_REFERENCE.md)
-- See [architecture documentation](../docs/ARCHITECTURE.md)
+- Review [API reference](../docs/api/api-reference.md)
+- See [architecture documentation](../docs/architecture.md)
 
 ## Contributing
 

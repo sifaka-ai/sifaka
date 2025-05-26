@@ -203,12 +203,21 @@ class ChainExecutor:
                         feedback_dict = critic.critique(thought)
 
                         # Convert the dictionary to a CriticFeedback object
+                        # Extract the main feedback text (try multiple possible fields)
+                        main_feedback = (
+                            feedback_dict.get("message")
+                            or feedback_dict.get("critique")
+                            or feedback_dict.get("feedback", "")
+                        )
+
                         feedback = CriticFeedback(
                             critic_name=critic.__class__.__name__,
+                            feedback=main_feedback,  # Store main feedback as string
+                            needs_improvement=feedback_dict.get("needs_improvement", False),
                             confidence=feedback_dict.get("confidence", 0.8),
                             violations=feedback_dict.get("issues", []),
                             suggestions=feedback_dict.get("suggestions", []),
-                            feedback=feedback_dict,  # Store the full feedback dict
+                            metadata=feedback_dict,  # Store the full feedback dict in metadata
                         )
 
                         thought = thought.add_critic_feedback(feedback)
@@ -262,20 +271,31 @@ class ChainExecutor:
                     # Create error feedback
                     error_feedback = CriticFeedback(
                         critic_name=critic_name,
+                        feedback=f"Criticism error: {str(result)}",
+                        needs_improvement=True,
                         confidence=0.0,
                         violations=[f"Criticism error: {str(result)}"],
                         suggestions=["Please try again or check the critic configuration."],
-                        feedback={"error": str(result)},
+                        metadata={"error": str(result)},
                     )
                     thought = thought.add_critic_feedback(error_feedback)
                 elif isinstance(result, dict):
                     # Convert the dictionary to a CriticFeedback object
+                    # Extract the main feedback text (try multiple possible fields)
+                    main_feedback = (
+                        result.get("message")
+                        or result.get("critique")
+                        or result.get("feedback", "")
+                    )
+
                     feedback = CriticFeedback(
                         critic_name=critic_name,
+                        feedback=main_feedback,  # Store main feedback as string
+                        needs_improvement=result.get("needs_improvement", False),
                         confidence=result.get("confidence", 0.8),
                         violations=result.get("issues", []),
                         suggestions=result.get("suggestions", []),
-                        feedback=result,  # Store the full feedback dict
+                        metadata=result,  # Store the full feedback dict in metadata
                     )
                     thought = thought.add_critic_feedback(feedback)
                     logger.debug(f"Added async feedback from {critic_name}")
@@ -380,8 +400,11 @@ class ChainExecutor:
             thought: The thought to save.
         """
         try:
+            # Save by thought ID for easy retrieval
+            self.config.storage.set(thought.id, thought)
+            # Also save by chain/iteration key for debugging
             thought_key = f"thought_{self.config.chain_id}_{thought.iteration}"
-            self.config.storage.set(thought_key, thought.model_dump())
+            self.config.storage.set(thought_key, thought)
             logger.debug(f"Saved thought (iteration {thought.iteration}) to storage")
         except Exception as e:
             logger.warning(f"Failed to save thought to storage: {e}")

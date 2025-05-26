@@ -4,44 +4,27 @@ This module implements the Reflexion approach for text improvement, which uses
 self-reflection to improve text quality through iterative refinement.
 
 Based on "Reflexion: Language Agents with Verbal Reinforcement Learning":
-
-@misc{shinn2023reflexionlanguageagentsverbal,
-      title={Reflexion: Language Agents with Verbal Reinforcement Learning},
-      author={Noah Shinn and Federico Cassano and Edward Berman and Ashwin Gopinath and Karthik Narasimhan and Shunyu Yao},
-      year={2023},
-      eprint={2303.11366},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2303.11366},
-}
+https://arxiv.org/abs/2303.11366
 
 The ReflexionCritic uses a language model to:
 1. Generate an initial critique of the text
 2. Reflect on the critique and identify specific improvements
 3. Generate improved text based on the reflection
-
-This approach enables learning from feedback without requiring model weight updates.
-
-The critic supports both sync and async implementations internally, with sync
-methods wrapping async implementations using asyncio.run() for backward compatibility.
 """
 
-import asyncio
 import time
 from typing import Any, Dict, List, Optional
 
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
-from sifaka.models.base import create_model
+from sifaka.critics.base import BaseCritic
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
-from sifaka.utils.mixins import ContextAwareMixin
 
-# Configure logger
 logger = get_logger(__name__)
 
 
-class ReflexionCritic(ContextAwareMixin):
+class ReflexionCritic(BaseCritic):
     """Critic that uses self-reflection to improve text quality.
 
     This critic implements the Reflexion approach for improving text through
@@ -52,14 +35,6 @@ class ReflexionCritic(ContextAwareMixin):
     1. Generating an initial critique of the text
     2. Reflecting on the critique to identify specific improvements
     3. Improving the text based on the reflection
-
-    Attributes:
-        model: The language model to use for critique and improvement.
-        critique_prompt_template: Template for the critique prompt.
-        reflection_prompt_template: Template for the reflection prompt.
-        improve_prompt_template: Template for the improvement prompt.
-        memory_buffer: Buffer to store past reflections for learning.
-        max_memory_size: Maximum number of reflections to keep in memory.
     """
 
     def __init__(
@@ -83,14 +58,7 @@ class ReflexionCritic(ContextAwareMixin):
             max_memory_size: Maximum number of reflections to keep in memory.
             **model_kwargs: Additional keyword arguments for model creation.
         """
-        # Set up the model
-        if model:
-            self.model = model
-        elif model_name:
-            self.model = create_model(model_name, **model_kwargs)
-        else:
-            # Default to a mock model for testing
-            self.model = create_model("mock:default", **model_kwargs)
+        super().__init__(model=model, model_name=model_name, **model_kwargs)
 
         # Memory buffer for past reflections
         self.memory_buffer: List[Dict[str, str]] = []
@@ -139,61 +107,42 @@ class ReflexionCritic(ContextAwareMixin):
             "Improved text:"
         )
 
-    def critique(self, thought: Thought) -> Dict[str, Any]:
-        """Critique text using the Reflexion approach.
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic using Reflexion approach.
 
         Args:
             thought: The Thought container with the text to critique.
 
         Returns:
-            A dictionary with critique results including reflection.
+            A dictionary with critique results (without processing_time_ms).
         """
-        start_time = time.time()
+        # Step 1: Generate initial critique
+        critique_result = await self._generate_critique_async(thought)
 
-        with critic_context(
-            critic_name="ReflexionCritic",
-            operation="critique",
-            message_prefix="Failed to critique text with Reflexion approach",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return {
-                    "needs_improvement": True,
-                    "message": "No text available for critique",
-                    "critique": "No text provided for critique",
-                    "reflection": "Cannot reflect on empty text",
-                    "issues": ["Text is empty or None"],
-                    "suggestions": ["Provide text to critique"],
-                }
+        # Step 2: Generate reflection on the critique
+        reflection_result = await self._generate_reflection_async(
+            thought, critique_result["critique"]
+        )
 
-            # Step 1: Generate initial critique
-            critique_result = self._generate_critique(thought)
+        # Step 3: Store reflection in memory for future learning
+        self._add_to_memory(
+            thought.text, critique_result["critique"], reflection_result["reflection"]
+        )
 
-            # Step 2: Generate reflection on the critique
-            reflection_result = self._generate_reflection(thought, critique_result["critique"])
+        logger.debug("ReflexionCritic: Critique and reflection completed")
 
-            # Step 3: Store reflection in memory for future learning
-            self._add_to_memory(
-                thought.text, critique_result["critique"], reflection_result["reflection"]
-            )
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(
-                f"ReflexionCritic: Critique and reflection completed in {processing_time:.2f}ms"
-            )
-
-            return {
-                "needs_improvement": critique_result["needs_improvement"],
-                "message": critique_result["critique"],
-                "critique": critique_result["critique"],
+        return {
+            "needs_improvement": critique_result["needs_improvement"],
+            "message": critique_result["critique"],
+            "issues": critique_result["issues"],
+            "suggestions": critique_result["suggestions"],
+            "confidence": 0.8,  # Default confidence for Reflexion
+            "metadata": {
                 "reflection": reflection_result["reflection"],
-                "issues": critique_result["issues"],
-                "suggestions": critique_result["suggestions"],
                 "improvement_strategy": reflection_result["improvement_strategy"],
-                "processing_time_ms": processing_time,
-            }
+                "memory_size": len(self.memory_buffer),
+            },
+        }
 
     def improve(self, thought: Thought) -> str:
         """Improve text based on critique and reflection.
@@ -203,6 +152,9 @@ class ReflexionCritic(ContextAwareMixin):
 
         Returns:
             The improved text based on critique and reflection.
+
+        Raises:
+            ImproverError: If the improvement fails.
         """
         start_time = time.time()
 
@@ -227,18 +179,45 @@ class ReflexionCritic(ContextAwareMixin):
             if thought.critic_feedback:
                 for feedback in thought.critic_feedback:
                     if feedback.critic_name == "ReflexionCritic":
-                        critique_text = feedback.feedback.get("critique", "")
-                        reflection_text = feedback.feedback.get("reflection", "")
+                        critique_text = feedback.feedback
+                        reflection_text = feedback.metadata.get("reflection", "")
                         break
 
             # If no critique available, generate one
             if not critique_text:
                 logger.debug("No critique found in thought, generating new critique")
-                critique_result = self._generate_critique(thought)
+                # Use sync version of critique generation
+                import asyncio
+
+                try:
+                    asyncio.get_running_loop()
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run, self._generate_critique_async(thought)
+                        )
+                        critique_result = future.result()
+                except RuntimeError:
+                    critique_result = asyncio.run(self._generate_critique_async(thought))
+
                 critique_text = critique_result["critique"]
 
                 # Generate reflection for the new critique
-                reflection_result = self._generate_reflection(thought, critique_text)
+                try:
+                    asyncio.get_running_loop()
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run, self._generate_reflection_async(thought, critique_text)
+                        )
+                        reflection_result = future.result()
+                except RuntimeError:
+                    reflection_result = asyncio.run(
+                        self._generate_reflection_async(thought, critique_text)
+                    )
+
                 reflection_text = reflection_result["reflection"]
 
             # Prepare context for improvement (using mixin)
@@ -266,141 +245,6 @@ class ReflexionCritic(ContextAwareMixin):
 
             return improved_text.strip()
 
-    async def _critique_async(self, thought: Thought) -> Dict[str, Any]:
-        """Critique text using the Reflexion approach asynchronously.
-
-        This is the internal async implementation that provides the same functionality
-        as the sync critique method but with non-blocking I/O.
-
-        Args:
-            thought: The Thought container with the text to critique.
-
-        Returns:
-            A dictionary with critique results including reflection.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name="ReflexionCritic",
-            operation="critique_async",
-            message_prefix="Failed to critique text with Reflexion approach (async)",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return {
-                    "needs_improvement": True,
-                    "message": "No text available for critique",
-                    "critique": "No text provided for critique",
-                    "reflection": "Cannot reflect on empty text",
-                    "issues": ["Text is empty or None"],
-                    "suggestions": ["Provide text to critique"],
-                }
-
-            # Step 1: Generate initial critique (async)
-            critique_result = await self._generate_critique_async(thought)
-
-            # Step 2: Generate reflection on the critique (async)
-            reflection_result = await self._generate_reflection_async(
-                thought, critique_result["critique"]
-            )
-
-            # Step 3: Store reflection in memory for future learning
-            self._add_to_memory(
-                thought.text, critique_result["critique"], reflection_result["reflection"]
-            )
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(
-                f"ReflexionCritic: Async critique and reflection completed in {processing_time:.2f}ms"
-            )
-
-            return {
-                "needs_improvement": critique_result["needs_improvement"],
-                "message": critique_result["critique"],
-                "critique": critique_result["critique"],
-                "reflection": reflection_result["reflection"],
-                "issues": critique_result["issues"],
-                "suggestions": critique_result["suggestions"],
-                "improvement_strategy": reflection_result["improvement_strategy"],
-                "processing_time_ms": processing_time,
-            }
-
-    async def _improve_async(self, thought: Thought) -> str:
-        """Improve text based on critique and reflection asynchronously.
-
-        This is the internal async implementation that provides the same functionality
-        as the sync improve method but with non-blocking I/O.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-
-        Returns:
-            The improved text based on critique and reflection.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name="ReflexionCritic",
-            operation="improve_async",
-            message_prefix="Failed to improve text with Reflexion approach (async)",
-        ):
-            # Check if text is available
-            if not thought.text:
-                raise ImproverError(
-                    message="No text available for improvement",
-                    component="ReflexionCritic",
-                    operation="improve_async",
-                    suggestions=["Provide text to improve"],
-                )
-
-            # Get critique and reflection from thought
-            critique_text = ""
-            reflection_text = ""
-
-            if thought.critic_feedback:
-                for feedback in thought.critic_feedback:
-                    if feedback.critic_name == "ReflexionCritic":
-                        critique_text = feedback.feedback.get("critique", "")
-                        reflection_text = feedback.feedback.get("reflection", "")
-                        break
-
-            # If no critique available, generate one (async)
-            if not critique_text:
-                logger.debug("No critique found in thought, generating new critique (async)")
-                critique_result = await self._generate_critique_async(thought)
-                critique_text = critique_result["critique"]
-
-                # Generate reflection for the new critique (async)
-                reflection_result = await self._generate_reflection_async(thought, critique_text)
-                reflection_text = reflection_result["reflection"]
-
-            # Prepare context for improvement (using mixin)
-            context = self._prepare_context(thought)
-
-            # Create improvement prompt with context, critique, and reflection
-            improve_prompt = self.improve_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                context=context,
-                critique=critique_text,
-                reflection=reflection_text,
-            )
-
-            # Generate improved text (async)
-            improved_text = await self.model._generate_async(
-                prompt=improve_prompt,
-                system_message="You are an expert editor using reflection to improve text quality.",
-            )
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(f"ReflexionCritic: Async improvement completed in {processing_time:.2f}ms")
-
-            return improved_text.strip()
-
     async def _generate_critique_async(self, thought: Thought) -> Dict[str, Any]:
         """Generate initial critique of the text asynchronously.
 
@@ -416,7 +260,7 @@ class ReflexionCritic(ContextAwareMixin):
         # Log context usage
         if self._has_context(thought):
             context_summary = self._get_context_summary(thought)
-            logger.debug(f"ReflexionCritic using context for async critique: {context_summary}")
+            logger.debug(f"ReflexionCritic using context for critique: {context_summary}")
 
         # Format the critique prompt with context
         critique_prompt = self.critique_prompt_template.format(
@@ -426,14 +270,14 @@ class ReflexionCritic(ContextAwareMixin):
         )
 
         # Generate the critique (async)
-        logger.debug("Generating initial critique (async)")
+        logger.debug("Generating initial critique")
         critique_text = await self.model._generate_async(
             prompt=critique_prompt,
             system_message="You are an expert critic providing detailed feedback on text quality.",
         )
-        logger.debug(f"Generated async critique of length {len(critique_text)}")
+        logger.debug(f"Generated critique of length {len(critique_text)}")
 
-        # Parse the critique (same logic as sync version)
+        # Parse the critique
         issues = []
         suggestions = []
 
@@ -495,149 +339,10 @@ class ReflexionCritic(ContextAwareMixin):
         )
 
         # Generate the reflection (async)
-        logger.debug("Generating reflection on critique (async)")
+        logger.debug("Generating reflection on critique")
         reflection_text = await self.model._generate_async(
             prompt=reflection_prompt,
             system_message="You are an expert reflecting on critique to identify specific improvements.",
-        )
-        logger.debug(f"Generated async reflection of length {len(reflection_text)}")
-
-        # Parse the reflection (same logic as sync version)
-        key_issues = []
-        improvement_strategy = []
-
-        # Simple parsing logic
-        in_key_issues = False
-        in_improvement_strategy = False
-
-        for line in reflection_text.split("\n"):
-            line = line.strip()
-            if line.lower().startswith("key issues to address:"):
-                in_key_issues = True
-                in_improvement_strategy = False
-                continue
-            elif line.lower().startswith("improvement strategy:"):
-                in_key_issues = False
-                in_improvement_strategy = True
-                continue
-            elif line.lower().startswith("expected outcome:") or line.lower().startswith(
-                "reflection:"
-            ):
-                in_key_issues = False
-                in_improvement_strategy = False
-                continue
-            elif not line or line.startswith("#"):
-                continue
-
-            if in_key_issues and line.startswith("-"):
-                key_issues.append(line[1:].strip())
-            elif in_improvement_strategy and line.startswith("-"):
-                improvement_strategy.append(line[1:].strip())
-
-        return {
-            "reflection": reflection_text,
-            "key_issues": key_issues,
-            "improvement_strategy": improvement_strategy,
-        }
-
-    def _generate_critique(self, thought: Thought) -> Dict[str, Any]:
-        """Generate initial critique of the text.
-
-        Args:
-            thought: The Thought container with the text to critique.
-
-        Returns:
-            A dictionary with critique results.
-        """
-        # Prepare context for critique (using mixin)
-        context = self._prepare_context(thought)
-
-        # Log context usage
-        if self._has_context(thought):
-            context_summary = self._get_context_summary(thought)
-            logger.debug(f"ReflexionCritic using context for critique: {context_summary}")
-
-        # Format the critique prompt with context
-        critique_prompt = self.critique_prompt_template.format(
-            prompt=thought.prompt,
-            text=thought.text,
-            context=context,
-        )
-
-        # Generate the critique
-        logger.debug("Generating initial critique")
-        critique_text = self.model.generate(
-            prompt=critique_prompt,
-            system_prompt="You are an expert critic providing detailed feedback on text quality.",
-        )
-        logger.debug(f"Generated critique of length {len(critique_text)}")
-
-        # Parse the critique
-        issues = []
-        suggestions = []
-
-        # Simple parsing logic - can be improved
-        in_issues = False
-        in_suggestions = False
-
-        for line in critique_text.split("\n"):
-            line = line.strip()
-            if line.lower().startswith("issues:"):
-                in_issues = True
-                in_suggestions = False
-                continue
-            elif line.lower().startswith("suggestions:"):
-                in_issues = False
-                in_suggestions = True
-                continue
-            elif line.lower().startswith("overall assessment:"):
-                in_issues = False
-                in_suggestions = False
-                continue
-            elif not line or line.startswith("#"):
-                continue
-
-            if in_issues and line.startswith("-"):
-                issues.append(line[1:].strip())
-            elif in_suggestions and line.startswith("-"):
-                suggestions.append(line[1:].strip())
-
-        # Determine if improvement is needed
-        needs_improvement = len(issues) > 0 or "improvement" in critique_text.lower()
-
-        return {
-            "critique": critique_text,
-            "issues": issues,
-            "suggestions": suggestions,
-            "needs_improvement": needs_improvement,
-        }
-
-    def _generate_reflection(self, thought: Thought, critique: str) -> Dict[str, Any]:
-        """Generate reflection on the critique to identify specific improvements.
-
-        Args:
-            thought: The Thought container with the text to reflect on.
-            critique: The critique text to reflect on.
-
-        Returns:
-            A dictionary with reflection results.
-        """
-        # Prepare memory context from past reflections
-        memory_context = self._get_memory_context()
-
-        # Format the reflection prompt
-        reflection_prompt = self.reflection_prompt_template.format(
-            prompt=thought.prompt,
-            text=thought.text,
-            critique=critique,
-            memory_context=memory_context,
-        )
-
-        # Generate the reflection
-        logger.debug("Generating reflection on critique")
-        reflection_text = self.model.generate(
-            prompt=reflection_prompt,
-            system_prompt="You are an expert reflecting on critique to identify specific improvements.",
         )
         logger.debug(f"Generated reflection of length {len(reflection_text)}")
 
@@ -680,26 +385,24 @@ class ReflexionCritic(ContextAwareMixin):
         }
 
     def _add_to_memory(self, text: str, critique: str, reflection: str) -> None:
-        """Add a reflection to the memory buffer for future learning.
+        """Add a reflection to memory for future learning.
 
         Args:
             text: The original text that was critiqued.
-            critique: The critique of the text.
-            reflection: The reflection on the critique.
+            critique: The critique that was generated.
+            reflection: The reflection that was generated.
         """
         memory_entry = {
-            "text": (
-                text[:200] + "..." if len(text) > 200 else text
-            ),  # Truncate for memory efficiency
-            "critique": critique[:300] + "..." if len(critique) > 300 else critique,
-            "reflection": reflection[:300] + "..." if len(reflection) > 300 else reflection,
+            "text": text[:200],  # Store first 200 chars to save memory
+            "critique": critique[:300],  # Store first 300 chars
+            "reflection": reflection[:300],  # Store first 300 chars
         }
 
         self.memory_buffer.append(memory_entry)
 
-        # Keep memory buffer within size limit
+        # Keep only the most recent reflections
         if len(self.memory_buffer) > self.max_memory_size:
-            self.memory_buffer.pop(0)  # Remove oldest entry
+            self.memory_buffer.pop(0)
 
         logger.debug(f"Added reflection to memory. Buffer size: {len(self.memory_buffer)}")
 
@@ -707,43 +410,17 @@ class ReflexionCritic(ContextAwareMixin):
         """Get formatted memory context from past reflections.
 
         Returns:
-            A formatted string with past reflections for learning.
+            A formatted string with past reflections for context.
         """
         if not self.memory_buffer:
             return "No past reflections available."
 
         memory_parts = []
         for i, entry in enumerate(self.memory_buffer[-3:], 1):  # Use last 3 entries
-            memory_parts.append(
-                f"Past Reflection {i}:\n"
-                f"Text: {entry['text']}\n"
-                f"Critique: {entry['critique']}\n"
-                f"Reflection: {entry['reflection']}\n"
-            )
+            memory_part = f"Past Reflection {i}:\n"
+            memory_part += f"Text: {entry['text']}...\n"
+            memory_part += f"Critique: {entry['critique']}...\n"
+            memory_part += f"Reflection: {entry['reflection']}...\n"
+            memory_parts.append(memory_part)
 
         return "\n".join(memory_parts)
-
-
-def create_reflexion_critic(
-    model: Optional[Model] = None,
-    model_name: Optional[str] = None,
-    max_memory_size: int = 10,
-    **model_kwargs: Any,
-) -> ReflexionCritic:
-    """Create a Reflexion critic.
-
-    Args:
-        model: The language model to use for critique and improvement.
-        model_name: The name of the model to use if model is not provided.
-        max_memory_size: Maximum number of reflections to keep in memory.
-        **model_kwargs: Additional keyword arguments for model creation.
-
-    Returns:
-        A ReflexionCritic instance.
-    """
-    return ReflexionCritic(
-        model=model,
-        model_name=model_name,
-        max_memory_size=max_memory_size,
-        **model_kwargs,
-    )

@@ -2,51 +2,33 @@
 
 This module implements the Self-Refine approach for critics, which enables language
 models to iteratively critique and revise their own outputs without requiring
-external feedback. The critic uses the same language model to generate critiques
-and revisions in multiple rounds.
+external feedback.
 
-Based on Self-Refine:
-
-@misc{madaan2023selfrefineiterativerefinementselffeedback,
-      title={Self-Refine: Iterative Refinement with Self-Feedback},
-      author={Aman Madaan and Niket Tandon and Prakhar Gupta and Skyler Hallinan and Luyu Gao and Sarah Wiegreffe and Uri Alon and Nouha Dziri and Shrimai Prabhumoye and Yiming Yang and Shashank Gupta and Bodhisattwa Prasad Majumder and Katherine Hermann and Sean Welleck and Amir Yazdanbakhsh and Peter Clark},
-      year={2023},
-      eprint={2303.17651},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL},
-      url={https://arxiv.org/abs/2303.17651},
-}
+Based on "Self-Refine: Iterative Refinement with Self-Feedback":
+https://arxiv.org/abs/2303.17651
 
 The SelfRefineCritic implements a multi-round refinement process where the model
-critiques its own output and then revises it based on that critique, leading to
-progressively improved results.
+critiques its own output and then revises it based on that critique.
 """
 
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
-from sifaka.models.base import create_model
+from sifaka.critics.base import BaseCritic
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
-from sifaka.utils.mixins import ContextAwareMixin
 
-# Configure logger
 logger = get_logger(__name__)
 
 
-class SelfRefineCritic(ContextAwareMixin):
+class SelfRefineCritic(BaseCritic):
     """Critic that implements iterative self-refinement.
 
     This critic uses the Self-Refine approach to iteratively improve text through
     self-critique and revision. It uses the same language model to critique its
     own output and then revise it based on that critique.
-
-    Attributes:
-        model: The language model to use for critique and improvement.
-        max_iterations: Maximum number of refinement iterations.
-        stopping_threshold: Threshold for stopping refinement early.
     """
 
     def __init__(
@@ -54,7 +36,7 @@ class SelfRefineCritic(ContextAwareMixin):
         model: Optional[Model] = None,
         model_name: Optional[str] = None,
         max_iterations: int = 3,
-        stopping_threshold: float = 0.8,
+        improvement_criteria: Optional[List[str]] = None,
         critique_prompt_template: Optional[str] = None,
         improve_prompt_template: Optional[str] = None,
         **model_kwargs: Any,
@@ -65,26 +47,26 @@ class SelfRefineCritic(ContextAwareMixin):
             model: The language model to use for critique and improvement.
             model_name: The name of the model to use if model is not provided.
             max_iterations: Maximum number of refinement iterations.
-            stopping_threshold: Quality threshold for stopping refinement early.
+            improvement_criteria: Specific criteria to focus on during improvement.
             critique_prompt_template: Template for the critique prompt.
             improve_prompt_template: Template for the improvement prompt.
             **model_kwargs: Additional keyword arguments for model creation.
         """
-        # Set up the model
-        if model:
-            self.model = model
-        elif model_name:
-            self.model = create_model(model_name, **model_kwargs)
-        else:
-            # Default to a mock model for testing
-            self.model = create_model("mock:default", **model_kwargs)
+        super().__init__(model=model, model_name=model_name, **model_kwargs)
 
         self.max_iterations = max_iterations
-        self.stopping_threshold = stopping_threshold
+        self.improvement_criteria = improvement_criteria or [
+            "clarity",
+            "accuracy",
+            "completeness",
+            "coherence",
+        ]
 
         # Set up prompt templates
+        criteria_text = ", ".join(self.improvement_criteria)
+
         self.critique_prompt_template = critique_prompt_template or (
-            "Please critique the following text and identify areas for improvement.\n\n"
+            f"Please critique the following text focusing on {criteria_text}.\n\n"
             "Original task: {prompt}\n\n"
             "Text to critique:\n{text}\n\n"
             "Retrieved context:\n{context}\n\n"
@@ -94,8 +76,11 @@ class SelfRefineCritic(ContextAwareMixin):
             "3. Is the text clear and well-structured?\n"
             "4. What specific improvements could be made?\n"
             "5. How well does the text use information from the retrieved context (if available)?\n\n"
-            "If the text is already excellent and needs no improvement, please state that clearly.\n"
-            "Otherwise, provide specific, actionable feedback for improvement."
+            "Format your response as:\n"
+            "Issues:\n- [List specific issues here]\n\n"
+            "Suggestions:\n- [List specific suggestions here]\n\n"
+            "Overall Assessment: [Brief assessment]\n\n"
+            "If the text is already excellent and needs no improvement, please state that clearly."
         )
 
         self.improve_prompt_template = improve_prompt_template or (
@@ -106,66 +91,54 @@ class SelfRefineCritic(ContextAwareMixin):
             "Critique:\n{critique}\n\n"
             "Please provide an improved version that addresses the issues identified "
             "in the critique while maintaining the core message and staying true to "
-            "the original task. Better incorporate relevant information from the context if available."
+            "the original task. Better incorporate relevant information from the context if available.\n\n"
+            "Improved text:"
         )
 
-    def critique(self, thought: Thought) -> Dict[str, Any]:
-        """Critique text using Self-Refine approach.
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic using Self-Refine approach.
 
         Args:
             thought: The Thought container with the text to critique.
 
         Returns:
-            A dictionary with critique results.
+            A dictionary with critique results (without processing_time_ms).
         """
-        start_time = time.time()
+        # Prepare context from retrieved documents (using mixin)
+        context = self._prepare_context(thought)
 
-        with critic_context(
-            critic_name="SelfRefineCritic",
-            operation="critique",
-            message_prefix="Failed to critique text with Self-Refine",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return {
-                    "needs_improvement": True,
-                    "message": "No text available for critique",
-                    "issues": ["Text is empty or None"],
-                    "suggestions": ["Provide text to critique"],
-                    "iteration": 0,
-                }
+        # Create critique prompt with context
+        critique_prompt = self.critique_prompt_template.format(
+            prompt=thought.prompt,
+            text=thought.text,
+            context=context,
+        )
 
-            # Prepare context from retrieved documents (using mixin)
-            context = self._prepare_context(thought)
+        # Generate critique
+        critique_response = await self.model._generate_async(
+            prompt=critique_prompt,
+            system_message="You are an expert critic providing detailed, constructive feedback.",
+        )
 
-            # Create critique prompt with context
-            critique_prompt = self.critique_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                context=context,
-            )
+        # Parse the critique
+        issues, suggestions = self._parse_critique(critique_response)
 
-            # Generate critique
-            critique_response = self.model.generate(
-                prompt=critique_prompt,
-                system_prompt="You are an expert critic providing detailed, constructive feedback.",
-            )
+        # Determine if improvement is needed based on critique content
+        needs_improvement = self._needs_improvement(critique_response)
 
-            # Determine if improvement is needed based on critique content
-            needs_improvement = self._needs_improvement(critique_response)
+        logger.debug("SelfRefineCritic: Critique completed")
 
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(f"SelfRefineCritic: Critique completed in {processing_time:.2f}ms")
-
-            return {
-                "needs_improvement": needs_improvement,
-                "message": critique_response,
-                "critique": critique_response,
-                "iteration": 1,
-                "processing_time_ms": processing_time,
-            }
+        return {
+            "needs_improvement": needs_improvement,
+            "message": critique_response,
+            "issues": issues,
+            "suggestions": suggestions,
+            "confidence": 0.8,  # Default confidence for Self-Refine
+            "metadata": {
+                "max_iterations": self.max_iterations,
+                "improvement_criteria": self.improvement_criteria,
+            },
+        }
 
     def improve(self, thought: Thought) -> str:
         """Improve text using iterative Self-Refine approach.
@@ -175,6 +148,9 @@ class SelfRefineCritic(ContextAwareMixin):
 
         Returns:
             The improved text after iterative refinement.
+
+        Raises:
+            ImproverError: If the improvement fails.
         """
         start_time = time.time()
 
@@ -261,6 +237,54 @@ class SelfRefineCritic(ContextAwareMixin):
 
             return current_text
 
+    def _parse_critique(self, critique: str) -> tuple[List[str], List[str]]:
+        """Parse critique text to extract issues and suggestions.
+
+        Args:
+            critique: The critique text to parse.
+
+        Returns:
+            A tuple of (issues, suggestions) lists.
+        """
+        issues = []
+        suggestions = []
+
+        # Simple parsing logic
+        in_issues = False
+        in_suggestions = False
+
+        for line in critique.split("\n"):
+            line = line.strip()
+            if line.lower().startswith("issues:"):
+                in_issues = True
+                in_suggestions = False
+                continue
+            elif line.lower().startswith("suggestions:"):
+                in_issues = False
+                in_suggestions = True
+                continue
+            elif line.lower().startswith("overall assessment:"):
+                in_issues = False
+                in_suggestions = False
+                continue
+            elif not line or line.startswith("#"):
+                continue
+
+            if in_issues and line.startswith("-"):
+                issues.append(line[1:].strip())
+            elif in_suggestions and line.startswith("-"):
+                suggestions.append(line[1:].strip())
+
+        # If no structured format found, extract from general content
+        if not issues and not suggestions:
+            critique_lower = critique.lower()
+            if any(word in critique_lower for word in ["issue", "problem", "error", "unclear"]):
+                issues.append("General issues identified in critique")
+            if any(word in critique_lower for word in ["improve", "suggest", "consider", "should"]):
+                suggestions.append("See critique for improvement suggestions")
+
+        return issues, suggestions
+
     def _needs_improvement(self, critique: str) -> bool:
         """Determine if text needs improvement based on critique content.
 
@@ -283,6 +307,7 @@ class SelfRefineCritic(ContextAwareMixin):
             "no changes needed",
             "well-structured",
             "clear and concise",
+            "high quality",
         ]
 
         improvement_phrases = [
@@ -298,6 +323,8 @@ class SelfRefineCritic(ContextAwareMixin):
             "consider",
             "suggest",
             "recommend",
+            "enhance",
+            "revise",
         ]
 
         critique_lower = critique.lower()
@@ -314,186 +341,3 @@ class SelfRefineCritic(ContextAwareMixin):
 
         # Default to needing improvement if unclear
         return True
-
-    async def _critique_async(self, thought: Thought) -> Dict[str, Any]:
-        """Critique text using the Self-Refine approach asynchronously.
-
-        This is the internal async implementation that provides the same functionality
-        as the sync critique method but with non-blocking I/O.
-
-        Args:
-            thought: The Thought container with the text to critique.
-
-        Returns:
-            A dictionary with critique results.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name="SelfRefineCritic",
-            operation="critique_async",
-            message_prefix="Failed to critique text with Self-Refine (async)",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return {
-                    "needs_improvement": True,
-                    "message": "No text available for critique",
-                    "issues": ["Text is empty or None"],
-                    "suggestions": ["Provide text to critique"],
-                    "iteration": 0,
-                }
-
-            # Prepare context from retrieved documents (using mixin)
-            context = self._prepare_context(thought)
-
-            # Create critique prompt with context
-            critique_prompt = self.critique_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                context=context,
-            )
-
-            # Generate critique (async)
-            critique_response = await self.model._generate_async(
-                prompt=critique_prompt,
-                system_message="You are an expert critic providing detailed, constructive feedback.",
-            )
-
-            # Determine if improvement is needed based on critique content
-            needs_improvement = self._needs_improvement(critique_response)
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(f"SelfRefineCritic: Async critique completed in {processing_time:.2f}ms")
-
-            return {
-                "needs_improvement": needs_improvement,
-                "message": critique_response,
-                "critique": critique_response,
-                "iteration": 1,
-                "processing_time_ms": processing_time,
-            }
-
-    async def _improve_async(self, thought: Thought) -> str:
-        """Improve text using iterative Self-Refine approach asynchronously.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-
-        Returns:
-            The improved text after iterative refinement.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name="SelfRefineCritic",
-            operation="improve_async",
-            message_prefix="Failed to improve text with Self-Refine (async)",
-        ):
-            # Check if text is available
-            if not thought.text:
-                raise ImproverError(
-                    message="No text available for improvement",
-                    component="SelfRefineCritic",
-                    operation="improve_async",
-                    suggestions=["Provide text to improve"],
-                )
-
-            current_text = thought.text
-            iteration_history = []
-
-            # Prepare context once for all iterations (using mixin)
-            context = self._prepare_context(thought)
-
-            # Iterative refinement process
-            for iteration in range(self.max_iterations):
-                logger.debug(
-                    f"SelfRefineCritic: Starting async iteration {iteration + 1}/{self.max_iterations}"
-                )
-
-                # Generate critique for current text with context (async)
-                critique_prompt = self.critique_prompt_template.format(
-                    prompt=thought.prompt,
-                    text=current_text,
-                    context=context,
-                )
-
-                critique = await self.model._generate_async(
-                    prompt=critique_prompt,
-                    system_message="You are an expert critic providing detailed, constructive feedback.",
-                )
-
-                # Check if improvement is needed
-                if not self._needs_improvement(critique):
-                    logger.debug(
-                        f"SelfRefineCritic: Stopping early at async iteration {iteration + 1} - no improvement needed"
-                    )
-                    break
-
-                # Generate improved text based on critique (async)
-                improve_prompt = self.improve_prompt_template.format(
-                    prompt=thought.prompt,
-                    text=current_text,
-                    critique=critique,
-                    context=context,
-                )
-
-                improved_text = await self.model._generate_async(
-                    prompt=improve_prompt,
-                    system_message="You are an expert editor improving text based on critique.",
-                )
-
-                # Store iteration history
-                iteration_history.append(
-                    {
-                        "iteration": iteration + 1,
-                        "original_text": current_text,
-                        "critique": critique,
-                        "improved_text": improved_text.strip(),
-                    }
-                )
-
-                # Update current text for next iteration
-                current_text = improved_text.strip()
-
-                logger.debug(f"SelfRefineCritic: Completed async iteration {iteration + 1}")
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(
-                f"SelfRefineCritic: Async refinement completed in {processing_time:.2f}ms "
-                f"after {len(iteration_history)} iterations"
-            )
-
-            return current_text
-
-
-def create_self_refine_critic(
-    model: Optional[Model] = None,
-    model_name: Optional[str] = None,
-    max_iterations: int = 3,
-    stopping_threshold: float = 0.8,
-    **model_kwargs: Any,
-) -> SelfRefineCritic:
-    """Create a Self-Refine critic.
-
-    Args:
-        model: The language model to use for critique and improvement.
-        model_name: The name of the model to use if model is not provided.
-        max_iterations: Maximum number of refinement iterations.
-        stopping_threshold: Quality threshold for stopping refinement early.
-        **model_kwargs: Additional keyword arguments for model creation.
-
-    Returns:
-        A SelfRefineCritic instance.
-    """
-    return SelfRefineCritic(
-        model=model,
-        model_name=model_name,
-        max_iterations=max_iterations,
-        stopping_threshold=stopping_threshold,
-        **model_kwargs,
-    )

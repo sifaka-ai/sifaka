@@ -133,3 +133,34 @@ class MemoryStorage:
     def __contains__(self, key: str) -> bool:
         """Check if key exists in storage."""
         return key in self.data
+
+    def save(self, key: str, value: Any) -> None:
+        """Save a value for a key (alias for set).
+
+        Args:
+            key: The storage key.
+            value: The value to store.
+        """
+        self.set(key, value)
+
+    def exists(self, key: str) -> bool:
+        """Check if key exists in storage (alias for __contains__).
+
+        Args:
+            key: The storage key to check.
+
+        Returns:
+            True if the key exists, False otherwise.
+        """
+        return key in self.data
+
+    def load(self, key: str) -> Optional[Any]:
+        """Load a value by key (alias for get).
+
+        Args:
+            key: The storage key.
+
+        Returns:
+            The stored value, or None if not found.
+        """
+        return self.get(key)

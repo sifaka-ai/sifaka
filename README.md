@@ -263,16 +263,37 @@ Sifaka supports multiple storage backends for different use cases:
 - **Redis**: High-performance caching via MCP
 - **Milvus**: Vector storage for semantic search via MCP
 
-For detailed installation and configuration instructions, see **[Storage Documentation](docs/STORAGE.md)**.
+For detailed installation and configuration instructions, see **[Storage Setup Guide](docs/guides/storage-setup.md)**.
 
 ## Documentation
 
-- **[Configuration Guide](docs/CONFIGURATION_GUIDE.md)** - Simplified setup and configuration
-- **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation
-- **[Architecture Guide](docs/ARCHITECTURE.md)** - System design and interactions
-- **[Storage Guide](docs/STORAGE.md)** - Storage backends and configuration
+### Getting Started
+- **[Installation Guide](docs/getting-started/installation.md)** - Complete installation instructions
+- **[First Chain](docs/getting-started/first-chain.md)** - Your first Sifaka chain
+- **[Basic Concepts](docs/getting-started/basic-concepts.md)** - Core concepts and terminology
+
+### User Guides
+- **[Custom Models](docs/guides/custom-models.md)** - Creating and using custom models
+- **[Custom Validators](docs/guides/custom-validators.md)** - Building custom validation logic
+- **[Storage Setup](docs/guides/storage-setup.md)** - Storage backends and configuration
+- **[Configuration](docs/guides/configuration.md)** - Advanced configuration options
+- **[Performance Tuning](docs/guides/performance-tuning.md)** - Optimization and performance tips
+
+### Troubleshooting
+- **[Common Issues](docs/troubleshooting/common-issues.md)** - Solutions to frequent problems
+- **[Import Problems](docs/troubleshooting/import-problems.md)** - Resolving import and dependency issues
+- **[Configuration Errors](docs/troubleshooting/configuration-errors.md)** - Fixing configuration problems
+
+### Reference
+- **[API Reference](docs/api/api-reference.md)** - Complete API documentation
+- **[Architecture](docs/architecture.md)** - System design and interactions
 - **[Examples](examples/)** - Working examples for different providers
-- **[Contributing Guide](docs/CONTRIBUTING.md)** - Guidelines for contributors
+
+### Guidelines
+- **[Contributing](docs/guidelines/contributing.md)** - Guidelines for contributors
+- **[Import Standards](docs/guidelines/import-standards.md)** - Import conventions and best practices
+- **[Async/Sync Guidelines](docs/guidelines/async-sync-guidelines.md)** - Async and sync patterns
+- **[Docstring Standards](docs/guidelines/docstring-standards.md)** - Documentation standards
 
 ## Development
 
