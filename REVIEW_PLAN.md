@@ -77,18 +77,36 @@ from sifaka.critics import ReflexionCritic
 **Estimated Effort: 20 hours**
 
 **Tasks:**
-- [ ] Document async/sync design decisions
-- [ ] Standardize async method naming (`_async` suffix for internal methods)
-- [ ] Create clear guidelines for when to use async vs sync
-- [ ] Update all components to follow consistent patterns
-- [ ] Add async/sync usage examples to documentation
+- [x] Document async/sync design decisions
+- [x] Standardize async method naming (`_async` suffix for internal methods)
+- [x] Create clear guidelines for when to use async vs sync
+- [x] Update all components to follow consistent patterns
+- [x] Add async/sync usage examples to documentation
 
 **Design Decisions:**
 - **NO Backward Compatibility**: Migrate to async-first design where beneficial
-- Public API should be async for I/O operations (model calls, storage, retrievers)
+- Public API remains sync for simplicity, with async implementations used internally
 - Remove dual sync/async interfaces - choose the best pattern for each component
 - Mixed patterns are intentional design choices, not compatibility compromises
 - Document the reasoning behind sync vs async choices for each component
+
+**Implementation Summary:**
+- ✅ **Comprehensive Guidelines**: Created `docs/ASYNC_SYNC_GUIDELINES.md` with detailed patterns
+- ✅ **Component-Specific Patterns**: Documented patterns for Chain, Model, Validator, Critic, Storage, Retriever
+- ✅ **Naming Conventions**: Established `_method_name_async` pattern for internal async methods
+- ✅ **Protocol Definitions**: Clarified which protocols require async methods vs optional
+- ✅ **Usage Examples**: Added both basic sync and advanced async usage examples
+- ✅ **Migration Guidelines**: Provided clear guidance for existing and new implementations
+- ✅ **Performance Considerations**: Documented benefits and limitations of async patterns
+- ✅ **Testing Guidelines**: Added async testing patterns and performance testing examples
+- ✅ **Troubleshooting**: Common issues and debugging strategies for async/sync patterns
+
+**Key Architectural Decisions:**
+- **Sync Public APIs**: All public APIs remain synchronous for ease of use
+- **Async Internal Implementation**: I/O heavy operations use async internally for concurrency
+- **Model Protocol**: Requires async methods for Chain concurrency
+- **Validator/Critic Protocols**: Async methods are optional, not enforced by protocol
+- **Performance Over Purity**: Prioritize performance gains from concurrency
 
 ## Phase 2: Quality Improvements (Weeks 5-8)
 **Goal: Enhance code quality, reduce duplication, and improve maintainability**
@@ -228,7 +246,7 @@ docs/
 - [x] Zero circular import issues
 - [x] Clean package-level imports work
 - [x] Consistent import style across codebase
-- [ ] Clear async/sync pattern documentation
+- [x] Clear async/sync pattern documentation
 
 ### Phase 2 Success Criteria
 - [ ] 50% reduction in code duplication
