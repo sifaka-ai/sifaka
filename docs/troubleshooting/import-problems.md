@@ -14,7 +14,7 @@ def test_imports():
     """Test all major Sifaka imports."""
     print("🔍 Testing Sifaka Imports")
     print("=" * 40)
-    
+
     # Core imports
     tests = [
         ("Core", "from sifaka import Chain, Thought"),
@@ -24,7 +24,7 @@ def test_imports():
         ("Storage", "from sifaka.storage import MemoryStorage"),
         ("Utils", "from sifaka.utils.logging import get_logger"),
     ]
-    
+
     for name, import_stmt in tests:
         try:
             exec(import_stmt)
@@ -32,7 +32,7 @@ def test_imports():
         except ImportError as e:
             print(f"❌ {name}: {e}")
             print(f"   Statement: {import_stmt}")
-    
+
     # Optional imports
     optional_tests = [
         ("OpenAI", "import openai"),
@@ -42,7 +42,7 @@ def test_imports():
         ("TextBlob", "import textblob"),
         ("Scikit-learn", "import sklearn"),
     ]
-    
+
     print("\n🔧 Optional Dependencies:")
     for name, import_stmt in optional_tests:
         try:
@@ -73,7 +73,7 @@ pip list | grep sifaka
 # 3. Install in current environment
 python -m pip install sifaka
 
-# 4. Install with specific Python version
+# 4. Install with Python 3.11 (required version)
 python3.11 -m pip install sifaka
 
 # 5. Install in virtual environment
@@ -182,7 +182,7 @@ conda install -c conda-forge sifaka
 conda activate your-env
 pip install sifaka
 
-# 3. Create new conda environment
+# 3. Create new conda environment (Python 3.11 required)
 conda create -n sifaka-env python=3.11
 conda activate sifaka-env
 pip install sifaka
@@ -286,13 +286,13 @@ except ImportError:
 def check_compatibility():
     """Check if versions are compatible."""
     import pkg_resources
-    
+
     requirements = {
         "openai": ">=1.76.0",
         "anthropic": ">=0.50.0",
         "pydantic": ">=2.11.3"
     }
-    
+
     for package, version_req in requirements.items():
         try:
             pkg_resources.require(f"{package}{version_req}")
@@ -390,20 +390,20 @@ import importlib.util
 def debug_import(module_name):
     """Debug module import process."""
     print(f"Debugging import of '{module_name}'")
-    
+
     # Check if module is already imported
     if module_name in sys.modules:
         print(f"✅ {module_name} already in sys.modules")
         return sys.modules[module_name]
-    
+
     # Find module spec
     spec = importlib.util.find_spec(module_name)
     if spec is None:
         print(f"❌ Module spec not found for {module_name}")
         return None
-    
+
     print(f"✅ Module spec found: {spec.origin}")
-    
+
     # Try to import
     try:
         module = importlib.util.module_from_spec(spec)
@@ -436,17 +436,21 @@ pip list --outdated
 
 ## Prevention Strategies
 
-### 1. Use Requirements Files
+### 1. Use Dependency Management
 
 ```bash
-# Create requirements.txt
-pip freeze > requirements.txt
+# Install with specific optional dependencies
+pip install sifaka[openai,anthropic]
 
-# Or create minimal requirements
-echo "sifaka[all]>=0.1.0" > requirements.txt
+# Install all features
+pip install sifaka[all]
 
-# Install from requirements
-pip install -r requirements.txt
+# For development
+pip install -e .[full]
+
+# Create environment file for reproducibility
+pip freeze > environment.txt
+pip install -r environment.txt
 ```
 
 ### 2. Use Virtual Environments
@@ -488,19 +492,19 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.11, 3.12]
-    
+        python-version: ["3.11"]  # Sifaka supports Python 3.11 only
+
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: |
         pip install sifaka[all]
-    
+
     - name: Test imports
       run: |
         python -c "import sifaka; print('✅ Sifaka imported')"
