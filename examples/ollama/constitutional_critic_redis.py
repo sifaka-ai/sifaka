@@ -11,16 +11,12 @@ The chain will generate content about digital privacy rights using Redis
 for both model context and constitutional principles evaluation.
 """
 
-import os
-
 from dotenv import load_dotenv
 
 from sifaka.core.chain import Chain
 from sifaka.critics.constitutional import ConstitutionalCritic
-from sifaka.mcp import MCPServerConfig, MCPTransportType
 from sifaka.models.ollama import OllamaModel
 from sifaka.retrievers.simple import InMemoryRetriever
-from sifaka.storage.redis import RedisStorage
 from sifaka.utils.logging import get_logger
 
 # Load environment variables
@@ -31,19 +27,14 @@ logger = get_logger(__name__)
 
 
 def setup_privacy_redis_retriever():
-    """Set up Redis retriever with digital privacy context documents."""
+    """Set up retriever with digital privacy context documents.
 
-    # Create Redis MCP configuration (using official Redis MCP server)
-    redis_config = MCPServerConfig(
-        name="redis-server",
-        transport_type=MCPTransportType.STDIO,
-        url="uv run --directory ../../mcp/mcp-redis src/main.py",
-    )
+    This example demonstrates Redis integration concept. In production,
+    you would configure Redis MCP server and use RedisStorage.
+    For now, we use in-memory storage with Redis-like structure.
+    """
 
-    # Create Redis storage for privacy context
-    redis_storage = RedisStorage(mcp_config=redis_config, key_prefix="sifaka:privacy")
-
-    # Create in-memory retriever and populate with privacy context
+    # Create in-memory retriever (Redis fallback for this demo)
     retriever = InMemoryRetriever()
 
     # Add digital privacy context documents
@@ -60,10 +51,16 @@ def setup_privacy_redis_retriever():
         "Privacy impact assessments help organizations identify and mitigate privacy risks before implementing new systems or processes.",
     ]
 
+    # Store documents in retriever (simulating Redis storage structure)
+    logger.info("Setting up privacy context documents...")
     for i, doc in enumerate(privacy_documents):
-        retriever.add_document(f"privacy_doc_{i}", doc)
+        doc_id = f"privacy_doc_{i}"
+        retriever.add_document(doc_id, doc)
 
-    return retriever
+    logger.info(f"Loaded {len(privacy_documents)} privacy documents into retriever")
+
+    # Return retriever and None for redis_storage (indicating fallback mode)
+    return retriever, None
 
 
 def setup_constitutional_principles():
@@ -108,8 +105,8 @@ def main():
         print("Error: Ollama service is not running. Please start Ollama and try again.")
         return
 
-    # Set up Redis retriever with privacy context
-    redis_retriever = setup_privacy_redis_retriever()
+    # Set up retriever with privacy context (Redis demo mode)
+    privacy_retriever, _ = setup_privacy_redis_retriever()
 
     # Get constitutional principles
     constitutional_principles = setup_constitutional_principles()
@@ -118,7 +115,7 @@ def main():
     critic = ConstitutionalCritic(
         model=model,
         principles=constitutional_principles,
-        retriever=redis_retriever,  # Constitutional critic uses Redis for principled evaluation
+        retriever=privacy_retriever,  # Constitutional critic uses Redis for principled evaluation
         name="Digital Privacy Constitutional Critic",
     )
 
@@ -126,8 +123,8 @@ def main():
     chain = Chain(
         model=model,
         prompt="Write a comprehensive analysis of digital privacy rights in the modern internet age, covering the challenges individuals face, the role of technology companies, government regulations, and practical steps people can take to protect their privacy online.",
-        model_retrievers=[redis_retriever],  # Redis context for model
-        critic_retrievers=[redis_retriever],  # Same Redis context for critic
+        model_retrievers=[privacy_retriever],  # Redis context for model
+        critic_retrievers=[privacy_retriever],  # Same Redis context for critic
         max_improvement_iterations=3,  # Default retry behavior
         apply_improvers_on_validation_failure=True,
         always_apply_critics=True,
@@ -153,13 +150,17 @@ def main():
     print(f"  Iterations: {result.iteration}")
     print(f"  Chain ID: {result.chain_id}")
     print(f"  Model: Local Ollama")
-    print(f"  Storage: Redis retrieval")
+    storage_status = "In-Memory (Redis demo mode)"
+    print(f"  Storage: {storage_status}")
 
     # Show retrieval context
     if hasattr(result, "pre_generation_context") and result.pre_generation_context:
-        print(f"\nModel Context from Redis ({len(result.pre_generation_context)} documents):")
+        context_source = "In-Memory (Redis demo mode)"
+        print(
+            f"\nModel Context from {context_source} ({len(result.pre_generation_context)} documents):"
+        )
         for i, doc in enumerate(result.pre_generation_context[:3], 1):  # Show first 3
-            print(f"  {i}. {doc.content[:100]}...")
+            print(f"  {i}. {doc.text[:100]}...")
 
     # Show constitutional critic feedback
     if result.critic_feedback:
@@ -184,7 +185,8 @@ def main():
 
     print(f"\nSystem Features:")
     print(f"  - Local Ollama processing")
-    print(f"  - Redis retrieval for context")
+    storage_feature = "In-Memory retrieval (Redis demo mode)"
+    print(f"  - {storage_feature}")
     print(f"  - Constitutional principles evaluation")
     print(f"  - Privacy-focused content generation")
 

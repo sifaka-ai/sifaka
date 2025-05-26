@@ -12,8 +12,6 @@ The chain will translate Spanish text to English and use a prompt critic
 to ensure translation accuracy, fluency, and cultural appropriateness.
 """
 
-import os
-
 from dotenv import load_dotenv
 
 from sifaka.classifiers.language import LanguageClassifier
