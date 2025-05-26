@@ -75,7 +75,7 @@ chain = QuickStart.with_validation(
 #### Adding Critics
 ```python
 chain = QuickStart.with_critics(
-    "openai:gpt-4", 
+    "openai:gpt-4",
     critics=["reflexion", "constitutional"],
     prompt="Write an essay"
 )
@@ -101,7 +101,7 @@ prod_config = ConfigPresets.production_safe()
 ```python
 # Use preset through QuickStart
 chain = QuickStart.from_preset(
-    "content_generation", 
+    "content_generation",
     model_spec="openai:gpt-4",
     prompt="Write a blog post"
 )
@@ -140,8 +140,8 @@ recommendations = wizard.get_recommendations("production", "openai:gpt-4")
 
 # Setup chain with validation and fallbacks
 chain = wizard.setup_for_use_case(
-    "production", 
-    "openai:gpt-4", 
+    "production",
+    "openai:gpt-4",
     "Your production prompt"
 )
 ```

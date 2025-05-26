@@ -66,7 +66,25 @@ pip install sifaka[full]
 
 ## Environment Setup
 
-### 1. Create Virtual Environment
+### Option 1: Using uv (Recommended)
+[uv](https://docs.astral.sh/uv/) is a fast Python package manager that handles virtual environments automatically:
+
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create project and install Sifaka
+uv init sifaka-project
+cd sifaka-project
+uv add sifaka[all]
+
+# Or install in existing project
+uv add sifaka[all]
+```
+
+### Option 2: Using pip and venv
+Traditional Python environment setup:
+
 ```bash
 # Create virtual environment
 python -m venv sifaka-env
@@ -75,10 +93,8 @@ python -m venv sifaka-env
 source sifaka-env/bin/activate  # Linux/Mac
 # OR
 sifaka-env\Scripts\activate     # Windows
-```
 
-### 2. Install Sifaka
-```bash
+# Install Sifaka
 pip install sifaka[all]
 ```
 
@@ -173,6 +189,20 @@ Now that Sifaka is installed:
 
 For contributors and advanced users:
 
+### Using uv (Recommended)
+```bash
+# Clone the repository
+git clone https://github.com/sifaka-ai/sifaka.git
+cd sifaka
+
+# Install in development mode with uv
+uv sync --all-extras
+
+# Set up pre-commit hooks
+uv run pre-commit install
+```
+
+### Using pip
 ```bash
 # Clone the repository
 git clone https://github.com/sifaka-ai/sifaka.git

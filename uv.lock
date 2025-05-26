@@ -2187,12 +2187,14 @@ dependencies = [
     { name = "better-profanity" },
     { name = "httpx" },
     { name = "langdetect" },
+    { name = "openai" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "scikit-learn" },
     { name = "tenacity" },
     { name = "textblob" },
+    { name = "tiktoken" },
     { name = "torch" },
     { name = "transformers" },
     { name = "typing-extensions" },
@@ -2341,6 +2343,11 @@ retrievers = [
     { name = "redis" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pre-commit" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "accelerate", specifier = ">=1.7.0" },
@@ -2363,6 +2370,7 @@ requires-dist = [
     { name = "nltk", marker = "extra == 'classifiers'", specifier = ">=3.8.1" },
     { name = "numpy", marker = "extra == 'performance'", specifier = ">=1.26.0" },
     { name = "ollama", marker = "extra == 'ollama'", specifier = ">=0.1.0" },
+    { name = "openai", specifier = ">=1.82.0" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.76.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.0.0" },
     { name = "psutil", marker = "extra == 'performance'", specifier = ">=5.9.5" },
@@ -2386,6 +2394,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=8.2.3" },
     { name = "textblob", specifier = ">=0.19.0" },
     { name = "textblob", marker = "extra == 'classifiers'", specifier = ">=0.17.1" },
+    { name = "tiktoken", specifier = ">=0.9.0" },
     { name = "tiktoken", marker = "extra == 'openai'", specifier = ">=0.9.0" },
     { name = "torch", specifier = ">=2.7.0" },
     { name = "torch", marker = "extra == 'huggingface'", specifier = ">=2.0.0" },
@@ -2402,6 +2411,9 @@ requires-dist = [
     { name = "websockets", marker = "extra == 'mcp'", specifier = ">=11.0.0" },
 ]
 provides-extras = ["openai", "anthropic", "huggingface", "ollama", "redis", "milvus", "mcp", "classifiers", "guardrails", "performance", "dev", "models", "retrievers", "all", "full"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pre-commit", specifier = ">=4.2.0" }]
 
 [[package]]
 name = "six"

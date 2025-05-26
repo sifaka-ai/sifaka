@@ -75,7 +75,6 @@ class ModelError(SifakaError):
     """Error raised by model components."""
 
 
-
 class ModelAPIError(ModelError):
     """Error raised by model API calls."""
 
@@ -116,25 +115,20 @@ class ValidationError(SifakaError):
     """Error raised by validator components."""
 
 
-
 class ImproverError(SifakaError):
     """Error raised by improver components."""
-
 
 
 class RetrieverError(SifakaError):
     """Error raised by retriever components."""
 
 
-
 class ChainError(SifakaError):
     """Error raised by chain components."""
 
 
-
 class ConfigurationError(SifakaError):
     """Error raised for configuration issues."""
-
 
 
 def format_error_message(

@@ -18,11 +18,7 @@ from sifaka.storage.file import FileStorage
 from sifaka.storage.memory import MemoryStorage
 from sifaka.utils.logging import get_logger
 from sifaka.validators.base import LengthValidator
-from tests.utils import (
-    assert_chain_execution_success,
-    assert_thought_valid,
-    create_test_thought,
-)
+from tests.utils import assert_chain_execution_success, assert_thought_valid, create_test_thought
 
 logger = get_logger(__name__)
 

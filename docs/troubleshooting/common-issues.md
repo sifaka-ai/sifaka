@@ -121,9 +121,9 @@ brew install python@3.11
 
 # On Windows: Download from python.org
 
-# Use pyenv for version management
-pyenv install 3.11.0
-pyenv local 3.11.0
+# Use uv for Python version management
+uv python install 3.11
+uv python pin 3.11
 ```
 
 ## API Key Issues

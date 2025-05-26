@@ -156,7 +156,9 @@ def main():
     if hasattr(result, "pre_generation_context") and result.pre_generation_context:
         print(f"\nModel Context from Redis ({len(result.pre_generation_context)} documents):")
         for i, doc in enumerate(result.pre_generation_context[:3], 1):  # Show first 3
-            print(f"  {i}. {doc.content[:100]}...")
+            # Handle both content and text attributes
+            text = getattr(doc, "content", None) or getattr(doc, "text", str(doc))
+            print(f"  {i}. {text[:100]}...")
 
     # Show critic feedback
     if result.critic_feedback:

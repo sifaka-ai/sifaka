@@ -41,7 +41,7 @@ def main():
     logger.info("Creating OpenAI Constitutional Critic with Guardrails example")
 
     # Create OpenAI model
-    model = OpenAIModel(model_name="gpt-4", temperature=0.7, max_tokens=500)
+    model = create_model("openai:gpt-4", temperature=0.7, max_tokens=500)
 
     # Define constitutional principles for ethical AI content
     constitutional_principles = [
@@ -60,14 +60,12 @@ def main():
     # Create Guardrails validators for content safety
     validators = [
         GuardrailsValidator(
-            guard_name="pii_detection",
-            description="Detect and prevent personally identifiable information",
+            validators=["DetectPII"],
+            name="PII Detection Validator",
         ),
         GuardrailsValidator(
-            guard_name="toxic_language", description="Detect and prevent toxic or harmful language"
-        ),
-        GuardrailsValidator(
-            guard_name="bias_detection", description="Detect and prevent biased content"
+            validators=["ToxicLanguage"],
+            name="Toxic Language Validator",
         ),
     ]
 
@@ -106,11 +104,20 @@ def main():
     if result.validation_results:
         print(f"\nValidation Results:")
         for i, validation_result in enumerate(result.validation_results, 1):
-            print(
-                f"  {i}. {validation_result.validator_name}: {'✓ PASSED' if validation_result.is_valid else '✗ FAILED'}"
-            )
-            if not validation_result.is_valid and validation_result.error_message:
-                print(f"     Error: {validation_result.error_message}")
+            # Handle both ValidationResult objects and strings
+            if hasattr(validation_result, "validator_name"):
+                validator_name = validation_result.validator_name
+                is_valid = validation_result.is_valid
+                error_msg = getattr(validation_result, "error_message", None)
+            else:
+                # If it's a string or other format, display as-is
+                validator_name = f"Validator {i}"
+                is_valid = False
+                error_msg = str(validation_result)
+
+            print(f"  {i}. {validator_name}: {'✓ PASSED' if is_valid else '✗ FAILED'}")
+            if not is_valid and error_msg:
+                print(f"     Error: {error_msg}")
 
     # Show critic feedback
     if result.critic_feedback:

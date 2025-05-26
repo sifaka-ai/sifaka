@@ -117,28 +117,28 @@ from sifaka.critics import ReflexionCritic
 def main():
     # Create model (using mock for this example)
     model = create_model("mock:demo-model")
-    
+
     # Create validator
     length_validator = LengthValidator(min_length=50, max_length=500)
-    
+
     # Create critic
     critic = ReflexionCritic(model=model)
-    
+
     # Build chain
     chain = Chain(
         model=model,
         prompt="Write a short story about a robot learning to help humans.",
         max_improvement_iterations=2
     )
-    
+
     # Configure chain
     chain.validate_with(length_validator)
     chain.improve_with(critic)
-    
+
     # Run chain
     print("Running your first Sifaka chain...")
     result = chain.run()
-    
+
     # Show results
     print(f"\n✅ Chain completed!")
     print(f"📝 Generated text ({len(result.text)} chars):")

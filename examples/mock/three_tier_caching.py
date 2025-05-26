@@ -11,15 +11,12 @@ The chain will generate content about distributed systems and demonstrate
 how thoughts are cached across memory, Redis, and Milvus storage layers.
 """
 
-import os
 import time
 
 from dotenv import load_dotenv
 
 from sifaka.core.chain import Chain
-from sifaka.core.thought import Thought
 from sifaka.critics.self_refine import SelfRefineCritic
-from sifaka.mcp import MCPServerConfig, MCPTransportType
 from sifaka.models.base import MockModel
 from sifaka.storage.cached import CachedStorage
 from sifaka.storage.file import FileStorage

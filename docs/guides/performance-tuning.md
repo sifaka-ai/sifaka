@@ -54,11 +54,11 @@ import asyncio
 async def process_batch(prompts: list, model):
     """Process multiple prompts concurrently."""
     chains = [Chain(model=model, prompt=prompt) for prompt in prompts]
-    
+
     # Run chains concurrently
     tasks = [chain.run_async() for chain in chains]
     results = await asyncio.gather(*tasks)
-    
+
     return results
 
 # Usage
@@ -161,13 +161,13 @@ results = asyncio.run(async_processing())
 # Use async for I/O-bound operations
 async def optimized_chain():
     chain = Chain(model=model, prompt="Your prompt")
-    
+
     # Async model generation
     result = await chain.run_async()
-    
+
     # Sync validation (CPU-bound, fast)
     validation_results = chain.validate_sync(result)
-    
+
     return result
 
 # Batch async operations
@@ -216,7 +216,7 @@ from sifaka.validators.base import LengthValidator
 
 class AsyncLengthValidator(LengthValidator):
     """Async version of length validator."""
-    
+
     async def validate_async(self, thought):
         """Async validation (useful for I/O-bound validators)."""
         # For CPU-bound validators, just call sync version
@@ -244,7 +244,7 @@ chain = Chain(model=model, prompt="Your prompt")
 # Only apply expensive critics if validation fails
 if not all(result.passed for result in chain.validation_results.values()):
     chain.improve_with(fast_critic)  # Try fast improvement first
-    
+
     # Only use expensive critic if fast one doesn't work
     if not chain.validation_passed:
         chain.improve_with(quality_critic)
@@ -261,17 +261,17 @@ from sifaka.utils.performance import memory_usage
 def monitor_memory():
     """Monitor memory usage during chain execution."""
     initial_memory = memory_usage()
-    
+
     # Your chain operations
     chain = Chain(model=model, prompt="Your prompt")
     result = chain.run()
-    
+
     final_memory = memory_usage()
     memory_delta = final_memory.current_mb - initial_memory.current_mb
-    
+
     print(f"Memory used: {memory_delta:.1f} MB")
     print(f"Peak memory: {final_memory.peak_mb:.1f} MB")
-    
+
     return result
 
 # Usage
@@ -284,20 +284,20 @@ result = monitor_memory()
 # Clear thought history for long-running processes
 def memory_efficient_processing(prompts):
     results = []
-    
+
     for prompt in prompts:
         chain = Chain(model=model, prompt=prompt)
         result = chain.run()
-        
+
         # Clear history to save memory
         result.history = None
         results.append(result)
-        
+
         # Explicit garbage collection for large batches
         if len(results) % 100 == 0:
             import gc
             gc.collect()
-    
+
     return results
 
 # Use generators for large datasets
@@ -323,20 +323,20 @@ import hashlib
 
 class CachedModel:
     """Model wrapper with response caching."""
-    
+
     def __init__(self, model):
         self.model = model
         self.cache = {}
-    
+
     def generate(self, prompt, **options):
         # Create cache key from prompt and options
         cache_key = hashlib.md5(
             f"{prompt}{sorted(options.items())}".encode()
         ).hexdigest()
-        
+
         if cache_key in self.cache:
             return self.cache[cache_key]
-        
+
         # Generate and cache result
         result = self.model.generate(prompt, **options)
         self.cache[cache_key] = result
@@ -352,17 +352,17 @@ chain = Chain(model=cached_model, prompt="Your prompt")
 ```python
 class CachedValidator:
     """Validator with result caching."""
-    
+
     def __init__(self, validator):
         self.validator = validator
         self.cache = {}
-    
+
     def validate(self, thought):
         text_hash = hashlib.md5(thought.text.encode()).hexdigest()
-        
+
         if text_hash in self.cache:
             return self.cache[text_hash]
-        
+
         result = self.validator.validate(thought)
         self.cache[text_hash] = result
         return result
@@ -393,15 +393,15 @@ print(f"Full chain took: {timer.elapsed:.2f}s")
 # Profile with detailed breakdown
 def profile_chain():
     timings = {}
-    
+
     with time_operation("initialization") as timer:
         chain = Chain(model=model, prompt="Your prompt")
     timings["init"] = timer.elapsed
-    
+
     with time_operation("generation") as timer:
         result = chain.run()
     timings["generation"] = timer.elapsed
-    
+
     return result, timings
 
 result, timings = profile_chain()
@@ -420,15 +420,15 @@ perf_logger.setLevel(logging.INFO)
 
 class PerformanceMonitor:
     """Monitor chain performance over time."""
-    
+
     def __init__(self):
         self.metrics = []
-    
+
     def monitor_chain(self, chain):
         start_time = time.time()
         result = chain.run()
         end_time = time.time()
-        
+
         metrics = {
             "duration": end_time - start_time,
             "iterations": result.iteration,
@@ -436,16 +436,16 @@ class PerformanceMonitor:
             "validation_count": len(result.validation_results or {}),
             "memory_mb": memory_usage().current_mb
         }
-        
+
         self.metrics.append(metrics)
         perf_logger.info(f"Chain performance: {metrics}")
-        
+
         return result
-    
+
     def get_average_metrics(self):
         if not self.metrics:
             return {}
-        
+
         return {
             "avg_duration": sum(m["duration"] for m in self.metrics) / len(self.metrics),
             "avg_iterations": sum(m["iterations"] for m in self.metrics) / len(self.metrics),
@@ -466,7 +466,7 @@ print(f"Average metrics: {monitor.get_average_metrics()}")
 - [ ] Configure timeouts to prevent hanging
 - [ ] Use faster models for non-critical operations
 
-### ✅ Storage Configuration  
+### ✅ Storage Configuration
 - [ ] Choose appropriate storage backend
 - [ ] Configure connection pooling
 - [ ] Set up 3-tier storage for optimal performance

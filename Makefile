@@ -1,4 +1,4 @@
-.PHONY: format lint test build ci install-dev
+.PHONY: format lint test build ci install-dev install-dev-uv
 
 format:
 	isort --profile black --line-length 100 sifaka tests
@@ -23,5 +23,9 @@ install-dev:
 	pip install -e ".[dev,all]"
 	pip install pre-commit
 	pre-commit install
+
+install-dev-uv:
+	uv sync --all-extras
+	uv run pre-commit install
 
 ci: lint test build

@@ -64,11 +64,11 @@ validators and utilities for creating custom validators.
 Example:
     ```python
     from sifaka.validators import length, prohibited_content
-    
+
     # Create validators
     length_validator = length(min_words=100, max_words=500)
     content_validator = prohibited_content(prohibited=["harmful", "offensive"])
-    
+
     # Use validators
     result = length_validator.validate("Some text to validate")
     ```
@@ -141,16 +141,16 @@ Example:
     ```python
     from sifaka.critics.self_refine import create_self_refine_critic
     from sifaka.models.openai import OpenAIModel
-    
+
     # Create a model
     model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
-    
+
     # Create a critic
     critic = create_self_refine_critic(
         model=model,
         max_refinement_iterations=3
     )
-    
+
     # Improve text
     improved_text, result = critic.improve("Text to improve")
     ```
@@ -162,11 +162,11 @@ Example:
 ```python
 class Chain:
     """Main orchestrator for text generation, validation, and improvement.
-    
+
     The Chain class coordinates the process of generating text using a model,
     validating it against specified criteria, and improving it using critics.
     It follows a fluent interface pattern for easy configuration.
-    
+
     Attributes:
         model (Optional[Model]): The model used for text generation.
         prompt (Optional[str]): The prompt used for text generation.
@@ -174,14 +174,14 @@ class Chain:
         critics (List[Critic]): Critics used to improve text quality.
         max_attempts (int): Maximum number of improvement attempts.
         config (SifakaConfig): Configuration for the chain.
-    
+
     Example:
         ```python
         from sifaka import Chain
         from sifaka.models.openai import OpenAIModel
         from sifaka.validators import length
         from sifaka.critics.self_refine import create_self_refine_critic
-        
+
         # Create a chain
         chain = (Chain()
             .with_model(OpenAIModel(model_name="gpt-4", api_key="your-api-key"))
@@ -189,7 +189,7 @@ class Chain:
             .validate_with(length(min_words=100, max_words=500))
             .improve_with(create_self_refine_critic(model=model))
         )
-        
+
         # Run the chain
         result = chain.run()
         ```
@@ -201,20 +201,20 @@ class Chain:
 ```python
 def improve(self, text: str) -> Tuple[str, ImprovementResult]:
     """Improve text using this critic.
-    
+
     This method analyzes the provided text and generates an improved version
     based on the critic's improvement strategy.
-    
+
     Args:
         text (str): The text to improve.
-    
+
     Returns:
         Tuple[str, ImprovementResult]: A tuple containing the improved text
             and a result object with details about the improvement process.
-    
+
     Raises:
         ImproverError: If the improvement process encounters an error.
-    
+
     Example:
         ```python
         improved_text, result = critic.improve("Text to improve")

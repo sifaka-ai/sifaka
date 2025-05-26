@@ -22,9 +22,7 @@ from sifaka.storage.memory import MemoryStorage
 from sifaka.utils.logging import get_logger
 from sifaka.validators.base import LengthValidator, RegexValidator
 from sifaka.validators.content import ContentValidator
-from tests.utils import (
-    assert_thought_valid,
-)
+from tests.utils import assert_thought_valid
 
 logger = get_logger(__name__)
 
@@ -84,7 +82,7 @@ class PerformanceMeasurer:
         self.process.memory_info().rss / 1024 / 1024
 
         results = []
-        for i in range(batch_size):
+        for _i in range(batch_size):
             result = operation_func(*args, **kwargs)
             results.append(result)
 
@@ -299,7 +297,7 @@ class TestScalabilityPerformance:
                 chain = Chain(model=model, prompt="Write about scalability testing.")
 
                 # Add specified number of validators
-                for i in range(count):
+                for _i in range(count):
                     chain.validate_with(LengthValidator(min_length=10, max_length=500))
 
                 return chain.run()

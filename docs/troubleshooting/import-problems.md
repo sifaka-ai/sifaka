@@ -64,6 +64,10 @@ if __name__ == "__main__":
 **Solutions:**
 
 ```bash
+# Using uv (recommended)
+uv add sifaka
+
+# Or using pip
 # 1. Install Sifaka
 pip install sifaka
 
@@ -91,6 +95,10 @@ pip install sifaka
 **Solutions:**
 
 ```bash
+# Using uv (recommended)
+uv sync --upgrade
+
+# Or using pip
 # 1. Upgrade Sifaka
 pip install --upgrade sifaka
 
@@ -115,6 +123,10 @@ pip install -e .
 **Solutions:**
 
 ```bash
+# Using uv (recommended)
+uv add sifaka[openai]
+
+# Or using pip
 # 1. Install OpenAI support
 pip install sifaka[openai]
 
@@ -132,6 +144,10 @@ pip install sifaka[all]
 **Solutions:**
 
 ```bash
+# Using uv (recommended)
+uv add sifaka[anthropic]
+
+# Or using pip
 # 1. Install Anthropic support
 pip install sifaka[anthropic]
 
@@ -456,7 +472,12 @@ pip install -r environment.txt
 ### 2. Use Virtual Environments
 
 ```bash
-# Create project-specific environment
+# Using uv (recommended - handles virtual environments automatically)
+uv init sifaka-project
+cd sifaka-project
+uv add sifaka[all]
+
+# Or using traditional venv
 python -m venv sifaka-project
 source sifaka-project/bin/activate
 pip install sifaka[all]

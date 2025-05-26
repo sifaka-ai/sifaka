@@ -18,7 +18,6 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from sifaka.core.chain import Chain
-from sifaka.core.thought import Thought
 from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.models.base import MockModel
 from sifaka.storage.file import FileStorage

@@ -15,10 +15,10 @@ graph TD
     E --> F[Improved Thought]
     F --> B
     D -->|Yes| G[Final Result]
-    
+
     H[Retrievers] --> B
     H --> E
-    
+
     style A fill:#e1f5fe
     style G fill:#e8f5e8
 ```

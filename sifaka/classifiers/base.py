@@ -22,7 +22,6 @@ class ClassifierError(SifakaError):
     """Error raised by classifier components."""
 
 
-
 class ClassificationResult(BaseModel):
     """Result of a text classification operation.
 

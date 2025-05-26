@@ -97,7 +97,7 @@ docs/
 Looking for working examples? Check out the [examples directory](../examples/) in the repository:
 
 - **[OpenAI Examples](../examples/openai/)** - Using OpenAI models
-- **[Anthropic Examples](../examples/anthropic/)** - Using Claude models  
+- **[Anthropic Examples](../examples/anthropic/)** - Using Claude models
 - **[HuggingFace Examples](../examples/huggingface/)** - Using open-source models
 - **[Storage Examples](../examples/thought_caching/)** - Redis and Milvus integration
 - **[Validation Examples](../examples/guardrails/)** - Advanced validation patterns

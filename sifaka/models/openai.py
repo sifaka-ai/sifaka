@@ -597,7 +597,9 @@ class OpenAIModel(APIKeyMixin, ContextAwareMixin):
 
         # Send request to OpenAI
         response = self.client.chat.completions.create(
-            model=self.model_name, messages=messages, **openai_params  # type: ignore
+            model=self.model_name,
+            messages=messages,
+            **openai_params,  # type: ignore
         )
 
         # Ensure we return a string
@@ -807,7 +809,9 @@ class OpenAIModel(APIKeyMixin, ContextAwareMixin):
 
         # Send request to OpenAI asynchronously
         response = await self.async_client.chat.completions.create(
-            model=self.model_name, messages=messages, **openai_params  # type: ignore
+            model=self.model_name,
+            messages=messages,
+            **openai_params,  # type: ignore
         )
 
         # Ensure we return a string

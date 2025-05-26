@@ -100,11 +100,13 @@ class GuardrailsValidator(BaseValidator):
 
                         # Try guardrails.hub first (for installed validators)
                         try:
-                            from guardrails.hub import GuardrailsPII
+                            # Try to import the validator dynamically from guardrails.hub
+                            import importlib
 
-                            if validator_name == "GuardrailsPII":
-                                validator_class = GuardrailsPII
-                        except ImportError:
+                            hub_module = importlib.import_module("guardrails.hub")
+                            if hasattr(hub_module, validator_name):
+                                validator_class = getattr(hub_module, validator_name)
+                        except (ImportError, AttributeError):
                             pass
 
                         # If not found in hub, try gd.validators (for built-in validators)

@@ -7,7 +7,6 @@ critique generation, improvement suggestions, and integration scenarios.
 """
 
 
-
 from sifaka.core.thought import CriticFeedback
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.n_critics import NCriticsCritic
@@ -19,10 +18,7 @@ from sifaka.critics.self_rag import SelfRAGCritic
 from sifaka.critics.self_refine import SelfRefineCritic
 from sifaka.models.base import MockModel
 from sifaka.utils.logging import get_logger
-from tests.utils import (
-    MockModelFactory,
-    create_test_thought,
-)
+from tests.utils import MockModelFactory, create_test_thought
 
 logger = get_logger(__name__)
 
@@ -135,7 +131,7 @@ class TestSelfRefineCritic:
 
         # Multiple improvement iterations
         improved_text = thought.text
-        for i in range(3):
+        for _i in range(3):
             current_thought = create_test_thought(text=improved_text)
             improved_text = critic.improve(current_thought)
             assert len(improved_text) >= len(current_thought.text)

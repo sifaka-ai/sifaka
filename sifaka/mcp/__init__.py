@@ -12,17 +12,17 @@ The MCP implementation provides:
 Example:
     ```python
     from sifaka.mcp import MCPClient, MCPServerConfig, MCPTransportType
-    
+
     # Create MCP client for Redis
     redis_config = MCPServerConfig(
         name="redis-server",
         transport_type=MCPTransportType.STDIO,
         url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379"
     )
-    
+
     client = MCPClient(redis_config)
     await client.connect()
-    
+
     # Use client for operations
     response = await client.call_tool("get", {"key": "my-key"})
     ```
@@ -42,7 +42,7 @@ from sifaka.mcp.base import (
 
 __all__ = [
     "MCPClient",
-    "MCPRequest", 
+    "MCPRequest",
     "MCPResponse",
     "MCPServerConfig",
     "MCPTransport",

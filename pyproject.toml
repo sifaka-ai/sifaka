@@ -37,6 +37,8 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "textblob>=0.19.0",
     "better-profanity>=0.7.0",
+    "openai>=1.82.0",
+    "tiktoken>=0.9.0",
 ]
 
 [project.optional-dependencies]
@@ -85,7 +87,7 @@ classifiers = [
 # Validation and guardrails
 guardrails = [
     "guardrails-ai>=0.6.6",
-    "guardrails-api-client>=0.4.0a1",  # Explicit prerelease dependency
+    "guardrails-api-client>=0.4.0a1", # Explicit prerelease dependency
 ]
 
 # Performance and utilities
@@ -255,3 +257,8 @@ module = [
     "sifaka.classifiers.errors",
 ]
 follow_imports = "skip"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+]
