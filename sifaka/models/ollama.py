@@ -259,8 +259,14 @@ class OllamaModel(BaseModelImplementation):
             ConfigurationError: If Ollama is not accessible.
             ModelError: If the model is not available.
         """
-        # Initialize base class
-        super().__init__(model_name, **options)
+        # Initialize base class (Ollama doesn't require API key)
+        super().__init__(
+            model_name,
+            provider_name="Ollama",
+            env_var_name="OLLAMA_API_KEY",  # Not used but required by base class
+            api_key_required=False,  # Ollama is local and doesn't need API key
+            **options,
+        )
 
         self.base_url = base_url
         self.timeout = timeout

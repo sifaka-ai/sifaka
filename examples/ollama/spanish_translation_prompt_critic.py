@@ -74,7 +74,7 @@ def main():
 
     # Create Ollama model (using a model good for translation)
     model = OllamaModel(
-        model_name="llama2",  # or "mistral", "codellama" - adjust based on available models
+        model_name="mistral:latest",  # Using available model
         base_url="http://localhost:11434",
         temperature=0.3,  # Lower temperature for more consistent translations
         max_tokens=800,
@@ -82,7 +82,8 @@ def main():
 
     # Test if Ollama is available
     try:
-        model.health_check()
+        if not model.connection.health_check():
+            raise Exception("Ollama server health check failed")
         logger.info("Ollama service is available")
     except Exception as e:
         logger.error(f"Ollama service not available: {e}")
@@ -96,19 +97,19 @@ def main():
     language_classifier = LanguageClassifier()
     language_validator = ClassifierValidator(
         classifier=language_classifier,
-        expected_class="en",  # Must be English
-        confidence_threshold=0.8,
+        expected_label="en",  # Must be English
+        threshold=0.8,
         name="English Output Validator",
     )
 
     # Spanish text to translate
     spanish_text = """
-    La inteligencia artificial está transformando rápidamente nuestra sociedad. 
-    Desde los asistentes virtuales en nuestros teléfonos hasta los algoritmos 
-    que recomiendan películas, la IA se ha vuelto parte integral de nuestra 
-    vida cotidiana. Sin embargo, también plantea importantes desafíos éticos 
-    y sociales que debemos abordar cuidadosamente. Es fundamental que 
-    desarrollemos esta tecnología de manera responsable, considerando su 
+    La inteligencia artificial está transformando rápidamente nuestra sociedad.
+    Desde los asistentes virtuales en nuestros teléfonos hasta los algoritmos
+    que recomiendan películas, la IA se ha vuelto parte integral de nuestra
+    vida cotidiana. Sin embargo, también plantea importantes desafíos éticos
+    y sociales que debemos abordar cuidadosamente. Es fundamental que
+    desarrollemos esta tecnología de manera responsable, considerando su
     impacto en el empleo, la privacidad y la equidad social.
     """
 
@@ -119,10 +120,10 @@ def main():
     - Fluent and natural in English
     - Culturally appropriate for English speakers
     - Complete (no missing parts)
-    
+
     Spanish text to translate:
     {spanish_text.strip()}
-    
+
     Provide only the English translation:
     """
 
@@ -163,15 +164,13 @@ def main():
     # Show validation results
     if result.validation_results:
         print(f"\nLanguage Validation:")
-        for validation_result in result.validation_results:
-            status = "✓ PASSED" if validation_result.is_valid else "✗ FAILED"
-            print(f"  {validation_result.validator_name}: {status}")
-            if validation_result.is_valid:
-                print(
-                    f"    Detected language: English (confidence: {validation_result.confidence:.2f})"
-                )
+        for validator_name, validation_result in result.validation_results.items():
+            status = "✓ PASSED" if validation_result.passed else "✗ FAILED"
+            print(f"  {validator_name}: {status}")
+            if validation_result.passed:
+                print(f"    Detected language: English (confidence: {validation_result.score:.2f})")
             else:
-                print(f"    Error: {validation_result.error_message}")
+                print(f"    Error: {validation_result.message}")
 
     # Show translation critic feedback
     if result.critic_feedback:

@@ -164,8 +164,15 @@ class ClassifierValidator(ClassifierValidatorBase):
             # Check if classifier has a classify method (test-style API)
             if hasattr(self.classifier, "classify"):
                 result = self.classifier.classify(text_to_classify)
-                predicted_label = result["label"]
-                max_confidence = result["confidence"]
+                # Handle both dict-style and object-style results
+                if hasattr(result, "label") and hasattr(result, "confidence"):
+                    # ClassificationResult object
+                    predicted_label = result.label
+                    max_confidence = result.confidence
+                else:
+                    # Dict-style result
+                    predicted_label = result["label"]
+                    max_confidence = result["confidence"]
             else:
                 # Use sklearn-style API
                 predictions = self.classifier.predict([text_to_classify])

@@ -92,7 +92,7 @@ def main():
 
     # Create Ollama model
     model = OllamaModel(
-        model_name="llama2",  # or "mistral", "codellama" - adjust based on available models
+        model_name="mistral:latest",  # Using available model
         base_url="http://localhost:11434",
         temperature=0.7,
         max_tokens=700,
@@ -100,7 +100,8 @@ def main():
 
     # Test if Ollama is available
     try:
-        model.health_check()
+        if not model.connection.health_check():
+            raise Exception("Ollama server health check failed")
         logger.info("Ollama service is available")
     except Exception as e:
         logger.error(f"Ollama service not available: {e}")
