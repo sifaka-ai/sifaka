@@ -1,49 +1,23 @@
-"""
-Critics for validating and improving text quality.
+"""Critics module for Sifaka.
 
-This module provides critics for validating and improving various aspects of text quality.
-Critics are specialized components that use language models to evaluate and enhance text.
+This module provides various critics for evaluating and improving generated text.
+All critics follow a consistent interface and return standardized feedback.
 """
 
-from sifaka.critics.base import Critic
-from sifaka.critics.constitutional import ConstitutionalCritic, create_constitutional_critic
-from sifaka.critics.n_critics import NCriticsCritic, create_n_critics_critic
-from sifaka.critics.prompt import PromptCritic, create_prompt_critic
-from sifaka.critics.reflexion import ReflexionCritic, create_reflexion_critic
-from sifaka.critics.retrieval_enhanced import RetrievalEnhancedCritic, enhance_critic_with_retrieval
-from sifaka.critics.retrieval_factory import (
-    create_retrieval_enhanced_constitutional_critic,
-    create_retrieval_enhanced_n_critics_critic,
-    create_retrieval_enhanced_prompt_critic,
-    create_retrieval_enhanced_reflexion_critic,
-    create_retrieval_enhanced_self_refine_critic,
-)
-from sifaka.critics.self_rag import SelfRAGCritic, create_self_rag_critic
-from sifaka.critics.self_refine import SelfRefineCritic, create_self_refine_critic
+from sifaka.critics.base import BaseCritic
+from sifaka.critics.constitutional import ConstitutionalCritic
+from sifaka.critics.n_critics import NCriticsCritic
+from sifaka.critics.prompt import PromptCritic
+from sifaka.critics.reflexion import ReflexionCritic
+from sifaka.critics.self_rag import SelfRAGCritic
+from sifaka.critics.self_refine import SelfRefineCritic
 
 __all__ = [
-    # Base critic
-    "Critic",
-    # Specific critics
+    "BaseCritic",
+    "ReflexionCritic",
+    "SelfRefineCritic",
     "ConstitutionalCritic",
     "NCriticsCritic",
-    "PromptCritic",
-    "ReflexionCritic",
     "SelfRAGCritic",
-    "SelfRefineCritic",
-    "RetrievalEnhancedCritic",
-    # Factory functions
-    "create_constitutional_critic",
-    "create_n_critics_critic",
-    "create_prompt_critic",
-    "create_reflexion_critic",
-    "create_self_rag_critic",
-    "create_self_refine_critic",
-    "enhance_critic_with_retrieval",
-    # Retrieval-enhanced factory functions
-    "create_retrieval_enhanced_constitutional_critic",
-    "create_retrieval_enhanced_n_critics_critic",
-    "create_retrieval_enhanced_reflexion_critic",
-    "create_retrieval_enhanced_self_refine_critic",
-    "create_retrieval_enhanced_prompt_critic",
+    "PromptCritic",
 ]

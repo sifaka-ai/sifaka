@@ -1,255 +1,341 @@
-# Sifaka: A Framework for Reliable LLM Applications
+# Sifaka
 
-Sifaka is a powerful framework for building reliable, robust, and responsible language model applications. It provides a modular architecture for text generation, validation, improvement, and evaluation with built-in guardrails.
+[![Tests](https://img.shields.io/badge/tests-129%20passing-brightgreen)](https://github.com/sifaka-ai/sifaka)
+[![Python](https://img.shields.io/badge/python-3.11+-blue)](https://python.org)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## Core Concept
+A framework for reliable AI text generation with validation, critique, and iterative improvement.
 
-Sifaka's core concept is the **Chain**, which orchestrates the process of:
+## What is Sifaka?
 
-1. Generating text using a language model
-2. Validating the generated text against specified criteria
-3. Improving the text using specialized critics
-4. Repeating until validation passes or max attempts reached
+Sifaka implements a **Thought-centric architecture** where a central state container flows through a chain of AI components. Unlike traditional pipeline approaches, every step of the generation process is tracked, validated, and can be iteratively improved.
+
+**Core Architecture:**
+```
+Thought → Model → Validators → Critics → Improved Thought
+```
+
+The **Thought** container maintains complete state including:
+- Original prompt and generated text
+- Validation results and critic feedback
+- Retrieved context documents
+- Complete iteration history
+- Exact prompts sent to models
+
+## Key Principles
+
+**Academic Research Integration**: Sifaka implements cutting-edge AI research as production-ready components:
+- **Reflexion** (Shinn et al. 2023) - Self-reflection for iterative improvement
+- **Self-Refine** (Madaan et al. 2023) - Iterative self-improvement through critique and revision
+- **Self-RAG** (Asai et al. 2023) - Retrieval-augmented self-critique
+- **Constitutional AI** (Anthropic) - Principle-based text evaluation
+- **N-Critics** (Mousavi et al. 2023) - Ensemble of specialized critics
+
+**Validation-First Design**: Built-in validation and iterative improvement as core concepts, not afterthoughts.
+
+**Complete Observability**: Every iteration, validation, and critique is tracked with full audit trails for debugging and analysis.
+
+**MCP Integration**: Uses Model Context Protocol for standardized external service communication and 3-tier storage (Memory → Redis → Milvus).
+
+## How It Works
 
 ```mermaid
 graph TD
-    A[User Input/Prompt] --> B[Chain]
-    B --> C[Model]
-    C --> D[Generated Text]
-    D --> E{Validators}
-    E -->|Fail| F[Critics]
-    F --> G[Feedback]
+    A[Prompt] --> B[Thought Container]
+    B --> C[Model Generation]
+    C --> D[Validation]
+    D --> E{Valid?}
+    E -->|No| F[Critics Analyze]
+    F --> G[Improved Thought]
     G --> C
-    E -->|Pass| H[Final Result]
+    E -->|Yes| H[Final Result]
 
-    style B fill:#f9f,stroke:#333,stroke-width:2px
-    style C fill:#bbf,stroke:#333
-    style E fill:#bfb,stroke:#333
-    style F fill:#fbb,stroke:#333
-    style H fill:#bff,stroke:#333
+    I[Retrievers] --> C
+    I --> F
+
+    style B fill:#e1f5fe
+    style H fill:#e8f5e8
 ```
 
-## Key Components
+### The Thought Container
 
-- **Chain**: The main orchestrator that coordinates the generation, validation, and improvement flow
-- **Model**: Interface for text generation models (OpenAI, Anthropic, etc.)
-- **Validators**: Components that check if text meets specific criteria (length, content, format, etc.)
-- **Critics**: Specialized components that analyze and improve text quality
-  - **ReflexionCritic**: Uses reflection to improve text based on past feedback
-  - **SelfRAGCritic**: Uses retrieval-augmented generation to improve text with external knowledge
-  - **SelfRefineCritic**: Iteratively refines text through self-critique
-  - **ConstitutionalCritic**: Ensures text adheres to specified principles
-  - **PromptCritic**: General-purpose critic with customizable instructions
-  - **NCriticsCritic**: Ensemble of specialized critics for comprehensive feedback
+The **Thought** is a Pydantic model that serves as the central state container:
+
+```python
+from sifaka.core.thought import Thought
+
+# Create a thought
+thought = Thought(
+    prompt="Write a story about AI",
+    system_prompt="You are a creative writer"
+)
+
+# Thoughts are immutable - operations return new instances
+updated_thought = thought.set_text("Once upon a time...")
+next_iteration = thought.next_iteration()
+
+# Complete audit trail
+print(f"Iteration: {thought.iteration}")
+print(f"History: {len(thought.history)} previous iterations")
+```
+
+### Components
+
+**Models**: Support for OpenAI, Anthropic, HuggingFace, Ollama, and Mock providers
+**Validators**: Length, regex, content, format, ML classifiers, GuardrailsAI integration
+**Critics**: Reflexion, Self-Refine, Self-RAG, Constitutional AI, N-Critics, custom prompt-based
+**Retrievers**: In-memory, Redis-cached, MCP-based with 3-tier storage
+**Storage**: Memory, File, Redis, Milvus with unified protocol
 
 ## Installation
 
 ```bash
+# Core installation
 pip install sifaka
-pip install python-dotenv  # For loading environment variables
+
+# With model providers
+pip install sifaka[models]
+
+# With retrievers and storage
+pip install sifaka[retrievers]
+
+# With ML classifiers
+pip install sifaka[classifiers]
+
+# Everything
+pip install sifaka[all]
 ```
-
-## Environment Setup
-
-Sifaka requires API keys for the language models you want to use. You can set these as environment variables in your shell or use a `.env` file.
-
-1. Copy the `.env.example` file to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Edit the `.env` file with your API keys:
-   ```
-   OPENAI_API_KEY=your_openai_api_key_here
-   ```
-
-The examples will automatically load these environment variables using `python-dotenv`.
 
 ## Quick Start
 
+### Simple Setup (Recommended)
+
 ```python
-import os
-from dotenv import load_dotenv
-from sifaka import Chain
-from sifaka.validators import length, prohibited_content
-from sifaka.critics.reflexion import create_reflexion_critic
-from sifaka.models.openai import OpenAIModel
+from sifaka.quickstart import QuickStart
 
-# Load environment variables from .env file if it exists
-load_dotenv()
-
-# Get API key from environment variables
-api_key = os.environ.get("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("OPENAI_API_KEY environment variable not set")
-
-# Create a model
-model = OpenAIModel(model_name="gpt-4", api_key=api_key)
-
-# Create a chain with validators and critics
-chain = (Chain()
-    .with_model(model)
-    .with_prompt("Write a short story about a robot.")
-    .validate_with(length(min_words=50, max_words=500))
-    .validate_with(prohibited_content(prohibited=["violent", "harmful"]))
-    .improve_with(create_reflexion_critic(model=model))
+# One-liner setup for common use cases
+chain = QuickStart.for_production(
+    "openai:gpt-4",  # Requires OPENAI_API_KEY
+    "Write a short story about a robot learning to help humans.",
+    validators=["length"],
+    critics=["reflexion"]
 )
 
 # Run the chain
-result = chain.run()
-
-# Check the result
-if result.passed:
-    print("Chain execution succeeded!")
-    print(result.text)
-else:
-    print("Chain execution failed validation")
-    print(result.validation_results[0].message)
+thought = chain.run()
+print(f"Generated text: {thought.text}")
 ```
 
-## Working with Critics
-
-Critics are the most important part of Sifaka. They analyze text and provide feedback for improvement.
+### More Examples
 
 ```python
-import os
-from dotenv import load_dotenv
+# Development setup (fast, uses mock model)
+dev_chain = QuickStart.for_development()
+
+# Research setup (comprehensive, with retrievers)
+research_chain = QuickStart.for_research(
+    "anthropic:claude-3-sonnet",
+    "Analyze the impact of AI on scientific research"
+)
+
+# Preset-based configuration
+content_chain = QuickStart.from_preset(
+    "content_generation",
+    "openai:gpt-4",
+    "Write a blog post about sustainable energy"
+)
+```
+
+### Manual Setup (Advanced)
+
+```python
 from sifaka import Chain
-from sifaka.models.openai import OpenAIModel
-from sifaka.critics.self_refine import create_self_refine_critic
-from sifaka.critics.reflexion import create_reflexion_critic
+from sifaka.models import create_model
+from sifaka.validators import LengthValidator
+from sifaka.critics import ReflexionCritic
 
-# Load environment variables from .env file if it exists
-load_dotenv()
+# Create components
+model = create_model("openai:gpt-4")  # Requires OPENAI_API_KEY
+validator = LengthValidator(min_length=50, max_length=500)
+critic = ReflexionCritic(model=model)
 
-# Get API key from environment variables
-api_key = os.environ.get("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("OPENAI_API_KEY environment variable not set")
-
-# Create a model
-model = OpenAIModel(model_name="gpt-4", api_key=api_key)
-
-# Create critics
-self_refine_critic = create_self_refine_critic(
+# Create chain
+chain = Chain(
     model=model,
-    max_refinement_iterations=3
+    prompt="Write a short story about a robot learning to help humans.",
+    max_improvement_iterations=2
 )
 
-reflexion_critic = create_reflexion_critic(
-    model=model,
-    reflection_rounds=2
-)
+# Add validation and improvement
+chain.validate_with(validator).improve_with(critic)
 
-# Create a chain with multiple critics
-chain = (Chain()
-    .with_model(model)
-    .with_prompt("Explain quantum computing to a high school student.")
-    .improve_with(self_refine_critic)
-    .improve_with(reflexion_critic)
-)
+# Run and get complete results
+thought = chain.run()
 
-# Run the chain
-result = chain.run()
-print(result.text)
+print(f"Generated text: {thought.text}")
+print(f"Iterations: {thought.iteration}")
+print(f"Validation results: {thought.validation_results}")
 ```
 
-## Advanced Configuration
+## Advanced Usage
 
-Sifaka provides a centralized configuration system for all components:
+### Working with Critics
 
 ```python
-import os
-from dotenv import load_dotenv
-from sifaka import Chain
-from sifaka.config import SifakaConfig, ModelConfig, ValidatorConfig, CriticConfig
-from sifaka.validators import length, prohibited_content
-from sifaka.critics.self_refine import create_self_refine_critic
+from sifaka.critics.constitutional import ConstitutionalCritic
+from sifaka.critics.self_rag import SelfRAGCritic
 
-# Load environment variables from .env file if it exists
-load_dotenv()
-
-# Get API key from environment variables
-api_key = os.environ.get("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("OPENAI_API_KEY environment variable not set")
-
-# Create a custom configuration
-config = SifakaConfig(
-    model=ModelConfig(
-        temperature=0.8,
-        max_tokens=500,
-        top_p=0.9,
-        api_key=api_key,  # Use environment variable for API key
-    ),
-    validator=ValidatorConfig(
-        min_words=100,
-        max_words=500,
-        prohibited_content=["violence", "hate speech"]
-    ),
-    critic=CriticConfig(
-        temperature=0.5,
-        refinement_rounds=3,
-        system_prompt="You are an expert editor that improves text for clarity and conciseness."
-    ),
-    debug=True,
-    log_level="DEBUG",
+# Constitutional AI with custom principles
+constitutional_critic = ConstitutionalCritic(
+    model=model,
+    principles=[
+        "Be helpful and informative",
+        "Avoid harmful or offensive content",
+        "Provide accurate information"
+    ]
 )
 
-# Create a model
-from sifaka.models.openai import OpenAIModel
-model = OpenAIModel(model_name="gpt-4", api_key=api_key)
-
-# Use the configuration with a chain
-chain = (
-    Chain(config)
-    .with_model(model)
-    .with_prompt("Write a short story about a robot.")
-    .validate_with(length(min_words=config.validator.min_words, max_words=config.validator.max_words))
-    .validate_with(prohibited_content(prohibited=config.validator.prohibited_content))
-    .improve_with(create_self_refine_critic(model=model, max_refinement_iterations=config.critic.refinement_rounds))
+# Self-RAG with retrieval context
+self_rag_critic = SelfRAGCritic(
+    model=model,
+    retriever=retriever
 )
 
-# Run the chain
-result = chain.run()
+chain.improve_with(constitutional_critic).improve_with(self_rag_critic)
 ```
 
-## Choosing the Right Critic
+### Storage and Persistence
 
-- **PromptCritic**: General-purpose text improvement with simple feedback
-- **ReflexionCritic**: When learning from past feedback is important for improvement
-- **ConstitutionalCritic**: When adherence to specific principles or guidelines is critical
-- **SelfRAGCritic**: When external knowledge is needed to validate or improve content
-- **SelfRefineCritic**: When complex text requires multiple refinement iterations
-- **NCriticsCritic**: When you need comprehensive feedback from multiple perspectives
+```python
+from sifaka.storage import MemoryStorage, FileStorage, CachedStorage
+
+# File persistence
+file_storage = FileStorage("./thoughts.json")
+chain = Chain(model=model, storage=file_storage)
+
+# Layered storage (Memory → File)
+layered_storage = CachedStorage(
+    cache=MemoryStorage(),
+    persistence=FileStorage("./thoughts.json")
+)
+```
+
+### MCP Integration
+
+```python
+from sifaka.storage import RedisStorage, MilvusStorage
+from sifaka.mcp import MCPServerConfig, MCPTransportType
+
+# Redis via MCP (using official Redis MCP server)
+redis_config = MCPServerConfig(
+    name="redis-server",
+    transport_type=MCPTransportType.STDIO,
+    url="uv run --directory /path/to/mcp-redis src/main.py"
+)
+redis_storage = RedisStorage(redis_config)
+
+# Milvus via MCP for vector search (using official Milvus MCP server)
+milvus_config = MCPServerConfig(
+    name="milvus-server",
+    transport_type=MCPTransportType.STDIO,
+    url="uv run --directory /path/to/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530"
+)
+milvus_storage = MilvusStorage(milvus_config, collection_name="thoughts")
+```
+
+## MCP Server Setup
+
+To use Redis and Milvus storage, you need to set up the official MCP servers:
+
+### Redis MCP Server
+
+```bash
+# Clone the official Redis MCP server
+git clone https://github.com/redis/mcp-redis.git
+cd mcp-redis
+
+# Install dependencies
+uv sync
+
+# Start Redis (if not already running)
+docker run -d -p 6379:6379 redis:latest
+
+# Test the MCP server
+uv run src/main.py
+```
+
+### Milvus MCP Server
+
+```bash
+# Clone the official Milvus MCP server
+git clone https://github.com/zilliztech/mcp-server-milvus.git
+cd mcp-server-milvus
+
+# Install dependencies
+uv sync
+
+# Start Milvus (if not already running)
+docker run -d -p 19530:19530 milvusdb/milvus:latest
+
+# Test the MCP server
+uv run src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530
+```
+
+For detailed setup instructions, see the [Storage Setup Guide](docs/guides/storage-setup.md).
+
+## Environment Setup
+
+Set API keys as environment variables or in a `.env` file:
+
+```bash
+# .env file
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+HUGGINGFACE_API_TOKEN=your_hf_token
+```
+
+## Storage Backends
+
+Sifaka supports multiple storage backends for different use cases:
+
+- **Memory**: In-memory storage for development and testing
+- **File**: JSON file persistence for simple deployments
+- **Redis**: High-performance caching via MCP
+- **Milvus**: Vector storage for semantic search via MCP
+
+For detailed installation and configuration instructions, see **[Storage Setup Guide](docs/guides/storage-setup.md)**.
 
 ## Documentation
 
-For more detailed information about Sifaka, check out the following documentation:
+### Getting Started
+- **[Installation Guide](docs/getting-started/installation.md)** - Complete installation instructions
+- **[First Chain](docs/getting-started/first-chain.md)** - Your first Sifaka chain
+- **[Basic Concepts](docs/getting-started/basic-concepts.md)** - Core concepts and terminology
 
-- [Components Overview](docs/COMPONENTS.md) - Overview of all Sifaka components
-- [Chain Documentation](docs/CHAIN.md) - Detailed documentation for the Chain class
-- [Models Documentation](docs/MODELS.md) - Documentation for model integrations
-- [Validators Documentation](docs/VALIDATORS.md) - Documentation for validators
-- [Critics Documentation](docs/CRITICS.md) - Documentation for critics
-- [Retrievers Documentation](docs/RETRIEVERS.md) - Documentation for retrievers
-- [Classifiers Documentation](docs/CLASSIFIERS.md) - Documentation for classifiers
-- [API Reference](docs/API_REFERENCE.md) - Comprehensive API reference
-- [Architecture](docs/ARCHITECTURE.md) - Detailed architecture documentation with diagrams
+### User Guides
+- **[Custom Models](docs/guides/custom-models.md)** - Creating and using custom models
+- **[Custom Validators](docs/guides/custom-validators.md)** - Building custom validation logic
+- **[Storage Setup](docs/guides/storage-setup.md)** - Storage backends and configuration
+- **[Configuration](docs/guides/configuration.md)** - Advanced configuration options
+- **[Performance Tuning](docs/guides/performance-tuning.md)** - Optimization and performance tips
+
+### Troubleshooting
+- **[Common Issues](docs/troubleshooting/common-issues.md)** - Solutions to frequent problems
+- **[Import Problems](docs/troubleshooting/import-problems.md)** - Resolving import and dependency issues
+- **[Configuration Errors](docs/troubleshooting/configuration-errors.md)** - Fixing configuration problems
+
+### Reference
+- **[API Reference](docs/api/api-reference.md)** - Complete API documentation
+- **[Architecture](docs/architecture.md)** - System design and interactions
+- **[Examples](examples/)** - Working examples for different providers
+
+### Guidelines
+- **[Contributing](docs/guidelines/contributing.md)** - Guidelines for contributors
+- **[Import Standards](docs/guidelines/import-standards.md)** - Import conventions and best practices
+- **[Async/Sync Guidelines](docs/guidelines/async-sync-guidelines.md)** - Async and sync patterns
+- **[Docstring Standards](docs/guidelines/docstring-standards.md)** - Documentation standards
 
 ## Development
-
-### Code Formatting
-
-Sifaka uses automated code formatting to maintain consistent code style. We use the following tools:
-
-- **Black**: Code formatting
-- **isort**: Import sorting
-- **autoflake**: Removing unused imports
-- **Ruff**: Linting with automatic fixes
-- **mypy**: Type checking
-
-To set up the development environment:
 
 ```bash
 # Install development dependencies
@@ -258,19 +344,10 @@ make install-dev
 # Format code
 make format
 
-# Run linting checks
-make lint
-
 # Run tests
 make test
 ```
 
-The CI pipeline will automatically format code in pull requests, so you don't need to worry about formatting issues.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
-
 ## License
 
-[MIT License](LICENSE)
+MIT License - see [LICENSE](LICENSE) file for details.

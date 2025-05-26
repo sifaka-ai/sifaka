@@ -1,770 +1,342 @@
-"""
-GuardrailsAI validator for Sifaka.
+"""GuardrailsAI validator for Sifaka.
 
-This module provides a validator that uses GuardrailsAI to validate text.
-It adapts GuardrailsAI's Guard to the Sifaka validator interface, allowing
-GuardrailsAI validators to be used in Sifaka validation chains.
+This module provides a GuardrailsValidator that integrates with GuardrailsAI
+for advanced text validation including PII detection, toxicity checking,
+and other safety measures.
 
-GuardrailsAI is a framework for validating and structuring data from language models.
-For more information, see https://www.guardrailsai.com/docs
-
-Note: This validator requires the GuardrailsAI API key to be set in the
-GUARDRAILS_API_KEY environment variable or passed directly to the validator.
+The GuardrailsValidator requires the guardrails-ai library and an API key
+to function properly.
 """
 
-import importlib
-import logging
 import os
 import time
 from typing import Any, Dict, List, Optional
 
-from sifaka.errors import ValidationError
-from sifaka.registry import register_validator
-from sifaka.results import ValidationResult as SifakaValidationResult
-from sifaka.utils.error_handling import log_error, validation_context
-from sifaka.validators.base import BaseValidator
+from sifaka.core.thought import Thought, ValidationResult
+from sifaka.utils.error_handling import ValidationError
+from sifaka.utils.logging import get_logger
+from sifaka.validators.shared import BaseValidator
 
-# Set up logging
-logger = logging.getLogger(__name__)
+# Configure logger
+logger = get_logger(__name__)
 
 
 class GuardrailsValidator(BaseValidator):
-    """
-    Validator that uses GuardrailsAI for validation.
+    """Validator that uses GuardrailsAI for validation.
 
-    This validator adapts GuardrailsAI's Guard to the Sifaka validator interface,
-    allowing GuardrailsAI validators to be used in Sifaka validation chains.
+    This validator integrates with GuardrailsAI to provide advanced text validation
+    including PII detection, toxicity checking, and other safety measures.
 
     Attributes:
         guard: The GuardrailsAI Guard instance.
         validators: List of GuardrailsAI validators to use.
         validator_args: Dictionary of arguments for each validator.
+        api_key: The GuardrailsAI API key.
         name: The name of the validator.
-        description: The description of the validator.
     """
-
-    # Type annotations for instance variables
-    _description: str
-    _guard: Any
-    _guardrails: Any
-    _initialized: bool
-    _api_key: Optional[str]
-    _guard_config: Any
-    _validators_config: Optional[List[str]]
-    _validator_args_config: Dict[str, Dict[str, Any]]
 
     def __init__(
         self,
-        guard: Any = None,
+        guard: Optional[Any] = None,
         validators: Optional[List[str]] = None,
         validator_args: Optional[Dict[str, Dict[str, Any]]] = None,
         api_key: Optional[str] = None,
-        name: str = "guardrails_validator",
-        description: str = "Validates text using GuardrailsAI",
-    ) -> None:
-        """
-        Initialize the GuardrailsAI validator.
+        name: str = "GuardrailsValidator",
+    ):
+        """Initialize the validator.
 
         Args:
-            guard: Optional pre-configured GuardrailsAI Guard instance.
-            validators: Optional list of GuardrailsAI validator names to use.
-            validator_args: Optional dictionary of arguments for each validator.
-            api_key: Optional GuardrailsAI API key. If not provided, will use the key from
-                     the GuardrailsAI configuration or the GUARDRAILS_API_KEY environment variable.
+            guard: Pre-configured GuardrailsAI Guard instance.
+            validators: List of GuardrailsAI validator names to use.
+            validator_args: Dictionary of arguments for each validator.
+            api_key: The GuardrailsAI API key (or use GUARDRAILS_API_KEY env var).
             name: The name of the validator.
-            description: The description of the validator.
 
         Raises:
-            ImportError: If guardrails-ai is not installed.
-            ValidationError: If both guard and validators are provided.
+            ValidationError: If GuardrailsAI is not available or configuration is invalid.
         """
-        # Initialize the base validator with a name
-        super().__init__(name=name)
+        super().__init__(name)
+        self.validators = validators or []
+        self.validator_args = validator_args or {}
 
-        # Log initialization attempt
-        logger.debug(
-            f"Initializing GuardrailsValidator with "
-            f"guard={guard is not None}, "
-            f"validators={validators}, "
-            f"api_key={'provided' if api_key else 'from env'}"
-        )
+        # Get API key from parameter or environment
+        self.api_key = api_key or os.getenv("GUARDRAILS_API_KEY")
 
+        # Initialize GuardrailsAI
+        self._guard = None
+        self._guardrails = None
+        self._initialized = False
+
+        if guard is not None:
+            # Use pre-configured guard
+            self._guard = guard
+            self._initialized = True
+        else:
+            # Initialize guard with validators
+            self._initialize_guardrails()
+
+    def _initialize_guardrails(self) -> None:
+        """Initialize GuardrailsAI components."""
         try:
-            self._description = description
-            self._guard = None
-            self._guardrails = None
-            self._initialized = False
-            self._api_key = api_key or os.environ.get("GUARDRAILS_API_KEY")
+            import guardrails as gd
+
+            self._guardrails = gd
 
             # Check if API key is available
-            if not self._api_key:
+            if not self.api_key:
                 logger.warning(
-                    "No GuardrailsAI API key provided or found in environment. "
-                    "Some validators may not work without an API key."
+                    f"{self.name}: No GuardrailsAI API key found. "
+                    "Set GUARDRAILS_API_KEY environment variable or pass api_key parameter."
                 )
+                # Some validators might work without API key
 
-            # Validate inputs with improved error handling
-            if guard is not None and validators is not None:
-                logger.error("Cannot provide both a guard and validators")
-                raise ValidationError(
-                    message="Cannot provide both a guard and validators. Choose one approach.",
-                    component="GuardrailsValidator",
-                    operation="initialization",
-                    suggestions=[
-                        "Provide either a pre-configured guard OR a list of validators, not both",
-                        "For simple use cases, provide a list of validators",
-                        "For complex use cases, configure a guard separately and provide it",
-                    ],
-                    metadata={
-                        "has_guard": guard is not None,
-                        "validators": validators,
-                        "has_api_key": self._api_key is not None,
-                    },
-                )
-
-            # Store configuration for lazy initialization
-            self._guard_config = guard
-            self._validators_config = validators
-            self._validator_args_config = validator_args or {}
-
-            logger.debug(f"Successfully initialized GuardrailsValidator configuration: {self.name}")
-
-        except Exception as e:
-            # Log the error
-            log_error(e, logger, component="GuardrailsValidator", operation="initialization")
-
-            # Re-raise as ValidationError with more context if not already a ValidationError
-            if not isinstance(e, ValidationError):
-                raise ValidationError(
-                    message=f"Failed to initialize GuardrailsValidator: {str(e)}",
-                    component="GuardrailsValidator",
-                    operation="initialization",
-                    suggestions=[
-                        "Check if the guard or validators are properly configured",
-                        "Verify that the API key is valid if provided",
-                        "Check the error message for details",
-                    ],
-                    metadata={
-                        "has_guard": guard is not None,
-                        "validators": validators,
-                        "has_api_key": api_key is not None,
-                        "error_type": type(e).__name__,
-                        "error_message": str(e),
-                    },
-                )
-            raise
-
-    @property
-    def name(self) -> str:
-        """Get the validator name."""
-        return self._name
-
-    @property
-    def description(self) -> str:
-        """Get the validator description."""
-        return self._description
-
-    def _load_guardrails(self) -> Any:
-        """
-        Load the guardrails-ai library.
-
-        Returns:
-            The guardrails module.
-
-        Raises:
-            ImportError: If guardrails-ai is not installed.
-        """
-        start_time = time.time()
-
-        logger.debug("Loading guardrails-ai library")
-
-        try:
-            # Import the module
-            guardrails = importlib.import_module("guardrails")
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            logger.debug(f"Successfully loaded guardrails-ai library in {processing_time:.2f}ms")
-
-            return guardrails
-
-        except ImportError as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            logger.error(
-                f"Failed to load guardrails-ai library in {processing_time:.2f}ms: {str(e)}"
-            )
-
-            # This will always raise, so mypy knows the function won't return None
-            raise ImportError(
-                "guardrails-ai package is required for GuardrailsValidator. "
-                "Install it with: pip install guardrails-ai"
-            )
-
-    def _initialize(self) -> None:
-        """
-        Initialize the GuardrailsAI validator.
-
-        This method loads the guardrails-ai library and creates a Guard instance
-        if one was not provided during initialization.
-
-        Raises:
-            ImportError: If guardrails-ai is not installed.
-            ValidationError: If initialization fails.
-        """
-        start_time = time.time()
-
-        # Skip if already initialized
-        if self._initialized:
-            logger.debug(f"{self.name}: Already initialized, skipping")
-            return
-
-        logger.debug(f"{self.name}: Initializing GuardrailsAI validator")
-
-        with validation_context(
-            validator_name=self.name,
-            operation="initialize",
-            message_prefix="Failed to initialize GuardrailsAI validator",
-            suggestions=[
-                "Check if guardrails-ai is installed",
-                "Verify that the API key is valid if provided",
-                "Check that the validators are properly configured",
-            ],
-            metadata={
-                "has_guard_config": self._guard_config is not None,
-                "validators_config": self._validators_config,
-                "has_api_key": self._api_key is not None,
-            },
-        ):
-            # Load guardrails
-            self._guardrails = self._load_guardrails()
-
-            # If a guard was provided, use it
-            if self._guard_config is not None:
-                logger.debug(f"{self.name}: Using provided guard")
-                self._guard = self._guard_config
-            # Otherwise, create a new guard with the specified validators
-            elif self._validators_config is not None:
-                logger.debug(
-                    f"{self.name}: Creating new guard with {len(self._validators_config)} validators"
-                )
-
-                # Create a new guard
-                # At this point, self._guardrails should be loaded
-                # Type checking doesn't know this, so we need to assert it
-                assert self._guardrails is not None, "Guardrails module not loaded"
-                self._guard = self._guardrails.Guard()
-
-                # Install and add each validator
-                for validator_name in self._validators_config:
-                    validator_start_time = time.time()
-
-                    # Get arguments for this validator
-                    args = self._validator_args_config.get(validator_name, {})
-
-                    logger.debug(
-                        f"{self.name}: Installing validator '{validator_name}' with args: {args}"
-                    )
-
-                    # Install the validator
-                    # Set API key in environment if provided
-                    old_api_key = os.environ.get("GUARDRAILS_API_KEY")
-                    if self._api_key:
-                        os.environ["GUARDRAILS_API_KEY"] = self._api_key
-
+            # Create guard with validators
+            if self.validators:
+                guard_validators = []
+                for validator_name in self.validators:
                     try:
-                        # At this point, self._guardrails and self._guard should be initialized
-                        # Type checking doesn't know this, so we need to assert it
-                        assert self._guardrails is not None, "Guardrails module not loaded"
-                        assert self._guard is not None, "Guard is not initialized"
+                        # Try to get validator class from hub first, then from validators
+                        validator_class = None
 
-                        validator_module = self._guardrails.install(
-                            f"hub://guardrails/{validator_name}"
-                        )
+                        # Try guardrails.hub first (for installed validators)
+                        try:
+                            # Try to import the validator dynamically from guardrails.hub
+                            import importlib
 
-                        # Get the validator class
-                        validator_class = getattr(
-                            validator_module, self._to_camel_case(validator_name)
-                        )
+                            hub_module = importlib.import_module("guardrails.hub")
+                            if hasattr(hub_module, validator_name):
+                                validator_class = getattr(hub_module, validator_name)
+                        except (ImportError, AttributeError):
+                            pass
 
-                        # Add the validator to the guard
-                        self._guard = self._guard.use(validator_class, **args)
+                        # If not found in hub, try gd.validators (for built-in validators)
+                        if validator_class is None:
+                            try:
+                                validator_class = getattr(gd.validators, validator_name)
+                            except AttributeError:
+                                pass
 
-                        # Calculate validator processing time
-                        validator_time = (time.time() - validator_start_time) * 1000  # ms
+                        # If still not found, raise error
+                        if validator_class is None:
+                            raise AttributeError(f"Validator {validator_name} not found")
 
-                        logger.debug(
-                            f"{self.name}: Successfully installed validator '{validator_name}' "
-                            f"in {validator_time:.2f}ms"
-                        )
+                        # Get arguments for this validator
+                        args = self.validator_args.get(validator_name, {})
 
-                    except Exception as e:
-                        # Calculate validator processing time
-                        validator_time = (time.time() - validator_start_time) * 1000  # ms
+                        # Create validator instance
+                        validator_instance = validator_class(**args)
+                        guard_validators.append(validator_instance)
 
-                        logger.error(
-                            f"{self.name}: Failed to install validator '{validator_name}' "
-                            f"in {validator_time:.2f}ms: {str(e)}"
-                        )
+                        logger.debug(f"{self.name}: Added validator {validator_name}")
 
+                    except AttributeError:
+                        logger.error(f"{self.name}: Unknown validator: {validator_name}")
                         raise ValidationError(
-                            message=f"Failed to install validator '{validator_name}': {str(e)}",
+                            message=f"Unknown GuardrailsAI validator: {validator_name}",
                             component="GuardrailsValidator",
-                            operation="initialize_validator",
+                            operation="initialization",
                             suggestions=[
-                                "Check if the validator name is correct",
-                                "Verify that the API key is valid",
-                                "Check if the validator is available in the GuardrailsAI hub",
+                                "Check the validator name spelling",
+                                "Ensure the validator is available in your GuardrailsAI version",
+                                "Install the validator: guardrails hub install hub://guardrails/guardrails_pii",
                             ],
-                            metadata={
-                                "validator_name": validator_name,
-                                "args": args,
-                                "error_type": type(e).__name__,
-                                "error_message": str(e),
-                            },
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"{self.name}: Failed to create validator {validator_name}: {e}"
+                        )
+                        raise ValidationError(
+                            message=f"Failed to create validator {validator_name}: {str(e)}",
+                            component="GuardrailsValidator",
+                            operation="initialization",
+                            suggestions=[
+                                "Check validator arguments",
+                                "Ensure all required parameters are provided",
+                            ],
                         )
 
-                    finally:
-                        # Restore original API key
-                        if self._api_key:
-                            if old_api_key:
-                                os.environ["GUARDRAILS_API_KEY"] = old_api_key
-                            else:
-                                os.environ.pop("GUARDRAILS_API_KEY", None)
-                else:
-                    # Create an empty guard
-                    logger.debug(f"{self.name}: Creating empty guard (no validators specified)")
-                    # At this point, self._guardrails should be loaded
-                    # Type checking doesn't know this, so we need to assert it
-                    assert self._guardrails is not None, "Guardrails module not loaded"
-                    self._guard = self._guardrails.Guard()
+                # Create guard
+                self._guard = gd.Guard()
+                for validator in guard_validators:
+                    self._guard.use(validator)
+                logger.debug(f"{self.name}: Created guard with {len(guard_validators)} validators")
+            else:
+                # Create empty guard
+                self._guard = gd.Guard()
+                logger.debug(f"{self.name}: Created empty guard")
 
             self._initialized = True
 
-            # Calculate total processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            logger.debug(
-                f"{self.name}: Successfully initialized GuardrailsAI validator in {processing_time:.2f}ms"
+        except ImportError:
+            logger.error(f"{self.name}: GuardrailsAI library not available")
+            raise ValidationError(
+                message="GuardrailsAI library not available",
+                component="GuardrailsValidator",
+                operation="initialization",
+                suggestions=[
+                    "Install GuardrailsAI: pip install guardrails-ai",
+                    "Ensure the library is properly installed",
+                ],
+            )
+        except Exception as e:
+            logger.error(f"{self.name}: Failed to initialize GuardrailsAI: {e}")
+            raise ValidationError(
+                message=f"Failed to initialize GuardrailsAI: {str(e)}",
+                component="GuardrailsValidator",
+                operation="initialization",
+                suggestions=[
+                    "Check GuardrailsAI installation",
+                    "Verify API key configuration",
+                    "Check validator configuration",
+                ],
             )
 
-    def _to_camel_case(self, snake_str: str) -> str:
-        """
-        Convert a snake_case string to CamelCase.
+    def _validate_content(self, thought: Thought) -> ValidationResult:
+        """Validate text using GuardrailsAI.
 
         Args:
-            snake_str: The snake_case string to convert.
+            thought: The Thought container with the text to validate.
 
         Returns:
-            The CamelCase string.
-        """
-        components = snake_str.split("_")
-        return "".join(x.title() for x in components)
-
-    def _validate(
-        self, text: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> SifakaValidationResult:
-        """
-        Validate text using GuardrailsAI.
-
-        Args:
-            text: The text to validate.
-            metadata: Optional metadata to pass to GuardrailsAI validators.
-
-        Returns:
-            A ValidationResult indicating whether the text passed validation.
-
-        Raises:
-            ValidationError: If validation fails due to an error.
+            A ValidationResult with information about whether the validation passed,
+            any issues found, and suggestions for improvement.
         """
         start_time = time.time()
 
-        logger.debug(f"{self.name}: Validating text of length {len(text)}")
+        # Check if GuardrailsAI is initialized
+        if not self._initialized:
+            return self.create_validation_result(
+                passed=False,
+                message="GuardrailsAI not properly initialized",
+                issues=["GuardrailsAI validator is not initialized"],
+                suggestions=["Check GuardrailsAI configuration and API key"],
+            )
 
         try:
-            # Initialize if needed
-            self._initialize()
-
-            # Handle empty text
-            if not text:
-                logger.debug(f"{self.name}: Empty text provided, returning fail result")
-                return SifakaValidationResult(
+            # Check if guard is available
+            if self._guard is None:
+                return self.create_validation_result(
                     passed=False,
-                    message="Input text is empty",
-                    _details={"input_length": 0},
-                    score=0.0,
-                    issues=["Input text is empty"],
-                    suggestions=["Provide non-empty text for validation"],
+                    message="GuardrailsAI guard is not available",
+                    issues=["GuardrailsAI guard is not configured"],
+                    suggestions=["Configure GuardrailsAI guard or install guardrails-ai"],
                 )
 
-            # Validate the text using GuardrailsAI
-            with validation_context(
-                validator_name=self.name,
-                operation="validate",
-                message_prefix="Failed to validate text with GuardrailsAI",
-                suggestions=[
-                    "Check if the guard is properly configured",
-                    "Verify that the API key is valid if required",
-                    "Check the error message for details",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "has_metadata": metadata is not None,
-                    "initialized": self._initialized,
-                },
-            ):
-                if self._guard is None:
-                    logger.warning(f"{self.name}: Guard is not initialized, returning failure")
-                    return SifakaValidationResult(
-                        passed=False,
-                        message="Guard is not initialized",
-                        _details={"input_length": len(text)},
-                        score=0.0,
-                        issues=["Guard is not initialized"],
-                        suggestions=["Check if GuardrailsAI is properly installed and configured"],
-                    )
-
-                # At this point, we've already checked if self._guard is None earlier
-                # Type checking doesn't know this, so we need to assert it
-                assert self._guard is not None, "Guard is not initialized"
-
-                # Now we can safely use self._guard
-                result = self._guard.parse(text, metadata=metadata)
-
-                # Convert GuardrailsAI result to ValidationResult
-                passed = getattr(result, "validation_passed", False)
-
-                # Extract validation details
-                details = {
-                    "input_length": len(text),
-                    "validation_passed": passed,
-                    "validator_name": self.name,
-                }
-
-            # Add validation errors if any
-            error_messages = []
-            # Move this outside the validation_context block to avoid unreachable code
-            if hasattr(result, "validation_errors") and result.validation_errors:
-                try:
-                    details["validation_errors"] = result.validation_errors
-
-                    # Extract error messages
-                    for error in result.validation_errors:
-                        if isinstance(error, dict) and "message" in error:
-                            error_messages.append(error["message"])
-                        elif hasattr(error, "message"):
-                            error_messages.append(error.message)
-                        else:
-                            error_messages.append(str(error))
-                except Exception as e:
-                    logger.warning(f"{self.name}: Error extracting validation errors: {str(e)}")
-
-            # Add fix details if any
-            if hasattr(result, "fixed_output") and result.fixed_output:
-                details["fixed_output"] = result.fixed_output
+            # Validate with GuardrailsAI
+            result = self._guard.validate(thought.text)
 
             # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-            details["processing_time_ms"] = processing_time
+            processing_time = (time.time() - start_time) * 1000
 
-            # Create issues and suggestions
-            issues = []
-            suggestions = []
-
-            if not passed:
-                if error_messages:
-                    issues = error_messages
-                else:
-                    issues = ["Text failed GuardrailsAI validation"]
-
-                suggestions = ["Review the validation errors and modify the text accordingly"]
-
-                if hasattr(result, "fixed_output") and result.fixed_output:
-                    suggestions.append("Consider using the fixed output provided by GuardrailsAI")
-
-            # Calculate score based on validation result
-            score = 1.0 if passed else 0.0
-
-            # Create message
-            if passed:
-                message = "Text passed GuardrailsAI validation"
+            # Check validation result
+            if result.validation_passed:
                 logger.debug(f"{self.name}: Validation passed in {processing_time:.2f}ms")
+                return self.create_validation_result(
+                    passed=True,
+                    message="Text passed GuardrailsAI validation",
+                    score=1.0,
+                )
             else:
-                if error_messages:
-                    message = f"Text failed GuardrailsAI validation: {'; '.join(error_messages)}"
-                else:
-                    message = "Text failed GuardrailsAI validation"
+                # Extract issues from GuardrailsAI result
+                issues = []
+                suggestions = []
+
+                if hasattr(result, "error_spans") and result.error_spans:
+                    for error_span in result.error_spans:
+                        issues.append(f"Validation error: {error_span.reason}")
+                        suggestions.append(f"Fix issue: {error_span.reason}")
+
+                if hasattr(result, "errors") and result.errors:
+                    for error in result.errors:
+                        issues.append(f"Validation error: {str(error)}")
+                        suggestions.append("Address the validation error")
+
+                if not issues:
+                    issues = ["Text failed GuardrailsAI validation"]
+                    suggestions = ["Modify text to meet validation requirements"]
 
                 logger.debug(
-                    f"{self.name}: Validation failed with {len(error_messages)} errors in {processing_time:.2f}ms"
+                    f"{self.name}: Validation failed with {len(issues)} issues in {processing_time:.2f}ms"
                 )
 
-            return SifakaValidationResult(
-                passed=passed,
-                message=message,
-                _details=details,
-                score=score,
-                issues=issues,
-                suggestions=suggestions,
-            )
+                return self.create_validation_result(
+                    passed=False,
+                    message="Text failed GuardrailsAI validation",
+                    score=0.0,
+                    issues=issues,
+                    suggestions=suggestions,
+                )
 
         except Exception as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            logger.error(f"{self.name}: GuardrailsAI validation failed: {e}")
+            return self.create_error_result(e, self.name, "guardrails_validation")
 
-            # Log the error
-            log_error(e, logger, component="GuardrailsValidator", operation="validate")
+    async def _validate_async(self, thought: Thought) -> ValidationResult:
+        """Validate text using GuardrailsAI asynchronously.
 
-            # Raise as ValidationError with more context
-            raise ValidationError(
-                message=f"GuardrailsAI validation failed: {str(e)}",
-                component="GuardrailsValidator",
-                operation="validate",
-                suggestions=[
-                    "Check if the guard is properly configured",
-                    "Verify that the API key is valid if required",
-                    "Check the error message for details",
-                ],
-                metadata={
-                    "text_length": len(text) if text else 0,
-                    "has_metadata": metadata is not None,
-                    "initialized": self._initialized,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
+        This is the internal async implementation that provides the same functionality
+        as the sync validate method but can be called concurrently with other validators.
+
+        Args:
+            thought: The Thought container with the text to validate.
+
+        Returns:
+            A ValidationResult with information about whether the validation passed,
+            any issues found, and suggestions for improvement.
+        """
+        # GuardrailsAI validation involves API calls, so this could benefit from true async
+        # For now, we'll call the sync version, but this could be improved with async HTTP
+        return self.validate(thought)
 
 
-@register_validator("guardrails")
 def create_guardrails_validator(
-    guard: Any = None,
+    guard: Optional[Any] = None,
     validators: Optional[List[str]] = None,
     validator_args: Optional[Dict[str, Dict[str, Any]]] = None,
     api_key: Optional[str] = None,
-    name: str = "guardrails_validator",
-    description: str = "Validates text using GuardrailsAI",
-    **_: Any,  # Unused options
+    name: str = "GuardrailsValidator",
 ) -> GuardrailsValidator:
-    """
-    Create a GuardrailsAI validator.
-
-    This factory function creates a GuardrailsValidator with the specified parameters.
-    It is registered with the registry system for dependency injection.
+    """Create a GuardrailsAI validator.
 
     Args:
-        guard: Optional pre-configured GuardrailsAI Guard instance.
-        validators: Optional list of GuardrailsAI validator names to use.
-        validator_args: Optional dictionary of arguments for each validator.
-        api_key: Optional GuardrailsAI API key. If not provided, will use the
-                 GUARDRAILS_API_KEY environment variable.
+        guard: Pre-configured GuardrailsAI Guard instance.
+        validators: List of GuardrailsAI validator names to use.
+        validator_args: Dictionary of arguments for each validator.
+        api_key: The GuardrailsAI API key (or use GUARDRAILS_API_KEY env var).
         name: The name of the validator.
-        description: The description of the validator.
-        **_options: Additional options (ignored).
 
     Returns:
         A GuardrailsValidator instance.
-
-    Raises:
-        ValidationError: If the configuration is invalid.
     """
-    start_time = time.time()
-
-    try:
-        # Log factory function call
-        logger.debug(
-            f"Creating GuardrailsValidator with "
-            f"guard={guard is not None}, "
-            f"validators={validators}, "
-            f"api_key={'provided' if api_key else 'from env'}, "
-            f"name={name}"
-        )
-
-        # Validate inputs
-        if guard is not None and validators is not None:
-            logger.error("Cannot provide both a guard and validators")
-            raise ValidationError(
-                message="Cannot provide both a guard and validators. Choose one approach.",
-                component="GuardrailsValidatorFactory",
-                operation="create_validator",
-                suggestions=[
-                    "Provide either a pre-configured guard OR a list of validators, not both",
-                    "For simple use cases, provide a list of validators",
-                    "For complex use cases, configure a guard separately and provide it",
-                ],
-                metadata={
-                    "has_guard": guard is not None,
-                    "validators": validators,
-                    "has_api_key": api_key is not None,
-                },
-            )
-
-        # Create the validator
-        validator = GuardrailsValidator(
-            guard=guard,
-            validators=validators,
-            validator_args=validator_args,
-            api_key=api_key,
-            name=name,
-            description=description,
-        )
-
-        # Calculate processing time
-        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-        # Log successful creation
-        logger.debug(
-            f"Successfully created GuardrailsValidator: {validator.name} in {processing_time:.2f}ms"
-        )
-
-        return validator
-
-    except Exception as e:
-        # Calculate processing time
-        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-        # Log the error
-        log_error(
-            e,
-            logger,
-            component="GuardrailsValidatorFactory",
-            operation="create_validator",
-        )
-
-        # Re-raise as ValidationError with more context if not already a ValidationError
-        if not isinstance(e, ValidationError):
-            raise ValidationError(
-                message=f"Failed to create GuardrailsValidator: {str(e)}",
-                component="GuardrailsValidatorFactory",
-                operation="create_validator",
-                suggestions=[
-                    "Check if the guard or validators are properly configured",
-                    "Verify that the API key is valid if provided",
-                    "Check the error message for details",
-                ],
-                metadata={
-                    "has_guard": guard is not None,
-                    "validators": validators,
-                    "has_api_key": api_key is not None,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
-        raise
+    return GuardrailsValidator(
+        guard=guard,
+        validators=validators,
+        validator_args=validator_args,
+        api_key=api_key,
+        name=name,
+    )
 
 
 def guardrails_validator(
-    guard: Any = None,
-    validators: Optional[List[str]] = None,
+    validators: List[str],
     validator_args: Optional[Dict[str, Dict[str, Any]]] = None,
     api_key: Optional[str] = None,
-    name: str = "guardrails_validator",
-    description: str = "Validates text using GuardrailsAI",
 ) -> GuardrailsValidator:
-    """
-    Create a GuardrailsAI validator.
+    """Create a GuardrailsAI validator.
 
     This is a convenience function for creating a GuardrailsValidator.
 
     Args:
-        guard: Optional pre-configured GuardrailsAI Guard instance.
-        validators: Optional list of GuardrailsAI validator names to use.
-        validator_args: Optional dictionary of arguments for each validator.
-        api_key: Optional GuardrailsAI API key. If not provided, will use the
-                 GUARDRAILS_API_KEY environment variable.
-        name: The name of the validator.
-        description: The description of the validator.
+        validators: List of GuardrailsAI validator names to use.
+        validator_args: Dictionary of arguments for each validator.
+        api_key: The GuardrailsAI API key (or use GUARDRAILS_API_KEY env var).
 
     Returns:
         A GuardrailsValidator instance.
-
-    Raises:
-        ValidationError: If the configuration is invalid.
     """
-    start_time = time.time()
-
-    try:
-        # Log function call
-        logger.debug(
-            f"Creating GuardrailsValidator with "
-            f"guard={guard is not None}, "
-            f"validators={validators}, "
-            f"api_key={'provided' if api_key else 'from env'}, "
-            f"name={name}"
-        )
-
-        # Validate inputs
-        if guard is not None and validators is not None:
-            logger.error("Cannot provide both a guard and validators")
-            raise ValidationError(
-                message="Cannot provide both a guard and validators. Choose one approach.",
-                component="GuardrailsValidatorFunction",
-                operation="guardrails_validator",
-                suggestions=[
-                    "Provide either a pre-configured guard OR a list of validators, not both",
-                    "For simple use cases, provide a list of validators",
-                    "For complex use cases, configure a guard separately and provide it",
-                ],
-                metadata={
-                    "has_guard": guard is not None,
-                    "validators": validators,
-                    "has_api_key": api_key is not None,
-                },
-            )
-
-        # Create the validator
-        validator = GuardrailsValidator(
-            guard=guard,
-            validators=validators,
-            validator_args=validator_args,
-            api_key=api_key,
-            name=name,
-            description=description,
-        )
-
-        # Calculate processing time
-        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-        # Log successful creation
-        logger.debug(
-            f"Successfully created GuardrailsValidator: {validator.name} in {processing_time:.2f}ms"
-        )
-
-        return validator
-
-    except Exception as e:
-        # Calculate processing time
-        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-        # Log the error
-        log_error(
-            e,
-            logger,
-            component="GuardrailsValidatorFunction",
-            operation="guardrails_validator",
-        )
-
-        # Re-raise as ValidationError with more context if not already a ValidationError
-        if not isinstance(e, ValidationError):
-            raise ValidationError(
-                message=f"Failed to create GuardrailsValidator: {str(e)}",
-                component="GuardrailsValidatorFunction",
-                operation="guardrails_validator",
-                suggestions=[
-                    "Check if the guard or validators are properly configured",
-                    "Verify that the API key is valid if provided",
-                    "Check the error message for details",
-                ],
-                metadata={
-                    "has_guard": guard is not None,
-                    "validators": validators,
-                    "has_api_key": api_key is not None,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
-        raise
+    return create_guardrails_validator(
+        validators=validators,
+        validator_args=validator_args,
+        api_key=api_key,
+        name="GuardrailsAIValidator",
+    )

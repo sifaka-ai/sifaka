@@ -1,225 +1,176 @@
-"""
-Format validator for Sifaka.
+"""Format validator for Sifaka.
 
-This module provides a validator that checks if text follows a specific format.
+This module provides a FormatValidator that checks if text follows specific formats
+such as JSON, Markdown, or custom formats. It supports schema validation for JSON
+and custom validation functions for other formats.
+
+The FormatValidator is designed to ensure that generated text conforms to expected
+structural requirements and formatting standards.
 """
 
 import json
-import logging
 import re
-import time
 from typing import Any, Callable, Dict, Optional
 
-from sifaka.errors import ValidationError
-from sifaka.registry import register_validator
-from sifaka.results import ValidationResult as SifakaValidationResult
-from sifaka.utils.error_handling import log_error, validation_context
-from sifaka.validators.base import BaseValidator
+from sifaka.core.thought import Thought, ValidationResult
+from sifaka.utils.error_handling import ValidationError
+from sifaka.utils.logging import get_logger
+from sifaka.validators.shared import BaseValidator
 
 # Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class FormatValidator(BaseValidator):
     """Validator that checks if text follows a specific format.
 
-    This validator checks if text follows a specific format, such as JSON, Markdown, etc.
+    This validator checks if text follows a specific format, such as JSON, Markdown,
+    or custom formats. It supports schema validation for JSON and custom validation
+    functions for other formats.
 
     Attributes:
         format_type: The format type to check for.
         custom_validator: A custom validation function.
         schema: A JSON schema to validate against (for JSON format).
+        name: The name of the validator.
     """
 
     # Supported format types
     FORMAT_JSON = "json"
     FORMAT_MARKDOWN = "markdown"
     FORMAT_CUSTOM = "custom"
+    FORMAT_EMAIL = "email"
+    FORMAT_URL = "url"
+    FORMAT_CONTAINS_JSON = "contains_json"
 
     def __init__(
         self,
-        format_type: str,
-        custom_validator: Optional[Callable[[str], Dict[str, Any]]] = None,
+        format_type: Optional[str] = None,
+        expected_format: Optional[str] = None,
+        custom_validator: Optional[Callable[[str], bool]] = None,
         schema: Optional[Dict[str, Any]] = None,
-        name: Optional[str] = None,
+        name: str = "FormatValidator",
     ):
-        """Initialize the format validator.
+        """Initialize the validator.
 
         Args:
-            format_type: The format type to check for.
-            custom_validator: A custom validation function.
+            format_type: The format type to check for ('json', 'markdown', 'custom').
+            expected_format: Alias for format_type.
+            custom_validator: A custom validation function for custom formats.
             schema: A JSON schema to validate against (for JSON format).
-            name: Optional name for the validator.
+            name: The name of the validator.
 
         Raises:
-            ValidationError: If the format type is not supported or if required parameters are missing.
+            ValidationError: If the format type is unsupported or configuration is invalid.
         """
-        # Initialize the base validator with a name
-        super().__init__(name=name or f"FormatValidator_{format_type.lower()}")
+        # Handle expected_format as alias for format_type
+        if expected_format is not None:
+            if format_type is not None:
+                raise ValidationError(
+                    message="Cannot specify both format_type and expected_format",
+                    component="FormatValidator",
+                    operation="initialization",
+                    suggestions=["Use either format_type or expected_format, not both"],
+                )
+            format_type = expected_format
 
-        # Store configuration
-        self.format_type = format_type.lower()
+        if format_type is None:
+            raise ValidationError(
+                message="Either format_type or expected_format must be specified",
+                component="FormatValidator",
+                operation="initialization",
+                suggestions=["Provide format_type or expected_format parameter"],
+            )
+
+        supported_formats = [
+            self.FORMAT_JSON,
+            self.FORMAT_MARKDOWN,
+            self.FORMAT_CUSTOM,
+            self.FORMAT_EMAIL,
+            self.FORMAT_URL,
+            self.FORMAT_CONTAINS_JSON,
+        ]
+
+        if format_type not in supported_formats:
+            raise ValidationError(
+                message=f"Unsupported format type: {format_type}",
+                component="FormatValidator",
+                operation="initialization",
+                suggestions=[f"Use one of the supported formats: {', '.join(supported_formats)}"],
+            )
+
+        if format_type == self.FORMAT_CUSTOM and custom_validator is None:
+            raise ValidationError(
+                message="Custom validator function is required for custom format type",
+                component="FormatValidator",
+                operation="initialization",
+                suggestions=[
+                    "Provide a custom_validator function that takes a string and returns bool"
+                ],
+            )
+
+        super().__init__(name)
+        self.format_type = format_type
         self.custom_validator = custom_validator
         self.schema = schema
 
-        # Log initialization
-        logger.debug(
-            f"Initialized {self.name} with format_type={self.format_type}, "
-            f"has_custom_validator={self.custom_validator is not None}, "
-            f"has_schema={self.schema is not None}"
-        )
-
-        # Validate parameters with improved error handling
-        with validation_context(
-            validator_name=self.name,
-            operation="initialization",
-            message_prefix="Failed to initialize format validator",
-            suggestions=["Check the format type and parameters"],
-            metadata={
-                "format_type": self.format_type,
-                "has_custom_validator": self.custom_validator is not None,
-                "has_schema": self.schema is not None,
-            },
-        ):
-            # Validate format type
-            if self.format_type not in [
-                self.FORMAT_JSON,
-                self.FORMAT_MARKDOWN,
-                self.FORMAT_CUSTOM,
-            ]:
-                logger.error(f"{self.name}: Unsupported format type: {format_type}")
-                raise ValidationError(
-                    message=f"Unsupported format type: {format_type}",
-                    component="FormatValidator",
-                    operation="initialization",
-                    suggestions=[
-                        f"Use one of the supported format types: {self.FORMAT_JSON}, {self.FORMAT_MARKDOWN}, {self.FORMAT_CUSTOM}"
-                    ],
-                    metadata={
-                        "format_type": format_type,
-                        "supported_types": [
-                            self.FORMAT_JSON,
-                            self.FORMAT_MARKDOWN,
-                            self.FORMAT_CUSTOM,
-                        ],
-                    },
-                )
-
-            # Validate custom validator
-            if self.format_type == self.FORMAT_CUSTOM and self.custom_validator is None:
-                logger.error(
-                    f"{self.name}: Custom validator function must be provided for custom format"
-                )
-                raise ValidationError(
-                    message="Custom validator function must be provided for custom format",
-                    component="FormatValidator",
-                    operation="initialization",
-                    suggestions=[
-                        "Provide a custom validator function when using the custom format type",
-                        "Use a different format type if you don't have a custom validator",
-                    ],
-                    metadata={"format_type": self.format_type},
-                )
-
-            # Import jsonschema if schema is provided
-            if self.schema is not None:
-                try:
-                    import jsonschema
-
-                    self.jsonschema = jsonschema
-                    logger.debug(f"{self.name}: Successfully imported jsonschema package")
-                except ImportError as e:
-                    logger.error(f"{self.name}: Failed to import jsonschema package: {str(e)}")
-                    raise ValidationError(
-                        message="jsonschema package is required for schema validation. Install it with 'pip install jsonschema'.",
-                        component="FormatValidator",
-                        operation="initialization",
-                        suggestions=[
-                            "Install the jsonschema package with 'pip install jsonschema'",
-                            "Remove the schema parameter if you don't need schema validation",
-                        ],
-                        metadata={
-                            "format_type": self.format_type,
-                            "error_type": "ImportError",
-                            "error_message": str(e),
-                        },
-                    )
-
-    def _validate(self, text: str) -> SifakaValidationResult:
-        """Validate text against the specified format.
+    def _validate_content(self, thought: Thought) -> ValidationResult:
+        """Validate text against format requirements.
 
         Args:
-            text: The text to validate.
+            thought: The Thought container with the text to validate.
 
         Returns:
-            A ValidationResult indicating whether the text follows the specified format.
+            A ValidationResult with information about whether the validation passed,
+            any issues found, and suggestions for improvement.
         """
-        start_time = time.time()
+        # Check for None text
+        if thought.text is None:
+            return self.create_empty_text_result(self.name)
 
-        # Log validation attempt
-        logger.debug(
-            f"{self.name}: Validating text of length {len(text)} against format type {self.format_type}"
-        )
-
-        # Validate text against the specified format
-        with validation_context(
-            validator_name=self.name,
-            operation="validation",
-            message_prefix=f"Failed to validate text against {self.format_type} format",
-            suggestions=[f"Check if the text follows the {self.format_type} format"],
-            metadata={
-                "format_type": self.format_type,
-                "text_length": len(text),
-                "has_schema": self.schema is not None,
-                "has_custom_validator": self.custom_validator is not None,
-            },
-        ):
-            # Dispatch to the appropriate validation method
-            if self.format_type == self.FORMAT_JSON:
-                result = self._validate_json(text)
-            elif self.format_type == self.FORMAT_MARKDOWN:
-                result = self._validate_markdown(text)
-            elif self.format_type == self.FORMAT_CUSTOM:
-                result = self._validate_custom(text)
-            else:
-                # This should never happen due to validation in __init__
-                logger.error(f"{self.name}: Unsupported format type: {self.format_type}")
-
-                # Calculate processing time
-                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-                return SifakaValidationResult(
-                    passed=False,
-                    message=f"Unsupported format type: {self.format_type}",
-                    _details={
-                        "format_type": self.format_type,
-                        "validator_name": self.name,
-                        "processing_time_ms": processing_time,
-                    },
-                    score=0.0,
-                    issues=[f"Unsupported format type: {self.format_type}"],
-                    suggestions=[
-                        f"Use one of the supported format types: {self.FORMAT_JSON}, {self.FORMAT_MARKDOWN}, {self.FORMAT_CUSTOM}"
-                    ],
-                )
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Add processing time to result details
-            result._details = result._details or {}
-            result._details["processing_time_ms"] = processing_time
-            result._details["validator_name"] = self.name
-
-            # Log validation result
-            logger.debug(
-                f"{self.name}: Validation {'passed' if result.passed else 'failed'} in {processing_time:.2f}ms"
+        # Dispatch to the appropriate validation method
+        if self.format_type == self.FORMAT_JSON:
+            return self._validate_json(thought.text)
+        elif self.format_type == self.FORMAT_MARKDOWN:
+            return self._validate_markdown(thought.text)
+        elif self.format_type == self.FORMAT_CUSTOM:
+            return self._validate_custom(thought.text)
+        elif self.format_type == self.FORMAT_EMAIL:
+            return self._validate_email(thought.text)
+        elif self.format_type == self.FORMAT_URL:
+            return self._validate_url(thought.text)
+        elif self.format_type == self.FORMAT_CONTAINS_JSON:
+            return self._validate_contains_json(thought.text)
+        else:
+            # This should never happen due to validation in __init__
+            logger.error(f"{self.name}: Unsupported format type: {self.format_type}")
+            return self.create_validation_result(
+                passed=False,
+                message=f"Unsupported format type: {self.format_type}",
+                score=0.0,
+                issues=[f"Format type '{self.format_type}' is not supported"],
+                suggestions=["Use a supported format type"],
             )
 
-            return result
+    async def _validate_async(self, thought: Thought) -> ValidationResult:
+        """Validate text format asynchronously.
 
-    def _validate_json(self, text: str) -> SifakaValidationResult:
-        """Validate text as JSON.
+        This is the internal async implementation that provides the same functionality
+        as the sync validate method but can be called concurrently with other validators.
+
+        Args:
+            thought: The Thought container with the text to validate.
+
+        Returns:
+            A ValidationResult with information about whether the validation passed,
+            any issues found, and suggestions for improvement.
+        """
+        # Format validation is CPU-bound and fast, so we can just call the sync version
+        # In a real implementation, you might want to run this in a thread pool for consistency
+        return self.validate(thought)
+
+    def _validate_json(self, text: str) -> ValidationResult:
+        """Validate text as JSON format.
 
         Args:
             text: The text to validate.
@@ -227,119 +178,64 @@ class FormatValidator(BaseValidator):
         Returns:
             A ValidationResult indicating whether the text is valid JSON.
         """
-        # Log JSON validation attempt
-        logger.debug(f"{self.name}: Validating text as JSON, length={len(text)}")
-
         try:
-            # Parse the JSON
-            with validation_context(
-                validator_name=self.name,
-                operation="json_parsing",
-                message_prefix="Failed to parse JSON",
-                suggestions=["Check if the text is valid JSON"],
-                metadata={
-                    "text_length": len(text),
-                    "has_schema": self.schema is not None,
-                },
-            ):
-                data = json.loads(text)
-                logger.debug(f"{self.name}: Successfully parsed JSON")
+            # Parse JSON
+            parsed_data = json.loads(text)
+            logger.debug(f"{self.name}: JSON parsing successful")
 
             # Validate against schema if provided
-            if self.schema is not None:
+            if self.schema:
                 try:
-                    with validation_context(
-                        validator_name=self.name,
-                        operation="schema_validation",
-                        message_prefix="Failed to validate JSON against schema",
-                        suggestions=["Check if the JSON matches the schema"],
-                        metadata={"text_length": len(text), "schema": self.schema},
-                    ):
-                        self.jsonschema.validate(instance=data, schema=self.schema)
-                        logger.debug(f"{self.name}: JSON successfully validated against schema")
-                except self.jsonschema.exceptions.ValidationError as e:
-                    # Log schema validation error
-                    log_error(
-                        e,
-                        logger,
-                        component="FormatValidator",
-                        operation="schema_validation",
-                    )
+                    import jsonschema
 
-                    # Create issues and suggestions
-                    issues = [f"JSON does not match schema: {str(e)}"]
-                    suggestions = [
-                        "Check if the JSON structure matches the required schema",
-                        "Verify that all required fields are present",
-                        "Ensure field types match the schema requirements",
-                    ]
-
-                    # Calculate score based on severity of schema violation
-                    score = 0.5  # Partial score for valid JSON but schema mismatch
-
-                    return SifakaValidationResult(
+                    jsonschema.validate(parsed_data, self.schema)
+                    logger.debug(f"{self.name}: JSON schema validation successful")
+                except ImportError:
+                    logger.warning("jsonschema library not available for schema validation")
+                    return self.create_validation_result(
                         passed=False,
-                        message=f"JSON does not match schema: {str(e)}",
-                        _details={
-                            "format_type": self.FORMAT_JSON,
-                            "error": str(e),
-                            "schema": self.schema,
-                            "validator_name": self.name,
-                        },
-                        score=score,
-                        issues=issues,
-                        suggestions=suggestions,
+                        message="JSON schema validation requires jsonschema library",
+                        score=0.0,
+                        issues=["jsonschema library is not installed"],
+                        suggestions=["Install jsonschema: pip install jsonschema"],
+                    )
+                except jsonschema.ValidationError as e:
+                    logger.debug(f"{self.name}: JSON schema validation failed: {e}")
+                    return self.create_validation_result(
+                        passed=False,
+                        message="JSON does not match the required schema",
+                        score=0.0,
+                        issues=[f"Schema validation error: {str(e)}"],
+                        suggestions=[
+                            "Check that the JSON structure matches the required schema",
+                            "Verify all required fields are present",
+                            "Ensure data types match schema requirements",
+                        ],
                     )
 
             # JSON is valid
-            logger.debug(f"{self.name}: JSON is valid")
-
-            return SifakaValidationResult(
+            return self.create_validation_result(
                 passed=True,
                 message="Text is valid JSON",
-                _details={
-                    "format_type": self.FORMAT_JSON,
-                    "has_schema": self.schema is not None,
-                    "validator_name": self.name,
-                },
                 score=1.0,
-                issues=[],
-                suggestions=[],
             )
 
         except json.JSONDecodeError as e:
-            # Log JSON parsing error
-            log_error(e, logger, component="FormatValidator", operation="json_parsing")
-
-            # Create issues and suggestions
-            issues = [f"Invalid JSON: {str(e)}"]
-            suggestions = [
-                f"Check line {e.lineno}, column {e.colno} for syntax errors",
-                "Verify that all quotes, brackets, and braces are properly matched",
-                "Ensure that all keys and string values are enclosed in double quotes",
-            ]
-
-            # Calculate score based on how much of the text was parsed before error
-            score = max(0.0, min(1.0, e.pos / len(text)))
-
-            return SifakaValidationResult(
+            logger.debug(f"{self.name}: JSON parsing failed: {e}")
+            return self.create_validation_result(
                 passed=False,
                 message=f"Invalid JSON: {str(e)}",
-                _details={
-                    "format_type": self.FORMAT_JSON,
-                    "error": str(e),
-                    "line": e.lineno,
-                    "column": e.colno,
-                    "position": e.pos,
-                    "validator_name": self.name,
-                },
-                score=score,
-                issues=issues,
-                suggestions=suggestions,
+                score=0.0,
+                issues=[f"JSON parsing error: {str(e)}"],
+                suggestions=[
+                    f"Check line {e.lineno}, column {e.colno} for syntax errors",
+                    "Verify that all quotes, brackets, and braces are properly matched",
+                    "Ensure that all keys and string values are enclosed in double quotes",
+                ],
             )
 
-    def _validate_markdown(self, text: str) -> SifakaValidationResult:
-        """Validate text as Markdown.
+    def _validate_markdown(self, text: str) -> ValidationResult:
+        """Validate text as Markdown format.
 
         Args:
             text: The text to validate.
@@ -347,537 +243,268 @@ class FormatValidator(BaseValidator):
         Returns:
             A ValidationResult indicating whether the text is valid Markdown.
         """
-        # Log Markdown validation attempt
-        logger.debug(f"{self.name}: Validating text as Markdown, length={len(text)}")
+        # Basic Markdown validation - check for common Markdown patterns
+        issues = []
+        suggestions = []
 
-        try:
-            # Markdown is very permissive, so we just check for basic structure
-            # like headings, lists, code blocks, etc.
-            with validation_context(
-                validator_name=self.name,
-                operation="markdown_validation",
-                message_prefix="Failed to validate Markdown",
-                suggestions=["Check if the text contains Markdown features"],
-                metadata={"text_length": len(text)},
-            ):
-                # Check for headings
-                has_headings = bool(re.search(r"^#{1,6}\s+.+$", text, re.MULTILINE))
+        # Check for unmatched code blocks
+        code_block_pattern = r"```"
+        code_blocks = re.findall(code_block_pattern, text)
+        if len(code_blocks) % 2 != 0:
+            issues.append("Unmatched code blocks (``` markers)")
+            suggestions.append("Ensure all code blocks have opening and closing ``` markers")
 
-                # Check for lists
-                has_lists = bool(re.search(r"^(\*|\-|\+|\d+\.)\s+.+$", text, re.MULTILINE))
+        # Check for unmatched inline code
+        inline_code_pattern = r"`"
+        inline_codes = re.findall(inline_code_pattern, text)
+        if len(inline_codes) % 2 != 0:
+            issues.append("Unmatched inline code (` markers)")
+            suggestions.append("Ensure all inline code has opening and closing ` markers")
 
-                # Check for code blocks
-                has_code_blocks = bool(re.search(r"^```.*$", text, re.MULTILINE))
+        # Check for valid heading structure
+        heading_pattern = r"^(#{1,6})\s+(.+)$"
+        lines = text.split("\n")
+        for i, line in enumerate(lines, 1):
+            if line.strip().startswith("#"):
+                if not re.match(heading_pattern, line.strip()):
+                    issues.append(f"Invalid heading format on line {i}")
+                    suggestions.append("Headings should have space after # markers")
 
-                # Check for links
-                has_links = bool(re.search(r"\[.+\]\(.+\)", text))
-
-                # Check for images
-                has_images = bool(re.search(r"!\[.+\]\(.+\)", text))
-
-                # Check for emphasis (bold, italic)
-                has_emphasis = bool(re.search(r"(\*\*|__).+(\*\*|__)|(\*|_).+(\*|_)", text))
-
-                # Check for blockquotes
-                has_blockquotes = bool(re.search(r"^>\s+.+$", text, re.MULTILINE))
-
-                # Check for horizontal rules
-                has_hr = bool(re.search(r"^(\*\*\*|---|\*\*\*\*\*|_____)$", text, re.MULTILINE))
-
-                # Markdown is valid if it has at least one of these features
-                markdown_features = {
-                    "headings": has_headings,
-                    "lists": has_lists,
-                    "code_blocks": has_code_blocks,
-                    "links": has_links,
-                    "images": has_images,
-                    "emphasis": has_emphasis,
-                    "blockquotes": has_blockquotes,
-                    "horizontal_rules": has_hr,
-                }
-
-                has_markdown_features = any(markdown_features.values())
-                feature_count = sum(1 for feature in markdown_features.values() if feature)
-
-                # Calculate score based on number of features
-                score = min(1.0, feature_count / 4)  # Perfect score if 4+ features
-
-                if has_markdown_features:
-                    logger.debug(
-                        f"{self.name}: Text appears to be valid Markdown with {feature_count} features"
-                    )
-
-                    return SifakaValidationResult(
-                        passed=True,
-                        message="Text appears to be valid Markdown",
-                        _details={
-                            "format_type": self.FORMAT_MARKDOWN,
-                            "features": markdown_features,
-                            "feature_count": feature_count,
-                            "validator_name": self.name,
-                        },
-                        score=score,
-                        issues=[],
-                        suggestions=[],
-                    )
-                else:
-                    logger.debug(f"{self.name}: Text does not appear to contain Markdown features")
-
-                    # Create issues and suggestions
-                    issues = ["Text does not appear to contain Markdown features"]
-                    suggestions = [
-                        "Add headings using # syntax",
-                        "Include lists using * or - or 1. syntax",
-                        "Add code blocks using ``` syntax",
-                        "Include links using [text](url) syntax",
-                        "Add emphasis using *italic* or **bold** syntax",
-                    ]
-
-                    return SifakaValidationResult(
-                        passed=False,
-                        message="Text does not appear to contain Markdown features",
-                        _details={
-                            "format_type": self.FORMAT_MARKDOWN,
-                            "features": markdown_features,
-                            "feature_count": 0,
-                            "validator_name": self.name,
-                        },
-                        score=0.0,
-                        issues=issues,
-                        suggestions=suggestions,
-                    )
-
-        except Exception as e:
-            # Log Markdown validation error
-            log_error(e, logger, component="FormatValidator", operation="markdown_validation")
-
-            # Create issues and suggestions
-            issues = [f"Error validating Markdown: {str(e)}"]
-            suggestions = [
-                "Check if the text is properly formatted",
-                "Verify that the text doesn't contain invalid characters",
-            ]
-
-            return SifakaValidationResult(
+        if issues:
+            return ValidationResult(
                 passed=False,
-                message=f"Error validating Markdown: {str(e)}",
-                _details={
-                    "format_type": self.FORMAT_MARKDOWN,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "validator_name": self.name,
-                },
-                score=0.0,
+                message="Text contains Markdown formatting issues",
                 issues=issues,
                 suggestions=suggestions,
             )
 
-    def _validate_custom(self, text: str) -> SifakaValidationResult:
-        """Validate text using a custom validator.
+        return ValidationResult(
+            passed=True,
+            message="Text is valid Markdown",
+            score=1.0,
+        )
+
+    def _validate_custom(self, text: str) -> ValidationResult:
+        """Validate text using custom validation function.
 
         Args:
             text: The text to validate.
 
         Returns:
-            A ValidationResult based on the custom validator's result.
+            A ValidationResult indicating whether the text passes custom validation.
         """
-        # Log custom validation attempt
-        logger.debug(f"{self.name}: Validating text with custom validator, length={len(text)}")
+        if self.custom_validator is None:
+            return ValidationResult(
+                passed=False,
+                message="No custom validator function provided",
+                issues=["Custom validator function is None"],
+                suggestions=["Provide a custom validator function"],
+            )
 
         try:
-            # Call the custom validator with error handling
-            with validation_context(
-                validator_name=self.name,
-                operation="custom_validation",
-                message_prefix="Failed to validate with custom validator",
-                suggestions=["Check if the custom validator is properly implemented"],
-                metadata={
-                    "text_length": len(text),
-                    "validator_function": str(self.custom_validator),
-                },
-            ):
-                # Call the custom validator
-                if self.custom_validator is None:
-                    raise ValidationError(
-                        message="Custom validator is None",
-                        component="FormatValidator",
-                        operation="custom_validation",
-                        suggestions=[
-                            "Provide a custom validator function when using the custom format type"
-                        ],
-                        metadata={"format_type": self.format_type},
-                    )
-                result = self.custom_validator(text)
-                logger.debug(f"{self.name}: Custom validator executed successfully")
+            is_valid = self.custom_validator(text)
 
-            # Extract result fields
-            passed = result.get("passed", False)
-            message = result.get("message", "")
-            details = result.get("details", {})
-            issues = result.get("issues", [])
-            suggestions = result.get("suggestions", [])
-            score = result.get("score", 1.0 if passed else 0.0)
-
-            # Add format type and validator name to details
-            details["format_type"] = self.FORMAT_CUSTOM
-            details["validator_name"] = self.name
-
-            # Log validation result
-            logger.debug(
-                f"{self.name}: Custom validation {'passed' if passed else 'failed'}: {message}"
-            )
-
-            return SifakaValidationResult(
-                passed=passed,
-                message=message,
-                _details=details,
-                score=score,
-                issues=issues,
-                suggestions=suggestions,
-            )
+            if is_valid:
+                return ValidationResult(
+                    passed=True,
+                    message="Text passes custom format validation",
+                    score=1.0,
+                )
+            else:
+                return ValidationResult(
+                    passed=False,
+                    message="Text fails custom format validation",
+                    issues=["Text does not meet custom format requirements"],
+                    suggestions=["Modify text to meet the custom format requirements"],
+                )
 
         except Exception as e:
-            # Log custom validation error
-            log_error(e, logger, component="FormatValidator", operation="custom_validation")
-
-            # Create issues and suggestions
-            issues = [f"Custom validator failed: {str(e)}"]
-            suggestions = [
-                "Check if the custom validator is properly implemented",
-                "Verify that the custom validator handles the input correctly",
-                "Ensure that the custom validator returns the expected format",
-            ]
-
-            return SifakaValidationResult(
+            logger.error(f"{self.name}: Custom validation function failed: {e}")
+            return ValidationResult(
                 passed=False,
-                message=f"Custom validator failed: {str(e)}",
-                _details={
-                    "format_type": self.FORMAT_CUSTOM,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "validator_name": self.name,
-                },
+                message=f"Custom validation function error: {str(e)}",
+                issues=[f"Validation function raised an exception: {str(e)}"],
+                suggestions=["Check the custom validation function implementation"],
+            )
+
+    def _validate_email(self, text: str) -> ValidationResult:
+        """Validate text as email format.
+
+        Args:
+            text: The text to validate.
+
+        Returns:
+            A ValidationResult indicating whether the text is a valid email.
+        """
+        import re
+
+        # Basic email regex pattern
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+
+        if re.match(email_pattern, text.strip()):
+            return self.create_validation_result(
+                passed=True,
+                message="Text is a valid email address",
+                score=1.0,
+            )
+        else:
+            return self.create_validation_result(
+                passed=False,
+                message="Text is not a valid email address",
                 score=0.0,
-                issues=issues,
-                suggestions=suggestions,
+                issues=["Invalid email format"],
+                suggestions=[
+                    "Ensure the email has a valid format: user@domain.com",
+                    "Check for missing @ symbol or domain extension",
+                ],
+            )
+
+    def _validate_url(self, text: str) -> ValidationResult:
+        """Validate text as URL format.
+
+        Args:
+            text: The text to validate.
+
+        Returns:
+            A ValidationResult indicating whether the text is a valid URL.
+        """
+        import re
+
+        # Basic URL regex pattern
+        url_pattern = r"^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:/[^\s]*)?$"
+
+        if re.match(url_pattern, text.strip()):
+            return self.create_validation_result(
+                passed=True,
+                message="Text is a valid URL",
+                score=1.0,
+            )
+        else:
+            return self.create_validation_result(
+                passed=False,
+                message="Text is not a valid URL",
+                score=0.0,
+                issues=["Invalid URL format"],
+                suggestions=[
+                    "Ensure the URL starts with http:// or https://",
+                    "Check for valid domain format",
+                ],
+            )
+
+    def _validate_contains_json(self, text: str) -> ValidationResult:
+        """Validate that text contains JSON.
+
+        Args:
+            text: The text to validate.
+
+        Returns:
+            A ValidationResult indicating whether the text contains valid JSON.
+        """
+        import re
+
+        # Look for JSON-like patterns in the text
+        json_pattern = r"\{[^{}]*\}"
+        json_matches = re.findall(json_pattern, text)
+
+        if not json_matches:
+            return self.create_validation_result(
+                passed=False,
+                message="Text does not contain JSON",
+                score=0.0,
+                issues=["No JSON objects found in text"],
+                suggestions=["Include JSON objects in the text"],
+            )
+
+        # Try to parse each JSON-like match
+        valid_json_found = False
+        for match in json_matches:
+            try:
+                json.loads(match)
+                valid_json_found = True
+                break
+            except json.JSONDecodeError:
+                continue
+
+        if valid_json_found:
+            return self.create_validation_result(
+                passed=True,
+                message="Text contains valid JSON",
+                score=1.0,
+            )
+        else:
+            return self.create_validation_result(
+                passed=False,
+                message="Text contains JSON-like patterns but no valid JSON",
+                score=0.0,
+                issues=["JSON-like patterns found but none are valid JSON"],
+                suggestions=["Ensure JSON objects have proper syntax"],
             )
 
 
-@register_validator("json_format")
-def create_json_format_validator(
-    schema: Optional[Dict[str, Any]] = None, name: Optional[str] = None, **options: Any
+def create_format_validator(
+    format_type: str,
+    custom_validator: Optional[Callable[[str], bool]] = None,
+    schema: Optional[Dict[str, Any]] = None,
+    name: str = "FormatValidator",
 ) -> FormatValidator:
+    """Create a format validator.
+
+    Args:
+        format_type: The format type to check for ('json', 'markdown', 'custom').
+        custom_validator: A custom validation function for custom formats.
+        schema: A JSON schema to validate against (for JSON format).
+        name: The name of the validator.
+
+    Returns:
+        A FormatValidator instance.
+    """
+    return FormatValidator(
+        format_type=format_type,
+        custom_validator=custom_validator,
+        schema=schema,
+        name=name,
+    )
+
+
+def json_format(schema: Optional[Dict[str, Any]] = None) -> FormatValidator:
     """Create a JSON format validator.
 
-    This factory function creates a FormatValidator for JSON format.
-    It is registered with the registry system for dependency injection.
-
     Args:
-        schema: A JSON schema to validate against.
-        name: Optional name for the validator.
-        **options: Additional options (ignored).
+        schema: Optional JSON schema to validate against.
 
     Returns:
-        A FormatValidator instance.
-
-    Raises:
-        ValidationError: If the validator cannot be created.
+        A FormatValidator configured for JSON validation.
     """
-    try:
-        # Log factory function call
-        logger.debug(f"Creating JSON format validator with schema={schema is not None}")
-
-        # Create the validator
-        validator = FormatValidator(
-            format_type=FormatValidator.FORMAT_JSON,
-            schema=schema,
-            name=name or options.get("name") or "JSONFormatValidator",
-        )
-
-        # Log successful creation
-        logger.debug(f"Successfully created JSON format validator: {validator.name}")
-
-        return validator
-
-    except Exception as e:
-        # Log the error
-        log_error(
-            e,
-            logger,
-            component="JSONFormatValidatorFactory",
-            operation="create_validator",
-        )
-
-        # Re-raise as ValidationError with more context
-        if not isinstance(e, ValidationError):
-            raise ValidationError(
-                message=f"Failed to create JSON format validator: {str(e)}",
-                component="JSONFormatValidatorFactory",
-                operation="create_validator",
-                suggestions=[
-                    "Check if the schema is valid",
-                    "Verify that the jsonschema package is installed if using a schema",
-                ],
-                metadata={
-                    "has_schema": schema is not None,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                },
-            )
-        raise
+    return create_format_validator(
+        format_type=FormatValidator.FORMAT_JSON,
+        schema=schema,
+        name="JSONFormatValidator",
+    )
 
 
-def json_format(
-    schema: Optional[Dict[str, Any]] = None, name: Optional[str] = None
-) -> FormatValidator:
-    """Create a JSON format validator.
-
-    This is a convenience function for creating a FormatValidator for JSON.
-
-    Args:
-        schema: A JSON schema to validate against.
-        name: Optional name for the validator.
-
-    Returns:
-        A FormatValidator instance.
-
-    Raises:
-        ValidationError: If the validator cannot be created.
-    """
-    try:
-        # Create the validator
-        return FormatValidator(
-            format_type=FormatValidator.FORMAT_JSON,
-            schema=schema,
-            name=name or "JSONFormatValidator",
-        )
-
-    except Exception as e:
-        # Log the error
-        log_error(e, logger, component="JSONFormatValidatorFactory", operation="json_format")
-
-        # Re-raise as ValidationError with more context
-        if not isinstance(e, ValidationError):
-            raise ValidationError(
-                message=f"Failed to create JSON format validator: {str(e)}",
-                component="JSONFormatValidatorFactory",
-                operation="json_format",
-                suggestions=[
-                    "Check if the schema is valid",
-                    "Verify that the jsonschema package is installed if using a schema",
-                ],
-                metadata={
-                    "has_schema": schema is not None,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                },
-            )
-        raise
-
-
-@register_validator("markdown_format")
-def create_markdown_format_validator(name: Optional[str] = None, **options: Any) -> FormatValidator:
+def markdown_format() -> FormatValidator:
     """Create a Markdown format validator.
 
-    This factory function creates a FormatValidator for Markdown format.
-    It is registered with the registry system for dependency injection.
-
-    Args:
-        name: Optional name for the validator.
-        **options: Additional options (ignored).
-
     Returns:
-        A FormatValidator instance.
-
-    Raises:
-        ValidationError: If the validator cannot be created.
+        A FormatValidator configured for Markdown validation.
     """
-    try:
-        # Log factory function call
-        logger.debug("Creating Markdown format validator")
-
-        # Create the validator
-        validator = FormatValidator(
-            format_type=FormatValidator.FORMAT_MARKDOWN,
-            name=name or options.get("name") or "MarkdownFormatValidator",
-        )
-
-        # Log successful creation
-        logger.debug(f"Successfully created Markdown format validator: {validator.name}")
-
-        return validator
-
-    except Exception as e:
-        # Log the error
-        log_error(
-            e,
-            logger,
-            component="MarkdownFormatValidatorFactory",
-            operation="create_validator",
-        )
-
-        # Re-raise as ValidationError with more context
-        if not isinstance(e, ValidationError):
-            raise ValidationError(
-                message=f"Failed to create Markdown format validator: {str(e)}",
-                component="MarkdownFormatValidatorFactory",
-                operation="create_validator",
-                suggestions=["Check the error message for details"],
-                metadata={"error_type": type(e).__name__, "error_message": str(e)},
-            )
-        raise
+    return create_format_validator(
+        format_type=FormatValidator.FORMAT_MARKDOWN,
+        name="MarkdownFormatValidator",
+    )
 
 
-def markdown_format(name: Optional[str] = None) -> FormatValidator:
-    """Create a Markdown format validator.
-
-    This is a convenience function for creating a FormatValidator for Markdown.
-
-    Args:
-        name: Optional name for the validator.
-
-    Returns:
-        A FormatValidator instance.
-
-    Raises:
-        ValidationError: If the validator cannot be created.
-    """
-    try:
-        # Create the validator
-        return FormatValidator(
-            format_type=FormatValidator.FORMAT_MARKDOWN,
-            name=name or "MarkdownFormatValidator",
-        )
-
-    except Exception as e:
-        # Log the error
-        log_error(
-            e,
-            logger,
-            component="MarkdownFormatValidatorFactory",
-            operation="markdown_format",
-        )
-
-        # Re-raise as ValidationError with more context
-        if not isinstance(e, ValidationError):
-            raise ValidationError(
-                message=f"Failed to create Markdown format validator: {str(e)}",
-                component="MarkdownFormatValidatorFactory",
-                operation="markdown_format",
-                suggestions=["Check the error message for details"],
-                metadata={"error_type": type(e).__name__, "error_message": str(e)},
-            )
-        raise
-
-
-@register_validator("custom_format")
-def create_custom_format_validator(
-    validator: Callable[[str], Dict[str, Any]],
-    name: Optional[str] = None,
-    **options: Any,
-) -> FormatValidator:
+def custom_format(validator_func: Callable[[str], bool]) -> FormatValidator:
     """Create a custom format validator.
 
-    This factory function creates a FormatValidator with a custom validator.
-    It is registered with the registry system for dependency injection.
-
     Args:
-        validator: A function that takes a string and returns a dictionary with
-            "passed" (bool), "message" (str), and "details" (dict) fields.
-        name: Optional name for the validator.
-        **options: Additional options (ignored).
+        validator_func: A function that takes a string and returns bool.
 
     Returns:
-        A FormatValidator instance.
-
-    Raises:
-        ValidationError: If the validator cannot be created.
+        A FormatValidator configured for custom validation.
     """
-    try:
-        # Log factory function call
-        logger.debug("Creating custom format validator")
-
-        # Create the validator
-        validator_instance = FormatValidator(
-            format_type=FormatValidator.FORMAT_CUSTOM,
-            custom_validator=validator,
-            name=name or options.get("name") or "CustomFormatValidator",
-        )
-
-        # Log successful creation
-        logger.debug(f"Successfully created custom format validator: {validator_instance.name}")
-
-        return validator_instance
-
-    except Exception as e:
-        # Log the error
-        log_error(
-            e,
-            logger,
-            component="CustomFormatValidatorFactory",
-            operation="create_validator",
-        )
-
-        # Re-raise as ValidationError with more context
-        if not isinstance(e, ValidationError):
-            raise ValidationError(
-                message=f"Failed to create custom format validator: {str(e)}",
-                component="CustomFormatValidatorFactory",
-                operation="create_validator",
-                suggestions=[
-                    "Check if the custom validator function is properly implemented",
-                    "Verify that the custom validator function has the correct signature",
-                ],
-                metadata={"error_type": type(e).__name__, "error_message": str(e)},
-            )
-        raise
-
-
-def custom_format(
-    validator: Callable[[str], Dict[str, Any]], name: Optional[str] = None
-) -> FormatValidator:
-    """Create a custom format validator.
-
-    This is a convenience function for creating a FormatValidator with a custom validator.
-
-    Args:
-        validator: A function that takes a string and returns a dictionary with
-            "passed" (bool), "message" (str), and "details" (dict) fields.
-        name: Optional name for the validator.
-
-    Returns:
-        A FormatValidator instance.
-
-    Raises:
-        ValidationError: If the validator cannot be created.
-    """
-    try:
-        # Create the validator
-        return FormatValidator(
-            format_type=FormatValidator.FORMAT_CUSTOM,
-            custom_validator=validator,
-            name=name or "CustomFormatValidator",
-        )
-
-    except Exception as e:
-        # Log the error
-        log_error(
-            e,
-            logger,
-            component="CustomFormatValidatorFactory",
-            operation="custom_format",
-        )
-
-        # Re-raise as ValidationError with more context
-        if not isinstance(e, ValidationError):
-            raise ValidationError(
-                message=f"Failed to create custom format validator: {str(e)}",
-                component="CustomFormatValidatorFactory",
-                operation="custom_format",
-                suggestions=[
-                    "Check if the custom validator function is properly implemented",
-                    "Verify that the custom validator function has the correct signature",
-                ],
-                metadata={"error_type": type(e).__name__, "error_message": str(e)},
-            )
-        raise
+    return create_format_validator(
+        format_type=FormatValidator.FORMAT_CUSTOM,
+        custom_validator=validator_func,
+        name="CustomFormatValidator",
+    )

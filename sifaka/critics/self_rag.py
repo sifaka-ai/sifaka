@@ -1,785 +1,589 @@
-"""
-Self-RAG critic for Sifaka.
+"""Self-RAG critic for Sifaka.
 
-This module provides a critic that uses Self-Retrieval Augmented Generation.
+This module implements the Self-RAG (Self-Reflective Retrieval-Augmented Generation)
+approach for text critique and improvement, which combines retrieval with self-reflection
+to enhance generation quality.
 
-Based on the paper:
-"Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection"
-Akari Asai, Zeqiu Wu, Yizhong Wang, Avirup Sil, Hannaneh Hajishirzi
-arXiv:2310.11511 [cs.CL]
+Based on "Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection":
 https://arxiv.org/abs/2310.11511
+
+@misc{asai2023selfraglearningretrievegenerate,
+      title={Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection},
+      author={Akari Asai and Zeqiu Wu and Yizhong Wang and Avirup Sil and Hannaneh Hajishirzi},
+      year={2023},
+      eprint={2310.11511},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2310.11511},
+}
+
+The SelfRAGCritic uses retrieval-augmented generation with self-reflection tokens
+to provide comprehensive feedback and improve text quality.
 """
 
-import json
-import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-from sifaka.critics.base import Critic
-from sifaka.errors import ImproverError, RetrieverError
-from sifaka.models.base import Model
-from sifaka.registry import register_improver
-from sifaka.retrievers.base import Retriever
-from sifaka.utils.error_handling import critic_context, log_error
+from sifaka.core.interfaces import Model, Retriever
+from sifaka.core.thought import Thought
+from sifaka.critics.base import BaseCritic
+from sifaka.utils.error_handling import ImproverError, critic_context
+from sifaka.utils.logging import get_logger
 
-# Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
-class SelfRAGCritic(Critic):
-    """Critic that uses Self-Retrieval Augmented Generation.
+class SelfRAGCritic(BaseCritic):
+    """Critic that implements Self-RAG approach with retrieval and self-reflection.
 
-    This critic implements the Self-RAG technique, which combines retrieval
-    and generation to improve text by retrieving relevant information.
-
-    Attributes:
-        model: The model to use for critiquing and improving text.
-        retriever: A retriever object or function that retrieves relevant information.
-        system_prompt: The system prompt to use for the model.
-        temperature: The temperature to use for the model.
-        reflection_enabled: Whether to enable reflection on retrieved information.
-        max_passages: Maximum number of passages to retrieve.
+    This critic uses the Self-RAG approach which combines retrieval-augmented
+    generation with self-reflection tokens to critique and improve text quality.
+    It evaluates whether retrieval is needed, assesses relevance of retrieved
+    content, and provides self-reflective feedback.
     """
 
     def __init__(
         self,
-        model: Model,
-        retriever: Union[Retriever, Callable[[str], List[str]]],
-        system_prompt: Optional[str] = None,
-        temperature: float = 0.7,
-        reflection_enabled: bool = True,
-        max_passages: int = 5,
-        **options: Any,
+        model: Optional[Model] = None,
+        model_name: Optional[str] = None,
+        retriever: Optional[Retriever] = None,
+        use_reflection_tokens: bool = True,
+        max_retrieved_docs: int = 5,
+        critique_prompt_template: Optional[str] = None,
+        improve_prompt_template: Optional[str] = None,
+        **model_kwargs: Any,
     ):
         """Initialize the Self-RAG critic.
 
         Args:
-            model: The model to use for critiquing and improving text.
-            retriever: A retriever object or function that retrieves relevant information.
-            system_prompt: The system prompt to use for the model.
-            temperature: The temperature to use for the model.
-            reflection_enabled: Whether to enable reflection on retrieved information.
-            max_passages: Maximum number of passages to retrieve.
-            **options: Additional options to pass to the model.
-
-        Raises:
-            ImproverError: If the model or retriever is not provided.
+            model: The language model to use for critique and improvement.
+            model_name: The name of the model to use if model is not provided.
+            retriever: The retriever to use for finding relevant documents.
+            use_reflection_tokens: Whether to use Self-RAG reflection tokens.
+            max_retrieved_docs: Maximum number of documents to retrieve.
+            critique_prompt_template: Template for the critique prompt.
+            improve_prompt_template: Template for the improvement prompt.
+            **model_kwargs: Additional keyword arguments for model creation.
         """
-        # Log initialization attempt
-        logger.debug(
-            f"Initializing SelfRAGCritic with model={model.__class__.__name__}, "
-            f"retriever={retriever.__class__.__name__ if hasattr(retriever, '__class__') else 'function'}, "
-            f"temperature={temperature}, reflection_enabled={reflection_enabled}, max_passages={max_passages}"
+        super().__init__(model=model, model_name=model_name, **model_kwargs)
+
+        self.retriever = retriever
+        self.use_reflection_tokens = use_reflection_tokens
+        self.max_retrieved_docs = max_retrieved_docs
+
+        # Self-RAG reflection tokens
+        self.reflection_tokens = {
+            "retrieve": ["[Retrieve]", "[No Retrieve]"],
+            "relevance": ["[Relevant]", "[Partially Relevant]", "[Irrelevant]"],
+            "support": ["[Fully Supported]", "[Partially Supported]", "[No Support]"],
+            "utility": ["[Utility:5]", "[Utility:4]", "[Utility:3]", "[Utility:2]", "[Utility:1]"],
+        }
+
+        # Set up prompt templates
+        self.critique_prompt_template = critique_prompt_template or (
+            "You are a Self-RAG critic that evaluates text using retrieval and self-reflection.\n\n"
+            "Original task: {prompt}\n\n"
+            "Text to critique:\n{text}\n\n"
+            "Retrieved context:\n{context}\n\n"
+            "Please evaluate the text using Self-RAG principles:\n\n"
+            "1. RETRIEVAL ASSESSMENT: Was retrieval needed for this task?\n"
+            "   - [Retrieve] if external knowledge would improve the response\n"
+            "   - [No Retrieve] if the task can be answered without external knowledge\n\n"
+            "2. RELEVANCE ASSESSMENT: How relevant is the retrieved context?\n"
+            "   - [Relevant] if context directly addresses the task\n"
+            "   - [Partially Relevant] if context is somewhat related\n"
+            "   - [Irrelevant] if context doesn't help with the task\n\n"
+            "3. SUPPORT ASSESSMENT: How well does the text use the retrieved context?\n"
+            "   - [Fully Supported] if text properly incorporates context\n"
+            "   - [Partially Supported] if text uses some context\n"
+            "   - [No Support] if text ignores available context\n\n"
+            "4. UTILITY ASSESSMENT: Rate the overall utility (1-5):\n"
+            "   - [Utility:5] Excellent, comprehensive response\n"
+            "   - [Utility:4] Good response with minor issues\n"
+            "   - [Utility:3] Adequate response\n"
+            "   - [Utility:2] Poor response with major issues\n"
+            "   - [Utility:1] Very poor response\n\n"
+            "Format your response as:\n"
+            "Issues:\n- [List specific issues here]\n\n"
+            "Suggestions:\n- [List specific suggestions here]\n\n"
+            "Self-RAG Assessment:\n"
+            "- Retrieval: [Your assessment]\n"
+            "- Relevance: [Your assessment]\n"
+            "- Support: [Your assessment]\n"
+            "- Utility: [Your assessment]\n\n"
+            "Overall Assessment: [Brief summary]"
         )
 
-        try:
-            # Use default system prompt if not provided
-            if system_prompt is None:
-                system_prompt = (
-                    "You are an expert editor who specializes in information retrieval and generation. "
-                    "Your goal is to improve text by retrieving and incorporating relevant information. "
-                    "Always provide accurate information based on the retrieved passages."
-                )
-                logger.debug("Using default system prompt for SelfRAGCritic")
+        self.improve_prompt_template = improve_prompt_template or (
+            "Improve the following text using Self-RAG principles and retrieved context.\n\n"
+            "Original task: {prompt}\n\n"
+            "Current text:\n{text}\n\n"
+            "Retrieved context:\n{context}\n\n"
+            "Self-RAG critique:\n{critique}\n\n"
+            "Please provide an improved version that:\n"
+            "1. Better incorporates relevant information from the retrieved context\n"
+            "2. Addresses the issues identified in the Self-RAG assessment\n"
+            "3. Follows the suggestions for improvement\n"
+            "4. Maintains factual accuracy and relevance to the original task\n"
+            "5. Uses Self-RAG reflection principles for better quality\n\n"
+            "Improved text:"
+        )
 
-            # Initialize the base critic
-            with critic_context(
-                critic_name="SelfRAGCritic",
-                operation="initialization",
-                message_prefix="Failed to initialize SelfRAGCritic",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the retriever is properly configured",
-                ],
-                metadata={
-                    "model_type": model.__class__.__name__,
-                    "retriever_type": (
-                        retriever.__class__.__name__
-                        if hasattr(retriever, "__class__")
-                        else "function"
-                    ),
-                    "temperature": temperature,
-                    "reflection_enabled": reflection_enabled,
-                    "max_passages": max_passages,
-                },
-            ):
-                super().__init__(model, system_prompt, temperature, **options)
-                logger.debug("Successfully initialized base Critic")
-
-            # Validate retriever
-            if not retriever:
-                logger.error("Retriever not provided to SelfRAGCritic")
-                raise ImproverError(
-                    message="Retriever not provided",
-                    component="SelfRAGCritic",
-                    operation="initialization",
-                    suggestions=[
-                        "Provide a retriever object or function",
-                        "Use a retriever that implements the Retriever protocol",
-                        "Provide a function that takes a query string and returns a list of passages",
-                    ],
-                    metadata={
-                        "model_type": model.__class__.__name__,
-                        "temperature": temperature,
-                    },
-                )
-
-            # Store configuration
-            self.retriever = retriever
-            self.reflection_enabled = reflection_enabled
-            self.max_passages = max_passages
-
-            # Log successful initialization
-            logger.debug(
-                f"Successfully initialized SelfRAGCritic with model={model.__class__.__name__}, "
-                f"retriever={retriever.__class__.__name__ if hasattr(retriever, '__class__') else 'function'}"
-            )
-
-        except Exception as e:
-            # Log the error
-            log_error(e, logger, component="SelfRAGCritic", operation="initialization")
-
-            # Re-raise as ImproverError with more context
-            if not isinstance(e, ImproverError):
-                raise ImproverError(
-                    message=f"Failed to initialize SelfRAGCritic: {str(e)}",
-                    component="SelfRAGCritic",
-                    operation="initialization",
-                    suggestions=[
-                        "Check if the model is properly configured",
-                        "Verify that the retriever is properly configured",
-                        "Check the error message for details",
-                    ],
-                    metadata={
-                        "model_type": model.__class__.__name__ if model else None,
-                        "retriever_type": (
-                            retriever.__class__.__name__
-                            if hasattr(retriever, "__class__")
-                            else "function" if retriever else None
-                        ),
-                        "temperature": temperature,
-                        "error_type": type(e).__name__,
-                        "error_message": str(e),
-                    },
-                )
-            raise
-
-    def _critique(self, text: str) -> Dict[str, Any]:
-        """Critique text using the Self-RAG technique.
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic using Self-RAG approach.
 
         Args:
-            text: The text to critique.
+            thought: The Thought container with the text to critique.
 
         Returns:
-            A dictionary with critique information.
-
-        Raises:
-            ImproverError: If the text cannot be critiqued.
+            A dictionary with critique results (without processing_time_ms).
         """
-        start_time = time.time()
+        # Step 1: Assess if retrieval is needed
+        retrieval_needed = self._assess_retrieval_need(thought)
 
-        # Log critique attempt
-        logger.debug(
-            f"SelfRAGCritic: Critiquing text of length {len(text)}, "
-            f"reflection_enabled={self.reflection_enabled}, max_passages={self.max_passages}"
-        )
+        # Step 2: Get or use existing retrieved context
+        context = self._prepare_context(thought)
+        retrieved_docs = []
 
-        # Generate queries for retrieval
-        query_prompt = f"""
-        Please analyze the following text and generate 3-5 search queries to retrieve relevant information that could improve it:
-
-        ```
-        {text}
-        ```
-
-        Generate search queries that would help retrieve information to:
-        1. Verify factual claims
-        2. Add missing context
-        3. Provide supporting evidence
-        4. Fill knowledge gaps
-
-        Format your response as JSON with the following fields:
-        - "needs_improvement": boolean indicating whether the text needs improvement
-        - "message": a brief summary of your analysis
-        - "queries": a list of search queries
-        - "areas_for_improvement": a list of areas that could be improved with additional information
-
-        JSON response:
-        """
-
-        try:
-            # Use critic_context for consistent error handling
-            with critic_context(
-                critic_name="SelfRAGCritic",
-                operation="query_generation",
-                message_prefix="Failed to generate queries",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the text is not too long for the model",
-                ],
-                metadata={"text_length": len(text), "temperature": self.temperature},
-            ):
-                # Generate queries
-                response = self._generate(query_prompt)
-                logger.debug(f"SelfRAGCritic: Generated query response of length {len(response)}")
-
-                # Extract JSON from response
-                json_start = response.find("{")
-                json_end = response.rfind("}") + 1
-
-                if json_start == -1 or json_end == 0:
-                    # No JSON found, log the issue
-                    logger.warning(
-                        "SelfRAGCritic: No JSON found in query response, using default response"
-                    )
-
-                    # Calculate processing time
-                    processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-                    # Create a default response
-                    return {
-                        "needs_improvement": True,
-                        "message": "Unable to parse critique response, but proceeding with improvement",
-                        "queries": ["general information about the topic"],
-                        "areas_for_improvement": ["General improvement"],
-                        "retrieved_passages": [],
-                        "processing_time_ms": processing_time,
-                    }
-
-                # Parse JSON
-                with critic_context(
-                    critic_name="SelfRAGCritic",
-                    operation="json_parsing",
-                    message_prefix="Failed to parse JSON response",
-                    suggestions=[
-                        "Check if the model is generating valid JSON",
-                        "Try adjusting the temperature to get more consistent output",
-                    ],
-                    metadata={
-                        "response_length": len(response),
-                        "json_length": json_end - json_start,
-                        "temperature": self.temperature,
-                    },
-                ):
-                    json_str = response[json_start:json_end]
-                    critique = json.loads(json_str)
-                    logger.debug("SelfRAGCritic: Successfully parsed JSON response")
-
-                # Ensure all required fields are present
-                critique.setdefault("needs_improvement", True)
-                critique.setdefault("message", "Text needs improvement")
-                critique.setdefault("queries", ["general information about the topic"])
-                critique.setdefault("areas_for_improvement", ["General improvement"])
-
-                # Log queries
-                logger.debug(
-                    f"SelfRAGCritic: Generated {len(critique['queries'])} queries: "
-                    f"{', '.join(critique['queries'][:3])}{'...' if len(critique['queries']) > 3 else ''}"
+        # If we have a retriever and retrieval is needed, get additional context
+        if self.retriever and retrieval_needed and not context.strip():
+            try:
+                retrieved_docs = await self._retrieve_documents_async(
+                    thought.prompt + " " + (thought.text or "")
                 )
+                if retrieved_docs:
+                    context = "\n\n".join(retrieved_docs[: self.max_retrieved_docs])
+            except Exception as e:
+                logger.warning(f"SelfRAGCritic: Retrieval failed: {e}")
 
-            # Retrieve relevant passages for each query
-            retrieved_passages: List[str] = []
-            with critic_context(
-                critic_name="SelfRAGCritic",
-                operation="retrieval",
-                message_prefix="Failed to retrieve passages",
-                suggestions=[
-                    "Check if the retriever is properly configured",
-                    "Verify that the queries are well-formed",
-                ],
-                metadata={
-                    "query_count": len(critique["queries"]),
-                    "max_passages": self.max_passages,
-                    "retriever_type": (
-                        self.retriever.__class__.__name__
-                        if hasattr(self.retriever, "__class__")
-                        else "function"
-                    ),
-                },
-            ):
-                for query in critique["queries"][: self.max_passages]:  # Limit number of queries
-                    try:
-                        # Handle both function-based retrievers and Retriever objects
-                        if hasattr(self.retriever, "retrieve"):
-                            passages = self.retriever.retrieve(query)
-                        else:
-                            passages = self.retriever(query)
-
-                        # Add the query as context to each passage
-                        passages = [f"Query: {query}\n\nPassage: {passage}" for passage in passages]
-                        retrieved_passages.extend(passages)
-
-                        logger.debug(
-                            f"SelfRAGCritic: Retrieved {len(passages)} passages for query '{query}'"
-                        )
-                    except Exception as e:
-                        # Log the error
-                        log_error(e, logger, component="SelfRAGCritic", operation="retrieval")
-
-                        logger.warning(
-                            f"SelfRAGCritic: Error retrieving passages for query '{query}': {str(e)}"
-                        )
-                        continue
-
-                # Remove duplicates while preserving order
-                seen = set()
-                unique_passages = []
-                for passage in retrieved_passages:
-                    passage_key = passage.strip()
-                    if passage_key not in seen and passage_key:
-                        seen.add(passage_key)
-                        unique_passages.append(passage)
-
-                # Limit the number of passages to avoid context length issues
-                unique_passages = unique_passages[: self.max_passages]
-
-                logger.debug(f"SelfRAGCritic: Filtered to {len(unique_passages)} unique passages")
-
-                # Add retrieved passages to critique
-                critique["retrieved_passages"] = unique_passages
-
-            # Generate reflection on retrieved passages if enabled
-            if self.reflection_enabled and unique_passages:
-                with critic_context(
-                    critic_name="SelfRAGCritic",
-                    operation="reflection",
-                    message_prefix="Failed to generate reflection",
-                    suggestions=[
-                        "Check if the model is properly configured",
-                        "Verify that the passages are not too long for the model",
-                    ],
-                    metadata={
-                        "text_length": len(text),
-                        "passage_count": len(unique_passages),
-                        "temperature": 0.3,  # Using lower temperature for reflection
-                    },
-                ):
-                    reflection_prompt = f"""
-                    Please analyze the following retrieved passages in relation to the text:
-
-                    Text to improve:
-                    ```
-                    {text}
-                    ```
-
-                    Retrieved passages:
-                    {self._format_passages(unique_passages)}
-
-                    Provide a brief reflection on how these passages can be used to improve the text.
-                    Focus on factual accuracy, missing context, and supporting evidence.
-                    """
-
-                    reflection = self._generate(reflection_prompt, temperature=0.3)
-                    critique["reflection"] = reflection
-
-                    logger.debug(f"SelfRAGCritic: Generated reflection of length {len(reflection)}")
-            else:
-                critique["reflection"] = ""
-                logger.debug("SelfRAGCritic: Reflection disabled or no passages retrieved")
-
-            # Add issues field for compatibility with base Critic
-            critique["issues"] = critique.get("areas_for_improvement", [])
-            critique["suggestions"] = [
-                f"Incorporate information from retrieved passage {i+1}"
-                for i in range(len(unique_passages))
-            ]
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-            critique["processing_time_ms"] = processing_time
-
-            # Log successful critique
-            logger.debug(
-                f"SelfRAGCritic: Successfully critiqued text in {processing_time:.2f}ms, "
-                f"found {len(critique['issues'])} issues, retrieved {len(unique_passages)} passages"
-            )
-
-            # Explicitly create a Dict[str, Any] to return
-            critique_result: Dict[str, Any] = critique
-            return critique_result
-
-        except json.JSONDecodeError as e:
-            # Log the error
-            log_error(e, logger, component="SelfRAGCritic", operation="json_parsing")
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Failed to parse JSON, create a default response
-            logger.warning(f"SelfRAGCritic: Failed to parse JSON in critique response: {str(e)}")
-            # Create a Dict[str, Any] to return
-            json_error_critique: Dict[str, Any] = {
-                "needs_improvement": True,
-                "message": "Unable to parse critique response, but proceeding with improvement",
-                "queries": ["general information about the topic"],
-                "areas_for_improvement": ["General improvement"],
-                "retrieved_passages": [],
-                "issues": ["General improvement"],
-                "suggestions": ["Incorporate relevant information"],
-                "reflection": "",
-                "processing_time_ms": processing_time,
-                "error": str(e),
-            }
-            return json_error_critique
-
-        except RetrieverError as e:
-            # Log the error
-            log_error(e, logger, component="SelfRAGCritic", operation="retrieval")
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Retriever error, create a response with the error
-            logger.error(f"SelfRAGCritic: Retriever error: {str(e)}")
-
-            # Raise as ImproverError with more context
-            raise ImproverError(
-                message=f"Error retrieving passages: {str(e)}",
-                component="SelfRAGCritic",
-                operation="retrieval",
-                suggestions=[
-                    "Check if the retriever is properly configured",
-                    "Verify that the retriever has access to the necessary data",
-                    "Check if the retriever service is available",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "retriever_type": (
-                        self.retriever.__class__.__name__
-                        if hasattr(self.retriever, "__class__")
-                        else "function"
-                    ),
-                    "error_type": "RetrieverError",
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
-
-        except Exception as e:
-            # Log the error
-            log_error(e, logger, component="SelfRAGCritic", operation="critique")
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log the error
-            logger.error(f"SelfRAGCritic: Error critiquing text: {str(e)}")
-
-            # Raise as ImproverError with more context
-            raise ImproverError(
-                message=f"Error critiquing text: {str(e)}",
-                component="SelfRAGCritic",
-                operation="critique",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the text is not too long for the model",
-                    "Check if the retriever is properly configured",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "retriever_type": (
-                        self.retriever.__class__.__name__
-                        if hasattr(self.retriever, "__class__")
-                        else "function"
-                    ),
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
-
-    def _format_passages(self, passages: List[str]) -> str:
-        """Format a list of passages for inclusion in a prompt.
-
-        Args:
-            passages: List of passages to format
-
-        Returns:
-            Formatted passages as a string
-        """
-        return "\n\n".join(f"Passage {i+1}:\n{passage}" for i, passage in enumerate(passages))
-
-    def _improve(self, text: str, critique: Dict[str, Any]) -> str:
-        """Improve text using the Self-RAG technique.
-
-        Args:
-            text: The text to improve.
-            critique: The critique information.
-
-        Returns:
-            The improved text.
-
-        Raises:
-            ImproverError: If the text cannot be improved.
-        """
-        start_time = time.time()
-
-        # Log improvement attempt
-        logger.debug(
-            f"SelfRAGCritic: Improving text of length {len(text)}, "
-            f"reflection_enabled={self.reflection_enabled}"
+        # Step 3: Generate detailed critique (assessments will be extracted from response)
+        critique_prompt = self.critique_prompt_template.format(
+            prompt=thought.prompt,
+            text=thought.text,
+            context=context or "No retrieved context available",
         )
 
-        # Format retrieved passages
-        retrieved_passages = critique.get("retrieved_passages", [])
-
-        if not retrieved_passages:
-            # No passages retrieved, return original text
-            logger.warning(
-                "SelfRAGCritic: No passages retrieved for improvement, returning original text"
-            )
-            return text
-
-        # Format areas for improvement
-        areas = critique.get("areas_for_improvement", [])
-        areas_str = "\n".join(f"- {area}" for area in areas)
-
-        logger.debug(
-            f"SelfRAGCritic: Improving text with {len(retrieved_passages)} passages and {len(areas)} areas for improvement"
+        critique_response = await self.model._generate_async(
+            prompt=critique_prompt,
+            system_message="You are a Self-RAG critic evaluating text quality using retrieval and self-reflection.",
         )
 
-        # Include reflection if available
-        reflection = critique.get("reflection", "")
-        reflection_section = ""
-        if reflection:
-            reflection_section = f"""
-            Reflection on retrieved information:
-            {reflection}
-            """
-            logger.debug(f"SelfRAGCritic: Including reflection of length {len(reflection)}")
+        # Parse the critique
+        issues, suggestions = self._parse_critique(critique_response)
 
-        prompt = f"""
-        Please improve the following text by incorporating relevant information from the retrieved passages:
+        # Extract Self-RAG assessments from critique
+        rag_assessments = self._extract_rag_assessments(critique_response)
 
-        Original text:
-        ```
-        {text}
-        ```
+        # Determine if improvement is needed based on utility score
+        utility_score = self._extract_utility_score(rag_assessments.get("utility", "[Utility:3]"))
+        needs_improvement = utility_score < 4
 
-        Areas for improvement:
-        {areas_str}
-        {reflection_section}
-        Retrieved passages:
-        {self._format_passages(retrieved_passages)}
+        logger.debug(f"SelfRAGCritic: Completed with utility score {utility_score}")
 
-        Instructions:
-        1. Incorporate relevant information from the passages to improve the text
-        2. Ensure the improved text is coherent and well-structured
-        3. Maintain the original style and tone
-        4. Do not add information that is not supported by the passages
-        5. Cite the passage number when incorporating information (e.g., [Passage 1])
-        6. Focus on addressing the areas for improvement identified above
-
-        Improved text:
-        """
-
-        try:
-            # Use critic_context for consistent error handling
-            with critic_context(
-                critic_name="SelfRAGCritic",
-                operation="improvement",
-                message_prefix="Failed to improve text",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the prompt is not too long for the model",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "passage_count": len(retrieved_passages),
-                    "areas_count": len(areas),
-                    "temperature": self.temperature,
-                },
-            ):
-                # Generate improved text
-                response = self._generate(prompt)
-                logger.debug(
-                    f"SelfRAGCritic: Generated improvement response of length {len(response)}"
-                )
-
-                # Extract improved text from response
-                improved_text = response.strip()
-
-                # Remove any markdown code block markers
-                if improved_text.startswith("```") and improved_text.endswith("```"):
-                    improved_text = improved_text[3:-3].strip()
-                    logger.debug("SelfRAGCritic: Removed markdown code block markers from response")
-
-            # If reflection is enabled, generate a final reflection on the improvement
-            if self.reflection_enabled:
-                with critic_context(
-                    critic_name="SelfRAGCritic",
-                    operation="final_reflection",
-                    message_prefix="Failed to generate final reflection",
-                    suggestions=[
-                        "Check if the model is properly configured",
-                        "Verify that the texts are not too long for the model",
-                    ],
-                    metadata={
-                        "original_text_length": len(text),
-                        "improved_text_length": len(improved_text),
-                        "temperature": 0.3,  # Using lower temperature for reflection
-                    },
-                ):
-                    final_reflection_prompt = f"""
-                    Please analyze the following original text and the improved version:
-
-                    Original text:
-                    ```
-                    {text}
-                    ```
-
-                    Improved text:
-                    ```
-                    {improved_text}
-                    ```
-
-                    Provide a brief reflection on how the text was improved:
-                    1. What information was added?
-                    2. What issues were addressed?
-                    3. Is the improved text more accurate and informative?
-
-                    Keep your reflection concise (3-5 sentences).
-                    """
-
-                    try:
-                        final_reflection = self._generate(final_reflection_prompt, temperature=0.3)
-                        logger.info(
-                            f"SelfRAGCritic: Final reflection on improvement: {final_reflection}"
-                        )
-                    except Exception as e:
-                        # Log the error
-                        log_error(
-                            e,
-                            logger,
-                            component="SelfRAGCritic",
-                            operation="final_reflection",
-                        )
-                        logger.warning(
-                            f"SelfRAGCritic: Error generating final reflection: {str(e)}"
-                        )
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log successful improvement
-            logger.debug(
-                f"SelfRAGCritic: Successfully improved text in {processing_time:.2f}ms, "
-                f"original length: {len(text)}, improved length: {len(improved_text)}"
-            )
-
-            return improved_text
-
-        except Exception as e:
-            # Log the error
-            log_error(e, logger, component="SelfRAGCritic", operation="improvement")
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log the error
-            logger.error(f"SelfRAGCritic: Error improving text: {str(e)}")
-
-            # Raise as ImproverError with more context
-            raise ImproverError(
-                message=f"Error improving text: {str(e)}",
-                component="SelfRAGCritic",
-                operation="improvement",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the prompt is not too long for the model",
-                    "Check if the retrieved passages are valid",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "passage_count": len(retrieved_passages),
-                    "areas_count": len(areas),
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
-
-
-@register_improver("self_rag")
-def create_self_rag_critic(
-    model: Model,
-    retriever: Union[Retriever, Callable[[str], List[str]]],
-    system_prompt: Optional[str] = None,
-    temperature: float = 0.7,
-    reflection_enabled: bool = True,
-    max_passages: int = 5,
-    **options: Any,
-) -> SelfRAGCritic:
-    """Create a Self-RAG critic.
-
-    This factory function creates a SelfRAGCritic based on the paper
-    "Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection" (Asai et al., 2023).
-    It is registered with the registry system for dependency injection.
-
-    Args:
-        model: The model to use for critiquing and improving text.
-        retriever: A retriever object or function that retrieves relevant information.
-        system_prompt: The system prompt to use for the model.
-        temperature: The temperature to use for the model.
-        reflection_enabled: Whether to enable reflection on retrieved information.
-        max_passages: Maximum number of passages to retrieve.
-        **options: Additional options to pass to the SelfRAGCritic.
-
-    Returns:
-        A SelfRAGCritic instance.
-
-    Raises:
-        ImproverError: If the critic cannot be created.
-    """
-    try:
-        # Log factory function call
-        logger.debug(
-            f"Creating SelfRAGCritic with model={model.__class__.__name__}, "
-            f"retriever={retriever.__class__.__name__ if hasattr(retriever, '__class__') else 'function'}, "
-            f"temperature={temperature}, reflection_enabled={reflection_enabled}, max_passages={max_passages}"
-        )
-
-        # Create the critic
-        critic = SelfRAGCritic(
-            model=model,
-            retriever=retriever,
-            system_prompt=system_prompt,
-            temperature=temperature,
-            reflection_enabled=reflection_enabled,
-            max_passages=max_passages,
-            **options,
-        )
-
-        # Log successful creation
-        logger.debug("Successfully created SelfRAGCritic")
-
-        return critic
-
-    except Exception as e:
-        # Log the error
-        log_error(e, logger, component="SelfRAGCriticFactory", operation="create_critic")
-
-        # Raise as ImproverError with more context
-        raise ImproverError(
-            message=f"Failed to create SelfRAGCritic: {str(e)}",
-            component="SelfRAGCriticFactory",
-            operation="create_critic",
-            suggestions=[
-                "Check if the model is properly configured",
-                "Verify that the retriever is properly configured",
-                "Check the error message for details",
-            ],
-            metadata={
-                "model_type": model.__class__.__name__ if model else None,
-                "retriever_type": (
-                    retriever.__class__.__name__
-                    if hasattr(retriever, "__class__")
-                    else "function" if retriever else None
-                ),
-                "temperature": temperature,
-                "reflection_enabled": reflection_enabled,
-                "max_passages": max_passages,
-                "error_type": type(e).__name__,
-                "error_message": str(e),
+        return {
+            "needs_improvement": needs_improvement,
+            "message": critique_response,
+            "issues": issues,
+            "suggestions": suggestions,
+            "confidence": 0.8,  # Default confidence for Self-RAG
+            "metadata": {
+                "retrieval_needed": retrieval_needed,
+                "retrieved_docs_count": len(retrieved_docs),
+                "rag_assessments": rag_assessments,
+                "utility_score": utility_score,
+                "context_length": len(context) if context else 0,
             },
+        }
+
+    def improve(self, thought: Thought) -> str:
+        """Improve text using Self-RAG approach with retrieval and reflection.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+
+        Returns:
+            The improved text using Self-RAG principles.
+
+        Raises:
+            ImproverError: If the improvement fails.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name="SelfRAGCritic",
+            operation="improve",
+            message_prefix="Failed to improve text with Self-RAG",
+        ):
+            # Check if text is available
+            if not thought.text:
+                raise ImproverError(
+                    message="No text available for improvement",
+                    component="SelfRAGCritic",
+                    operation="improve",
+                    suggestions=["Provide text to improve"],
+                )
+
+            # Get critique from thought
+            critique = ""
+            if thought.critic_feedback:
+                for feedback in thought.critic_feedback:
+                    if feedback.critic_name == "SelfRAGCritic":
+                        critique = feedback.feedback
+                        break
+
+            # If no critique available, generate one
+            if not critique:
+                logger.debug("No critique found in thought, generating new critique")
+                import asyncio
+
+                try:
+                    asyncio.get_running_loop()
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            lambda: asyncio.run(self._perform_critique_async(thought))
+                        )
+                        critique_result = future.result()
+                except RuntimeError:
+                    critique_result = asyncio.run(self._perform_critique_async(thought))
+
+                critique = critique_result["message"]
+
+            # Prepare context for improvement (using mixin + retrieval)
+            context = self._prepare_context(thought)
+
+            # If we have a retriever, get additional context for improvement
+            if self.retriever and not context.strip():
+                try:
+                    import asyncio
+
+                    try:
+                        asyncio.get_running_loop()
+                        import concurrent.futures
+
+                        # Run async retrieval in thread pool
+                        async def _retrieve_docs() -> List[str]:
+                            return await self._retrieve_documents_async(thought.prompt)
+
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(asyncio.run, _retrieve_docs())  # type: ignore[arg-type]
+                            retrieved_docs: List[str] = future.result()  # type: ignore[assignment]
+                    except RuntimeError:
+                        retrieved_docs = asyncio.run(self._retrieve_documents_async(thought.prompt))
+
+                    if retrieved_docs:
+                        context = "\n\n".join(retrieved_docs[: self.max_retrieved_docs])
+                except Exception as e:
+                    logger.warning(f"SelfRAGCritic: Retrieval failed during improvement: {e}")
+
+            # Create improvement prompt with context
+            improve_prompt = self.improve_prompt_template.format(
+                prompt=thought.prompt,
+                text=thought.text,
+                context=context or "No retrieved context available",
+                critique=critique,
+            )
+
+            # Generate improved text
+            improved_text = self.model.generate(
+                prompt=improve_prompt,
+                system_prompt="You are an expert editor using Self-RAG principles to improve text with retrieved context.",
+            )
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            logger.debug(f"SelfRAGCritic: Improvement completed in {processing_time:.2f}ms")
+
+            return improved_text.strip()
+
+    def _assess_retrieval_need(self, thought: Thought) -> bool:
+        """Assess if retrieval is needed for the given task.
+
+        Args:
+            thought: The thought to assess.
+
+        Returns:
+            True if retrieval would be beneficial, False otherwise.
+        """
+        # Simple heuristics for determining retrieval need
+        prompt_lower = thought.prompt.lower()
+        text_lower = (thought.text or "").lower()
+
+        # Tasks that typically benefit from retrieval
+        retrieval_indicators = [
+            "fact",
+            "information",
+            "data",
+            "research",
+            "study",
+            "report",
+            "current",
+            "recent",
+            "latest",
+            "update",
+            "news",
+            "statistics",
+            "explain",
+            "describe",
+            "what is",
+            "how does",
+            "when did",
+            "specific",
+            "details",
+            "examples",
+            "evidence",
+        ]
+
+        # Tasks that typically don't need retrieval
+        no_retrieval_indicators = [
+            "opinion",
+            "creative",
+            "story",
+            "poem",
+            "fiction",
+            "imagine",
+            "personal",
+            "feeling",
+            "think",
+            "believe",
+            "prefer",
+        ]
+
+        # Check for retrieval indicators
+        retrieval_score = sum(
+            1
+            for indicator in retrieval_indicators
+            if indicator in prompt_lower or indicator in text_lower
         )
+
+        # Check for no-retrieval indicators
+        no_retrieval_score = sum(
+            1
+            for indicator in no_retrieval_indicators
+            if indicator in prompt_lower or indicator in text_lower
+        )
+
+        # Default to retrieval if unclear or if retrieval indicators outweigh no-retrieval
+        return retrieval_score >= no_retrieval_score
+
+    def _assess_relevance(self, thought: Thought, context: str) -> str:
+        """Assess relevance of retrieved context to the task.
+
+        Args:
+            thought: The thought being evaluated.
+            context: The retrieved context.
+
+        Returns:
+            Relevance assessment token.
+        """
+        if not context or not context.strip():
+            return "[Irrelevant]"
+
+        # Simple keyword overlap assessment
+        prompt_words = set(thought.prompt.lower().split())
+        context_words = set(context.lower().split())
+
+        overlap = len(prompt_words.intersection(context_words))
+        overlap_ratio = overlap / len(prompt_words) if prompt_words else 0
+
+        if overlap_ratio > 0.3:
+            return "[Relevant]"
+        elif overlap_ratio > 0.1:
+            return "[Partially Relevant]"
+        else:
+            return "[Irrelevant]"
+
+    def _assess_support(self, thought: Thought, context: str) -> str:
+        """Assess how well the text uses the retrieved context.
+
+        Args:
+            thought: The thought being evaluated.
+            context: The retrieved context.
+
+        Returns:
+            Support assessment token.
+        """
+        if not context or not context.strip():
+            return "[No Support]"
+
+        # Simple assessment based on content overlap
+        text_words = set((thought.text or "").lower().split())
+        context_words = set(context.lower().split())
+
+        overlap = len(text_words.intersection(context_words))
+        overlap_ratio = overlap / len(text_words) if text_words else 0
+
+        if overlap_ratio > 0.2:
+            return "[Fully Supported]"
+        elif overlap_ratio > 0.05:
+            return "[Partially Supported]"
+        else:
+            return "[No Support]"
+
+    def _assess_utility(self, thought: Thought, context: str) -> str:
+        """Assess overall utility of the text.
+
+        Args:
+            thought: The thought being evaluated.
+            context: The retrieved context.
+
+        Returns:
+            Utility assessment token.
+        """
+        # Simple utility assessment based on text length and context usage
+        text_length = len((thought.text or "").split())
+
+        # Base score on text length
+        if text_length < 10:
+            base_score = 2
+        elif text_length < 50:
+            base_score = 3
+        elif text_length < 100:
+            base_score = 4
+        else:
+            base_score = 4
+
+        # Adjust based on context usage
+        if context and context.strip():
+            support = self._assess_support(thought, context)
+            if support == "[Fully Supported]":
+                base_score = min(5, base_score + 1)
+            elif support == "[No Support]":
+                base_score = max(1, base_score - 1)
+
+        return f"[Utility:{base_score}]"
+
+    async def _retrieve_documents_async(self, query: str) -> List[str]:
+        """Retrieve documents for the given query.
+
+        Args:
+            query: The query to search for.
+
+        Returns:
+            List of retrieved document texts.
+        """
+        if not self.retriever:
+            return []
+
+        try:
+            # Use retriever to get documents (sync method wrapped in async)
+            import asyncio
+
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(None, self.retriever.retrieve, query)
+            return results[: self.max_retrieved_docs] if results else []
+        except Exception as e:
+            logger.error(f"SelfRAGCritic: Retrieval error: {e}")
+            return []
+
+    def _parse_critique(self, critique: str) -> tuple[List[str], List[str]]:
+        """Parse critique text to extract issues and suggestions.
+
+        Args:
+            critique: The critique text to parse.
+
+        Returns:
+            A tuple of (issues, suggestions) lists.
+        """
+        issues = []
+        suggestions = []
+
+        # Simple parsing logic
+        in_issues = False
+        in_suggestions = False
+
+        for line in critique.split("\n"):
+            line = line.strip()
+            if line.lower().startswith("issues:"):
+                in_issues = True
+                in_suggestions = False
+                continue
+            elif line.lower().startswith("suggestions:"):
+                in_issues = False
+                in_suggestions = True
+                continue
+            elif line.lower().startswith(("self-rag assessment:", "overall assessment:")):
+                in_issues = False
+                in_suggestions = False
+                continue
+            elif not line or line.startswith("#"):
+                continue
+
+            if in_issues and line.startswith("-"):
+                issues.append(line[1:].strip())
+            elif in_suggestions and line.startswith("-"):
+                suggestions.append(line[1:].strip())
+
+        # If no structured format found, extract from general content
+        if not issues and not suggestions:
+            critique_lower = critique.lower()
+            if any(word in critique_lower for word in ["issue", "problem", "error", "poor"]):
+                issues.append("Issues identified in Self-RAG assessment")
+            if any(word in critique_lower for word in ["improve", "suggest", "better", "should"]):
+                suggestions.append("See Self-RAG assessment for improvement suggestions")
+
+        return issues, suggestions
+
+    def _extract_rag_assessments(self, critique: str) -> Dict[str, str]:
+        """Extract Self-RAG assessment tokens from critique.
+
+        Args:
+            critique: The critique text to parse.
+
+        Returns:
+            Dictionary of assessment types to tokens.
+        """
+        assessments = {}
+
+        # Look for Self-RAG assessment section
+        lines = critique.split("\n")
+        in_assessment = False
+
+        for line in lines:
+            line = line.strip()
+            if line.lower().startswith("self-rag assessment:"):
+                in_assessment = True
+                continue
+            elif line.lower().startswith("overall assessment:"):
+                in_assessment = False
+                continue
+
+            if in_assessment and ":" in line:
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    key = parts[0].strip("- ").lower()
+                    value = parts[1].strip()
+                    assessments[key] = value
+
+        # Set defaults if not found
+        assessments.setdefault("retrieval", "[No Retrieve]")
+        assessments.setdefault("relevance", "[Partially Relevant]")
+        assessments.setdefault("support", "[Partially Supported]")
+        assessments.setdefault("utility", "[Utility:3]")
+
+        return assessments
+
+    def _extract_utility_score(self, utility_token: str) -> int:
+        """Extract numerical utility score from utility token.
+
+        Args:
+            utility_token: The utility assessment token.
+
+        Returns:
+            Utility score (1-5).
+        """
+        import re
+
+        # Look for [Utility:X] pattern
+        match = re.search(r"\[Utility:(\d+)\]", utility_token)
+        if match:
+            try:
+                score = int(match.group(1))
+                return max(1, min(5, score))  # Clamp to [1, 5]
+            except ValueError:
+                pass
+
+        # Default to middle score
+        return 3

@@ -1,1054 +1,451 @@
-"""
-N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics.
+"""N-Critics critic for Sifaka.
 
-This module provides a critic that uses an ensemble of critics for self-refinement.
+This module implements the N-Critics approach for text improvement, which uses
+an ensemble of specialized critics to provide comprehensive feedback and guide
+the refinement process.
 
-Based on the paper:
-"N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics"
-Shahriar Mousavi, Roxana Leontie Rios Gutierrez, Deepak Rengarajan, Vishal Gundecha,
-Anand Raju Babu, Avisek Naug, Srinivas Chappidi
-arXiv:2310.18679 [cs.CL]
+Based on "N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics":
 https://arxiv.org/abs/2310.18679
+
+@misc{mousavi2023ncriticsselfrefinementlargelanguage,
+      title={N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics},
+      author={Sajad Mousavi and Ricardo Luna Gutiérrez and Desik Rengarajan and Vineet Gundecha and Ashwin Ramesh Babu and Avisek Naug and Antonio Guillen and Soumyendu Sarkar},
+      year={2023},
+      eprint={2310.18679},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2310.18679},
+}
+
+The NCriticsCritic leverages multiple specialized critics, each focusing on different
+aspects of the text, to provide comprehensive feedback.
 """
 
-import json
-import logging
-import re
+import asyncio
 import time
 from typing import Any, Dict, List, Optional
 
-from sifaka.critics.base import Critic
-from sifaka.errors import ImproverError
-from sifaka.models.base import Model
-from sifaka.registry import register_improver
-from sifaka.utils.error_handling import critic_context, log_error
+from sifaka.core.interfaces import Model
+from sifaka.core.thought import Thought
+from sifaka.critics.base import BaseCritic
+from sifaka.utils.error_handling import ImproverError, critic_context
+from sifaka.utils.logging import get_logger
 
-# Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
-class NCriticsCritic(Critic):
-    """Critic that uses an ensemble of critics for self-refinement.
+class NCriticsCritic(BaseCritic):
+    """Critic that uses an ensemble of specialized critics.
 
-    This critic implements the N-Critics technique from the paper
-    "N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics" (Mousavi et al., 2023).
-
-    N-Critics leverages an ensemble of specialized critics, each focusing on different aspects
-    of the text, to provide comprehensive feedback and guide the refinement process.
-
-    Attributes:
-        model: The model to use for critiquing and improving text.
-        system_prompt: The system prompt to use for the model.
-        temperature: The temperature to use for the model.
-        num_critics: Number of specialized critics to use.
+    This critic implements the N-Critics technique, which leverages an ensemble
+    of specialized critics, each focusing on different aspects of the text,
+    to provide comprehensive feedback and guide the refinement process.
     """
-
-    def _repair_json(self, json_str: str) -> str:
-        """Attempt to repair common JSON syntax issues.
-
-        Args:
-            json_str: The JSON string to repair.
-
-        Returns:
-            The repaired JSON string.
-        """
-        # Remove any leading/trailing whitespace
-        json_str = json_str.strip()
-
-        # Ensure the string starts with { and ends with }
-        if not json_str.startswith("{"):
-            json_str = "{" + json_str
-        if not json_str.endswith("}"):
-            json_str = json_str + "}"
-
-        # Replace JavaScript-style single quotes with double quotes
-        # This is a simplified approach and may not handle all cases correctly
-        in_string = False
-        in_escape = False
-        result = []
-
-        for char in json_str:
-            if char == "\\" and not in_escape:
-                in_escape = True
-                result.append(char)
-            elif in_escape:
-                in_escape = False
-                result.append(char)
-            elif char == '"' and not in_escape:
-                in_string = not in_string
-                result.append(char)
-            elif char == "'" and not in_string:
-                # Replace single quotes with double quotes when not in a string
-                result.append('"')
-            else:
-                result.append(char)
-
-        # Fix trailing commas in arrays and objects
-        repaired = "".join(result)
-        repaired = repaired.replace(",]", "]").replace(",}", "}")
-
-        # Fix missing commas between key-value pairs
-        # This is a very simplified approach and may not handle all cases correctly
-        repaired = re.sub(r'"\s*}\s*"', '", "', repaired)
-
-        return repaired
-
-    def _aggressive_json_repair(self, json_str: str) -> Dict[str, Any]:
-        """Attempt more aggressive JSON repair when standard parsing fails.
-
-        This method tries to extract key-value pairs from malformed JSON using
-        regular expressions and other heuristics.
-
-        Args:
-            json_str: The malformed JSON string.
-
-        Returns:
-            A dictionary with the extracted key-value pairs.
-        """
-        # Initialize an empty result dictionary
-        result = {}
-
-        # Try to extract role
-        role_match = re.search(r'"role"\s*:\s*"([^"]+)"', json_str)
-        if role_match:
-            result["role"] = role_match.group(1)
-
-        # Try to extract needs_improvement
-        needs_improvement_match = re.search(
-            r'"needs_improvement"\s*:\s*(true|false)', json_str, re.IGNORECASE
-        )
-        if needs_improvement_match:
-            result["needs_improvement"] = needs_improvement_match.group(1).lower() == "true"
-        else:
-            result["needs_improvement"] = True
-
-        # Try to extract score
-        score_match = re.search(r'"score"\s*:\s*(\d+)', json_str)
-        if score_match:
-            result["score"] = int(score_match.group(1))
-        else:
-            result["score"] = 5
-
-        # Try to extract issues
-        issues = []
-        issues_matches = re.findall(r'"issues"\s*:\s*\[(.*?)\]', json_str, re.DOTALL)
-        if issues_matches:
-            issues_str = issues_matches[0]
-            # Extract quoted strings from the issues array
-            issue_items = re.findall(r'"([^"]+)"', issues_str)
-            issues.extend(issue_items)
-
-        if not issues:
-            issues = ["Unable to parse issues from critique response"]
-        result["issues"] = issues
-
-        # Try to extract suggestions
-        suggestions = []
-        suggestions_matches = re.findall(r'"suggestions"\s*:\s*\[(.*?)\]', json_str, re.DOTALL)
-        if suggestions_matches:
-            suggestions_str = suggestions_matches[0]
-            # Extract quoted strings from the suggestions array
-            suggestion_items = re.findall(r'"([^"]+)"', suggestions_str)
-            suggestions.extend(suggestion_items)
-
-        if not suggestions:
-            suggestions = ["General improvement needed"]
-        result["suggestions"] = suggestions
-
-        # Try to extract explanation
-        explanation_match = re.search(r'"explanation"\s*:\s*"([^"]+)"', json_str)
-        if explanation_match:
-            result["explanation"] = explanation_match.group(1)
-        else:
-            result["explanation"] = "Unable to parse explanation from critique response"
-
-        return result
 
     def __init__(
         self,
-        model: Model,
-        system_prompt: Optional[str] = None,
-        temperature: float = 0.7,
+        model: Optional[Model] = None,
+        model_name: Optional[str] = None,
         num_critics: int = 3,
-        **options: Any,
+        critic_roles: Optional[List[str]] = None,
+        critique_prompt_template: Optional[str] = None,
+        improve_prompt_template: Optional[str] = None,
+        **model_kwargs: Any,
     ):
         """Initialize the N-Critics critic.
 
         Args:
-            model: The model to use for critiquing and improving text.
-            system_prompt: The system prompt to use for the model.
-            temperature: The temperature to use for the model.
+            model: The language model to use for critique and improvement.
+            model_name: The name of the model to use if model is not provided.
             num_critics: Number of specialized critics to use.
-            **options: Additional options to pass to the model.
-
-        Raises:
-            ImproverError: If the model is not provided or if initialization fails.
+            critic_roles: List of specialized critic roles/perspectives.
+            critique_prompt_template: Template for the critique prompt.
+            improve_prompt_template: Template for the improvement prompt.
+            **model_kwargs: Additional keyword arguments for model creation.
         """
-        start_time = time.time()
+        super().__init__(model=model, model_name=model_name, **model_kwargs)
 
-        # Log initialization attempt
-        logger.debug(
-            f"Initializing NCriticsCritic with model={model.__class__.__name__ if model else None}, "
-            f"num_critics={num_critics}, temperature={temperature}"
+        self.num_critics = num_critics
+
+        # Set up critic roles
+        self.critic_roles = (
+            critic_roles
+            or [
+                "Content Expert: Focus on factual accuracy, completeness, and relevance of information",
+                "Style Editor: Focus on writing style, tone, clarity, and readability",
+                "Structure Analyst: Focus on organization, flow, coherence, and logical structure",
+                "Audience Specialist: Focus on appropriateness for target audience and effectiveness",
+                "Quality Assurance: Focus on overall quality, consistency, and adherence to requirements",
+            ][:num_critics]
         )
 
-        try:
-            # Validate parameters
-            if not model:
-                logger.error("No model provided to NCriticsCritic")
-                raise ImproverError(
-                    message="Model must be provided",
-                    component="NCriticsCritic",
-                    operation="initialization",
-                    suggestions=[
-                        "Provide a valid model instance",
-                        "Check that the model implements the Model protocol",
-                    ],
-                    metadata={
-                        "num_critics": num_critics,
-                        "temperature": temperature,
-                    },
-                )
+        # Set up prompt templates
+        self.critique_prompt_template = critique_prompt_template or (
+            "You are a {role}.\n\n"
+            "Please critique the following text from your specialized perspective.\n\n"
+            "Original task: {prompt}\n\n"
+            "Text to critique:\n{text}\n\n"
+            "Retrieved context:\n{context}\n\n"
+            "Provide a structured critique with the following format:\n\n"
+            "PERFORMANCE: [How well does the text perform in your area of expertise?]\n\n"
+            "Issues:\n- [List specific problems you identify]\n\n"
+            "Suggestions:\n- [List specific improvements you recommend]\n\n"
+            "SCORE: [Rate the text from 1-10 in your area of focus]\n\n"
+            "Be specific, constructive, and focus on your area of expertise."
+        )
 
-            # Use default system prompt if not provided
-            if system_prompt is None:
-                system_prompt = (
-                    "You are an expert language model that uses an ensemble of specialized critics "
-                    "to provide comprehensive feedback and guide the refinement process. "
-                    "You follow the N-Critics approach to provide structured guidance."
-                )
-                logger.debug("Using default system prompt for NCriticsCritic")
+        self.improve_prompt_template = improve_prompt_template or (
+            "Improve the following text based on feedback from multiple specialized critics.\n\n"
+            "Original task: {prompt}\n\n"
+            "Current text:\n{text}\n\n"
+            "Retrieved context:\n{context}\n\n"
+            "Critic Feedback:\n{aggregated_feedback}\n\n"
+            "Please provide an improved version that:\n"
+            "1. Addresses all the issues identified by the critics\n"
+            "2. Incorporates the suggestions from each specialist\n"
+            "3. Maintains the core message and purpose\n"
+            "4. Balances the different perspectives and requirements\n"
+            "5. Better incorporates relevant information from the context (if available)\n\n"
+            "Improved text:"
+        )
 
-            # Initialize the base critic
-            with critic_context(
-                critic_name="NCriticsCritic",
-                operation="initialization",
-                message_prefix="Failed to initialize NCriticsCritic",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the parameters are valid",
-                ],
-                metadata={
-                    "model_type": model.__class__.__name__,
-                    "num_critics": num_critics,
-                    "temperature": temperature,
-                },
-            ):
-                super().__init__(model, system_prompt, temperature, **options)
-                logger.debug("Successfully initialized base Critic")
-
-            # Validate and clamp parameters
-            original_num_critics = num_critics
-            self.num_critics = max(1, min(5, num_critics))  # Clamp between 1 and 5
-            if self.num_critics != original_num_critics:
-                logger.warning(
-                    f"Adjusted num_critics from {original_num_critics} to {self.num_critics} (valid range: 1-5)"
-                )
-
-            # Define the critic roles
-            self.critic_roles = [
-                "Factual Accuracy Critic: Focus on identifying factual errors and inaccuracies.",
-                "Coherence and Clarity Critic: Focus on improving the logical flow and clarity of the text.",
-                "Completeness Critic: Focus on identifying missing information or incomplete explanations.",
-                "Style and Tone Critic: Focus on improving the writing style, tone, and language usage.",
-                "Relevance Critic: Focus on ensuring the content is relevant to the intended purpose.",
-            ][
-                : self.num_critics
-            ]  # Use only the specified number of critics
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log successful initialization
-            logger.debug(
-                f"Successfully initialized NCriticsCritic with {len(self.critic_roles)} critics "
-                f"in {processing_time:.2f}ms"
-            )
-
-        except Exception as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log the error
-            log_error(e, logger, component="NCriticsCritic", operation="initialization")
-
-            # Re-raise as ImproverError with more context if not already an ImproverError
-            if not isinstance(e, ImproverError):
-                raise ImproverError(
-                    message=f"Failed to initialize NCriticsCritic: {str(e)}",
-                    component="NCriticsCritic",
-                    operation="initialization",
-                    suggestions=[
-                        "Check if the model is properly configured",
-                        "Verify that the parameters are valid",
-                        "Check the error message for details",
-                    ],
-                    metadata={
-                        "model_type": model.__class__.__name__ if model else None,
-                        "num_critics": num_critics,
-                        "temperature": temperature,
-                        "error_type": type(e).__name__,
-                        "error_message": str(e),
-                        "processing_time_ms": processing_time,
-                    },
-                )
-            raise
-
-    def _critique(self, text: str) -> Dict[str, Any]:
-        """Critique text using the N-Critics technique.
-
-        This method implements the ensemble critic approach from the N-Critics paper:
-        1. Generate critiques from multiple specialized critics
-        2. Aggregate the critiques into a comprehensive assessment
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic using N-Critics ensemble approach.
 
         Args:
-            text: The text to critique.
+            thought: The Thought container with the text to critique.
 
         Returns:
-            A dictionary with critique information.
-
-        Raises:
-            ImproverError: If the text cannot be critiqued.
+            A dictionary with critique results (without processing_time_ms).
         """
-        start_time = time.time()
+        # Generate critiques from each specialized critic (async)
+        critic_tasks = []
+        for role in self.critic_roles:
+            critic_tasks.append(self._generate_critic_critique_async(thought, role))
 
-        logger.debug(
-            f"NCriticsCritic: Critiquing text of length {len(text)} with {len(self.critic_roles)} critics"
-        )
+        # Wait for all critiques to complete
+        critic_critiques = await asyncio.gather(*critic_tasks, return_exceptions=True)
 
-        try:
-            # Use critic_context for consistent error handling
-            with critic_context(
-                critic_name="NCriticsCritic",
-                operation="critique",
-                message_prefix="Failed to critique text with N-Critics",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the text is not too long for the model",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "num_critics": len(self.critic_roles),
-                    "temperature": self.temperature,
-                },
-            ):
-                # Generate critiques from each specialized critic
-                critic_critiques = []
-                for i, role in enumerate(self.critic_roles):
-                    logger.debug(
-                        f"NCriticsCritic: Generating critique from critic {i+1}/{len(self.critic_roles)}: {role[:30]}..."
-                    )
-                    critique = self._generate_critic_critique(text, role)
-                    critic_critiques.append(critique)
-                    logger.debug(
-                        f"NCriticsCritic: Critic {i+1} score: {critique.get('score', 'N/A')}"
-                    )
-
-                # Aggregate critiques
-                logger.debug(f"NCriticsCritic: Aggregating {len(critic_critiques)} critiques")
-                aggregated_critique = self._aggregate_critiques(critic_critiques)
-
-                # Determine if improvement is needed
-                needs_improvement = any(
-                    critique.get("needs_improvement", True) for critique in critic_critiques
-                )
-
-                # Prepare the final critique
-                final_critique = {
-                    "needs_improvement": needs_improvement,
-                    "message": aggregated_critique["summary"],
-                    "critic_critiques": critic_critiques,
-                    "aggregated_critique": aggregated_critique,
-                    # For compatibility with base Critic
-                    "issues": aggregated_critique["issues"],
-                    "suggestions": aggregated_critique["suggestions"],
-                    "processing_time_ms": (time.time() - start_time)
-                    * 1000,  # Convert to milliseconds
+        # Process results and handle exceptions
+        valid_critiques = []
+        for i, result in enumerate(critic_critiques):
+            if isinstance(result, Exception):
+                logger.error(f"NCriticsCritic: Error in critic {i+1}: {result}")
+                # Create error critique
+                error_critique = {
+                    "role": self.critic_roles[i],
+                    "score": 0.0,
+                    "needs_improvement": True,
+                    "issues": [f"Critic error: {str(result)}"],
+                    "suggestions": ["Please try again or check the critic configuration."],
+                    "critique": f"Error in critic: {str(result)}",
                 }
+                valid_critiques.append(error_critique)
+            else:
+                # result is guaranteed to be Dict[str, Any] here (not an exception)
+                valid_critiques.append(result)  # type: ignore
 
-                # Log successful critique
-                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-                logger.debug(
-                    f"NCriticsCritic: Successfully critiqued text in {processing_time:.2f}ms, "
-                    f"needs_improvement={needs_improvement}, "
-                    f"issues_count={len(aggregated_critique['issues'])}, "
-                    f"suggestions_count={len(aggregated_critique['suggestions'])}"
-                )
+        # Aggregate feedback from all critics
+        aggregated_feedback = self._aggregate_critiques(valid_critiques)
 
-                return final_critique
+        # Extract issues and suggestions from all critics
+        all_issues: List[str] = []
+        all_suggestions: List[str] = []
+        for critique in valid_critiques:
+            if "issues" in critique and isinstance(critique["issues"], list):
+                all_issues.extend(critique["issues"])
+            if "suggestions" in critique and isinstance(critique["suggestions"], list):
+                all_suggestions.extend(critique["suggestions"])
 
-        except Exception as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        # Determine if improvement is needed
+        needs_improvement = aggregated_feedback.get("average_score", 5.0) < 7.0
 
-            # Log the error
-            log_error(e, logger, component="NCriticsCritic", operation="critique")
+        logger.debug(f"NCriticsCritic: Completed with {len(valid_critiques)} critics")
 
-            # Raise as ImproverError with more context
-            raise ImproverError(
-                message=f"Error critiquing text with N-Critics: {str(e)}",
-                component="NCriticsCritic",
-                operation="critique",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the text is not too long for the model",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "num_critics": len(self.critic_roles),
-                    "temperature": self.temperature,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
+        return {
+            "needs_improvement": needs_improvement,
+            "message": aggregated_feedback["summary"],
+            "issues": all_issues,
+            "suggestions": all_suggestions,
+            "confidence": 0.8,  # Default confidence for N-Critics
+            "metadata": {
+                "critic_feedback": valid_critiques,
+                "aggregated_score": aggregated_feedback["average_score"],
+                "num_critics": len(valid_critiques),
+            },
+        }
 
-    def _generate_critic_critique(self, text: str, role: str) -> Dict[str, Any]:
-        """Generate a critique from a specialized critic.
+    def improve(self, thought: Thought) -> str:
+        """Improve text based on ensemble critic feedback.
 
         Args:
-            text: The text to critique.
-            role: The role of the specialized critic.
+            thought: The Thought container with the text to improve and critique.
 
         Returns:
-            A dictionary with the critique from the specialized critic.
+            The improved text based on aggregated critic feedback.
 
         Raises:
-            ImproverError: If the critique cannot be generated.
+            ImproverError: If the improvement fails.
         """
         start_time = time.time()
 
-        logger.debug(f"NCriticsCritic: Generating critique for role: {role[:30]}...")
-
-        prompt = f"""
-        You are a specialized critic with the following role:
-        {role}
-
-        Your task is to critique the following text based on your specialized role:
-
-        ```
-        {text}
-        ```
-
-        Please provide a detailed critique that:
-        1. Identifies specific issues related to your specialized role
-        2. Explains why these issues are problematic
-        3. Suggests concrete improvements
-        4. Rates the text on a scale of 1-10 for your specific area of focus
-
-        Format your response as JSON with the following fields:
-        - "role": your specialized role
-        - "needs_improvement": boolean indicating whether the text needs improvement in your area
-        - "score": your rating of the text on a scale of 1-10
-        - "issues": a list of specific issues you identified
-        - "suggestions": a list of specific suggestions for improvement
-        - "explanation": a brief explanation of your overall assessment
-
-        JSON response:
-        """
-
-        try:
-            # Generate critique using the model
-            with critic_context(
-                critic_name="NCriticsCritic",
-                operation="generate_critique",
-                message_prefix=f"Failed to generate critique for role: {role[:30]}",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the text is not too long for the model",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "role": role[:50],  # Include only first 50 chars of role
-                    "temperature": self.temperature,
-                },
-            ):
-                response = self._generate(prompt)
-                logger.debug(f"NCriticsCritic: Generated response of length {len(response)}")
-
-                # Extract and repair JSON from response
-                # First, try to find JSON between triple backticks
-                json_str = ""
-                if "```json" in response and "```" in response.split("```json", 1)[1]:
-                    # Extract JSON from code block
-                    json_str = response.split("```json", 1)[1].split("```", 1)[0].strip()
-                elif "```" in response and "```" in response.split("```", 1)[1]:
-                    # Extract potential JSON from generic code block
-                    code_block = response.split("```", 1)[1].split("```", 1)[0].strip()
-                    if code_block.startswith("{") and code_block.endswith("}"):
-                        json_str = code_block
-
-                # If no code block found, try to extract JSON directly
-                if not json_str:
-                    json_start = response.find("{")
-                    json_end = response.rfind("}") + 1
-
-                    if json_start != -1 and json_end > json_start:
-                        json_str = response[json_start:json_end]
-
-                if not json_str:
-                    # No JSON found, log the issue
-                    logger.warning(
-                        f"NCriticsCritic: No JSON found in response for role: {role[:30]}, using default response"
-                    )
-
-                    # Calculate processing time
-                    processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-                    # Create a default response
-                    return {
-                        "role": role,
-                        "needs_improvement": True,
-                        "score": 5,
-                        "issues": ["Unable to parse critique response"],
-                        "suggestions": ["General improvement needed"],
-                        "explanation": "Unable to parse critique response, but proceeding with improvement",
-                        "processing_time_ms": processing_time,
-                    }
-
-                # Try to repair common JSON issues
-                try:
-                    # Replace single quotes with double quotes (if not within strings)
-                    # This is a simplified approach and may not handle all cases correctly
-                    json_str = self._repair_json(json_str)
-
-                    # Parse JSON
-                    critique = json.loads(json_str)
-                except json.JSONDecodeError as e:
-                    # If parsing fails, log the error with details
-                    logger.warning(
-                        f"NCriticsCritic: JSON parsing error for role: {role[:30]}: {str(e)}\n"
-                        f"JSON string (first 100 chars): {json_str[:100]}..."
-                    )
-
-                    # Try a more aggressive repair approach
-                    try:
-                        # Try to extract just the key-value pairs
-                        repaired_json = self._aggressive_json_repair(json_str)
-                        critique = repaired_json
-                    except Exception as repair_error:
-                        # If aggressive repair fails, raise the original error
-                        raise json.JSONDecodeError(
-                            f"Failed to parse JSON: {str(e)}. Repair attempt failed: {str(repair_error)}",
-                            json_str,
-                            0,
-                        )
-
-                # Ensure all required fields are present
-                critique.setdefault("role", role)
-                critique.setdefault("needs_improvement", True)
-                critique.setdefault("score", 5)
-                critique.setdefault("issues", ["General improvement needed"])
-                critique.setdefault("suggestions", ["Improve based on the feedback provided"])
-                critique.setdefault("explanation", "Text needs improvement")
-
-                # Calculate processing time
-                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-                critique["processing_time_ms"] = processing_time
-
-                # Log successful critique generation
-                logger.debug(
-                    f"NCriticsCritic: Successfully generated critique for role: {role[:30]} "
-                    f"in {processing_time:.2f}ms, score: {critique.get('score', 'N/A')}"
-                )
-
-                # Explicitly create a Dict[str, Any] to return
-                critique_result: Dict[str, Any] = critique
-                return critique_result
-
-        except json.JSONDecodeError as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log the error
-            log_error(e, logger, component="NCriticsCritic", operation="parse_json")
-
-            # Failed to parse JSON, create a default response
-            logger.warning(
-                f"NCriticsCritic: Failed to parse JSON in response for role: {role[:30]}: {str(e)}"
-            )
-            # Create a Dict[str, Any] to return
-            json_error_critique: Dict[str, Any] = {
-                "role": role,
-                "needs_improvement": True,
-                "score": 5,
-                "issues": ["Unable to parse critique response"],
-                "suggestions": ["General improvement needed"],
-                "explanation": "Unable to parse critique response, but proceeding with improvement",
-                "processing_time_ms": processing_time,
-                "error": str(e),
-            }
-            return json_error_critique
-
-        except Exception as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log the error
-            log_error(e, logger, component="NCriticsCritic", operation="generate_critique")
-
-            # Raise as ImproverError with more context
-            raise ImproverError(
-                message=f"Error generating critique from specialized critic: {str(e)}",
-                component="NCriticsCritic",
-                operation="generate_critique",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the text is not too long for the model",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "role": role[:50],  # Include only first 50 chars of role
-                    "temperature": self.temperature,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
-
-    def _aggregate_critiques(self, critiques: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Aggregate critiques from multiple specialized critics.
-
-        Args:
-            critiques: List of critiques from specialized critics.
-
-        Returns:
-            A dictionary with the aggregated critique.
-        """
-        start_time = time.time()
-
-        logger.debug(f"NCriticsCritic: Aggregating {len(critiques)} critiques")
-
-        try:
-            # Extract all issues and suggestions
-            all_issues = []
-            all_suggestions = []
-            average_score = 0.0
-
-            for critique in critiques:
-                all_issues.extend(critique.get("issues", []))
-                all_suggestions.extend(critique.get("suggestions", []))
-                average_score += critique.get("score", 5)
-
-            # Calculate average score
-            if critiques:
-                average_score /= len(critiques)
-
-            logger.debug(
-                f"NCriticsCritic: Extracted {len(all_issues)} issues, {len(all_suggestions)} suggestions, "
-                f"average score: {average_score:.1f}"
-            )
-
-            # Generate a summary of the critiques
-            critiques_summary = "\n\n".join(
-                [
-                    f"Critic: {critique.get('role', 'Unknown')}\n"
-                    f"Score: {critique.get('score', 5)}/10\n"
-                    f"Explanation: {critique.get('explanation', 'No explanation provided')}"
-                    for critique in critiques
-                ]
-            )
-
-            prompt = f"""
-            You are an expert at aggregating feedback from multiple critics. Please synthesize the following critiques
-            into a coherent summary that captures the key issues and suggestions:
-
-            {critiques_summary}
-
-            Your summary should:
-            1. Identify the most important issues across all critiques
-            2. Highlight the most valuable suggestions
-            3. Provide a balanced assessment of the text's strengths and weaknesses
-            4. Be concise but comprehensive
-
-            Summary:
-            """
-
-            # Generate summary using the model
-            with critic_context(
-                critic_name="NCriticsCritic",
-                operation="aggregate_critiques",
-                message_prefix="Failed to aggregate critiques",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "critiques_count": len(critiques),
-                    "issues_count": len(all_issues),
-                    "suggestions_count": len(all_suggestions),
-                    "temperature": self.temperature,
-                },
-            ):
-                summary = self._generate(prompt)
-                logger.debug(f"NCriticsCritic: Generated summary of length {len(summary)}")
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log successful aggregation
-            logger.debug(
-                f"NCriticsCritic: Successfully aggregated critiques in {processing_time:.2f}ms"
-            )
-
-            return {
-                "summary": summary,
-                "issues": all_issues,
-                "suggestions": all_suggestions,
-                "average_score": average_score,
-                "processing_time_ms": processing_time,
-            }
-
-        except Exception as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log the error
-            log_error(e, logger, component="NCriticsCritic", operation="aggregate_critiques")
-
-            # If generation fails, create a simple summary
-            logger.warning(
-                f"NCriticsCritic: Failed to aggregate critiques: {str(e)}, using default summary"
-            )
-
-            # Extract basic information even in case of failure
-            all_issues = []
-            all_suggestions = []
-            average_score = 0.0
-
-            try:
-                for critique in critiques:
-                    all_issues.extend(critique.get("issues", []))
-                    all_suggestions.extend(critique.get("suggestions", []))
-                    average_score += critique.get("score", 5)
-
-                # Calculate average score
-                if critiques:
-                    average_score /= len(critiques)
-            except Exception:
-                # If even basic extraction fails, use empty lists
-                all_issues = ["Unable to extract issues from critiques"]
-                all_suggestions = ["General improvement needed"]
-                average_score = 5.0
-
-            summary = "Multiple issues were identified by the critics. The text needs improvement in several areas."
-
-            return {
-                "summary": summary,
-                "issues": all_issues,
-                "suggestions": all_suggestions,
-                "average_score": average_score,
-                "processing_time_ms": processing_time,
-                "error": str(e),
-            }
-
-    def _improve(self, text: str, critique: Dict[str, Any]) -> str:
-        """Improve text using the N-Critics technique.
-
-        This method generates improved text based on feedback from multiple critics.
-        It performs a single improvement step without internal iterations.
-
-        Args:
-            text: The text to improve.
-            critique: The critique information.
-
-        Returns:
-            The improved text.
-
-        Raises:
-            ImproverError: If the text cannot be improved.
-        """
-        start_time = time.time()
-
-        logger.debug(f"NCriticsCritic: Improving text of length {len(text)}")
-
-        try:
-            # Use critic_context for consistent error handling
-            with critic_context(
-                critic_name="NCriticsCritic",
-                operation="improve",
-                message_prefix="Failed to improve text with N-Critics",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the text is not too long for the model",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "temperature": self.temperature,
-                },
-            ):
-                # Generate improved text based on aggregated critique
-                improved_text = self._generate_improved_text(
-                    text,
-                    critique["aggregated_critique"]["summary"],
-                    critique["critic_critiques"],
-                )
-
-                # Calculate total processing time
-                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-                # Log successful improvement
-                logger.debug(
-                    f"NCriticsCritic: Successfully improved text in {processing_time:.2f}ms"
-                )
-
-                return improved_text
-
-        except Exception as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log the error
-            log_error(e, logger, component="NCriticsCritic", operation="improve")
-
-            # Raise as ImproverError with more context
-            raise ImproverError(
-                message=f"Error improving text with N-Critics: {str(e)}",
-                component="NCriticsCritic",
-                operation="improve",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the text is not too long for the model",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "max_iterations": self.options.get("max_refinement_iterations", 3),
-                    "temperature": self.temperature,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
-
-    def _generate_improved_text(
-        self, text: str, summary: str, critiques: List[Dict[str, Any]]
-    ) -> str:
-        """Generate improved text based on critiques.
-
-        Args:
-            text: The text to improve.
-            summary: The summary of the critiques.
-            critiques: The critiques from specialized critics.
-
-        Returns:
-            The improved text.
-
-        Raises:
-            ImproverError: If the text cannot be improved.
-        """
-        start_time = time.time()
-
-        logger.debug(
-            f"NCriticsCritic: Generating improved text based on {len(critiques)} critiques"
-        )
-
-        try:
-            # Format critiques for the prompt
-            critiques_text = "\n\n".join(
-                [
-                    f"Critic: {critique.get('role', 'Unknown')}\n"
-                    f"Issues: {', '.join(critique.get('issues', ['No issues identified']))}\n"
-                    f"Suggestions: {', '.join(critique.get('suggestions', ['No suggestions provided']))}"
-                    for critique in critiques
-                ]
-            )
-
-            prompt = f"""
-            You are a language refinement agent as described in the paper "N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics" (Mousavi et al., 2023).
-
-            Your task is to improve the following text based on the critiques provided by an ensemble of specialized critics:
-
-            Original text:
-            ```
-            {text}
-            ```
-
-            Summary of critiques:
-            {summary}
-
-            Detailed critiques:
-            {critiques_text}
-
-            Please rewrite the text to address the issues identified by the critics. Maintain the
-            original meaning and intent, but improve the quality based on the feedback.
-
-            Improved text:
-            """
-
-            # Generate improved text using the model
-            with critic_context(
-                critic_name="NCriticsCritic",
-                operation="generate_improved_text",
-                message_prefix="Failed to generate improved text",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the prompt is not too long for the model",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "critiques_count": len(critiques),
-                    "summary_length": len(summary),
-                    "temperature": self.temperature,
-                },
-            ):
-                response = self._generate(prompt)
-                logger.debug(
-                    f"NCriticsCritic: Generated improved text response of length {len(response)}"
-                )
-
-                # Extract improved text from response
-                improved_text = response.strip()
-
-                # Remove any markdown code block markers
-                if improved_text.startswith("```") and improved_text.endswith("```"):
-                    improved_text = improved_text[3:-3].strip()
-                    logger.debug(
-                        "NCriticsCritic: Removed markdown code block markers from response"
-                    )
-
-                # Calculate processing time
-                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-                # Log successful generation
-                logger.debug(
-                    f"NCriticsCritic: Successfully generated improved text in {processing_time:.2f}ms, "
-                    f"length: {len(improved_text)}"
-                )
-
-                return improved_text
-
-        except Exception as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log the error
-            log_error(
-                e,
-                logger,
-                component="NCriticsCritic",
-                operation="generate_improved_text",
-            )
-
-            # Raise as ImproverError with more context
-            raise ImproverError(
-                message=f"Error generating improved text: {str(e)}",
-                component="NCriticsCritic",
-                operation="generate_improved_text",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the prompt is not too long for the model",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "critiques_count": len(critiques),
-                    "summary_length": len(summary),
-                    "temperature": self.temperature,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
-
-
-@register_improver("n_critics")
-def create_n_critics_critic(
-    model: Model,
-    system_prompt: Optional[str] = None,
-    temperature: float = 0.7,
-    num_critics: int = 3,
-    **options: Any,
-) -> NCriticsCritic:
-    """Create an N-Critics critic.
-
-    This factory function creates an NCriticsCritic based on the paper
-    "N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics" (Mousavi et al., 2023).
-    It is registered with the registry system for dependency injection.
-
-    Args:
-        model: The model to use for critiquing and improving text.
-        system_prompt: The system prompt to use for the model.
-        temperature: The temperature to use for the model.
-        num_critics: Number of specialized critics to use.
-        **options: Additional options to pass to the NCriticsCritic.
-
-    Returns:
-        An NCriticsCritic instance.
-
-    Raises:
-        ImproverError: If the critic cannot be created.
-    """
-    start_time = time.time()
-
-    logger.debug(
-        f"Creating NCriticsCritic with model={model.__class__.__name__ if model else None}, "
-        f"num_critics={num_critics}, temperature={temperature}"
-    )
-
-    try:
-        # Create the critic with error handling
         with critic_context(
             critic_name="NCriticsCritic",
-            operation="creation",
-            message_prefix="Failed to create NCriticsCritic",
-            suggestions=[
-                "Check if the model is properly configured",
-                "Verify that the parameters are valid",
-            ],
-            metadata={
-                "model_type": model.__class__.__name__ if model else None,
-                "num_critics": num_critics,
-                "temperature": temperature,
-            },
+            operation="improve",
+            message_prefix="Failed to improve text with N-Critics ensemble",
         ):
-            critic = NCriticsCritic(
-                model=model,
-                system_prompt=system_prompt,
-                temperature=temperature,
-                num_critics=num_critics,
-                **options,
+            # Check if text is available
+            if not thought.text:
+                raise ImproverError(
+                    message="No text available for improvement",
+                    component="NCriticsCritic",
+                    operation="improve",
+                    suggestions=["Provide text to improve"],
+                )
+
+            # Get critique from thought
+            aggregated_feedback = ""
+            if thought.critic_feedback:
+                for feedback in thought.critic_feedback:
+                    if feedback.critic_name == "NCriticsCritic":
+                        critic_feedback = feedback.metadata.get("critic_feedback", [])
+                        aggregated_feedback = self._format_feedback_for_improvement(critic_feedback)
+                        break
+
+            # If no critique available, generate one
+            if not aggregated_feedback:
+                logger.debug("No critique found in thought, generating new critique")
+                import asyncio
+
+                try:
+                    asyncio.get_running_loop()
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            lambda: asyncio.run(self._perform_critique_async(thought))
+                        )
+                        critique_result = future.result()
+                except RuntimeError:
+                    critique_result = asyncio.run(self._perform_critique_async(thought))
+
+                critic_feedback = critique_result["metadata"]["critic_feedback"]
+                aggregated_feedback = self._format_feedback_for_improvement(critic_feedback)
+
+            # Prepare context for improvement (using mixin)
+            context = self._prepare_context(thought)
+
+            # Create improvement prompt with context
+            improve_prompt = self.improve_prompt_template.format(
+                prompt=thought.prompt,
+                text=thought.text,
+                aggregated_feedback=aggregated_feedback,
+                context=context,
+            )
+
+            # Generate improved text
+            improved_text = self.model.generate(
+                prompt=improve_prompt,
+                system_prompt="You are an expert editor incorporating feedback from multiple specialized critics.",
             )
 
             # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            processing_time = (time.time() - start_time) * 1000
 
-            # Log successful creation
-            logger.debug(f"Successfully created NCriticsCritic in {processing_time:.2f}ms")
+            logger.debug(f"NCriticsCritic: Improvement completed in {processing_time:.2f}ms")
 
-            return critic
+            return improved_text.strip()
 
-    except Exception as e:
-        # Calculate processing time
-        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+    async def _generate_critic_critique_async(self, thought: Thought, role: str) -> Dict[str, Any]:
+        """Generate critique from a single specialized critic asynchronously.
 
-        # Log the error
-        log_error(e, logger, component="NCriticsCritic", operation="creation")
+        Args:
+            thought: The Thought container with the text to critique.
+            role: The role/specialty of the critic.
 
-        # Re-raise as ImproverError with more context if not already an ImproverError
-        if not isinstance(e, ImproverError):
-            raise ImproverError(
-                message=f"Failed to create NCriticsCritic: {str(e)}",
-                component="NCriticsCritic",
-                operation="creation",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the parameters are valid",
-                    "Check the error message for details",
-                ],
-                metadata={
-                    "model_type": model.__class__.__name__ if model else None,
-                    "num_critics": num_critics,
-                    "temperature": temperature,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
-        raise
+        Returns:
+            A dictionary with the critic's feedback.
+        """
+        # Prepare context from retrieved documents (using mixin)
+        context = self._prepare_context(thought)
+
+        # Create role-specific critique prompt
+        critique_prompt = self.critique_prompt_template.format(
+            role=role,
+            prompt=thought.prompt,
+            text=thought.text,
+            context=context,
+        )
+
+        # Generate critique (async)
+        critique_response = await self.model._generate_async(
+            prompt=critique_prompt,
+            system_message=f"You are a specialized critic with the role: {role}",
+        )
+
+        # Extract score and determine improvement need
+        score = self._extract_score_from_critique(critique_response)
+        needs_improvement = score < 7.0
+
+        # Parse structured feedback from the critique response
+        issues, suggestions = self._parse_structured_feedback(critique_response)
+
+        return {
+            "role": role,
+            "score": score,
+            "needs_improvement": needs_improvement,
+            "issues": issues,
+            "suggestions": suggestions,
+            "critique": critique_response,
+        }
+
+    def _aggregate_critiques(self, critiques: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Aggregate feedback from multiple critics.
+
+        Args:
+            critiques: List of critique dictionaries from individual critics.
+
+        Returns:
+            A dictionary with aggregated feedback.
+        """
+        if not critiques:
+            return {
+                "summary": "No critiques available",
+                "average_score": 0.0,
+                "num_critics": 0,
+            }
+
+        # Calculate average score
+        scores = [c.get("score", 0.0) for c in critiques]
+        average_score = sum(scores) / len(scores) if scores else 0.0
+
+        # Create summary
+        summary_parts = []
+        for i, critique in enumerate(critiques, 1):
+            role = critique.get("role", f"Critic {i}")
+            score = critique.get("score", 0.0)
+            summary_parts.append(f"{role}: Score {score}/10")
+
+        summary = (
+            f"Ensemble feedback from {len(critiques)} critics (Average: {average_score:.1f}/10):\n"
+        )
+        summary += "\n".join(summary_parts)
+
+        return {
+            "summary": summary,
+            "average_score": average_score,
+            "num_critics": len(critiques),
+        }
+
+    def _extract_score_from_critique(self, critique: str) -> float:
+        """Extract numerical score from critique text.
+
+        Args:
+            critique: The critique text to analyze.
+
+        Returns:
+            The extracted score (0.0-10.0).
+        """
+        import re
+
+        # Look for "SCORE: X" pattern
+        score_match = re.search(r"SCORE:\s*(\d+(?:\.\d+)?)", critique, re.IGNORECASE)
+        if score_match:
+            try:
+                score = float(score_match.group(1))
+                return max(0.0, min(10.0, score))  # Clamp to [0, 10]
+            except ValueError:
+                pass
+
+        # Look for "X/10" pattern
+        score_match = re.search(r"(\d+(?:\.\d+)?)/10", critique)
+        if score_match:
+            try:
+                score = float(score_match.group(1))
+                return max(0.0, min(10.0, score))
+            except ValueError:
+                pass
+
+        # Default score based on content analysis
+        critique_lower = critique.lower()
+        if any(word in critique_lower for word in ["excellent", "great", "perfect"]):
+            return 8.0
+        elif any(word in critique_lower for word in ["good", "well", "solid"]):
+            return 7.0
+        elif any(word in critique_lower for word in ["poor", "bad", "terrible"]):
+            return 3.0
+        else:
+            return 5.0  # Default neutral score
+
+    def _parse_structured_feedback(self, critique: str) -> tuple[List[str], List[str]]:
+        """Parse structured feedback from critique text.
+
+        Args:
+            critique: The critique text to parse.
+
+        Returns:
+            A tuple of (issues, suggestions) lists.
+        """
+        issues = []
+        suggestions = []
+
+        # Simple parsing logic
+        in_issues = False
+        in_suggestions = False
+
+        for line in critique.split("\n"):
+            line = line.strip()
+            if line.lower().startswith("issues:"):
+                in_issues = True
+                in_suggestions = False
+                continue
+            elif line.lower().startswith("suggestions:"):
+                in_issues = False
+                in_suggestions = True
+                continue
+            elif line.lower().startswith(("score:", "performance:", "context")):
+                in_issues = False
+                in_suggestions = False
+                continue
+            elif not line or line.startswith("#"):
+                continue
+
+            if in_issues and line.startswith("-"):
+                issues.append(line[1:].strip())
+            elif in_suggestions and line.startswith("-"):
+                suggestions.append(line[1:].strip())
+
+        return issues, suggestions
+
+    def _format_feedback_for_improvement(self, critic_feedback: List[Dict[str, Any]]) -> str:
+        """Format critic feedback for improvement prompt.
+
+        Args:
+            critic_feedback: List of feedback from individual critics.
+
+        Returns:
+            A formatted string with aggregated feedback.
+        """
+        if not critic_feedback:
+            return "No specific feedback available."
+
+        feedback_parts = []
+        for i, feedback in enumerate(critic_feedback, 1):
+            role = feedback.get("role", f"Critic {i}")
+            score = feedback.get("score", 0.0)
+            issues = feedback.get("issues", [])
+            suggestions = feedback.get("suggestions", [])
+
+            part = f"{role} (Score: {score}/10):\n"
+            if issues:
+                part += "Issues:\n" + "\n".join(f"- {issue}" for issue in issues) + "\n"
+            if suggestions:
+                part += (
+                    "Suggestions:\n"
+                    + "\n".join(f"- {suggestion}" for suggestion in suggestions)
+                    + "\n"
+                )
+
+            feedback_parts.append(part)
+
+        return "\n".join(feedback_parts)

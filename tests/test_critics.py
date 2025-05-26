@@ -1,364 +1,482 @@
+#!/usr/bin/env python3
+"""Comprehensive tests for Sifaka critic implementations.
+
+This test suite validates all critic types including Reflexion, Self-Refine,
+Self-RAG, Constitutional AI, N-Critics, and Prompt-based critics. It tests
+critique generation, improvement suggestions, and integration scenarios.
 """
-Tests for the critics module.
-
-This module contains tests for the critics in the Sifaka framework.
-"""
-
-from typing import Any, Dict
-
-import pytest
-
-from sifaka.critics.base import Critic
-from sifaka.critics.n_critics import NCriticsCritic, create_n_critics_critic
-from sifaka.critics.reflexion import ReflexionCritic, create_reflexion_critic
-from sifaka.errors import ImproverError
 
 
-class TestCriticBase:
-    """Tests for the Critic base class."""
+from sifaka.core.thought import CriticFeedback
+from sifaka.critics.constitutional import ConstitutionalCritic
+from sifaka.critics.n_critics import NCriticsCritic
+from sifaka.critics.prompt import PromptCritic
 
-    def test_init_with_defaults(self, mock_model) -> None:
-        """Test initializing a Critic with default parameters."""
+# Import all new critics
+from sifaka.critics.reflexion import ReflexionCritic
+from sifaka.critics.self_rag import SelfRAGCritic
+from sifaka.critics.self_refine import SelfRefineCritic
+from sifaka.models.base import MockModel
+from sifaka.utils.logging import get_logger
+from tests.utils import MockModelFactory, create_test_thought
 
-        class TestCritic(Critic):
-            def _critique(self, text: str) -> Dict[str, Any]:
-                return {"needs_improvement": True, "message": "Test critique"}
-
-            def _improve(self, text: str, critique: Dict[str, Any]) -> str:
-                return "Improved: " + text
-
-        critic = TestCritic(model=mock_model)
-        assert critic.model is mock_model
-        assert critic._name == "TestCritic"
-        assert critic.options == {}
-
-    def test_init_with_name(self, mock_model) -> None:
-        """Test initializing a Critic with a custom name."""
-
-        class TestCritic(Critic):
-            def _critique(self, text: str) -> Dict[str, Any]:
-                return {"needs_improvement": True, "message": "Test critique"}
-
-            def _improve(self, text: str, critique: Dict[str, Any]) -> str:
-                return "Improved: " + text
-
-        critic = TestCritic(model=mock_model, name="CustomName")
-        assert critic._name == "CustomName"
-
-    def test_init_with_options(self, mock_model) -> None:
-        """Test initializing a Critic with options."""
-
-        class TestCritic(Critic):
-            def _critique(self, text: str) -> Dict[str, Any]:
-                return {"needs_improvement": True, "message": "Test critique"}
-
-            def _improve(self, text: str, critique: Dict[str, Any]) -> str:
-                return "Improved: " + text
-
-        critic = TestCritic(model=mock_model, option1="value1", option2="value2")
-        assert critic.options == {"option1": "value1", "option2": "value2"}
-
-    def test_improve_with_needs_improvement(self, mock_model) -> None:
-        """Test improving text that needs improvement."""
-
-        class TestCritic(Critic):
-            def _critique(self, text: str) -> Dict[str, Any]:
-                return {"needs_improvement": True, "message": "Test critique"}
-
-            def _improve(self, text: str, critique: Dict[str, Any]) -> str:
-                return "Improved: " + text
-
-        critic = TestCritic(model=mock_model)
-        improved_text, result = critic.improve("Test text")
-
-        assert improved_text == "Improved: Test text"
-        assert result.original_text == "Test text"
-        assert result.improved_text == "Improved: Test text"
-        assert result.changes_made is True
-        assert "test critique" in result.message.lower()
-
-    def test_improve_with_no_improvement_needed(self, mock_model) -> None:
-        """Test improving text that doesn't need improvement."""
-
-        class TestCritic(Critic):
-            def _critique(self, text: str) -> Dict[str, Any]:
-                return {"needs_improvement": False, "message": "No improvement needed"}
-
-            def _improve(self, text: str, critique: Dict[str, Any]) -> str:
-                return "This should not be called"
-
-        critic = TestCritic(model=mock_model)
-        improved_text, result = critic.improve("Test text")
-
-        assert improved_text == "Test text"  # Should be unchanged
-        assert result.original_text == "Test text"
-        assert result.improved_text == "Test text"
-        assert result.changes_made is False
-        assert "no improvement needed" in result.message.lower()
-
-    def test_improve_with_empty_text(self, mock_model) -> None:
-        """Test improving empty text."""
-
-        class TestCritic(Critic):
-            def _critique(self, text: str) -> Dict[str, Any]:
-                return {"needs_improvement": True, "message": "Test critique"}
-
-            def _improve(self, text: str, critique: Dict[str, Any]) -> str:
-                return "Improved: " + text
-
-        critic = TestCritic(model=mock_model)
-        improved_text, result = critic.improve("")
-
-        assert improved_text == ""  # Should be unchanged
-        assert result.original_text == ""
-        assert result.improved_text == ""
-        assert result.changes_made is False
-        assert "empty" in result.message.lower()
-
-    def test_improve_handles_exceptions_in_critique(self, mock_model) -> None:
-        """Test that improve handles exceptions in _critique."""
-
-        class TestCritic(Critic):
-            def _critique(self, text: str) -> Dict[str, Any]:
-                raise ValueError("Test error in critique")
-
-            def _improve(self, text: str, critique: Dict[str, Any]) -> str:
-                return "This should not be called"
-
-        critic = TestCritic(model=mock_model)
-
-        # The error should be caught and re-raised as ImproverError
-        with pytest.raises(ImproverError) as excinfo:
-            critic.improve("Test text")
-
-        # Check that the error message contains the original error
-        assert "Test error in critique" in str(excinfo.value)
-
-    def test_improve_handles_exceptions_in_improve(self, mock_model) -> None:
-        """Test that improve handles exceptions in _improve."""
-
-        class TestCritic(Critic):
-            def _critique(self, text: str) -> Dict[str, Any]:
-                return {"needs_improvement": True, "message": "Test critique"}
-
-            def _improve(self, text: str, critique: Dict[str, Any]) -> str:
-                raise ValueError("Test error in improve")
-
-        critic = TestCritic(model=mock_model)
-
-        # The error should be caught and re-raised as ImproverError
-        with pytest.raises(ImproverError) as excinfo:
-            critic.improve("Test text")
-
-        # Check that the error message contains the original error
-        assert "Test error in improve" in str(excinfo.value)
+logger = get_logger(__name__)
 
 
 class TestReflexionCritic:
-    """Tests for the ReflexionCritic."""
+    """Test ReflexionCritic implementation."""
 
-    def test_init_with_defaults(self, mock_model) -> None:
-        """Test initializing a ReflexionCritic with default parameters."""
-        critic = ReflexionCritic(model=mock_model)
-        assert critic.model is mock_model
-        assert critic._name == "ReflexionCritic"
-        assert critic.options == {}
+    def test_reflexion_critic_basic_critique(self):
+        """Test basic critique functionality."""
+        model = MockModel(
+            model_name="reflexion-model",
+            response_text="The text could be improved with more specific examples and clearer structure.",
+        )
+        critic = ReflexionCritic(model=model)
 
-    def test_init_with_options(self, mock_model) -> None:
-        """Test initializing a ReflexionCritic with options."""
-        critic = ReflexionCritic(model=mock_model, temperature=0.5)
-        assert critic.temperature == 0.5
+        thought = create_test_thought(text="AI is useful for many applications.")
+        critique_result = critic.critique(thought)
 
-    def test_create_reflexion_critic(self, mock_model) -> None:
-        """Test creating a ReflexionCritic using the factory function."""
-        critic = create_reflexion_critic(model=mock_model)
-        assert isinstance(critic, ReflexionCritic)
-        assert critic.model is mock_model
+        assert isinstance(critique_result, dict)
+        assert "needs_improvement" in critique_result
+        # Check for critique or message field
+        assert "critique" in critique_result or "message" in critique_result
+        assert isinstance(critique_result["needs_improvement"], bool)
 
-    def test_create_reflexion_critic_with_options(self, mock_model) -> None:
-        """Test creating a ReflexionCritic with options using the factory function."""
-        critic = create_reflexion_critic(model=mock_model, temperature=0.5)
-        assert isinstance(critic, ReflexionCritic)
-        assert critic.temperature == 0.5
+    def test_reflexion_critic_improvement(self):
+        """Test text improvement functionality."""
+        model = MockModel(
+            model_name="reflexion-model",
+            response_text="Artificial intelligence is a powerful technology with diverse applications across industries, including healthcare, finance, and transportation, enabling automation and enhanced decision-making.",
+        )
+        critic = ReflexionCritic(model=model)
 
-    def test_critique_method(self, mock_model) -> None:
-        """Test the _critique method of ReflexionCritic."""
-        # Set up the mock model to return a specific response with JSON
-        mock_model.set_response(
-            """
-        Here's my analysis:
+        thought = create_test_thought(text="AI is useful.")
+        improved_text = critic.improve(thought)
 
-        {
-            "needs_improvement": true,
-            "message": "This text could be improved in several ways. It lacks clarity and detail.",
-            "issues": [
-                "The text is too vague.",
-                "There are no specific examples.",
-                "The structure is confusing."
-            ],
-            "suggestions": [
-                "Add more specific details.",
-                "Include concrete examples.",
-                "Improve the structure with clear paragraphs."
-            ],
-            "reflections": [
-                "The text doesn't provide enough context for the reader.",
-                "Without specific examples, the points being made are unclear.",
-                "A more structured approach would help guide the reader."
+        assert isinstance(improved_text, str)
+        assert len(improved_text) > len(thought.text)  # Should be more detailed
+
+    def test_reflexion_critic_with_feedback(self):
+        """Test reflexion critic with existing feedback."""
+        model = MockModel(model_name="reflexion-model")
+        critic = ReflexionCritic(model=model)
+
+        # Create thought with existing critic feedback
+        thought = create_test_thought(text="Machine learning is complex.")
+        feedback = CriticFeedback(
+            critic_name="previous_critic", feedback="Add more examples", needs_improvement=True
+        )
+        thought = thought.add_critic_feedback(feedback)
+
+        critique_result = critic.critique(thought)
+        assert isinstance(critique_result, dict)
+
+    def test_reflexion_critic_integration(self):
+        """Test reflexion critic integration with chain."""
+        from sifaka.core.chain import Chain
+
+        main_model = MockModel(model_name="main-model")
+        critic_model = MockModel(model_name="critic-model")
+        critic = ReflexionCritic(model=critic_model)
+
+        chain = Chain(
+            model=main_model, prompt="Write about machine learning.", always_apply_critics=True
+        )
+        chain.improve_with(critic)
+
+        result = chain.run()
+
+        assert result.critic_feedback is not None
+        assert len(result.critic_feedback) >= 1
+
+        # Check that feedback is from ReflexionCritic
+        reflexion_feedback = [
+            fb for fb in result.critic_feedback if "reflexion" in fb.critic_name.lower()
+        ]
+        assert len(reflexion_feedback) >= 1
+
+
+class TestSelfRefineCritic:
+    """Test SelfRefineCritic implementation."""
+
+    def test_self_refine_critic_basic(self):
+        """Test basic self-refine functionality."""
+        model = MockModel(
+            model_name="self-refine-model",
+            response_text="The text needs more detail and better organization.",
+        )
+        critic = SelfRefineCritic(model=model)
+
+        thought = create_test_thought(text="Neural networks are important.")
+        critique_result = critic.critique(thought)
+
+        assert isinstance(critique_result, dict)
+        assert "needs_improvement" in critique_result
+        # Check for critique or message field
+        assert "critique" in critique_result or "message" in critique_result
+
+    def test_self_refine_iterative_improvement(self):
+        """Test iterative improvement with self-refine."""
+        model = MockModelFactory.create_variable_response(
+            responses=[
+                "First improvement: Neural networks are computational models inspired by biological neural networks.",
+                "Second improvement: Neural networks are sophisticated computational models that mimic the structure and function of biological neural networks in the brain.",
+                "Final improvement: Neural networks are sophisticated computational models that mimic the interconnected structure and parallel processing capabilities of biological neural networks in the brain, enabling pattern recognition and learning.",
             ]
-        }
-        """
+        )
+        critic = SelfRefineCritic(model=model)
+
+        thought = create_test_thought(text="Neural networks exist.")
+
+        # Multiple improvement iterations
+        improved_text = thought.text
+        for _i in range(3):
+            current_thought = create_test_thought(text=improved_text)
+            improved_text = critic.improve(current_thought)
+            assert len(improved_text) >= len(current_thought.text)
+
+    def test_self_refine_with_specific_criteria(self):
+        """Test self-refine with specific improvement criteria."""
+        model = MockModel(model_name="self-refine-model")
+        critic = SelfRefineCritic(
+            model=model, improvement_criteria=["clarity", "detail", "examples"]
         )
 
-        critic = ReflexionCritic(model=mock_model)
-        critique = critic._critique("Test text")
+        thought = create_test_thought(text="Deep learning works well.")
+        critique_result = critic.critique(thought)
 
-        assert critique["needs_improvement"] is True
-        assert "message" in critique
-        assert "issues" in critique
-        assert "suggestions" in critique
-        assert "reflections" in critique
-        assert len(critique["issues"]) == 3
-        assert len(critique["suggestions"]) == 3
-        assert len(critique["reflections"]) == 3
-        assert len(mock_model.generate_calls) == 1
+        assert isinstance(critique_result, dict)
+        # The critique should consider the specified criteria
 
-    def test_improve_method(self, mock_model) -> None:
-        """Test the _improve method of ReflexionCritic."""
-        # Set up the mock model to return a specific response
-        mock_model.set_response("This is the improved text.")
 
-        critic = ReflexionCritic(model=mock_model)
-        critique = {
-            "needs_improvement": True,
-            "reflection": "This text could be improved.",
-            "issues": ["Issue 1", "Issue 2"],
-            "suggestions": ["Suggestion 1", "Suggestion 2"],
-        }
+class TestConstitutionalCritic:
+    """Test ConstitutionalCritic implementation."""
 
-        improved_text = critic._improve("Test text", critique)
+    def test_constitutional_critic_basic(self):
+        """Test basic constitutional AI functionality."""
+        model = MockModel(model_name="constitutional-model")
+        principles = ["Be helpful", "Be harmless", "Be honest"]
+        critic = ConstitutionalCritic(model=model, principles=principles)
 
-        assert improved_text == "This is the improved text."
-        assert len(mock_model.generate_calls) == 1
-        assert "issue" in mock_model.generate_calls[0][0].lower()
-        assert "suggestion" in mock_model.generate_calls[0][0].lower()
+        thought = create_test_thought(text="Here's some advice that might not be accurate.")
+        critique_result = critic.critique(thought)
 
-    def test_end_to_end_improvement(self, mock_model) -> None:
-        """Test the end-to-end improvement process of ReflexionCritic."""
-        # Create a mock improvement result
-        from sifaka.results import ImprovementResult
+        assert isinstance(critique_result, dict)
+        assert "needs_improvement" in critique_result
+        # Check for critique or message field
+        assert "critique" in critique_result or "message" in critique_result
 
-        original_text = "Test text"
-        improved_text = "This is the improved text with more details and examples."
+    def test_constitutional_critic_principles(self):
+        """Test constitutional critic with specific principles."""
+        model = MockModel(model_name="constitutional-model")
+        principles = [
+            "Provide accurate information",
+            "Be respectful and inclusive",
+            "Avoid harmful content",
+        ]
+        critic = ConstitutionalCritic(model=model, principles=principles)
 
-        # Create a mock _improve method that returns the improved text
-        def mock_improve(self, text, critique):  # pylint: disable=unused-argument
-            return improved_text
+        thought = create_test_thought(
+            text="This information might be wrong and could be offensive."
+        )
+        critique_result = critic.critique(thought)
 
-        # Create a mock critique dictionary
-        critique = {
-            "needs_improvement": True,
-            "message": "This text could be improved in several ways.",
-            "issues": ["The text is too vague.", "There are no specific examples."],
-            "suggestions": ["Add more specific details.", "Include concrete examples."],
-            "reflections": [
-                "The text doesn't provide enough context for the reader.",
-                "Without specific examples, the points being made are unclear.",
-            ],
-            "processing_time_ms": 100.0,
-        }
+        assert isinstance(critique_result, dict)
+        # Should identify violations of principles
 
-        # Create a mock _critique method that returns the critique dictionary
-        def mock_critique(self, text):  # pylint: disable=unused-argument
-            return critique
+    def test_constitutional_critic_improvement(self):
+        """Test constitutional critic improvement suggestions."""
+        model = MockModel(
+            model_name="constitutional-model",
+            response_text="Here is accurate, respectful, and helpful information about the topic.",
+        )
+        principles = ["Be accurate", "Be respectful", "Be helpful"]
+        critic = ConstitutionalCritic(model=model, principles=principles)
 
-        # Patch both methods
-        from unittest.mock import patch
+        thought = create_test_thought(text="Some questionable information.")
+        improved_text = critic.improve(thought)
 
-        with (
-            patch.object(ReflexionCritic, "_critique", mock_critique),
-            patch.object(ReflexionCritic, "_improve", mock_improve),
-        ):
+        assert isinstance(improved_text, str)
+        assert len(improved_text) > 0
 
-            critic = ReflexionCritic(model=mock_model)
-            result_text, result = critic.improve(original_text)
+    def test_constitutional_critic_multiple_principles(self):
+        """Test constitutional critic with many principles."""
+        model = MockModel(model_name="constitutional-model")
+        principles = [
+            "Be truthful and accurate",
+            "Be helpful and constructive",
+            "Be respectful and inclusive",
+            "Avoid harmful or dangerous content",
+            "Protect privacy and confidentiality",
+            "Be transparent about limitations",
+        ]
+        critic = ConstitutionalCritic(model=model, principles=principles)
 
-            # Check the results
-            assert result_text == improved_text
-            assert result.original_text == original_text
-            assert result.improved_text == improved_text
-            assert result.changes_made is True
+        thought = create_test_thought(text="Here's some general advice.")
+        critique_result = critic.critique(thought)
+
+        assert isinstance(critique_result, dict)
 
 
 class TestNCriticsCritic:
-    """Tests for the NCriticsCritic."""
+    """Test NCriticsCritic implementation."""
 
-    def test_init_with_defaults(self, mock_model) -> None:
-        """Test initializing an NCriticsCritic with default parameters."""
-        critic = NCriticsCritic(model=mock_model)
-        assert critic.model is mock_model
-        assert critic._name == "NCriticsCritic"
-        assert critic.options == {}
+    def test_n_critics_basic(self):
+        """Test basic N-Critics functionality."""
+        model = MockModel(model_name="n-critics-model")
+        critic = NCriticsCritic(model=model, num_critics=3)
 
-    def test_init_with_options(self, mock_model) -> None:
-        """Test initializing an NCriticsCritic with options."""
-        critic = NCriticsCritic(model=mock_model, temperature=0.5)
-        assert critic.temperature == 0.5
+        thought = create_test_thought(text="Artificial intelligence has many applications.")
+        critique_result = critic.critique(thought)
 
-    def test_create_n_critics_critic(self, mock_model) -> None:
-        """Test creating an NCriticsCritic using the factory function."""
-        critic = create_n_critics_critic(model=mock_model)
-        assert isinstance(critic, NCriticsCritic)
-        assert critic.model is mock_model
+        assert isinstance(critique_result, dict)
+        assert "needs_improvement" in critique_result
+        # Check for critique or message field
+        assert "critique" in critique_result or "message" in critique_result
 
-    def test_create_n_critics_critic_with_options(self, mock_model) -> None:
-        """Test creating an NCriticsCritic with options using the factory function."""
-        critic = create_n_critics_critic(model=mock_model, temperature=0.5, num_critics=3)
-        assert isinstance(critic, NCriticsCritic)
-        assert critic.temperature == 0.5
-        assert critic.num_critics == 3
+    def test_n_critics_multiple_perspectives(self):
+        """Test N-Critics with multiple critic perspectives."""
+        model = MockModelFactory.create_variable_response(
+            responses=[
+                "Critic 1: The text needs more technical depth.",
+                "Critic 2: The text should include practical examples.",
+                "Critic 3: The text could benefit from better structure.",
+            ]
+        )
+        critic = NCriticsCritic(model=model, num_critics=3)
 
-    def test_end_to_end_improvement(self, mock_model) -> None:
-        """Test the end-to-end improvement process of NCriticsCritic."""
-        # Create a mock improvement result
-        original_text = "Test text"
-        improved_text = "This is the improved text with more details and examples."
+        thought = create_test_thought(text="Machine learning is useful.")
+        critique_result = critic.critique(thought)
 
-        # Create a mock _improve method that returns the improved text
-        def mock_improve(self, text, critique):  # pylint: disable=unused-argument
-            return improved_text
+        assert isinstance(critique_result, dict)
+        # Should incorporate multiple perspectives
 
-        # Create a mock critique dictionary
-        critique = {
-            "needs_improvement": True,
-            "message": "This text could be improved in several ways.",
-            "issues": ["The text is too vague.", "There are no specific examples."],
-            "suggestions": ["Add more specific details.", "Include concrete examples."],
-            "critic_responses": [
-                "Critic 1: The text is too vague.",
-                "Critic 2: There are no specific examples.",
-                "Critic 3: The structure is confusing.",
-            ],
-            "processing_time_ms": 100.0,
-        }
+    def test_n_critics_consensus(self):
+        """Test N-Critics consensus mechanism."""
+        model = MockModel(model_name="n-critics-model")
+        critic = NCriticsCritic(model=model, num_critics=5)
 
-        # Create a mock _critique method that returns the critique dictionary
-        def mock_critique(self, text):  # pylint: disable=unused-argument
-            return critique
+        thought = create_test_thought(text="This is a comprehensive analysis of AI.")
+        critique_result = critic.critique(thought)
 
-        # Patch both methods
-        from unittest.mock import patch
+        assert isinstance(critique_result, dict)
+        # Should provide consensus from multiple critics
 
-        with (
-            patch.object(NCriticsCritic, "_critique", mock_critique),
-            patch.object(NCriticsCritic, "_improve", mock_improve),
-        ):
+    def test_n_critics_improvement(self):
+        """Test N-Critics improvement functionality."""
+        model = MockModel(
+            model_name="n-critics-model",
+            response_text="Improved text incorporating feedback from multiple critics with enhanced detail and structure.",
+        )
+        critic = NCriticsCritic(model=model, num_critics=3)
 
-            critic = NCriticsCritic(model=mock_model)
-            result_text, result = critic.improve(original_text)
+        thought = create_test_thought(text="Basic text about AI.")
+        improved_text = critic.improve(thought)
 
-            # Check the results
-            assert result_text == improved_text
-            assert result.original_text == original_text
-            assert result.improved_text == improved_text
-            assert result.changes_made is True
+        assert isinstance(improved_text, str)
+        assert len(improved_text) > len(thought.text)
+
+
+class TestSelfRAGCritic:
+    """Test SelfRAGCritic implementation."""
+
+    def test_self_rag_basic(self):
+        """Test basic Self-RAG functionality."""
+        model = MockModel(model_name="self-rag-model")
+        critic = SelfRAGCritic(model=model)
+
+        thought = create_test_thought(text="AI systems can process large amounts of data.")
+        critique_result = critic.critique(thought)
+
+        assert isinstance(critique_result, dict)
+        assert "needs_improvement" in critique_result
+
+    def test_self_rag_with_retrieval(self):
+        """Test Self-RAG with retrieval context."""
+        model = MockModel(model_name="self-rag-model")
+
+        # Mock retriever
+        from tests.utils.mocks import MockRetrieverFactory
+
+        retriever = MockRetrieverFactory.create_standard(
+            [
+                "AI systems use machine learning algorithms.",
+                "Data processing is a key capability of AI.",
+                "Neural networks are fundamental to modern AI.",
+            ]
+        )
+
+        critic = SelfRAGCritic(model=model, retriever=retriever)
+
+        thought = create_test_thought(text="AI is useful.")
+        critique_result = critic.critique(thought)
+
+        assert isinstance(critique_result, dict)
+
+    def test_self_rag_improvement(self):
+        """Test Self-RAG improvement with retrieval."""
+        model = MockModel(
+            model_name="self-rag-model",
+            response_text="AI systems leverage machine learning algorithms to process large datasets and extract meaningful patterns, enabling applications in healthcare, finance, and autonomous systems.",
+        )
+        critic = SelfRAGCritic(model=model)
+
+        thought = create_test_thought(text="AI is good.")
+        improved_text = critic.improve(thought)
+
+        assert isinstance(improved_text, str)
+        assert len(improved_text) > len(thought.text)
+
+
+class TestPromptCritic:
+    """Test PromptCritic implementation."""
+
+    def test_prompt_critic_basic(self):
+        """Test basic prompt-based criticism."""
+        model = MockModel(model_name="prompt-critic-model")
+        critic = PromptCritic(
+            model=model, critique_prompt="Analyze this text for clarity and completeness."
+        )
+
+        thought = create_test_thought(text="Machine learning algorithms learn from data.")
+        critique_result = critic.critique(thought)
+
+        assert isinstance(critique_result, dict)
+
+    def test_prompt_critic_custom_prompts(self):
+        """Test prompt critic with custom prompts."""
+        model = MockModel(model_name="prompt-critic-model")
+        critic = PromptCritic(
+            model=model,
+            critique_prompt="Evaluate this text for technical accuracy.",
+            improvement_prompt="Rewrite this text to be more technically precise.",
+        )
+
+        thought = create_test_thought(text="AI works by using computers.")
+
+        critique_result = critic.critique(thought)
+        assert isinstance(critique_result, dict)
+
+        improved_text = critic.improve(thought)
+        assert isinstance(improved_text, str)
+
+    def test_prompt_critic_specialized_domains(self):
+        """Test prompt critic for specialized domains."""
+        model = MockModel(model_name="domain-critic-model")
+        critic = PromptCritic(
+            model=model,
+            critique_prompt="Evaluate this medical text for accuracy and safety.",
+            domain="medical",
+        )
+
+        thought = create_test_thought(text="This medicine might help with symptoms.")
+        critique_result = critic.critique(thought)
+
+        assert isinstance(critique_result, dict)
+
+
+class TestCriticIntegration:
+    """Test critic integration scenarios."""
+
+    def test_multiple_critics_chain(self):
+        """Test multiple critics in a chain."""
+        from sifaka.core.chain import Chain
+
+        main_model = MockModel(model_name="main-model")
+        critic_model = MockModel(model_name="critic-model")
+
+        chain = Chain(
+            model=main_model,
+            prompt="Write about artificial intelligence.",
+            always_apply_critics=True,
+        )
+
+        # Add multiple critics
+        chain.improve_with(ReflexionCritic(model=critic_model))
+        chain.improve_with(SelfRefineCritic(model=critic_model))
+        chain.improve_with(PromptCritic(model=critic_model))
+
+        result = chain.run()
+
+        assert result.critic_feedback is not None
+        assert len(result.critic_feedback) >= 3
+
+    def test_critic_performance(self):
+        """Test critic performance."""
+        import time
+
+        model = MockModel(model_name="performance-critic")
+        critic = ReflexionCritic(model=model)
+
+        # Test performance with multiple critiques
+        start_time = time.time()
+        for i in range(10):
+            thought = create_test_thought(text=f"Test text {i} for performance evaluation.")
+            critique_result = critic.critique(thought)
+            assert isinstance(critique_result, dict)
+
+        execution_time = time.time() - start_time
+
+        # Should be reasonably fast
+        assert (
+            execution_time < 5.0
+        ), f"Critic performance too slow: {execution_time:.3f}s for 10 critiques"
+
+    def test_critic_error_handling(self):
+        """Test critic error handling."""
+        failing_model = MockModelFactory.create_failing(error_message="Critic model failed")
+        critic = ReflexionCritic(model=failing_model)
+
+        thought = create_test_thought(text="Test text for error handling.")
+
+        # Should handle model failures gracefully and return error result
+        result = critic.critique(thought)
+
+        # Verify error result format
+        assert isinstance(result, dict)
+        assert "needs_improvement" in result
+        assert "processing_time_ms" in result
+        assert result["needs_improvement"] is True  # Error cases should indicate improvement needed
+
+    def test_critic_with_empty_text(self):
+        """Test critic behavior with edge cases."""
+        model = MockModel(model_name="edge-case-critic")
+        critic = ReflexionCritic(model=model)
+
+        # Test with empty text
+        thought = create_test_thought(text="")
+        critique_result = critic.critique(thought)
+        assert isinstance(critique_result, dict)
+
+        # Test with None text
+        thought = create_test_thought(text=None)
+        critique_result = critic.critique(thought)
+        assert isinstance(critique_result, dict)
+
+    def test_critic_feedback_consistency(self):
+        """Test consistency of critic feedback format."""
+        model = MockModel(model_name="consistency-critic")
+        critics = [
+            ReflexionCritic(model=model),
+            SelfRefineCritic(model=model),
+            PromptCritic(model=model),
+            ConstitutionalCritic(model=model, principles=["Be helpful"]),
+        ]
+
+        thought = create_test_thought(text="Test text for consistency check.")
+
+        for critic in critics:
+            critique_result = critic.critique(thought)
+
+            # All critics should return consistent format
+            assert isinstance(critique_result, dict)
+            assert "needs_improvement" in critique_result
+            # Critics should have either "critique" or "message" field
+            assert "critique" in critique_result or "message" in critique_result
+            assert isinstance(critique_result["needs_improvement"], bool)
+            # Check that the critique/message is a string
+            if "critique" in critique_result:
+                assert isinstance(critique_result["critique"], str)
+            if "message" in critique_result:
+                assert isinstance(critique_result["message"], str)

@@ -1,406 +1,294 @@
+"""Spam classifier for detecting spam content in text.
+
+This module provides a classifier for detecting spam content using
+machine learning with fallback to rule-based detection.
 """
-Spam classifier for Sifaka.
 
-This module provides a classifier that categorizes text as spam or ham (non-spam)
-using scikit-learn's Naive Bayes classifier with TF-IDF vectorization.
-"""
+from typing import List
 
-import importlib
-import os
-import pickle
-from typing import Any, List, Optional
+from sifaka.classifiers.base import ClassificationResult, ClassifierError, TextClassifier
+from sifaka.utils.logging import get_logger
+from sifaka.validators.classifier import ClassifierValidator
 
-from sifaka.classifiers import ClassificationResult
+# Configure logger
+logger = get_logger(__name__)
+
+# Sample spam text for training
+SPAM_SAMPLES = [
+    "URGENT! You have won $1,000,000! Click here now!",
+    "FREE MONEY! No strings attached! Act now!",
+    "Congratulations! You are our lucky winner!",
+    "CLICK HERE FOR AMAZING DEALS! LIMITED TIME ONLY!",
+    "Make money fast! Work from home! No experience needed!",
+    "LOSE WEIGHT FAST! Miracle pill! Doctors hate this trick!",
+    "Hot singles in your area! Meet them tonight!",
+    "Your account will be suspended! Verify now!",
+    "FINAL NOTICE: Your warranty is about to expire!",
+    "Get rich quick! This one simple trick!",
+]
+
+HAM_SAMPLES = [
+    "Hi, how are you doing today?",
+    "The meeting is scheduled for 3 PM tomorrow.",
+    "Thanks for your help with the project.",
+    "Can you please review this document?",
+    "I'll be working from home tomorrow.",
+    "The weather is nice today, isn't it?",
+    "Let's grab lunch sometime this week.",
+    "The report is due by Friday.",
+    "Happy birthday! Hope you have a great day.",
+    "The presentation went well yesterday.",
+]
+
+# Spam indicators for rule-based detection
+SPAM_INDICATORS = {
+    "urgent",
+    "free",
+    "money",
+    "winner",
+    "congratulations",
+    "click here",
+    "act now",
+    "limited time",
+    "amazing deals",
+    "work from home",
+    "lose weight",
+    "miracle",
+    "hot singles",
+    "verify now",
+    "final notice",
+    "get rich",
+    "no experience",
+    "doctors hate",
+    "one simple trick",
+    "suspended",
+    "warranty",
+    "expires",
+    "claim",
+    "prize",
+    "lottery",
+}
+
+SPAM_PATTERNS = [
+    "!!!",
+    "URGENT",
+    "FREE",
+    "CLICK HERE",
+    "ACT NOW",
+    "LIMITED TIME",
+    "$$$",
+    "100% FREE",
+    "NO COST",
+    "RISK FREE",
+    "GUARANTEED",
+]
 
 
-class SpamClassifier:
-    """
-    A spam classifier that categorizes text as spam or ham (non-spam).
+class SpamClassifier(TextClassifier):
+    """Classifier for detecting spam content in text.
 
-    This classifier uses scikit-learn's Naive Bayes algorithm with TF-IDF vectorization
-    to detect spam content in text. It can be trained on custom datasets and provides
-    detailed prediction probabilities.
+    This classifier uses machine learning when scikit-learn is available,
+    with fallback to rule-based spam detection. It identifies common
+    spam patterns and indicators.
 
     Attributes:
-        model_path: Path to a pre-trained model file.
-        threshold: Confidence threshold for considering text spam.
-        name: The name of the classifier.
-        description: The description of the classifier.
+        threshold: Confidence threshold for spam detection
+        model: The trained classification model
     """
-
-    # Type annotations for instance variables
-    _name: str
-    _description: str
-    _model_path: Optional[str]
-    _threshold: float
-    _model: Any
-    _vectorizer: Any
-    _initialized: bool
 
     def __init__(
         self,
-        model_path: Optional[str] = None,
-        threshold: float = 0.5,
-        name: str = "spam_classifier",
-        description: str = "Classifies text as spam or ham (non-spam)",
+        threshold: float = 0.7,
+        name: str = "SpamClassifier",
+        description: str = "Detects spam content in text",
     ):
-        """
-        Initialize the spam classifier.
+        """Initialize the spam classifier.
 
         Args:
-            model_path: Optional path to a pre-trained model file.
-            threshold: Confidence threshold for considering text spam.
-            name: The name of the classifier.
-            description: The description of the classifier.
+            threshold: Confidence threshold for spam detection
+            name: Name of the classifier
+            description: Description of the classifier
         """
-        self._name = name
-        self._description = description
-        self._model_path = model_path
-        self._threshold = threshold
-        self._model = None
-        self._vectorizer = None
-        self._initialized = False
+        super().__init__(name=name, description=description)
+        self.threshold = threshold
+        self.model = None
+        self._initialize_model()
 
-    @property
-    def name(self) -> str:
-        """Get the classifier name."""
-        return self._name
-
-    @property
-    def description(self) -> str:
-        """Get the classifier description."""
-        return self._description
-
-    def _load_scikit_learn(self) -> tuple[Any, Any]:
-        """
-        Load scikit-learn and related modules.
-
-        Returns:
-            A tuple of (sklearn, numpy) modules.
-
-        Raises:
-            ImportError: If required packages are not installed.
-            RuntimeError: If initialization fails.
-        """
+    def _initialize_model(self) -> None:
+        """Initialize and train the spam detection model."""
         try:
-            sklearn = importlib.import_module("sklearn")
-            numpy = importlib.import_module("numpy")
-            return sklearn, numpy
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.naive_bayes import MultinomialNB
+            from sklearn.pipeline import Pipeline
+
+            # Prepare training data
+            X = SPAM_SAMPLES + HAM_SAMPLES
+            y = [1] * len(SPAM_SAMPLES) + [0] * len(HAM_SAMPLES)
+
+            # Create and train the model
+            model = Pipeline(
+                [
+                    (
+                        "vectorizer",
+                        TfidfVectorizer(
+                            max_features=3000,
+                            ngram_range=(1, 2),
+                            stop_words="english",
+                            lowercase=True,
+                        ),
+                    ),
+                    ("classifier", MultinomialNB(alpha=0.1)),
+                ]
+            )
+
+            # Train the model
+            model.fit(X, y)
+            self.model = model
+
+            logger.debug(f"Initialized spam classifier with {len(X)} training samples")
+
         except ImportError:
-            raise ImportError(
-                "scikit-learn and numpy packages are required for SpamClassifier. "
-                "Install them with: pip install scikit-learn numpy"
+            logger.warning(
+                "scikit-learn not available. SpamClassifier will use rule-based detection. "
+                "Install scikit-learn for better accuracy: pip install scikit-learn"
             )
-        except Exception as e:
-            raise RuntimeError(f"Failed to load scikit-learn: {e}")
-
-    def _create_default_model(self) -> tuple[Any, Any]:
-        """
-        Create a default spam detection model.
-
-        Returns:
-            A tuple of (model, vectorizer).
-
-        Raises:
-            RuntimeError: If model creation fails.
-        """
-        try:
-            _, _ = self._load_scikit_learn()
-
-            # Import required modules
-            naive_bayes = importlib.import_module("sklearn.naive_bayes")
-            feature_extraction = importlib.import_module("sklearn.feature_extraction.text")
-
-            # Create vectorizer and model
-            vectorizer = feature_extraction.TfidfVectorizer(
-                max_features=5000, min_df=5, max_df=0.7, stop_words="english"
-            )
-
-            model = naive_bayes.MultinomialNB(alpha=1.0)
-
-            # Train on a small default dataset
-            spam_texts = [
-                "Buy now! Limited time offer! 50% off! Act fast!",
-                "Congratulations! You've won a free iPhone. Click here to claim your prize!",
-                "URGENT: Your account has been compromised. Verify your details now!",
-                "Make money fast! Work from home and earn $5000 per week!",
-                "Free Viagra! Discount medications! No prescription needed!",
-                "You have been selected for a special offer. Reply now!",
-                "Increase your manhood size with this amazing pill!",
-                "Get rich quick! Invest now and double your money in 24 hours!",
-                "Lose weight fast! No diet, no exercise, just take this pill!",
-                "Your inheritance of $5,000,000 is waiting. Contact us now!",
-            ]
-
-            ham_texts = [
-                "Hi, can we schedule a meeting for tomorrow at 2pm?",
-                "Please find attached the report you requested.",
-                "Thank you for your email. I'll get back to you soon.",
-                "The project deadline has been extended to next Friday.",
-                "Here are the meeting notes from yesterday's discussion.",
-                "Could you please review this document and provide feedback?",
-                "I'm out of office today. Will respond to emails tomorrow.",
-                "The quarterly results are now available on the intranet.",
-                "Please submit your expenses by the end of the month.",
-                "We're hiring for a new position. Let me know if you know anyone suitable.",
-            ]
-
-            # Combine texts and create labels
-            all_texts = spam_texts + ham_texts
-            labels = ["spam"] * len(spam_texts) + ["ham"] * len(ham_texts)
-
-            # Fit vectorizer and transform texts
-            X = vectorizer.fit_transform(all_texts)
-
-            # Train model
-            model.fit(X, labels)
-
-            return model, vectorizer
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to create default model: {e}")
-
-    def _load_model(self) -> tuple[Any, Any]:
-        """
-        Load a pre-trained model from file.
-
-        Returns:
-            A tuple of (model, vectorizer).
-
-        Raises:
-            FileNotFoundError: If model file is not found.
-            RuntimeError: If model loading fails.
-        """
-        try:
-            if not self._model_path or not os.path.exists(self._model_path):
-                return self._create_default_model()
-
-            with open(self._model_path, "rb") as f:
-                model_data = pickle.load(f)
-
-            model = model_data.get("model")
-            vectorizer = model_data.get("vectorizer")
-
-            if not model or not vectorizer:
-                raise ValueError("Invalid model file: missing model or vectorizer")
-
-            return model, vectorizer
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to load model: {e}")
-
-    def _initialize(self) -> None:
-        """Initialize the spam classifier if needed."""
-        if not self._initialized:
-            self._model, self._vectorizer = self._load_model()
-            self._initialized = True
+            self.model = None
 
     def classify(self, text: str) -> ClassificationResult:
-        """
-        Classify text as spam or ham (non-spam).
+        """Classify text for spam.
 
         Args:
-            text: The text to classify.
+            text: The text to classify
 
         Returns:
-            A ClassificationResult with the spam/ham label and confidence score.
+            ClassificationResult with spam prediction
+
+        Raises:
+            ClassifierError: If classification fails
         """
-        # Handle empty text
         if not text or not text.strip():
             return ClassificationResult(
-                label="ham",
-                confidence=0.7,
-                metadata={
-                    "input_length": 0,
-                    "reason": "empty_text",
-                    "probabilities": {"spam": 0.3, "ham": 0.7},
-                },
+                label="ham", confidence=0.5, metadata={"reason": "empty_text", "input_length": 0}
             )
 
         try:
-            # Initialize model if needed
-            self._initialize()
-
-            # Load numpy
-            _, numpy = self._load_scikit_learn()
-
-            # After initialization, model and vectorizer should be available
-            # If not, it's an error
-            if self._vectorizer is None or self._model is None:
-                raise RuntimeError("Failed to initialize spam classifier model")
-
-            # Vectorize the text
-            X = self._vectorizer.transform([text])
-
-            # Get class probabilities
-            probabilities = self._model.predict_proba(X)[0]
-
-            # Get class names
-            classes = self._model.classes_
-
-            # Create probabilities dictionary
-            probs_dict = {
-                cls: float(prob) for cls, prob in zip(classes, probabilities, strict=False)
-            }
-
-            # Determine label and confidence
-            if "spam" in probs_dict and probs_dict["spam"] > self._threshold:
-                label = "spam"
-                confidence = probs_dict["spam"]
+            if self.model is not None:
+                return self._classify_with_ml(text)  # type: ignore[unreachable]
             else:
-                label = "ham"
-                confidence = probs_dict.get("ham", 1.0 - probs_dict.get("spam", 0.0))
-
-            # Extract spam features
-            feature_names = self._vectorizer.get_feature_names_out()
-            X_array = X.toarray()[0]
-
-            # Get top features for this text
-            top_features = []
-            for i in numpy.argsort(X_array)[-10:]:
-                if X_array[i] > 0:
-                    top_features.append(
-                        {
-                            "word": feature_names[i],
-                            "score": float(X_array[i]),
-                        }
-                    )
-
-            return ClassificationResult(
-                label=label,
-                confidence=confidence,
-                metadata={
-                    "input_length": len(text),
-                    "probabilities": probs_dict,
-                    "top_features": top_features,
-                },
-            )
+                return self._classify_with_rules(text)
 
         except Exception as e:
-            # Handle errors
-            return ClassificationResult(
-                label="ham",
-                confidence=0.5,
-                metadata={
-                    "error": str(e),
-                    "reason": "classification_error",
-                    "input_length": len(text),
-                },
+            logger.error(f"Spam classification failed: {e}")
+            raise ClassifierError(
+                message=f"Failed to classify text for spam: {str(e)}",
+                component="SpamClassifier",
+                operation="classification",
             )
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-        """
-        Classify multiple texts.
+    def _classify_with_ml(self, text: str) -> ClassificationResult:
+        """Classify using machine learning model."""
+        if self.model is None:
+            raise ClassifierError(
+                message="ML model is not available",
+                component="SpamClassifier",
+                operation="ml_classification",
+            )
 
-        Args:
-            texts: The list of texts to classify.
+        # Get prediction probabilities
+        probabilities = self.model.predict_proba([text])[0]  # type: ignore[unreachable]
 
-        Returns:
-            A list of ClassificationResults.
-        """
-        # Initialize model if needed
-        self._initialize()
+        # Get the predicted class (0 = ham, 1 = spam)
+        predicted_class = self.model.predict([text])[0]
+        confidence = float(probabilities[predicted_class])
 
-        # Handle empty list
-        if not texts:
-            return []
+        # Map class to label
+        label = "spam" if predicted_class == 1 else "ham"
 
-        # Handle empty texts
-        results = []
-        non_empty_texts = []
-        non_empty_indices = []
+        return ClassificationResult(
+            label=label,
+            confidence=confidence,
+            metadata={
+                "method": "machine_learning",
+                "spam_probability": float(probabilities[1]),
+                "ham_probability": float(probabilities[0]),
+                "input_length": len(text),
+            },
+        )
 
-        for i, text in enumerate(texts):
-            if not text or not text.strip():
-                results.append(
-                    ClassificationResult(
-                        label="ham",
-                        confidence=0.7,
-                        metadata={
-                            "input_length": 0,
-                            "reason": "empty_text",
-                            "probabilities": {"spam": 0.3, "ham": 0.7},
-                        },
-                    )
-                )
-            else:
-                non_empty_texts.append(text)
-                non_empty_indices.append(i)
+    def _classify_with_rules(self, text: str) -> ClassificationResult:
+        """Classify using rule-based approach."""
+        text_lower = text.lower()
+        text_upper = text.upper()
 
-        # If there are no non-empty texts, return the results
-        if not non_empty_texts:
-            return results
+        # Count spam indicators
+        indicator_count = sum(1 for indicator in SPAM_INDICATORS if indicator in text_lower)
 
-        try:
-            # Load numpy
-            _, numpy = self._load_scikit_learn()
+        # Count spam patterns
+        pattern_count = sum(1 for pattern in SPAM_PATTERNS if pattern in text_upper)
 
-            # After initialization, model and vectorizer should be available
-            # If not, it's an error
-            if self._vectorizer is None or self._model is None:
-                raise RuntimeError("Failed to initialize spam classifier model")
+        # Check for excessive capitalization
+        if len(text) > 10:
+            caps_ratio = sum(1 for c in text if c.isupper()) / len(text)
+        else:
+            caps_ratio = 0
 
-            # Vectorize the texts
-            X = self._vectorizer.transform(non_empty_texts)
+        # Check for excessive punctuation
+        exclamation_count = text.count("!")
+        dollar_count = text.count("$")
 
-            # Get class probabilities
-            probabilities = self._model.predict_proba(X)
+        # Calculate spam score
+        spam_score = 0.0
+        spam_score += indicator_count * 0.2
+        spam_score += pattern_count * 0.3
+        spam_score += caps_ratio * 0.5 if caps_ratio > 0.3 else 0
+        spam_score += min(exclamation_count * 0.1, 0.3)
+        spam_score += min(dollar_count * 0.15, 0.3)
 
-            # Get class names
-            classes = self._model.classes_
+        # Determine label and confidence
+        if spam_score > 0.5:
+            label = "spam"
+            confidence = min(0.6 + spam_score * 0.3, 0.9)
+        else:
+            label = "ham"
+            confidence = max(0.6, 0.9 - spam_score)
 
-            # Get feature names
-            feature_names = self._vectorizer.get_feature_names_out()
+        return ClassificationResult(
+            label=label,
+            confidence=confidence,
+            metadata={
+                "method": "rule_based",
+                "spam_score": spam_score,
+                "indicator_count": indicator_count,
+                "pattern_count": pattern_count,
+                "caps_ratio": caps_ratio,
+                "exclamation_count": exclamation_count,
+                "dollar_count": dollar_count,
+                "input_length": len(text),
+            },
+        )
 
-            # Process each result
-            for i, idx in enumerate(non_empty_indices):
-                text = non_empty_texts[i]
-                probs = probabilities[i]
+    def get_classes(self) -> List[str]:
+        """Get the list of possible class labels."""
+        return ["ham", "spam"]
 
-                # Create probabilities dictionary
-                probs_dict = {cls: float(prob) for cls, prob in zip(classes, probs, strict=False)}
 
-                # Determine label and confidence
-                if "spam" in probs_dict and probs_dict["spam"] > self._threshold:
-                    label = "spam"
-                    confidence = probs_dict["spam"]
-                else:
-                    label = "ham"
-                    confidence = probs_dict.get("ham", 1.0 - probs_dict.get("spam", 0.0))
+def create_spam_validator(
+    threshold: float = 0.7, name: str = "SpamValidator"
+) -> ClassifierValidator:
+    """Create a validator that detects spam in text.
 
-                # Extract spam features for this text
-                X_array = X[i].toarray()[0]
+    Args:
+        threshold: Confidence threshold for spam detection
+        name: Name of the validator
 
-                # Get top features for this text
-                top_features = []
-                for j in numpy.argsort(X_array)[-10:]:
-                    if X_array[j] > 0:
-                        top_features.append(
-                            {
-                                "word": feature_names[j],
-                                "score": float(X_array[j]),
-                            }
-                        )
+    Returns:
+        A ClassifierValidator configured for spam detection
+    """
+    classifier = SpamClassifier(threshold=threshold)
 
-                # Create result
-                result = ClassificationResult(
-                    label=label,
-                    confidence=confidence,
-                    metadata={
-                        "input_length": len(text),
-                        "probabilities": probs_dict,
-                        "top_features": top_features,
-                    },
-                )
-
-                # Insert result at the correct position
-                results.insert(idx, result)
-
-            return results
-
-        except Exception:
-            # Handle errors by classifying each text individually
-            for text in non_empty_texts:
-                results.append(self.classify(text))
-
-            return results
+    return ClassifierValidator(
+        classifier=classifier,
+        threshold=threshold,
+        invalid_labels=["spam"],  # Spam text is invalid
+        name=name,
+    )

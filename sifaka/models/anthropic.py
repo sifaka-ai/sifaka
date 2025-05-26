@@ -1,426 +1,274 @@
-"""
-Anthropic model implementation for Sifaka.
+"""Anthropic model implementation for Sifaka.
 
-This module provides an implementation of the Model protocol for Anthropic models.
+This module provides an implementation of the Model protocol for Anthropic models,
+supporting the Claude family of models. It handles token counting, error handling,
+and configuration for Anthropic models.
+
+The AnthropicModel class implements the Model protocol and provides methods for
+generating text and counting tokens. It also provides a configure method for
+updating model options after initialization.
+
+Example:
+    ```python
+    from sifaka.models.anthropic import AnthropicModel, create_anthropic_model
+
+    # Create a model directly
+    model1 = AnthropicModel(model_name="claude-3-opus-20240229", api_key="your-api-key")
+
+    # Create a model using the factory function
+    model2 = create_anthropic_model(model_name="claude-3-sonnet-20240229", api_key="your-api-key")
+
+    # Generate text
+    response = model1.generate(
+        "Write a short story about a robot.",
+        temperature=0.7,
+        max_tokens=500,
+        system_message="You are a creative writer."
+    )
+    print(response)
+
+    # Count tokens
+    token_count = model1.count_tokens("This is a test.")
+    print(f"Token count: {token_count}")
+    ```
 """
 
-import os
 from typing import Any, Optional
 
 try:
-    from anthropic import Anthropic, APIConnectionError, APIError, RateLimitError
+    from anthropic import Anthropic, APIError, RateLimitError
 
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
-from sifaka.errors import ConfigurationError, ModelAPIError, ModelError
-from sifaka.interfaces import Model
-from sifaka.registry import register_model
+from sifaka.core.thought import Thought
+from sifaka.models.shared import BaseModelImplementation
+from sifaka.utils.logging import get_logger
+
+# Configure logger
+logger = get_logger(__name__)
 
 
-class AnthropicModel(Model):
-    """Anthropic model implementation.
+class AnthropicModel(BaseModelImplementation):
+    """Anthropic model implementation for generating text and counting tokens.
 
-    This class implements the Model protocol for Anthropic models.
+    This class implements the Model protocol for Anthropic models, supporting
+    the Claude family of models. It handles token counting, error handling,
+    and configuration for Anthropic models.
 
-    Attributes:
-        model_name: The name of the Anthropic model to use.
-        api_key: The Anthropic API key to use. If not provided, it will be read from the
-            ANTHROPIC_API_KEY environment variable.
-        client: The Anthropic client instance.
+    The class also provides methods for counting tokens and configuring the model
+    after initialization.
+
+    Example:
+        ```python
+        from sifaka.models.anthropic import AnthropicModel
+
+        # Create a model
+        model = AnthropicModel(
+            model_name="claude-3-opus-20240229",
+            api_key="your-api-key",
+            temperature=0.7
+        )
+
+        # Generate text with a system message
+        response = model.generate(
+            "Write a short story about a robot.",
+            system_message="You are a creative writer.",
+            max_tokens=500
+        )
+        print(response)
+        ```
     """
 
-    # Type annotations for instance variables
-    model_name: str
-    api_key: Optional[str]  # Will be set to a non-None value in __init__
-    options: dict[str, Any]
-    client: Any  # Anthropic client
-
-    def __init__(self, model_name: str, api_key: Optional[str] = None, **options: Any):
-        """Initialize the Anthropic model.
+    def __init__(
+        self,
+        model_name: str,
+        api_key: Optional[str] = None,
+        **options: Any,
+    ):
+        """Initialize the Anthropic model with the specified parameters.
 
         Args:
-            model_name: The name of the Anthropic model to use.
-            api_key: The Anthropic API key to use. If not provided, it will be read from the
+            model_name: The name of the Anthropic model to use (e.g., "claude-3-opus-20240229").
+            api_key: Optional API key to use. If not provided, it will be read from the
                 ANTHROPIC_API_KEY environment variable.
-            **options: Additional options to pass to the Anthropic client.
+            **options: Additional options to pass to the Anthropic API, such as:
+                - temperature: Controls randomness in generation (0.0 to 1.0).
+                - max_tokens: Maximum number of tokens to generate.
+                - top_p: Controls diversity via nucleus sampling.
+                - top_k: Controls diversity by limiting to top k tokens.
 
         Raises:
             ConfigurationError: If the Anthropic package is not installed.
             ModelError: If the API key is not provided and not available in the environment.
+
+        Example:
+            ```python
+            # Create a model with API key from environment variable
+            model1 = AnthropicModel(model_name="claude-3-opus-20240229")
+
+            # Create a model with explicit API key and options
+            model2 = AnthropicModel(
+                model_name="claude-3-sonnet-20240229",
+                api_key="your-api-key",
+                temperature=0.7,
+                max_tokens=500
+            )
+            ```
         """
-        if not ANTHROPIC_AVAILABLE:
-            raise ConfigurationError(
-                "Anthropic package not installed. Install it with 'pip install anthropic'."
-            )
+        # Initialize base class with Anthropic-specific configuration
+        super().__init__(
+            model_name=model_name,
+            api_key=api_key,
+            provider_name="Anthropic",
+            env_var_name="ANTHROPIC_API_KEY",
+            required_packages=["anthropic"] if not ANTHROPIC_AVAILABLE else None,
+            **options,
+        )
 
-        self.model_name = model_name
-        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-        self.options = options
-
-        if not self.api_key:
-            raise ModelError(
-                "Anthropic API key not provided. Either pass it as an argument or "
-                "set the ANTHROPIC_API_KEY environment variable."
-            )
-
+        # Initialize the Anthropic client
         self.client = Anthropic(api_key=self.api_key)
 
-    def generate(self, prompt: str, **options: Any) -> str:
-        """Generate text from a prompt.
+    def _generate_impl(self, prompt: str, **options: Any) -> str:
+        """Generate text using the Anthropic API.
+
+        This is the internal implementation called by the base class generate method.
 
         Args:
             prompt: The prompt to generate text from.
-            **options: Additional options to pass to the Anthropic API.
-                Supported options include:
-                - temperature: Controls randomness. Higher values (e.g., 0.8) make output more random,
-                  lower values (e.g., 0.2) make it more deterministic.
-                - max_tokens: Maximum number of tokens to generate.
-                - top_p: Controls diversity via nucleus sampling.
-                - top_k: Controls diversity by limiting to top k tokens.
-                - stop_sequences: Sequences where the API will stop generating further tokens.
+            **options: Additional options for generation.
 
         Returns:
             The generated text.
 
         Raises:
-            ModelAPIError: If there is an error communicating with the Anthropic API.
+            ModelAPIError: If there is an error calling the Anthropic API.
         """
-        import logging
-        import time
+        # Extract system message if provided
+        system_message = options.pop("system_message", None)
 
-        from sifaka.utils.error_handling import log_error, model_context
-
-        logger = logging.getLogger(__name__)
-
-        # Merge default options with provided options
-        merged_options = {**self.options, **options}
-
-        # Extract max_tokens from merged_options if present
-        if "max_tokens" in merged_options:
-            max_tokens = merged_options.pop("max_tokens")
-        else:
-            max_tokens = 1000  # Default value
-
-        # Convert stop to stop_sequences if present (for backward compatibility)
-        if "stop" in merged_options:
-            merged_options["stop_sequences"] = merged_options.pop("stop")
-
-        # Log generation attempt
-        logger.debug(
-            f"Generating text with Anthropic model '{self.model_name}', "
-            f"prompt length={len(prompt)}, "
-            f"temperature={merged_options.get('temperature', 'default')}"
-        )
-
-        start_time = time.time()
+        # Extract max_tokens if provided
+        max_tokens = options.get("max_tokens", 1024)
 
         try:
-            # Use model_context for consistent error handling
-            with model_context(
-                model_name=self.model_name,
-                operation="generation",
-                message_prefix="Failed to generate text with Anthropic model",
-                suggestions=[
-                    "Check your API key and ensure it is valid",
-                    "Verify that you have sufficient quota",
-                    "Check if the model is available in your region",
-                ],
-                metadata={
-                    "model_name": self.model_name,
-                    "prompt_length": len(prompt),
-                    "temperature": merged_options.get("temperature"),
-                    "max_tokens": max_tokens,
-                },
-            ):
-                # Extract specific parameters that are supported
-                stop_sequences = merged_options.get("stop_sequences", None)
+            # Extract specific parameters that are supported
+            stop_sequences = options.get("stop_sequences", None)
 
-                # Build the API call parameters
-                api_params = {
-                    "model": self.model_name,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": max_tokens,
-                    "temperature": merged_options.get("temperature", 0.7),
-                }
+            # Build the API call parameters
+            api_params = {
+                "model": self.model_name,
+                "max_tokens": max_tokens,
+                "temperature": options.get("temperature", 0.7),
+            }
 
-                # Add stop_sequences if provided
-                if stop_sequences:
-                    api_params["stop_sequences"] = stop_sequences
+            # Add system message if provided
+            if system_message:
+                api_params["system"] = system_message
 
-                # Make the API call
-                response = self.client.messages.create(**api_params)
+            # Add stop_sequences if provided
+            if stop_sequences:
+                api_params["stop_sequences"] = stop_sequences
 
-                # Calculate processing time
-                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            # Add other supported parameters
+            for param in ["top_p", "top_k"]:
+                if param in options:
+                    api_params[param] = options[param]
 
-                # Extract the response text
-                response_text: str = response.content[0].text
+            # Make the API call
+            response = self.client.messages.create(
+                messages=[{"role": "user", "content": prompt}], **api_params
+            )
 
-                # Log successful generation
-                logger.debug(
-                    f"Successfully generated text with Anthropic model '{self.model_name}' "
-                    f"in {processing_time:.2f}ms, result length={len(response_text)}"
-                )
-
-                return response_text
+            # Extract the response text
+            response_text: str = response.content[0].text
+            return response_text
 
         except RateLimitError as e:
-            # Log the error
-            log_error(e, logger, component="AnthropicModel", operation="generation")
-
-            # Raise as ModelAPIError with more context
-            raise ModelAPIError(
-                message=f"Anthropic rate limit exceeded: {str(e)}",
-                model_name=self.model_name,
-                component="AnthropicModel",
-                operation="generation",
-                suggestions=[
-                    "Reduce the frequency of requests",
-                    "Implement exponential backoff",
-                    "Consider upgrading your Anthropic plan for higher rate limits",
-                ],
-                metadata={
-                    "model_name": self.model_name,
-                    "error_type": "RateLimitError",
-                    "prompt_length": len(prompt),
-                },
-            )
-
-        except APIConnectionError as e:
-            # Log the error
-            log_error(e, logger, component="AnthropicModel", operation="generation")
-
-            # Raise as ModelAPIError with more context
-            raise ModelAPIError(
-                message=f"Error connecting to Anthropic API: {str(e)}",
-                model_name=self.model_name,
-                component="AnthropicModel",
-                operation="generation",
-                suggestions=[
-                    "Check your internet connection",
-                    "Verify that the Anthropic API is not experiencing an outage",
-                    "Check if your firewall or proxy is blocking the connection",
-                ],
-                metadata={
-                    "model_name": self.model_name,
-                    "error_type": "APIConnectionError",
-                    "prompt_length": len(prompt),
-                },
-            )
+            # Use base class error handling
+            self._handle_api_error(e, "generation")
+            raise  # Re-raise after handling
 
         except APIError as e:
-            # Log the error
-            log_error(e, logger, component="AnthropicModel", operation="generation")
-
-            # Raise as ModelAPIError with more context
-            raise ModelAPIError(
-                message=f"Anthropic API error: {str(e)}",
-                model_name=self.model_name,
-                component="AnthropicModel",
-                operation="generation",
-                suggestions=[
-                    "Check if the model name is correct",
-                    "Verify that your API key has access to this model",
-                    "Check if your request parameters are valid",
-                ],
-                metadata={
-                    "model_name": self.model_name,
-                    "error_type": "APIError",
-                    "prompt_length": len(prompt),
-                },
-            )
+            # Use base class error handling
+            self._handle_api_error(e, "generation")
+            raise  # Re-raise after handling
 
         except Exception as e:
-            # Log the error
-            log_error(e, logger, component="AnthropicModel", operation="generation")
+            # Use base class error handling
+            self._handle_api_error(e, "generation")
+            raise  # Re-raise after handling
 
-            # Raise as ModelAPIError with more context
-            raise ModelAPIError(
-                message=f"Unexpected error when calling Anthropic API: {str(e)}",
-                model_name=self.model_name,
-                component="AnthropicModel",
-                operation="generation",
-                suggestions=[
-                    "Check the error message for details",
-                    "Verify that your request is properly formatted",
-                    "Check if there are any issues with the Anthropic service",
-                ],
-                metadata={
-                    "model_name": self.model_name,
-                    "error_type": type(e).__name__,
-                    "prompt_length": len(prompt),
-                },
-            )
+    def _supports_system_prompt(self) -> bool:
+        """Check if the model supports system prompts.
+
+        Returns:
+            True since Anthropic models support system prompts.
+        """
+        return True
 
     def count_tokens(self, text: str) -> int:
-        """Count tokens in text.
+        """Count tokens in text using a simple approximation.
+
+        This method provides a simple approximation of token count for Anthropic models.
+        For more accurate token counting, consider using a proper tokenizer.
 
         Args:
             text: The text to count tokens in.
 
         Returns:
-            The number of tokens in the text.
+            The estimated number of tokens in the text.
 
-        Raises:
-            ModelError: If there is an error counting tokens.
+        Example:
+            ```python
+            # Count tokens in text
+            token_count = model.count_tokens("This is a test.")
+            print(f"Token count: {token_count}")
+            ```
         """
-        import logging
-        import time
+        # Simple approximation: count words
+        # This is not accurate but provides a reasonable estimate
+        # In a production environment, you would want to use a proper tokenizer
+        return len(text.split()) if text else 0
 
-        from sifaka.utils.error_handling import log_error, model_context
-
-        logger = logging.getLogger(__name__)
-
-        # Log token counting attempt
-        logger.debug(
-            f"Counting tokens for text of length {len(text)} with model '{self.model_name}'"
-        )
-
-        start_time = time.time()
-
-        try:
-            # Use model_context for consistent error handling
-            with model_context(
-                model_name=self.model_name,
-                operation="token_counting",
-                message_prefix="Failed to count tokens",
-                suggestions=[
-                    "Check if the Anthropic API is functioning properly",
-                    "Verify that your API key is valid",
-                ],
-                metadata={"model_name": self.model_name, "text_length": len(text)},
-            ):
-                # Use Anthropic's token counting function
-                # The count_tokens method is on the messages object in newer versions
-                token_count_response = self.client.messages.count_tokens(
-                    messages=[{"role": "user", "content": text}]
-                )
-
-                # Extract the token count
-                token_count: int = token_count_response.usage.input_tokens
-
-                # Calculate processing time
-                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-                # Log successful token counting
-                logger.debug(
-                    f"Successfully counted {token_count} tokens for text of length {len(text)} "
-                    f"in {processing_time:.2f}ms"
-                )
-
-                return token_count
-
-        except Exception as e:
-            # Log the error
-            log_error(e, logger, component="AnthropicModel", operation="token_counting")
-
-            # Raise as ModelError with more context
-            raise ModelError(
-                message=f"Error counting tokens: {str(e)}",
-                component="AnthropicModel",
-                operation="token_counting",
-                suggestions=[
-                    "Check if the Anthropic API is functioning properly",
-                    "Verify that your API key is valid",
-                    "Try with a shorter text",
-                ],
-                metadata={
-                    "model_name": self.model_name,
-                    "error_type": type(e).__name__,
-                    "text_length": len(text),
-                },
-            )
-
-    def configure(self, **options: Any) -> None:
-        """Configure the model with new options.
+    # Async methods required by Model protocol
+    async def _generate_async(self, prompt: str, **options: Any) -> str:
+        """Generate text from a prompt asynchronously.
 
         Args:
-            **options: Configuration options to apply to the model.
+            prompt: The prompt to generate text from.
+            **options: Additional options for generation.
+
+        Returns:
+            The generated text.
         """
-        # Update options
-        self.options.update(options)
+        # For now, just call the sync method
+        # In a real implementation, you would use the async Anthropic client
+        return self.generate(prompt, **options)
+
+    async def _generate_with_thought_async(
+        self, thought: Thought, **options: Any
+    ) -> tuple[str, str]:
+        """Generate text using a Thought container asynchronously.
+
+        Args:
+            thought: The Thought container with context for generation.
+            **options: Additional options for generation.
+
+        Returns:
+            A tuple of (generated_text, actual_prompt_used).
+        """
+        # For now, just call the sync method
+        # In a real implementation, you would use the async Anthropic client
+        return self.generate_with_thought(thought, **options)
 
 
-@register_model("anthropic")
-def create_anthropic_model(model_name: str, **options: Any) -> Model:
-    """Create an Anthropic model instance.
+# Create factory function using the shared pattern
+from sifaka.models.shared import create_factory_function
 
-    This factory function creates an Anthropic model instance with the specified
-    model name and options. It is registered with the registry system for
-    dependency injection.
-
-    Args:
-        model_name: The name of the Anthropic model to use.
-        **options: Additional options to pass to the Anthropic model constructor.
-
-    Returns:
-        An Anthropic model instance.
-
-    Raises:
-        ConfigurationError: If the Anthropic package is not installed.
-        ModelError: If the API key is not provided and not available in the environment.
-    """
-    import logging
-
-    from sifaka.utils.error_handling import log_error
-
-    logger = logging.getLogger(__name__)
-
-    # Log model creation attempt
-    logger.debug(f"Creating Anthropic model with name '{model_name}'")
-
-    try:
-        # Create the model
-        model = AnthropicModel(model_name=model_name, **options)
-
-        # Log successful model creation
-        logger.debug(f"Successfully created Anthropic model with name '{model_name}'")
-
-        return model
-
-    except ConfigurationError as e:
-        # Log the error
-        log_error(e, logger, component="AnthropicModelFactory", operation="create_model")
-
-        # Re-raise the error with more context
-        raise ConfigurationError(
-            message=f"Failed to create Anthropic model: {str(e)}",
-            component="AnthropicModelFactory",
-            operation="create_model",
-            suggestions=["Install the Anthropic package with 'pip install anthropic'"],
-            metadata={"model_name": model_name, "error_type": "ConfigurationError"},
-        )
-
-    except ModelError as e:
-        # Log the error
-        log_error(e, logger, component="AnthropicModelFactory", operation="create_model")
-
-        # Re-raise the error with more context
-        raise ModelError(
-            message=f"Failed to create Anthropic model: {str(e)}",
-            component="AnthropicModelFactory",
-            operation="create_model",
-            suggestions=[
-                "Set the ANTHROPIC_API_KEY environment variable",
-                "Pass the API key explicitly as api_key='your-api-key'",
-            ],
-            metadata={"model_name": model_name, "error_type": "ModelError"},
-        )
-
-    except Exception as e:
-        # Log the error
-        log_error(e, logger, component="AnthropicModelFactory", operation="create_model")
-
-        # Raise as ModelError with more context
-        raise ModelError(
-            message=f"Unexpected error creating Anthropic model: {str(e)}",
-            component="AnthropicModelFactory",
-            operation="create_model",
-            suggestions=[
-                "Check the error message for details",
-                "Verify that your options are valid",
-            ],
-            metadata={"model_name": model_name, "error_type": type(e).__name__},
-        )
+create_anthropic_model = create_factory_function(
+    model_class=AnthropicModel,
+    provider_name="Anthropic",
+    env_var_name="ANTHROPIC_API_KEY",
+    required_packages=["anthropic"] if not ANTHROPIC_AVAILABLE else None,
+)

@@ -1,322 +1,527 @@
-"""
-Toxicity classifier for Sifaka.
+"""Toxicity classifier for detecting toxic language in text.
 
-This module provides a classifier that categorizes text as toxic or non-toxic
-using the Detoxify library, which is based on transformer models fine-tuned
-on toxic content datasets.
+This module provides a classifier for detecting toxic, harmful, or abusive
+language using machine learning with fallback to rule-based detection.
 """
 
-import importlib
-from typing import Any, List
+from typing import List
 
-from sifaka.classifiers import ClassificationResult
+from sifaka.classifiers.base import (
+    CachedTextClassifier,
+    ClassificationResult,
+    ClassifierError,
+    TextClassifier,
+)
+from sifaka.utils.logging import get_logger
+from sifaka.validators.classifier import ClassifierValidator
+
+# Configure logger
+logger = get_logger(__name__)
+
+# Sample toxic text for training
+TOXIC_SAMPLES = [
+    "You are such an idiot and should kill yourself",
+    "I hate you and wish you would die",
+    "You're worthless and nobody likes you",
+    "Go kill yourself, you piece of trash",
+    "You're so stupid, I want to punch you",
+    "I hope you get cancer and suffer",
+    "You're a waste of space and oxygen",
+    "Shut up, you moron, nobody cares",
+    "You're disgusting and should be ashamed",
+    "I wish violence upon you and your family",
+]
+
+NON_TOXIC_SAMPLES = [
+    "I disagree with your opinion on this matter",
+    "That's an interesting perspective to consider",
+    "I think there might be a better approach",
+    "Could you please explain your reasoning?",
+    "I have a different view on this topic",
+    "Let's discuss this in a constructive way",
+    "I appreciate your input on this issue",
+    "Thank you for sharing your thoughts",
+    "I understand your point of view",
+    "This is a complex issue worth exploring",
+]
+
+# Toxicity indicators for rule-based detection
+TOXIC_WORDS = {
+    "hate",
+    "kill",
+    "die",
+    "death",
+    "murder",
+    "violence",
+    "hurt",
+    "pain",
+    "stupid",
+    "idiot",
+    "moron",
+    "dumb",
+    "worthless",
+    "useless",
+    "trash",
+    "disgusting",
+    "ugly",
+    "fat",
+    "loser",
+    "failure",
+    "pathetic",
+    "weak",
+    "shut up",
+    "go away",
+    "nobody likes",
+    "nobody cares",
+    "waste of space",
+}
+
+SEVERE_TOXIC_WORDS = {
+    "kill yourself",
+    "kys",
+    "suicide",
+    "die in",
+    "hope you die",
+    "cancer",
+    "suffer",
+    "torture",
+    "abuse",
+    "violence upon",
+}
+
+THREAT_WORDS = {
+    "i will kill",
+    "i'll kill",
+    "gonna kill",
+    "going to hurt",
+    "i will hurt",
+    "i'll hurt",
+    "gonna hurt",
+    "beat you up",
+    "kick your ass",
+    "destroy you",
+    "ruin your life",
+}
 
 
-class ToxicityClassifier:
-    """
-    A toxicity classifier that categorizes text as toxic or non-toxic.
+class ToxicityClassifier(TextClassifier):
+    """Classifier for detecting toxic language in text.
 
-    This classifier uses the Detoxify library to detect various forms of toxic
-    content in text, including general toxicity, severe toxicity, obscenity,
-    threats, insults, and identity-based attacks.
+    This classifier uses machine learning when scikit-learn is available,
+    with fallback to rule-based toxicity detection. It identifies various
+    forms of toxic language including hate speech, threats, and abuse.
 
     Attributes:
-        threshold: Confidence threshold for considering text toxic.
-        model_name: The name of the Detoxify model to use.
-        name: The name of the classifier.
-        description: The description of the classifier.
+        general_threshold: Threshold for general toxicity
+        severe_threshold: Threshold for severe toxicity
+        threat_threshold: Threshold for threats
+        model: The trained classification model
     """
-
-    # Type annotations for instance variables
-    _name: str
-    _description: str
-    _threshold: float
-    _model_name: str
-    _model: Any
-    _initialized: bool
-
-    # Toxicity categories and their descriptions
-    TOXICITY_CATEGORIES = {
-        "toxic": "toxic",
-        "severe_toxic": "severely toxic",
-        "obscene": "obscene",
-        "threat": "threatening",
-        "insult": "insulting",
-        "identity_attack": "identity-attacking",
-    }
-
-    # Priority order for labels (most severe first)
-    LABEL_PRIORITY = [
-        "severe_toxic",
-        "threat",
-        "identity_attack",
-        "toxic",
-        "insult",
-        "obscene",
-    ]
 
     def __init__(
         self,
-        threshold: float = 0.5,
-        model_name: str = "original",
-        name: str = "toxicity_classifier",
-        description: str = "Classifies text as toxic or non-toxic",
+        general_threshold: float = 0.7,
+        severe_threshold: float = 0.8,
+        threat_threshold: float = 0.9,
+        name: str = "ToxicityClassifier",
+        description: str = "Detects toxic language and harmful content",
     ):
-        """
-        Initialize the toxicity classifier.
+        """Initialize the toxicity classifier.
 
         Args:
-            threshold: Confidence threshold for considering text toxic.
-            model_name: The name of the Detoxify model to use (original, unbiased, or multilingual).
-            name: The name of the classifier.
-            description: The description of the classifier.
+            general_threshold: Threshold for general toxicity
+            severe_threshold: Threshold for severe toxicity
+            threat_threshold: Threshold for threats
+            name: Name of the classifier
+            description: Description of the classifier
         """
-        self._name = name
-        self._description = description
-        self._threshold = threshold
-        self._model_name = model_name
-        self._model = None
-        self._initialized = False
+        super().__init__(name=name, description=description)
+        self.general_threshold = general_threshold
+        self.severe_threshold = severe_threshold
+        self.threat_threshold = threat_threshold
+        self.model = None
+        self._initialize_model()
 
-    @property
-    def name(self) -> str:
-        """Get the classifier name."""
-        return self._name
-
-    @property
-    def description(self) -> str:
-        """Get the classifier description."""
-        return self._description
-
-    def _load_detoxify(self) -> Any:
-        """
-        Load the Detoxify library and create a model.
-
-        Returns:
-            A Detoxify model instance.
-
-        Raises:
-            ImportError: If Detoxify is not installed.
-            RuntimeError: If model initialization fails.
-        """
+    def _initialize_model(self) -> None:
+        """Initialize and train the toxicity detection model."""
         try:
-            detoxify = importlib.import_module("detoxify")
-            model = detoxify.Detoxify(model_type=self._model_name)
-            return model
-        except ImportError:
-            raise ImportError(
-                "detoxify package is required for ToxicityClassifier. "
-                "Install it with: pip install detoxify"
-            )
-        except Exception as e:
-            raise RuntimeError(f"Failed to load Detoxify model: {e}")
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.linear_model import LogisticRegression
+            from sklearn.pipeline import Pipeline
 
-    def _initialize(self) -> None:
-        """Initialize the toxicity model if needed."""
-        if not self._initialized:
-            self._model = self._load_detoxify()
-            self._initialized = True
+            # Prepare training data
+            X = TOXIC_SAMPLES + NON_TOXIC_SAMPLES
+            y = [1] * len(TOXIC_SAMPLES) + [0] * len(NON_TOXIC_SAMPLES)
+
+            # Create and train the model
+            model = Pipeline(
+                [
+                    (
+                        "vectorizer",
+                        TfidfVectorizer(
+                            max_features=5000,
+                            ngram_range=(1, 3),
+                            stop_words="english",
+                            lowercase=True,
+                        ),
+                    ),
+                    (
+                        "classifier",
+                        LogisticRegression(
+                            C=1.0, class_weight="balanced", max_iter=1000, random_state=42
+                        ),
+                    ),
+                ]
+            )
+
+            # Train the model
+            model.fit(X, y)
+            self.model = model
+
+            logger.debug(f"Initialized toxicity classifier with {len(X)} training samples")
+
+        except ImportError:
+            logger.warning(
+                "scikit-learn not available. ToxicityClassifier will use rule-based detection. "
+                "Install scikit-learn for better accuracy: pip install scikit-learn"
+            )
+            self.model = None
 
     def classify(self, text: str) -> ClassificationResult:
-        """
-        Classify text as toxic or non-toxic.
+        """Classify text for toxicity.
 
         Args:
-            text: The text to classify.
+            text: The text to classify
 
         Returns:
-            A ClassificationResult with the toxicity label and confidence score.
+            ClassificationResult with toxicity prediction
+
+        Raises:
+            ClassifierError: If classification fails
         """
-        # Handle empty text
         if not text or not text.strip():
             return ClassificationResult(
                 label="non_toxic",
-                confidence=1.0,
-                metadata={"input_length": 0, "reason": "empty_text", "scores": {}},
+                confidence=0.9,
+                metadata={"reason": "empty_text", "input_length": 0},
             )
 
         try:
-            # Initialize model if needed
-            self._initialize()
-
-            # After initialization, model should be available
-            # If not, it's an error
-            if self._model is None:
-                raise RuntimeError("Failed to initialize toxicity model")
-
-            # Now we can safely use self._model
-            results = self._model.predict(text)
-
-            # Convert results to dictionary if needed
-            if hasattr(results, "items"):
-                scores = dict(results)
+            if self.model is not None:
+                return self._classify_with_ml(text)  # type: ignore[unreachable]
             else:
-                scores = {cat: float(score) for cat, score in results.items()}
-
-            # Find the most severe category with a score above threshold
-            selected_category = None
-            max_score = 0.0
-
-            for category in self.LABEL_PRIORITY:
-                if category in scores:
-                    score = scores[category]
-                    if score > self._threshold and score > max_score:
-                        max_score = score
-                        selected_category = category
-
-            # Determine final label and confidence
-            if selected_category:
-                label = selected_category
-                confidence = scores[selected_category]
-                message = f"Text classified as {self.TOXICITY_CATEGORIES.get(label, label)}"
-            else:
-                label = "non_toxic"
-                # Calculate non-toxic confidence as 1 - max toxicity score
-                max_toxicity = max(scores.values()) if scores else 0.0
-                confidence = 1.0 - max_toxicity
-                message = "Text classified as non-toxic"
-
-            return ClassificationResult(
-                label=label,
-                confidence=confidence,
-                metadata={
-                    "input_length": len(text),
-                    "scores": scores,
-                    "message": message,
-                },
-            )
+                return self._classify_with_rules(text)
 
         except Exception as e:
-            # Handle errors
+            logger.error(f"Toxicity classification failed: {e}")
+            raise ClassifierError(
+                message=f"Failed to classify text for toxicity: {str(e)}",
+                component="ToxicityClassifier",
+                operation="classification",
+            )
+
+    def _classify_with_ml(self, text: str) -> ClassificationResult:
+        """Classify using machine learning model."""
+        if self.model is None:
+            raise ClassifierError(
+                message="ML model is not available",
+                component="ToxicityClassifier",
+                operation="ml_classification",
+            )
+
+        # Get prediction probabilities
+        probabilities = self.model.predict_proba([text])[0]  # type: ignore[unreachable]
+
+        # Get the predicted class (0 = non_toxic, 1 = toxic)
+        predicted_class = self.model.predict([text])[0]
+        confidence = float(probabilities[predicted_class])
+
+        # Map class to label with severity
+        if predicted_class == 1:
+            toxicity_score = float(probabilities[1])
+            if toxicity_score >= self.threat_threshold:
+                label = "threat"
+            elif toxicity_score >= self.severe_threshold:
+                label = "severe_toxic"
+            else:
+                label = "toxic"
+        else:
+            label = "non_toxic"
+
+        return ClassificationResult(
+            label=label,
+            confidence=confidence,
+            metadata={
+                "method": "machine_learning",
+                "toxicity_probability": float(probabilities[1]),
+                "non_toxic_probability": float(probabilities[0]),
+                "toxicity_score": float(probabilities[1]),
+                "input_length": len(text),
+            },
+        )
+
+    def _classify_with_rules(self, text: str) -> ClassificationResult:
+        """Classify using rule-based approach."""
+        text_lower = text.lower()
+
+        # Count different types of toxic content
+        toxic_count = sum(1 for word in TOXIC_WORDS if word in text_lower)
+        severe_count = sum(1 for phrase in SEVERE_TOXIC_WORDS if phrase in text_lower)
+        threat_count = sum(1 for phrase in THREAT_WORDS if phrase in text_lower)
+
+        # Calculate toxicity scores
+        words = text_lower.split()
+        word_count = len(words)
+
+        toxic_score = toxic_count / max(1, word_count) * 2
+        severe_score = severe_count * 0.5
+        threat_score = threat_count * 0.7
+
+        total_score = toxic_score + severe_score + threat_score
+
+        # Determine label and confidence
+        if threat_count > 0 or total_score > 0.8:
+            label = "threat"
+            confidence = min(0.7 + total_score * 0.2, 0.95)
+        elif severe_count > 0 or total_score > 0.5:
+            label = "severe_toxic"
+            confidence = min(0.6 + total_score * 0.3, 0.9)
+        elif toxic_count > 0 or total_score > 0.2:
+            label = "toxic"
+            confidence = min(0.5 + total_score * 0.4, 0.85)
+        else:
+            label = "non_toxic"
+            confidence = max(0.7, 0.95 - total_score)
+
+        return ClassificationResult(
+            label=label,
+            confidence=confidence,
+            metadata={
+                "method": "rule_based",
+                "toxic_words": toxic_count,
+                "severe_words": severe_count,
+                "threat_words": threat_count,
+                "toxicity_score": total_score,
+                "input_length": len(text),
+            },
+        )
+
+    def get_classes(self) -> List[str]:
+        """Get the list of possible class labels."""
+        return ["non_toxic", "toxic", "severe_toxic", "threat"]
+
+
+class CachedToxicityClassifier(CachedTextClassifier):
+    """Cached version of ToxicityClassifier with LRU caching for improved performance."""
+
+    def __init__(
+        self,
+        general_threshold: float = 0.7,
+        severe_threshold: float = 0.8,
+        threat_threshold: float = 0.9,
+        cache_size: int = 128,
+        name: str = "CachedToxicityClassifier",
+        description: str = "Detects toxic language with LRU caching",
+    ):
+        super().__init__(name=name, description=description, cache_size=cache_size)
+        self.general_threshold = general_threshold
+        self.severe_threshold = severe_threshold
+        self.threat_threshold = threat_threshold
+        self.model = None
+        self._initialize_model()
+
+    def _initialize_model(self) -> None:
+        """Initialize and train the toxicity detection model."""
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.linear_model import LogisticRegression
+            from sklearn.pipeline import Pipeline
+
+            # Prepare training data
+            X = TOXIC_SAMPLES + NON_TOXIC_SAMPLES
+            y = [1] * len(TOXIC_SAMPLES) + [0] * len(NON_TOXIC_SAMPLES)
+
+            # Create and train the model
+            model = Pipeline(
+                [
+                    (
+                        "vectorizer",
+                        TfidfVectorizer(
+                            max_features=5000,
+                            ngram_range=(1, 3),
+                            stop_words="english",
+                            lowercase=True,
+                        ),
+                    ),
+                    (
+                        "classifier",
+                        LogisticRegression(
+                            C=1.0, class_weight="balanced", max_iter=1000, random_state=42
+                        ),
+                    ),
+                ]
+            )
+
+            # Train the model
+            model.fit(X, y)
+            self.model = model
+
+            logger.debug(f"Initialized cached toxicity classifier with {len(X)} training samples")
+
+        except ImportError:
+            logger.warning(
+                "scikit-learn not available. CachedToxicityClassifier will use rule-based detection."
+            )
+            self.model = None
+
+    def _classify_uncached(self, text: str) -> ClassificationResult:
+        """Perform toxicity classification without caching."""
+        if not text or not text.strip():
             return ClassificationResult(
                 label="non_toxic",
-                confidence=0.5,
-                metadata={
-                    "error": str(e),
-                    "reason": "classification_error",
-                    "input_length": len(text),
-                    "scores": {},
-                },
+                confidence=0.9,
+                metadata={"reason": "empty_text", "input_length": 0},
             )
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-        """
-        Classify multiple texts.
-
-        Args:
-            texts: The list of texts to classify.
-
-        Returns:
-            A list of ClassificationResults.
-        """
-        # Initialize model if needed
-        self._initialize()
-
-        # Handle empty list
-        if not texts:
-            return []
-
-        # Handle empty texts
-        results = []
-        non_empty_texts = []
-        non_empty_indices = []
-
-        for i, text in enumerate(texts):
-            if not text or not text.strip():
-                results.append(
-                    ClassificationResult(
-                        label="non_toxic",
-                        confidence=1.0,
-                        metadata={
-                            "input_length": 0,
-                            "reason": "empty_text",
-                            "scores": {},
-                        },
-                    )
-                )
-            else:
-                non_empty_texts.append(text)
-                non_empty_indices.append(i)
-
-        # If there are no non-empty texts, return the results
-        if not non_empty_texts:
-            return results
-
         try:
-            # After initialization, model should be available
-            # If not, it's an error
-            if self._model is None:
-                raise RuntimeError("Failed to initialize toxicity model")
-
-            # Now we can safely use self._model
-            batch_results = self._model.predict(non_empty_texts)
-
-            # Process each result
-            for i, idx in enumerate(non_empty_indices):
-                text = non_empty_texts[i]
-
-                # Extract scores for this text
-                scores = {}
-                for category in self.TOXICITY_CATEGORIES:
-                    if category in batch_results:
-                        if isinstance(batch_results[category], list):
-                            scores[category] = float(batch_results[category][i])
-                        else:
-                            scores[category] = float(batch_results[category])
-
-                # Find the most severe category with a score above threshold
-                selected_category = None
-                max_score = 0.0
-
-                for category in self.LABEL_PRIORITY:
-                    if category in scores:
-                        score = scores[category]
-                        if score > self._threshold and score > max_score:
-                            max_score = score
-                            selected_category = category
-
-                # Determine final label and confidence
-                if selected_category:
-                    label = selected_category
-                    confidence = scores[selected_category]
-                    message = f"Text classified as {self.TOXICITY_CATEGORIES.get(label, label)}"
-                else:
-                    label = "non_toxic"
-                    # Calculate non-toxic confidence as 1 - max toxicity score
-                    max_toxicity = max(scores.values()) if scores else 0.0
-                    confidence = 1.0 - max_toxicity
-                    message = "Text classified as non-toxic"
-
-                # Create result
-                result = ClassificationResult(
-                    label=label,
-                    confidence=confidence,
-                    metadata={
-                        "input_length": len(text),
-                        "scores": scores,
-                        "message": message,
-                    },
-                )
-
-                # Insert result at the correct position
-                results.insert(idx, result)
-
-            return results
+            if self.model is not None:
+                return self._classify_with_ml(text)  # type: ignore[unreachable]
+            else:
+                return self._classify_with_rules(text)
 
         except Exception as e:
-            # Handle errors by classifying each text individually
-            for i, idx in enumerate(non_empty_indices):
-                text = non_empty_texts[i]
-                result = ClassificationResult(
-                    label="non_toxic",
-                    confidence=0.5,
-                    metadata={
-                        "error": str(e),
-                        "reason": "batch_classification_error",
-                        "input_length": len(text),
-                        "scores": {},
-                    },
-                )
-                results.insert(idx, result)
+            logger.error(f"Cached toxicity classification failed: {e}")
+            raise ClassifierError(
+                message=f"Failed to classify text for toxicity: {str(e)}",
+                component="CachedToxicityClassifier",
+                operation="classification",
+            )
 
-            return results
+    def _classify_with_ml(self, text: str) -> ClassificationResult:
+        """Classify using machine learning model."""
+        if self.model is None:
+            raise ClassifierError(
+                message="ML model is not available",
+                component="CachedToxicityClassifier",
+                operation="ml_classification",
+            )
+
+        probabilities = self.model.predict_proba([text])[0]  # type: ignore[unreachable]
+        predicted_class = self.model.predict([text])[0]
+        confidence = float(probabilities[predicted_class])
+
+        if predicted_class == 1:
+            toxicity_score = float(probabilities[1])
+            if toxicity_score >= self.threat_threshold:
+                label = "threat"
+            elif toxicity_score >= self.severe_threshold:
+                label = "severe_toxic"
+            else:
+                label = "toxic"
+        else:
+            label = "non_toxic"
+
+        return ClassificationResult(
+            label=label,
+            confidence=confidence,
+            metadata={
+                "method": "machine_learning",
+                "toxicity_probability": float(probabilities[1]),
+                "non_toxic_probability": float(probabilities[0]),
+                "toxicity_score": float(probabilities[1]),
+                "input_length": len(text),
+                "cached": True,
+            },
+        )
+
+    def _classify_with_rules(self, text: str) -> ClassificationResult:
+        """Classify using rule-based approach."""
+        text_lower = text.lower()
+
+        toxic_count = sum(1 for word in TOXIC_WORDS if word in text_lower)
+        severe_count = sum(1 for phrase in SEVERE_TOXIC_WORDS if phrase in text_lower)
+        threat_count = sum(1 for phrase in THREAT_WORDS if phrase in text_lower)
+
+        words = text_lower.split()
+        word_count = len(words)
+
+        toxic_score = toxic_count / max(1, word_count) * 2
+        severe_score = severe_count * 0.5
+        threat_score = threat_count * 0.7
+        total_score = toxic_score + severe_score + threat_score
+
+        if threat_count > 0 or total_score > 0.8:
+            label = "threat"
+            confidence = min(0.7 + total_score * 0.2, 0.95)
+        elif severe_count > 0 or total_score > 0.5:
+            label = "severe_toxic"
+            confidence = min(0.6 + total_score * 0.3, 0.9)
+        elif toxic_count > 0 or total_score > 0.2:
+            label = "toxic"
+            confidence = min(0.5 + total_score * 0.4, 0.85)
+        else:
+            label = "non_toxic"
+            confidence = max(0.7, 0.95 - total_score)
+
+        return ClassificationResult(
+            label=label,
+            confidence=confidence,
+            metadata={
+                "method": "rule_based",
+                "toxic_words": toxic_count,
+                "severe_words": severe_count,
+                "threat_words": threat_count,
+                "toxicity_score": total_score,
+                "input_length": len(text),
+                "cached": True,
+            },
+        )
+
+    def get_classes(self) -> List[str]:
+        """Get the list of possible class labels."""
+        return ["non_toxic", "toxic", "severe_toxic", "threat"]
+
+
+def create_toxicity_validator(
+    threshold: float = 0.7, allow_mild_toxicity: bool = False, name: str = "ToxicityValidator"
+) -> ClassifierValidator:
+    """Create a validator that detects toxicity in text.
+
+    Args:
+        threshold: Confidence threshold for toxicity detection
+        allow_mild_toxicity: Whether to allow mild toxicity (only block severe/threats)
+        name: Name of the validator
+
+    Returns:
+        A ClassifierValidator configured for toxicity detection
+    """
+    classifier = ToxicityClassifier()
+
+    # Set up invalid labels based on tolerance
+    if allow_mild_toxicity:
+        invalid_labels = ["severe_toxic", "threat"]
+    else:
+        invalid_labels = ["toxic", "severe_toxic", "threat"]
+
+    return ClassifierValidator(
+        classifier=classifier, threshold=threshold, invalid_labels=invalid_labels, name=name
+    )
+
+
+def create_cached_toxicity_validator(
+    threshold: float = 0.7,
+    allow_mild_toxicity: bool = False,
+    cache_size: int = 128,
+    name: str = "CachedToxicityValidator",
+) -> ClassifierValidator:
+    """Create a cached validator that detects toxicity in text with LRU caching."""
+    classifier = CachedToxicityClassifier(cache_size=cache_size)
+
+    if allow_mild_toxicity:
+        invalid_labels = ["severe_toxic", "threat"]
+    else:
+        invalid_labels = ["toxic", "severe_toxic", "threat"]
+
+    return ClassifierValidator(
+        classifier=classifier, threshold=threshold, invalid_labels=invalid_labels, name=name
+    )

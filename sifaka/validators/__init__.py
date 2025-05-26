@@ -1,96 +1,99 @@
-"""Validation components for ensuring LLM outputs meet requirements.
+"""Validators for Sifaka.
 
-This module provides validators for checking if text meets specific criteria,
-such as length, content, and format requirements. It includes both built-in
-validators and utilities for creating custom validators.
+This package provides validator classes that check if text meets specific criteria.
+Validators are used in the Sifaka chain to ensure that generated text meets
+specified requirements before it is returned to the user or passed to the next
+stage of the chain.
 
-The validators can be used with the Chain class to validate text generated
-by language models before returning it to the user.
+Available validators:
+- LengthValidator: Checks text length requirements
+- RegexValidator: Validates text against regex patterns
+- ContentValidator: Checks for prohibited content
+- FormatValidator: Validates text format (JSON, Markdown, custom)
+- ClassifierValidator: Uses ML classifiers for validation
+- GuardrailsValidator: Integrates with GuardrailsAI
 
 Example:
     ```python
-    from sifaka import Chain
-    from sifaka.validators import length, prohibited_content
-    from sifaka.models.openai import OpenAIModel
-
-    # Create a model
-    model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
+    from sifaka.validators import (
+        LengthValidator,
+        ContentValidator,
+        FormatValidator,
+        ClassifierValidator,
+        GuardrailsValidator,
+    )
+    from sifaka.core.thought import Thought
 
     # Create validators
-    length_validator = length(min_words=100, max_words=500)
-    content_validator = prohibited_content(prohibited=["harmful", "offensive"])
+    length_validator = LengthValidator(min_length=10, max_length=1000)
+    content_validator = ContentValidator(prohibited=["spam", "harmful"])
+    format_validator = FormatValidator(format_type="json")
 
-    # Create a chain with validators
-    chain = (Chain()
-        .with_model(model)
-        .with_prompt("Write a short story about a robot.")
-        .validate_with(length_validator)
-        .validate_with(content_validator)
-    )
+    # Create a thought with text
+    thought = Thought(prompt="Test prompt", text="This is test text.")
 
-    # Run the chain
-    result = chain.run()
+    # Validate
+    length_result = length_validator.validate(thought)
+    content_result = content_validator.validate(thought)
+    format_result = format_validator.validate(thought)
 
-    # Check if validation passed
-    if result.passed:
-        print("Validation passed!")
-        print(result.text)
-    else:
-        print("Validation failed!")
-        print(result.validation_results[0].message)
+    # Check results
+    if length_result.passed and content_result.passed and format_result.passed:
+        print("All validations passed!")
     ```
 """
 
-from sifaka.validators.base import BaseValidator, ValidatorProtocol, safe_validate
+# Import base validators
+from sifaka.validators.base import LengthValidator, RegexValidator
+
+# Import classifier validator
 from sifaka.validators.classifier import (
+    Classifier,
     ClassifierValidator,
     classifier_validator,
     create_classifier_validator,
 )
+
+# Import content validator
 from sifaka.validators.content import ContentValidator, create_content_validator, prohibited_content
+
+# Import format validator
 from sifaka.validators.format import (
     FormatValidator,
-    create_custom_format_validator,
-    create_json_format_validator,
-    create_markdown_format_validator,
+    create_format_validator,
     custom_format,
     json_format,
     markdown_format,
 )
+
+# Import guardrails validator
 from sifaka.validators.guardrails import (
     GuardrailsValidator,
     create_guardrails_validator,
     guardrails_validator,
 )
-from sifaka.validators.length import LengthValidator, create_length_validator, length
-
-# Critics have been moved to their own directory
 
 __all__ = [
-    # Base validator
-    "BaseValidator",
-    "ValidatorProtocol",
-    "safe_validate",
-    # Basic validators
+    # Base validators
     "LengthValidator",
-    "length",
-    "create_length_validator",
+    "RegexValidator",
+    # Content validator
     "ContentValidator",
-    "prohibited_content",
     "create_content_validator",
+    "prohibited_content",
+    # Format validator
     "FormatValidator",
+    "create_format_validator",
     "json_format",
     "markdown_format",
     "custom_format",
-    "create_json_format_validator",
-    "create_markdown_format_validator",
-    "create_custom_format_validator",
-    # Classifier validators
+    # Classifier validator
     "ClassifierValidator",
-    "classifier_validator",
+    "Classifier",
     "create_classifier_validator",
-    # GuardrailsAI validators
+    "classifier_validator",
+    # Guardrails validator
     "GuardrailsValidator",
-    "guardrails_validator",
     "create_guardrails_validator",
+    "guardrails_validator",
 ]

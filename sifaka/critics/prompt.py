@@ -1,499 +1,318 @@
+"""Prompt-based critic for Sifaka.
+
+This module implements a simple, customizable prompt-based critic that allows
+users to define their own critique criteria through custom prompts.
+
+The PromptCritic provides a flexible foundation for creating domain-specific
+critics without requiring complex implementations.
 """
-Prompt-based critic for Sifaka.
 
-This module provides a critic that uses custom prompts to improve text.
-
-This is a general-purpose critic that can be customized with different prompts
-to implement various critique and improvement strategies. It serves as a flexible
-foundation for more specialized critics.
-"""
-
-import json
-import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from sifaka.critics.base import Critic
-from sifaka.errors import ImproverError
-from sifaka.models.base import Model
-from sifaka.registry import register_improver
-from sifaka.utils.error_handling import critic_context, log_error
+from sifaka.core.interfaces import Model
+from sifaka.core.thought import Thought
+from sifaka.critics.base import BaseCritic
+from sifaka.utils.error_handling import ImproverError, critic_context
+from sifaka.utils.logging import get_logger
 
-# Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
-class PromptCritic(Critic):
-    """Critic that uses custom prompts to improve text.
+class PromptCritic(BaseCritic):
+    """A simple, customizable prompt-based critic.
 
-    This critic uses custom prompts to critique and improve text. It allows
-    for flexible customization of the critique and improvement process.
-
-    Attributes:
-        model: The model to use for critiquing and improving text.
-        critique_prompt_template: The template to use for critiquing text.
-        improvement_prompt_template: The template to use for improving text.
-        system_prompt: The system prompt to use for the model.
-        temperature: The temperature to use for the model.
+    This critic allows users to define their own critique criteria through
+    custom prompts, making it easy to create domain-specific critics without
+    complex implementations.
     """
 
     def __init__(
         self,
-        model: Model,
+        model: Optional[Model] = None,
+        model_name: Optional[str] = None,
         critique_prompt_template: Optional[str] = None,
-        improvement_prompt_template: Optional[str] = None,
+        improve_prompt_template: Optional[str] = None,
         system_prompt: Optional[str] = None,
-        temperature: float = 0.7,
-        **options: Any,
+        criteria: Optional[List[str]] = None,
+        **model_kwargs: Any,
     ):
-        """Initialize the prompt critic.
+        """Initialize the Prompt critic.
 
         Args:
-            model: The model to use for critiquing and improving text.
-            critique_prompt_template: The template to use for critiquing text.
-            improvement_prompt_template: The template to use for improving text.
-            system_prompt: The system prompt to use for the model.
-            temperature: The temperature to use for the model.
-            **options: Additional options to pass to the model.
-
-        Raises:
-            ImproverError: If the model is not provided or if initialization fails.
+            model: The language model to use for critique and improvement.
+            model_name: The name of the model to use if model is not provided.
+            critique_prompt_template: Custom template for the critique prompt.
+            improve_prompt_template: Custom template for the improvement prompt.
+            system_prompt: Custom system prompt for the critic.
+            criteria: List of specific criteria to evaluate.
+            **model_kwargs: Additional keyword arguments for model creation.
         """
-        start_time = time.time()
+        super().__init__(model=model, model_name=model_name, **model_kwargs)
 
-        # Log initialization attempt
-        logger.debug(
-            f"Initializing PromptCritic with model={model.__class__.__name__ if model else None}, "
-            f"temperature={temperature}"
+        self.criteria = criteria or [
+            "Clarity and readability",
+            "Accuracy and factual correctness",
+            "Completeness and thoroughness",
+            "Relevance to the task",
+        ]
+
+        self.system_prompt = system_prompt or (
+            "You are an expert critic providing detailed, constructive feedback on text quality."
         )
 
-        try:
-            # Validate parameters
-            if not model:
-                logger.error("No model provided to PromptCritic")
-                raise ImproverError(
-                    message="Model must be provided",
-                    component="PromptCritic",
-                    operation="initialization",
-                    suggestions=[
-                        "Provide a valid model instance",
-                        "Check that the model implements the Model protocol",
-                    ],
-                    metadata={"temperature": temperature},
-                )
+        # Set up prompt templates
+        criteria_text = "\n".join(f"- {criterion}" for criterion in self.criteria)
 
-            # Use default system prompt if not provided
-            if system_prompt is None:
-                system_prompt = (
-                    "You are an expert editor who specializes in improving text. "
-                    "Your goal is to provide detailed feedback and suggestions for improvement."
-                )
-                logger.debug("Using default system prompt for PromptCritic")
+        self.critique_prompt_template = critique_prompt_template or (
+            "Please critique the following text based on these criteria:\n\n"
+            f"{criteria_text}\n\n"
+            "Original task: {prompt}\n\n"
+            "Text to critique:\n{text}\n\n"
+            "Retrieved context:\n{context}\n\n"
+            "Please provide your critique in the following format:\n\n"
+            "Issues:\n- [List specific issues here]\n\n"
+            "Suggestions:\n- [List specific suggestions here]\n\n"
+            "Overall Assessment: [Brief overall assessment]\n\n"
+            "Be specific and constructive in your feedback. Consider how well the text "
+            "uses information from the retrieved context (if available)."
+        )
 
-            # Initialize the base critic
-            with critic_context(
-                critic_name="PromptCritic",
-                operation="initialization",
-                message_prefix="Failed to initialize PromptCritic",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the parameters are valid",
-                ],
-                metadata={
-                    "model_type": model.__class__.__name__,
-                    "temperature": temperature,
-                    "has_critique_template": critique_prompt_template is not None,
-                    "has_improvement_template": improvement_prompt_template is not None,
-                },
-            ):
-                super().__init__(model, system_prompt, temperature, **options)
-                logger.debug("Successfully initialized base Critic")
+        self.improve_prompt_template = improve_prompt_template or (
+            "Improve the following text based on the critique provided.\n\n"
+            "Original task: {prompt}\n\n"
+            "Current text:\n{text}\n\n"
+            "Retrieved context:\n{context}\n\n"
+            "Critique:\n{critique}\n\n"
+            "Please provide an improved version that addresses the issues identified "
+            "in the critique while maintaining the core message and staying true to "
+            "the original task. Better incorporate relevant information from the context if available.\n\n"
+            "Improved text:"
+        )
 
-            # Use default critique prompt template if not provided
-            self.critique_prompt_template = critique_prompt_template or (
-                "Please analyze the following text and provide a critique:\n\n"
-                "```\n{text}\n```\n\n"
-                "Provide your analysis in JSON format with the following fields:\n"
-                '- "needs_improvement": boolean indicating whether the text needs improvement\n'
-                '- "message": a brief summary of your analysis\n'
-                '- "issues": a list of specific issues found\n'
-                '- "suggestions": a list of suggestions for improvement\n\n'
-                "JSON response:"
-            )
-            logger.debug(
-                f"Using {'custom' if critique_prompt_template else 'default'} critique prompt template"
-            )
-
-            # Use default improvement prompt template if not provided
-            self.improvement_prompt_template = improvement_prompt_template or (
-                "Please improve the following text based on the critique:\n\n"
-                "Text:\n```\n{text}\n```\n\n"
-                "Critique:\n{critique}\n\n"
-                "Improved text:"
-            )
-            logger.debug(
-                f"Using {'custom' if improvement_prompt_template else 'default'} improvement prompt template"
-            )
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log successful initialization
-            logger.debug(f"Successfully initialized PromptCritic in {processing_time:.2f}ms")
-
-        except Exception as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log the error
-            log_error(e, logger, component="PromptCritic", operation="initialization")
-
-            # Re-raise as ImproverError with more context if not already an ImproverError
-            if not isinstance(e, ImproverError):
-                raise ImproverError(
-                    message=f"Failed to initialize PromptCritic: {str(e)}",
-                    component="PromptCritic",
-                    operation="initialization",
-                    suggestions=[
-                        "Check if the model is properly configured",
-                        "Verify that the templates are valid",
-                        "Check the error message for details",
-                    ],
-                    metadata={
-                        "model_type": model.__class__.__name__ if model else None,
-                        "temperature": temperature,
-                        "has_critique_template": critique_prompt_template is not None,
-                        "has_improvement_template": improvement_prompt_template is not None,
-                        "error_type": type(e).__name__,
-                        "error_message": str(e),
-                        "processing_time_ms": processing_time,
-                    },
-                )
-            raise
-
-    def _critique(self, text: str) -> Dict[str, Any]:
-        """Critique text using the critique prompt template.
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic using custom prompt.
 
         Args:
-            text: The text to critique.
+            thought: The Thought container with the text to critique.
 
         Returns:
-            A dictionary with critique information.
-
-        Raises:
-            ImproverError: If the text cannot be critiqued.
+            A dictionary with critique results (without processing_time_ms).
         """
-        start_time = time.time()
+        # Prepare context from retrieved documents (using mixin)
+        context = self._prepare_context(thought)
 
-        logger.debug(f"PromptCritic: Critiquing text of length {len(text)}")
+        # Create critique prompt with context
+        critique_prompt = self.critique_prompt_template.format(
+            prompt=thought.prompt,
+            text=thought.text,
+            context=context,
+        )
 
-        try:
-            # Format the prompt
-            prompt = self.critique_prompt_template.format(text=text)
+        # Generate critique
+        critique_response = await self.model._generate_async(
+            prompt=critique_prompt,
+            system_message=self.system_prompt,
+        )
 
-            # Generate critique using the model
-            with critic_context(
-                critic_name="PromptCritic",
-                operation="critique",
-                message_prefix="Failed to critique text",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the critique prompt template is valid",
-                    "Try with a different model or temperature",
-                ],
-                metadata={"text_length": len(text), "temperature": self.temperature},
-            ):
-                response = self._generate(prompt)
+        # Parse the critique
+        issues, suggestions = self._parse_critique(critique_response)
 
-                # Extract JSON from response
-                json_start = response.find("{")
-                json_end = response.rfind("}") + 1
+        # Determine if improvement is needed based on critique content
+        needs_improvement = self._needs_improvement(critique_response)
 
-                if json_start == -1 or json_end == 0:
-                    # No JSON found, log the issue
-                    logger.warning(
-                        "PromptCritic: No JSON found in critique response, using default response"
-                    )
+        logger.debug("PromptCritic: Critique completed")
 
-                    # Calculate processing time
-                    processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        return {
+            "needs_improvement": needs_improvement,
+            "message": critique_response,
+            "issues": issues,
+            "suggestions": suggestions,
+            "confidence": 0.7,  # Default confidence for prompt-based critic
+            "metadata": {
+                "criteria": self.criteria,
+                "system_prompt": self.system_prompt,
+            },
+        }
 
-                    # Create a default response
-                    return {
-                        "needs_improvement": True,
-                        "message": "Unable to parse critique response, but proceeding with improvement",
-                        "issues": ["Unable to identify specific issues"],
-                        "suggestions": ["General improvement"],
-                        "processing_time_ms": processing_time,
-                    }
-
-                # Parse JSON
-                json_str = response[json_start:json_end]
-                critique = json.loads(json_str)
-
-                # Ensure all required fields are present
-                critique.setdefault("needs_improvement", True)
-                critique.setdefault("message", "Text needs improvement")
-                critique.setdefault("issues", [])
-                critique.setdefault("suggestions", [])
-
-                # Calculate processing time
-                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-                critique["processing_time_ms"] = processing_time
-
-                # Log successful critique
-                logger.debug(
-                    f"PromptCritic: Successfully critiqued text in {processing_time:.2f}ms, "
-                    f"found {len(critique['issues'])} issues"
-                )
-
-                # Explicitly create a Dict[str, Any] to return
-                critique_result: Dict[str, Any] = critique
-                return critique_result
-
-        except json.JSONDecodeError as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log the error
-            log_error(e, logger, component="PromptCritic", operation="critique_json_parse")
-
-            # Failed to parse JSON, create a default response
-            logger.warning(f"PromptCritic: Failed to parse JSON in critique response: {str(e)}")
-            # Create a Dict[str, Any] to return
-            json_error_critique: Dict[str, Any] = {
-                "needs_improvement": True,
-                "message": "Unable to parse critique response, but proceeding with improvement",
-                "issues": ["Unable to identify specific issues"],
-                "suggestions": ["General improvement"],
-                "processing_time_ms": processing_time,
-                "error": str(e),
-            }
-            return json_error_critique
-
-        except Exception as e:
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-            # Log the error
-            log_error(e, logger, component="PromptCritic", operation="critique")
-
-            # Raise as ImproverError with more context
-            raise ImproverError(
-                message=f"Error critiquing text: {str(e)}",
-                component="PromptCritic",
-                operation="critique",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the critique prompt template is valid",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "temperature": self.temperature,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
-
-    def _improve(self, text: str, critique: Dict[str, Any]) -> str:
-        """Improve text based on critique.
+    def improve(self, thought: Thought) -> str:
+        """Improve text based on prompt-based critique.
 
         Args:
-            text: The text to improve.
-            critique: The critique information.
+            thought: The Thought container with the text to improve and critique.
 
         Returns:
             The improved text.
 
         Raises:
-            ImproverError: If the text cannot be improved.
+            ImproverError: If the improvement fails.
         """
         start_time = time.time()
 
-        logger.debug(
-            f"PromptCritic: Improving text of length {len(text)} based on critique with "
-            f"{len(critique.get('issues', []))} issues and {len(critique.get('suggestions', []))} suggestions"
-        )
-
-        try:
-            # Format critique as a string
-            critique_str = "Issues:\n"
-            for issue in critique.get("issues", []):
-                critique_str += f"- {issue}\n"
-
-            critique_str += "\nSuggestions:\n"
-            for suggestion in critique.get("suggestions", []):
-                critique_str += f"- {suggestion}\n"
-
-            # Create improvement prompt
-            prompt = self.improvement_prompt_template.format(
-                text=text,
-                critique=critique_str,
-            )
-
-            # Generate improved text using the model
-            with critic_context(
-                critic_name="PromptCritic",
-                operation="improve",
-                message_prefix="Failed to improve text",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the improvement prompt template is valid",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "issues_count": len(critique.get("issues", [])),
-                    "suggestions_count": len(critique.get("suggestions", [])),
-                    "temperature": self.temperature,
-                },
-            ):
-                response = self._generate(prompt)
-
-                # Extract improved text from response
-                improved_text = response.strip()
-
-                # Remove any markdown code block markers
-                if improved_text.startswith("```") and improved_text.endswith("```"):
-                    improved_text = improved_text[3:-3].strip()
-
-                # Calculate processing time
-                processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-
-                # Log successful improvement
-                logger.debug(
-                    f"PromptCritic: Successfully improved text in {processing_time:.2f}ms, "
-                    f"original length: {len(text)}, improved length: {len(improved_text)}"
+        with critic_context(
+            critic_name="PromptCritic",
+            operation="improve",
+            message_prefix="Failed to improve text with prompt-based critic",
+        ):
+            # Check if text is available
+            if not thought.text:
+                raise ImproverError(
+                    message="No text available for improvement",
+                    component="PromptCritic",
+                    operation="improve",
+                    suggestions=["Provide text to improve"],
                 )
 
-                return improved_text
+            # Get critique from thought
+            critique = ""
+            if thought.critic_feedback:
+                for feedback in thought.critic_feedback:
+                    if feedback.critic_name == "PromptCritic":
+                        critique = feedback.feedback
+                        break
 
-        except Exception as e:
+            # If no critique available, generate one
+            if not critique:
+                logger.debug("No critique found in thought, generating new critique")
+                import asyncio
+
+                try:
+                    asyncio.get_running_loop()
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, self._perform_critique_async(thought))
+                        critique_result = future.result()
+                except RuntimeError:
+                    critique_result = asyncio.run(self._perform_critique_async(thought))
+
+                critique = critique_result["message"]
+
+            # Prepare context for improvement (using mixin)
+            context = self._prepare_context(thought)
+
+            # Create improvement prompt with context
+            improve_prompt = self.improve_prompt_template.format(
+                prompt=thought.prompt,
+                text=thought.text,
+                critique=critique,
+                context=context,
+            )
+
+            # Generate improved text
+            improved_text = self.model.generate(
+                prompt=improve_prompt,
+                system_prompt=self.system_prompt,
+            )
+
             # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            processing_time = (time.time() - start_time) * 1000
 
-            # Log the error
-            log_error(e, logger, component="PromptCritic", operation="improve")
+            logger.debug(f"PromptCritic: Improvement completed in {processing_time:.2f}ms")
 
-            # Raise as ImproverError with more context
-            raise ImproverError(
-                message=f"Error improving text: {str(e)}",
-                component="PromptCritic",
-                operation="improve",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the improvement prompt template is valid",
-                    "Try with a different model or temperature",
-                ],
-                metadata={
-                    "text_length": len(text),
-                    "issues_count": len(critique.get("issues", [])),
-                    "suggestions_count": len(critique.get("suggestions", [])),
-                    "temperature": self.temperature,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
+            return improved_text.strip()
 
+    def _parse_critique(self, critique: str) -> tuple[List[str], List[str]]:
+        """Parse critique text to extract issues and suggestions.
 
-@register_improver("prompt")
-def create_prompt_critic(
-    model: Model,
-    critique_prompt_template: Optional[str] = None,
-    improvement_prompt_template: Optional[str] = None,
-    system_prompt: Optional[str] = None,
-    temperature: float = 0.7,
-    **options: Any,
-) -> PromptCritic:
-    """Create a prompt critic.
+        Args:
+            critique: The critique text to parse.
 
-    This factory function creates a PromptCritic with the specified parameters.
-    It is registered with the registry system for dependency injection.
+        Returns:
+            A tuple of (issues, suggestions) lists.
+        """
+        issues = []
+        suggestions = []
 
-    Args:
-        model: The model to use for critiquing and improving text.
-        critique_prompt_template: The template to use for critiquing text.
-        improvement_prompt_template: The template to use for improving text.
-        system_prompt: The system prompt to use for the model.
-        temperature: The temperature to use for the model.
-        **options: Additional options to pass to the PromptCritic.
+        # Simple parsing logic
+        in_issues = False
+        in_suggestions = False
 
-    Returns:
-        A PromptCritic instance.
+        for line in critique.split("\n"):
+            line = line.strip()
+            if line.lower().startswith("issues:"):
+                in_issues = True
+                in_suggestions = False
+                continue
+            elif line.lower().startswith("suggestions:"):
+                in_issues = False
+                in_suggestions = True
+                continue
+            elif line.lower().startswith("overall assessment:"):
+                in_issues = False
+                in_suggestions = False
+                continue
+            elif not line or line.startswith("#"):
+                continue
 
-    Raises:
-        ImproverError: If the critic cannot be created.
-    """
-    start_time = time.time()
+            if in_issues and line.startswith("-"):
+                issues.append(line[1:].strip())
+            elif in_suggestions and line.startswith("-"):
+                suggestions.append(line[1:].strip())
 
-    try:
-        # Log factory function call
-        logger.debug(
-            f"Creating PromptCritic with model={model.__class__.__name__ if model else None}, "
-            f"temperature={temperature}"
-        )
+        # If no structured format found, extract from general content
+        if not issues and not suggestions:
+            critique_lower = critique.lower()
+            if any(word in critique_lower for word in ["issue", "problem", "error", "unclear"]):
+                issues.append("General issues identified in critique")
+            if any(word in critique_lower for word in ["improve", "suggest", "consider", "should"]):
+                suggestions.append("See critique for improvement suggestions")
 
-        # Validate parameters
-        if not model:
-            logger.error("No model provided to create_prompt_critic")
-            raise ImproverError(
-                message="Model must be provided",
-                component="PromptCriticFactory",
-                operation="creation",
-                suggestions=[
-                    "Provide a valid model instance",
-                    "Check that the model implements the Model protocol",
-                ],
-                metadata={"temperature": temperature},
-            )
+        return issues, suggestions
 
-        # Create the critic
-        critic = PromptCritic(
-            model=model,
-            critique_prompt_template=critique_prompt_template,
-            improvement_prompt_template=improvement_prompt_template,
-            system_prompt=system_prompt,
-            temperature=temperature,
-            **options,
-        )
+    def _needs_improvement(self, critique: str) -> bool:
+        """Determine if text needs improvement based on critique content.
 
-        # Calculate processing time
-        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        Args:
+            critique: The critique text to analyze.
 
-        # Log successful creation
-        logger.debug(f"Successfully created PromptCritic in {processing_time:.2f}ms")
+        Returns:
+            True if improvement is needed, False otherwise.
+        """
+        # Simple heuristic based on common phrases in critiques
+        no_improvement_phrases = [
+            "no issues",
+            "looks good",
+            "well written",
+            "excellent",
+            "great job",
+            "perfect",
+            "no improvement needed",
+            "already excellent",
+            "no changes needed",
+            "well-structured",
+            "clear and concise",
+            "high quality",
+        ]
 
-        return critic
+        improvement_phrases = [
+            "could be improved",
+            "needs improvement",
+            "issues",
+            "problems",
+            "unclear",
+            "confusing",
+            "missing",
+            "incorrect",
+            "should be",
+            "consider",
+            "suggest",
+            "recommend",
+            "enhance",
+            "revise",
+        ]
 
-    except Exception as e:
-        # Calculate processing time
-        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        critique_lower = critique.lower()
 
-        # Log the error
-        log_error(e, logger, component="PromptCriticFactory", operation="creation")
+        # Check for explicit "no improvement" indicators
+        for phrase in no_improvement_phrases:
+            if phrase in critique_lower:
+                return False
 
-        # Raise as ImproverError with more context if not already an ImproverError
-        if not isinstance(e, ImproverError):
-            raise ImproverError(
-                message=f"Failed to create PromptCritic: {str(e)}",
-                component="PromptCriticFactory",
-                operation="creation",
-                suggestions=[
-                    "Check if the model is properly configured",
-                    "Verify that the templates are valid",
-                    "Check the error message for details",
-                ],
-                metadata={
-                    "model_type": model.__class__.__name__ if model else None,
-                    "temperature": temperature,
-                    "has_critique_template": critique_prompt_template is not None,
-                    "has_improvement_template": improvement_prompt_template is not None,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "processing_time_ms": processing_time,
-                },
-            )
-        raise
+        # Check for improvement indicators
+        for phrase in improvement_phrases:
+            if phrase in critique_lower:
+                return True
+
+        # Default to needing improvement if unclear
+        return True
