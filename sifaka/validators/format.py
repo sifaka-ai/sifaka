@@ -13,7 +13,7 @@ import re
 from typing import Any, Callable, Dict, Optional
 
 from sifaka.core.thought import Thought, ValidationResult
-from sifaka.utils.error_handling import ValidationError, validation_context
+from sifaka.utils.error_handling import ValidationError
 from sifaka.utils.logging import get_logger
 from sifaka.validators.shared import BaseValidator
 

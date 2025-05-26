@@ -31,13 +31,12 @@ Example:
 """
 
 import functools
-import logging
 import threading
 import time
-from collections import defaultdict, deque
+from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Deque, Dict, Generator, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Generator, Optional, TypeVar
 
 from sifaka.utils.logging import get_logger
 
@@ -206,12 +205,12 @@ class PerformanceMonitor:
         print(f"🔧 Unique Operations: {summary['unique_operations']}")
 
         if summary["slowest_operations"]:
-            print(f"\n🐌 Slowest Operations:")
+            print("\n🐌 Slowest Operations:")
             for name, avg_time in summary["slowest_operations"]:
                 print(f"   {name}: {avg_time:.3f}s avg")
 
         if summary["most_frequent_operations"]:
-            print(f"\n🔥 Most Frequent Operations:")
+            print("\n🔥 Most Frequent Operations:")
             for name, count in summary["most_frequent_operations"]:
                 print(f"   {name}: {count:,} calls")
 
@@ -380,7 +379,7 @@ def print_performance_summary() -> None:
     # Also print cache statistics if any exist
     cache_stats = get_all_cache_stats()
     if cache_stats:
-        print(f"\n💾 CACHE STATISTICS")
+        print("\n💾 CACHE STATISTICS")
         print("-" * 40)
         for name, stats in cache_stats.items():
             print(f"{name}:")

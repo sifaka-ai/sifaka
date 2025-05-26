@@ -49,21 +49,21 @@ class PromptCritic(BaseCritic):
             **model_kwargs: Additional keyword arguments for model creation.
         """
         super().__init__(model=model, model_name=model_name, **model_kwargs)
-        
+
         self.criteria = criteria or [
             "Clarity and readability",
-            "Accuracy and factual correctness", 
+            "Accuracy and factual correctness",
             "Completeness and thoroughness",
-            "Relevance to the task"
+            "Relevance to the task",
         ]
-        
+
         self.system_prompt = system_prompt or (
             "You are an expert critic providing detailed, constructive feedback on text quality."
         )
 
         # Set up prompt templates
         criteria_text = "\n".join(f"- {criterion}" for criterion in self.criteria)
-        
+
         self.critique_prompt_template = critique_prompt_template or (
             "Please critique the following text based on these criteria:\n\n"
             f"{criteria_text}\n\n"
@@ -117,7 +117,7 @@ class PromptCritic(BaseCritic):
 
         # Parse the critique
         issues, suggestions = self._parse_critique(critique_response)
-        
+
         # Determine if improvement is needed based on critique content
         needs_improvement = self._needs_improvement(critique_response)
 
@@ -132,7 +132,7 @@ class PromptCritic(BaseCritic):
             "metadata": {
                 "criteria": self.criteria,
                 "system_prompt": self.system_prompt,
-            }
+            },
         }
 
     def improve(self, thought: Thought) -> str:
@@ -175,15 +175,17 @@ class PromptCritic(BaseCritic):
             if not critique:
                 logger.debug("No critique found in thought, generating new critique")
                 import asyncio
+
                 try:
                     asyncio.get_running_loop()
                     import concurrent.futures
+
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(asyncio.run, self._perform_critique_async(thought))
                         critique_result = future.result()
                 except RuntimeError:
                     critique_result = asyncio.run(self._perform_critique_async(thought))
-                
+
                 critique = critique_result["message"]
 
             # Prepare context for improvement (using mixin)
@@ -269,15 +271,35 @@ class PromptCritic(BaseCritic):
         """
         # Simple heuristic based on common phrases in critiques
         no_improvement_phrases = [
-            "no issues", "looks good", "well written", "excellent", "great job",
-            "perfect", "no improvement needed", "already excellent", "no changes needed",
-            "well-structured", "clear and concise", "high quality"
+            "no issues",
+            "looks good",
+            "well written",
+            "excellent",
+            "great job",
+            "perfect",
+            "no improvement needed",
+            "already excellent",
+            "no changes needed",
+            "well-structured",
+            "clear and concise",
+            "high quality",
         ]
 
         improvement_phrases = [
-            "could be improved", "needs improvement", "issues", "problems",
-            "unclear", "confusing", "missing", "incorrect", "should be",
-            "consider", "suggest", "recommend", "enhance", "revise"
+            "could be improved",
+            "needs improvement",
+            "issues",
+            "problems",
+            "unclear",
+            "confusing",
+            "missing",
+            "incorrect",
+            "should be",
+            "consider",
+            "suggest",
+            "recommend",
+            "enhance",
+            "revise",
         ]
 
         critique_lower = critique.lower()

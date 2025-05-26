@@ -128,22 +128,28 @@ def main():
     # Show validation results
     if result.validation_results:
         print(f"\nValidation Results:")
-        for i, validation_result in enumerate(result.validation_results, 1):
+        for i, (validator_name, validation_result) in enumerate(
+            result.validation_results.items(), 1
+        ):
             print(
-                f"  {i}. {validation_result.validator_name}: {'✓ PASSED' if validation_result.is_valid else '✗ FAILED'}"
+                f"  {i}. {validator_name}: {'✓ PASSED' if validation_result.passed else '✗ FAILED'}"
             )
-            if validation_result.is_valid:
+            if validation_result.passed:
                 print(
                     f"     Text length: {len(result.text)} characters (within {length_validator.min_length}-{length_validator.max_length} range)"
                 )
             else:
-                print(f"     Error: {validation_result.error_message}")
+                print(f"     Error: {validation_result.message}")
+                if validation_result.issues:
+                    print(f"     Issues: {', '.join(validation_result.issues)}")
+                if validation_result.suggestions:
+                    print(f"     Suggestions: {', '.join(validation_result.suggestions)}")
 
     # Show retrieval context
     if hasattr(result, "pre_generation_context") and result.pre_generation_context:
         print(f"\nModel Context from Redis ({len(result.pre_generation_context)} documents):")
         for i, doc in enumerate(result.pre_generation_context[:3], 1):  # Show first 3
-            print(f"  {i}. {doc.content[:120]}...")
+            print(f"  {i}. {doc.text[:120]}...")
 
     # Show Self-RAG critic feedback
     if result.critic_feedback:

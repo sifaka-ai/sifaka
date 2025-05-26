@@ -5,10 +5,9 @@ It defines the common interfaces, result types, and base implementations that al
 classifiers should follow.
 """
 
-import hashlib
 from abc import ABC, abstractmethod
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -22,7 +21,6 @@ logger = get_logger(__name__)
 class ClassifierError(SifakaError):
     """Error raised by classifier components."""
 
-    pass
 
 
 class ClassificationResult(BaseModel):
@@ -86,7 +84,6 @@ class TextClassifier(ABC):
         Raises:
             ClassifierError: If classification fails
         """
-        pass
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """Classify multiple texts.
@@ -248,7 +245,6 @@ class CachedTextClassifier(TextClassifier):
         Raises:
             ClassifierError: If classification fails
         """
-        pass
 
     def clear_cache(self) -> None:
         """Clear the classification cache."""

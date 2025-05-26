@@ -226,22 +226,62 @@ layered_storage = CachedStorage(
 from sifaka.storage import RedisStorage, MilvusStorage
 from sifaka.mcp import MCPServerConfig, MCPTransportType
 
-# Redis via MCP (using local server)
+# Redis via MCP (using official Redis MCP server)
 redis_config = MCPServerConfig(
     name="redis-server",
     transport_type=MCPTransportType.STDIO,
-    url="cd mcp/mcp-redis && python -m main.py"
+    url="uv run --directory /path/to/mcp-redis src/main.py"
 )
 redis_storage = RedisStorage(redis_config)
 
-# Milvus via MCP for vector search (using local server)
+# Milvus via MCP for vector search (using official Milvus MCP server)
 milvus_config = MCPServerConfig(
     name="milvus-server",
     transport_type=MCPTransportType.STDIO,
-    url="cd mcp/mcp-server-milvus && python -m mcp_server_milvus"
+    url="uv run --directory /path/to/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530"
 )
 milvus_storage = MilvusStorage(milvus_config, collection_name="thoughts")
 ```
+
+## MCP Server Setup
+
+To use Redis and Milvus storage, you need to set up the official MCP servers:
+
+### Redis MCP Server
+
+```bash
+# Clone the official Redis MCP server
+git clone https://github.com/redis/mcp-redis.git
+cd mcp-redis
+
+# Install dependencies
+uv sync
+
+# Start Redis (if not already running)
+docker run -d -p 6379:6379 redis:latest
+
+# Test the MCP server
+uv run src/main.py
+```
+
+### Milvus MCP Server
+
+```bash
+# Clone the official Milvus MCP server
+git clone https://github.com/zilliztech/mcp-server-milvus.git
+cd mcp-server-milvus
+
+# Install dependencies
+uv sync
+
+# Start Milvus (if not already running)
+docker run -d -p 19530:19530 milvusdb/milvus:latest
+
+# Test the MCP server
+uv run src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530
+```
+
+For detailed setup instructions, see the [Storage Setup Guide](docs/guides/storage-setup.md).
 
 ## Environment Setup
 

@@ -30,6 +30,9 @@ dependencies = [
     "httpx>=0.28.1",
     "aiofiles>=23.0.0",
     "tenacity>=8.2.3",
+    "transformers>=4.52.3",
+    "torch>=2.7.0",
+    "accelerate>=1.7.0",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +44,15 @@ openai = [
 anthropic = [
     "anthropic>=0.50.0",
 ]
+huggingface = [
+    "transformers>=4.30.0",
+    "torch>=2.0.0",
+    "sentence-transformers>=2.2.0",
+    "huggingface-hub>=0.16.0",
+]
+ollama = [
+    "ollama>=0.1.0",
+]
 
 # Retrievers and vector databases
 redis = [
@@ -48,6 +60,12 @@ redis = [
 ]
 milvus = [
     "pymilvus>=2.4.0",
+]
+
+# MCP (Model Context Protocol) support
+mcp = [
+    "websockets>=11.0.0",
+    "jsonschema>=4.17.0",
 ]
 
 # ML and classification (optional dependencies for classifiers)
@@ -61,6 +79,7 @@ classifiers = [
 # Validation and guardrails
 guardrails = [
     "guardrails-ai>=0.6.6",
+    "guardrails-api-client>=0.4.0a1",  # Explicit prerelease dependency
 ]
 
 # Performance and utilities
@@ -74,26 +93,32 @@ performance = [
 dev = [
     "pytest>=8.0.2",
     "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.21.0",
     "black>=24.2.0",
     "isort>=5.13.2",
     "mypy>=1.9.0",
     "ruff>=0.3.0",
     "flake8>=5.0.0",
+    "autoflake>=2.0.0",
     "typer>=0.9.0",
+    "pre-commit>=3.0.0",
+    # Type stubs
+    "types-aiofiles>=23.0.0",
     "types-jsonschema>=4.21.0",
     "types-PyYAML>=6.0.0",
     "types-requests>=2.31.0",
+    "types-redis>=4.5.0",
 ]
 
 # Convenience groups
 models = [
-    "sifaka[openai,anthropic]",
+    "sifaka[openai,anthropic,huggingface,ollama]",
 ]
 retrievers = [
     "sifaka[redis,milvus]",
 ]
 all = [
-    "sifaka[models,retrievers,classifiers,guardrails,performance]",
+    "sifaka[models,retrievers,classifiers,guardrails,performance,mcp]",
 ]
 full = [
     "sifaka[all,dev]",
@@ -134,3 +159,93 @@ ignore = ["E203", "B904"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["sifaka"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=sifaka",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=80",
+]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["sifaka"]
+omit = [
+    "*/tests/*",
+    "*/examples/*",
+    "*/demos/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+disallow_subclassing_any = true
+disallow_any_generics = true
+exclude = ["demos/", "benchmarks/", "tools/"]
+
+# Module-specific configurations
+[[tool.mypy.overrides]]
+module = [
+    "redis.*",
+    "sklearn.*",
+    "guardrails.*",
+    "pymilvus.*",
+    "anthropic.*",
+    "openai.*",
+    "sentence_transformers.*",
+    "transformers.*",
+    "torch.*",
+    "numpy.*",
+    "pandas.*",
+    "websockets.*",
+    "tiktoken.*",
+    "huggingface_hub.*",
+    "ollama.*",
+    "traitlets.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "sifaka.core.registry",
+    "sifaka.core.chain.state",
+    "sifaka.core.chain.plugins",
+    "sifaka.core.initialize_registry",
+    "sifaka.classifiers.errors",
+]
+follow_imports = "skip"

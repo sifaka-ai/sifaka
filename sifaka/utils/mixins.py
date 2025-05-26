@@ -12,7 +12,7 @@ Available mixins:
 
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Dict, List, Optional, Tuple
 
 from sifaka.core.thought import Thought, ValidationResult
 from sifaka.utils.error_handling import ConfigurationError, log_error
@@ -688,7 +688,7 @@ class APIKeyMixin:
                 suggestions=[
                     f"Set the {env_var_name} environment variable",
                     f"Pass api_key parameter to the {provider_name} constructor",
-                    f"Ensure your API key is valid and has the necessary permissions",
+                    "Ensure your API key is valid and has the necessary permissions",
                 ],
             )
 

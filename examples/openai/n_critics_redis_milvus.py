@@ -34,11 +34,11 @@ logger = get_logger(__name__)
 def setup_redis_retriever():
     """Set up Redis retriever with ML context documents."""
 
-    # Create Redis MCP configuration (using local server)
+    # Create Redis MCP configuration (using official Redis MCP server)
     redis_config = MCPServerConfig(
         name="redis-server",
         transport_type=MCPTransportType.STDIO,
-        url="cd mcp/mcp-redis && python -m main.py",
+        url="uv run --directory ../../mcp/mcp-redis src/main.py",
     )
 
     # Create Redis storage for model context
@@ -68,11 +68,11 @@ def setup_redis_retriever():
 def setup_milvus_retriever():
     """Set up Milvus retriever with specialized critic knowledge."""
 
-    # Create Milvus MCP configuration (using local server)
+    # Create Milvus MCP configuration (using official Milvus MCP server)
     milvus_config = MCPServerConfig(
         name="milvus-server",
         transport_type=MCPTransportType.STDIO,
-        url="cd mcp/mcp-server-milvus && python -m mcp_server_milvus",
+        url="uv run --directory ../../mcp/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530",
     )
 
     # Create Milvus storage for critic context

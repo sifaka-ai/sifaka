@@ -4,12 +4,10 @@ This module provides specialized assertion functions for validating
 Sifaka components and their behavior.
 """
 
-import time
-import psutil
-from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
+from typing import Any, List, Optional
 
-from sifaka.core.thought import Thought, ValidationResult, CriticFeedback
+from sifaka.core.thought import CriticFeedback, Thought, ValidationResult
 
 
 def assert_thought_valid(
@@ -123,7 +121,7 @@ def assert_critic_feedback(
 
     # Validate structure of each feedback
     for feedback in feedback_list:
-        assert isinstance(feedback, CriticFeedback), f"Invalid critic feedback type"
+        assert isinstance(feedback, CriticFeedback), "Invalid critic feedback type"
         assert isinstance(feedback.critic_name, str), "Critic name must be string"
         assert isinstance(feedback.feedback, dict), "Feedback must be dict"
         assert isinstance(feedback.confidence, (int, float)), "Confidence must be numeric"

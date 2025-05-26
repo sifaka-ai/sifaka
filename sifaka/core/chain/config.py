@@ -176,7 +176,7 @@ class ChainConfig:
         if self.model:
             try:
                 # Try to get model info to validate it's properly configured
-                model_name = getattr(self.model, "model_name", "unknown")
+                getattr(self.model, "model_name", "unknown")
                 if hasattr(self.model, "validate_configuration"):
                     self.model.validate_configuration()
             except Exception as e:

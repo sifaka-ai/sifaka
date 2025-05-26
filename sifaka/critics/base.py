@@ -9,10 +9,10 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from sifaka.core.interfaces import Critic, Model
+from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.models.base import create_model
-from sifaka.utils.error_handling import ImproverError, critic_context
+from sifaka.utils.error_handling import critic_context
 from sifaka.utils.logging import get_logger
 from sifaka.utils.mixins import ContextAwareMixin
 
@@ -21,14 +21,14 @@ logger = get_logger(__name__)
 
 class BaseCritic(ContextAwareMixin, ABC):
     """Base class for all critics.
-    
+
     This class provides common functionality for critics including:
     - Standard critique/improve interface
     - Context handling via ContextAwareMixin
     - Async-under-the-hood implementation
     - Consistent error handling
     - Standard return schema
-    
+
     All critics must inherit from this class and implement the abstract methods.
     """
 
@@ -46,7 +46,7 @@ class BaseCritic(ContextAwareMixin, ABC):
             **model_kwargs: Additional keyword arguments for model creation.
         """
         super().__init__()
-        
+
         # Initialize model
         if model is None:
             if model_name is None:
@@ -70,10 +70,11 @@ class BaseCritic(ContextAwareMixin, ABC):
         """
         # Check if we're already in an async context
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # We're in an async context, but this is a sync method
             # We need to run the async version in a new thread
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(asyncio.run, self._critique_async(thought))
                 return future.result()
@@ -96,11 +97,10 @@ class BaseCritic(ContextAwareMixin, ABC):
         Raises:
             ImproverError: If the improvement fails.
         """
-        pass
 
     async def _critique_async(self, thought: Thought) -> Dict[str, Any]:
         """Internal async implementation of critique.
-        
+
         This method handles the actual critique logic and should be implemented
         by subclasses. It provides the async foundation while the public
         critique() method handles the sync/async coordination.
@@ -112,7 +112,7 @@ class BaseCritic(ContextAwareMixin, ABC):
             A dictionary with critique results following the standard schema.
         """
         start_time = time.time()
-        
+
         with critic_context(
             critic_name=self.__class__.__name__,
             operation="critique",
@@ -124,29 +124,29 @@ class BaseCritic(ContextAwareMixin, ABC):
                     "No text available for critique",
                     issues=["Text is empty or None"],
                     suggestions=["Provide text to critique"],
-                    start_time=start_time
+                    start_time=start_time,
                 )
 
             # Delegate to subclass implementation
             try:
                 result = await self._perform_critique_async(thought)
-                
+
                 # Ensure processing time is included
                 processing_time = (time.time() - start_time) * 1000
                 result["processing_time_ms"] = processing_time
-                
+
                 # Validate result schema
                 self._validate_result_schema(result)
-                
+
                 return result
-                
+
             except Exception as e:
                 logger.error(f"{self.__class__.__name__} critique failed: {e}")
                 return self._create_error_result(
                     f"Critique failed: {str(e)}",
                     issues=[f"Internal error: {str(e)}"],
                     suggestions=["Please try again or check the critic configuration"],
-                    start_time=start_time
+                    start_time=start_time,
                 )
 
     @abstractmethod
@@ -159,14 +159,9 @@ class BaseCritic(ContextAwareMixin, ABC):
         Returns:
             A dictionary with critique results (without processing_time_ms).
         """
-        pass
 
     def _create_error_result(
-        self, 
-        message: str, 
-        issues: List[str], 
-        suggestions: List[str],
-        start_time: float
+        self, message: str, issues: List[str], suggestions: List[str], start_time: float
     ) -> Dict[str, Any]:
         """Create a standard error result.
 
@@ -187,7 +182,7 @@ class BaseCritic(ContextAwareMixin, ABC):
             "suggestions": suggestions,
             "processing_time_ms": processing_time,
             "confidence": 0.0,
-            "metadata": {"error": True}
+            "metadata": {"error": True},
         }
 
     def _validate_result_schema(self, result: Dict[str, Any]) -> None:

@@ -33,11 +33,11 @@ logger = get_logger(__name__)
 def setup_privacy_redis_retriever():
     """Set up Redis retriever with digital privacy context documents."""
 
-    # Create Redis MCP configuration (using local server)
+    # Create Redis MCP configuration (using official Redis MCP server)
     redis_config = MCPServerConfig(
         name="redis-server",
         transport_type=MCPTransportType.STDIO,
-        url="cd mcp/mcp-redis && python -m main.py",
+        url="uv run --directory ../../mcp/mcp-redis src/main.py",
     )
 
     # Create Redis storage for privacy context

@@ -16,12 +16,10 @@ __all__ = [
     "create_test_validators",
     "create_test_critics",
     "create_test_storage",
-    
     # Mocks
     "MockModelFactory",
-    "MockStorageFactory", 
+    "MockStorageFactory",
     "MockRetrieverFactory",
-    
     # Assertions
     "assert_thought_valid",
     "assert_validation_results",

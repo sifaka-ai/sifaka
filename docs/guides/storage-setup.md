@@ -61,17 +61,18 @@ redis-cli ping  # Should return "PONG"
 
 ### 2. Set Up Redis MCP Server
 
-Sifaka uses Redis through the Model Context Protocol (MCP):
+Sifaka uses Redis through the official Redis MCP server:
 
 ```bash
-# Navigate to Redis MCP server (included with Sifaka)
-cd mcp/mcp-redis
+# Clone the official Redis MCP server
+git clone https://github.com/redis/mcp-redis.git
+cd mcp-redis
 
-# Install dependencies if needed
-pip install -e .
+# Install dependencies
+uv sync
 
 # Test the MCP server
-python -m main.py
+uv run src/main.py
 ```
 
 ### 3. Configure Redis Storage
@@ -84,7 +85,7 @@ from sifaka.mcp import MCPServerConfig, MCPTransportType
 redis_config = MCPServerConfig(
     name="redis-server",
     transport_type=MCPTransportType.STDIO,
-    url="cd mcp/mcp-redis && python -m main.py"
+    url="uv run --directory /path/to/mcp-redis src/main.py"
 )
 
 # Create Redis storage
@@ -117,15 +118,18 @@ curl http://localhost:9091/health  # Should return health status
 
 ### 2. Set Up Milvus MCP Server
 
-```bash
-# Navigate to Milvus MCP server (included with Sifaka)
-cd mcp/mcp-server-milvus
+Sifaka uses Milvus through the official Milvus MCP server:
 
-# Install dependencies (requires Python 3.10+)
-pip install -e .
+```bash
+# Clone the official Milvus MCP server
+git clone https://github.com/zilliztech/mcp-server-milvus.git
+cd mcp-server-milvus
+
+# Install dependencies
+uv sync
 
 # Test the MCP server
-python -m mcp_server_milvus
+uv run src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530
 ```
 
 ### 3. Configure Milvus Storage
@@ -138,7 +142,7 @@ from sifaka.mcp import MCPServerConfig, MCPTransportType
 milvus_config = MCPServerConfig(
     name="milvus-server",
     transport_type=MCPTransportType.STDIO,
-    url="cd mcp/mcp-server-milvus && python -m mcp_server_milvus"
+    url="uv run --directory /path/to/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530"
 )
 
 # Create Milvus storage

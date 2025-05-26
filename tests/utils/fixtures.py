@@ -4,19 +4,20 @@ This module provides reusable test fixtures for creating consistent
 test data and components across the test suite.
 """
 
-import pytest
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Any, List, Optional
 from uuid import uuid4
 
+import pytest
+
 from sifaka.core.chain import Chain
-from sifaka.core.thought import Thought, ValidationResult, CriticFeedback
+from sifaka.core.thought import Thought
+from sifaka.critics.reflexion import ReflexionCritic
+from sifaka.critics.self_refine import SelfRefineCritic
 from sifaka.models.base import MockModel
 from sifaka.storage.memory import MemoryStorage
 from sifaka.validators.base import LengthValidator, RegexValidator
 from sifaka.validators.content import ContentValidator
-from sifaka.critics.reflexion import ReflexionCritic
-from sifaka.critics.self_refine import SelfRefineCritic
 
 
 def create_test_thought(

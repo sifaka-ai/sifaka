@@ -4,10 +4,8 @@ This module provides common functionality that can be shared across different
 model provider implementations to reduce code duplication.
 """
 
-import logging
 from typing import Any, Callable, Dict, List, Optional
 
-from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.utils.error_handling import ConfigurationError, ModelError, log_error, model_context
 from sifaka.utils.logging import get_logger

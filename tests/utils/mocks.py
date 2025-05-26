@@ -5,10 +5,10 @@ mock objects with configurable behavior for testing.
 """
 
 import time
-from typing import Any, Dict, List, Optional, Union
-from unittest.mock import Mock, MagicMock
+from typing import Any, Dict, List, Optional
+from unittest.mock import Mock
 
-from sifaka.core.thought import Thought, ValidationResult, CriticFeedback
+from sifaka.core.thought import ValidationResult
 from sifaka.models.base import MockModel
 from sifaka.storage.memory import MemoryStorage
 

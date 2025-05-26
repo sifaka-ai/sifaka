@@ -6,15 +6,13 @@ HuggingFace, Ollama, and Mock models. It tests generation capabilities,
 error handling, and integration with the Sifaka framework.
 """
 
+
 import pytest
-from typing import Any, Dict, List, Optional
-from unittest.mock import Mock, patch
 
-from sifaka.models.base import MockModel
 from sifaka.core.interfaces import Model
+from sifaka.models.base import MockModel
 from sifaka.utils.logging import get_logger
-
-from tests.utils import assert_thought_valid, MockModelFactory
+from tests.utils import MockModelFactory, assert_thought_valid
 
 logger = get_logger(__name__)
 
@@ -219,7 +217,6 @@ class TestModelIntegration:
     def test_model_with_chain_integration(self):
         """Test model integration with Chain."""
         from sifaka.core.chain import Chain
-
         from tests.utils.mocks import MockModelFactory
 
         model = MockModelFactory.create_standard(
@@ -325,8 +322,9 @@ class TestModelPerformance:
 
     def test_model_memory_usage(self):
         """Test model memory usage."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024

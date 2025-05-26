@@ -826,9 +826,9 @@ from sifaka.storage.redis import RedisStorage
 from sifaka.mcp import MCPServerConfig, MCPTransportType
 
 config = MCPServerConfig(
+    name="redis-server",
     transport_type=MCPTransportType.STDIO,
-    command=["python", "-m", "mcp_redis"],
-    env={"REDIS_URL": "redis://localhost:6379"}
+    url="uv run --directory /path/to/mcp-redis src/main.py"
 )
 
 storage = RedisStorage(
@@ -847,9 +847,9 @@ from sifaka.storage.milvus import MilvusStorage
 from sifaka.mcp import MCPServerConfig, MCPTransportType
 
 config = MCPServerConfig(
+    name="milvus-server",
     transport_type=MCPTransportType.STDIO,
-    command=["python", "-m", "main.py"],
-    cwd="/path/to/mcp-server-milvus"
+    url="uv run --directory /path/to/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530"
 )
 
 storage = MilvusStorage(
@@ -971,6 +971,13 @@ from sifaka.mcp import MCPServerConfig, MCPTransportType
 
 # Create model
 model = create_model("openai:gpt-4")
+
+# Configure MCP servers
+redis_config = MCPServerConfig(
+    name="redis-server",
+    transport_type=MCPTransportType.STDIO,
+    url="uv run --directory /path/to/mcp-redis src/main.py"
+)
 
 # Create storage
 redis_config = MCPServerConfig(

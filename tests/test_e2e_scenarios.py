@@ -6,33 +6,26 @@ testing complete scenarios from start to finish as users would
 experience them.
 """
 
-import pytest
 import time
-from typing import List, Dict, Any
 
 from sifaka.core.chain import Chain
-from sifaka.core.thought import Thought
-from sifaka.models.base import MockModel
-from sifaka.storage.memory import MemoryStorage
-from sifaka.validators.base import LengthValidator, RegexValidator
-from sifaka.validators.content import ContentValidator
-from sifaka.validators.classifier import ClassifierValidator
-from sifaka.classifiers.language import LanguageClassifier
-from sifaka.classifiers.sentiment import SentimentClassifier
-from sifaka.critics.reflexion import ReflexionCritic
-from sifaka.critics.self_refine import SelfRefineCritic
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.n_critics import NCriticsCritic
 from sifaka.critics.prompt import PromptCritic
+from sifaka.critics.reflexion import ReflexionCritic
+from sifaka.critics.self_refine import SelfRefineCritic
+from sifaka.models.base import MockModel
+from sifaka.storage.memory import MemoryStorage
 from sifaka.utils.logging import get_logger
-
+from sifaka.validators.base import LengthValidator, RegexValidator
+from sifaka.validators.content import ContentValidator
 from tests.utils import (
-    assert_thought_valid,
-    assert_validation_results,
-    assert_chain_execution_success,
-    assert_performance_within_bounds,
     MockModelFactory,
     MockStorageFactory,
+    assert_chain_execution_success,
+    assert_performance_within_bounds,
+    assert_thought_valid,
+    assert_validation_results,
 )
 
 logger = get_logger(__name__)

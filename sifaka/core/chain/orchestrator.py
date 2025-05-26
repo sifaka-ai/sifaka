@@ -4,7 +4,6 @@ This module contains the ChainOrchestrator class which handles high-level
 workflow coordination for chain execution.
 """
 
-from typing import List, Optional
 
 from sifaka.core.chain.config import ChainConfig
 from sifaka.core.thought import Document, Thought

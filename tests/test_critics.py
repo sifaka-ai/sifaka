@@ -6,26 +6,22 @@ Self-RAG, Constitutional AI, N-Critics, and Prompt-based critics. It tests
 critique generation, improvement suggestions, and integration scenarios.
 """
 
-import pytest
-from typing import Any, Dict, List, Optional
 
-from sifaka.core.thought import Thought, CriticFeedback
+
+from sifaka.core.thought import CriticFeedback
+from sifaka.critics.constitutional import ConstitutionalCritic
+from sifaka.critics.n_critics import NCriticsCritic
+from sifaka.critics.prompt import PromptCritic
 
 # Import all new critics
 from sifaka.critics.reflexion import ReflexionCritic
-from sifaka.critics.self_refine import SelfRefineCritic
-from sifaka.critics.constitutional import ConstitutionalCritic
-from sifaka.critics.n_critics import NCriticsCritic
 from sifaka.critics.self_rag import SelfRAGCritic
-from sifaka.critics.prompt import PromptCritic
+from sifaka.critics.self_refine import SelfRefineCritic
 from sifaka.models.base import MockModel
 from sifaka.utils.logging import get_logger
-
 from tests.utils import (
-    create_test_thought,
-    assert_critic_feedback,
-    MockCriticFactory,
     MockModelFactory,
+    create_test_thought,
 )
 
 logger = get_logger(__name__)
@@ -438,9 +434,14 @@ class TestCriticIntegration:
 
         thought = create_test_thought(text="Test text for error handling.")
 
-        # Should handle model failures gracefully
-        with pytest.raises(Exception):
-            critic.critique(thought)
+        # Should handle model failures gracefully and return error result
+        result = critic.critique(thought)
+
+        # Verify error result format
+        assert isinstance(result, dict)
+        assert "needs_improvement" in result
+        assert "processing_time_ms" in result
+        assert result["needs_improvement"] is True  # Error cases should indicate improvement needed
 
     def test_critic_with_empty_text(self):
         """Test critic behavior with edge cases."""

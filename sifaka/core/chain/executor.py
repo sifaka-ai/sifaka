@@ -8,7 +8,7 @@ wrapping async implementations using asyncio.run() for backward compatibility.
 """
 
 import asyncio
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Tuple
 
 from sifaka.core.chain.config import ChainConfig
 from sifaka.core.chain.orchestrator import ChainOrchestrator

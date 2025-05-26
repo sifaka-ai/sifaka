@@ -13,7 +13,6 @@ The MCP implementation provides:
 
 import asyncio
 import json
-import logging
 import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field

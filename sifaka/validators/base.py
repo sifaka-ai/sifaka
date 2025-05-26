@@ -13,7 +13,6 @@ The validators support both sync and async implementations internally, with sync
 methods wrapping async implementations using asyncio.run() for backward compatibility.
 """
 
-import asyncio
 from typing import List, Optional
 
 from sifaka.core.thought import Thought, ValidationResult

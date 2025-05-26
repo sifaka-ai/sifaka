@@ -74,7 +74,6 @@ class SifakaError(Exception):
 class ModelError(SifakaError):
     """Error raised by model components."""
 
-    pass
 
 
 class ModelAPIError(ModelError):
@@ -116,31 +115,26 @@ class ModelAPIError(ModelError):
 class ValidationError(SifakaError):
     """Error raised by validator components."""
 
-    pass
 
 
 class ImproverError(SifakaError):
     """Error raised by improver components."""
 
-    pass
 
 
 class RetrieverError(SifakaError):
     """Error raised by retriever components."""
 
-    pass
 
 
 class ChainError(SifakaError):
     """Error raised by chain components."""
 
-    pass
 
 
 class ConfigurationError(SifakaError):
     """Error raised for configuration issues."""
 
-    pass
 
 
 def format_error_message(

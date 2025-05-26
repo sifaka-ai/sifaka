@@ -48,7 +48,7 @@ def create_comprehensive_validators():
 
     # 2. Content Validator - Check for required topics and forbidden content
     content_validator = ContentValidator(
-        required_keywords=[
+        required=[
             "software",
             "engineering",
             "best practices",
@@ -58,8 +58,7 @@ def create_comprehensive_validators():
             "testing",
             "documentation",
         ],
-        forbidden_keywords=["hack", "exploit", "vulnerability", "malicious"],
-        min_keyword_matches=4,  # At least 4 required keywords must be present
+        prohibited=["hack", "exploit", "vulnerability", "malicious"],
         name="Software Engineering Content Validator",
     )
     validators.append(content_validator)
@@ -75,19 +74,13 @@ def create_comprehensive_validators():
             r"\b(never|impossible|can't|won't)\b",  # Avoid absolute negative statements
             r"\b(always|must|only)\b",  # Avoid absolute positive statements
         ],
-        name="Software Engineering Structure Validator",
     )
     validators.append(regex_validator)
 
     # 4. Format Validator - Ensure readable structure
     format_validator = FormatValidator(
-        format_type="structured_text",
-        requirements={
-            "min_paragraphs": 3,
-            "max_paragraph_length": 500,
-            "require_headers": False,
-            "require_bullet_points": False,
-        },
+        format_type="custom",
+        custom_validator=lambda text: len(text.split("\n\n")) >= 3,  # At least 3 paragraphs
         name="Readable Format Validator",
     )
     validators.append(format_validator)
@@ -96,8 +89,8 @@ def create_comprehensive_validators():
     language_classifier = LanguageClassifier()
     language_validator = ClassifierValidator(
         classifier=language_classifier,
-        expected_class="en",  # English
-        confidence_threshold=0.8,
+        valid_labels=["en"],  # English
+        threshold=0.8,
         name="English Language Validator",
     )
     validators.append(language_validator)
@@ -106,16 +99,17 @@ def create_comprehensive_validators():
     sentiment_classifier = SentimentClassifier()
     sentiment_validator = ClassifierValidator(
         classifier=sentiment_classifier,
-        expected_classes=["positive", "neutral"],  # Allow positive or neutral
-        confidence_threshold=0.6,
+        valid_labels=["positive", "neutral"],  # Allow positive or neutral
+        threshold=0.6,
         name="Professional Tone Validator",
     )
     validators.append(sentiment_validator)
 
     # 7. Guardrails Validator - Professional content safety
     guardrails_validator = GuardrailsValidator(
-        guard_name="professional_content",
-        description="Ensure professional and appropriate content for software engineering context",
+        validators=["GuardrailsPII"],
+        validator_args={"GuardrailsPII": {"entities": ["PERSON", "EMAIL", "PHONE_NUMBER"]}},
+        name="Professional Content Safety Validator",
     )
     validators.append(guardrails_validator)
 
@@ -180,13 +174,19 @@ def main():
     if result.validation_results:
         print(f"\nValidation Results ({len(validators)} validators):")
         passed_count = 0
-        for i, validation_result in enumerate(result.validation_results, 1):
-            status = "✓ PASSED" if validation_result.is_valid else "✗ FAILED"
-            print(f"  {i}. {validation_result.validator_name}: {status}")
-            if validation_result.is_valid:
+        for i, (validator_name, validation_result) in enumerate(
+            result.validation_results.items(), 1
+        ):
+            status = "✓ PASSED" if validation_result.passed else "✗ FAILED"
+            print(f"  {i}. {validator_name}: {status}")
+            if validation_result.passed:
                 passed_count += 1
             else:
-                print(f"     Error: {validation_result.error_message}")
+                print(f"     Error: {validation_result.message}")
+                if validation_result.issues:
+                    print(f"     Issues: {', '.join(validation_result.issues)}")
+                if validation_result.suggestions:
+                    print(f"     Suggestions: {', '.join(validation_result.suggestions)}")
 
         print(f"\nValidation Summary: {passed_count}/{len(validators)} validators passed")
 

@@ -7,11 +7,7 @@ and that concurrent validation and criticism work as expected.
 
 import asyncio
 import time
-from typing import List
 
-import pytest
-
-from sifaka.classifiers.language import LanguageClassifier
 from sifaka.core.chain import Chain
 from sifaka.core.thought import Thought
 from sifaka.critics.constitutional import ConstitutionalCritic
@@ -23,10 +19,7 @@ from sifaka.critics.self_refine import SelfRefineCritic
 from sifaka.models.base import MockModel
 from sifaka.utils.logging import get_logger
 from sifaka.validators.base import LengthValidator, RegexValidator
-from sifaka.validators.classifier import ClassifierValidator
 from sifaka.validators.content import ContentValidator
-from sifaka.validators.format import FormatValidator
-from sifaka.validators.guardrails import GuardrailsValidator
 
 # Configure logging
 logger = get_logger(__name__)

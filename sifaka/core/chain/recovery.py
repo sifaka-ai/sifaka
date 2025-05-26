@@ -152,7 +152,7 @@ class RecoveryManager:
         recovery_actions = []
 
         # Analyze the type of error and suggest appropriate actions
-        error_type = type(error).__name__
+        type(error).__name__
         error_message = str(error)
 
         if "timeout" in error_message.lower() or "connection" in error_message.lower():

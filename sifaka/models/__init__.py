@@ -36,7 +36,7 @@ __all__: List[str] = ["create_model"]
 
 # OpenAI
 try:
-    from sifaka.models.openai import OPENAI_AVAILABLE, OpenAIModel, create_openai_model
+    from sifaka.models.openai import OPENAI_AVAILABLE
 
     if OPENAI_AVAILABLE:
         __all__.extend(["OpenAIModel", "create_openai_model"])
@@ -45,7 +45,7 @@ except ImportError:
 
 # Anthropic
 try:
-    from sifaka.models.anthropic import ANTHROPIC_AVAILABLE, AnthropicModel, create_anthropic_model
+    from sifaka.models.anthropic import ANTHROPIC_AVAILABLE
 
     if ANTHROPIC_AVAILABLE:
         __all__.extend(["AnthropicModel", "create_anthropic_model"])

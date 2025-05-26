@@ -6,30 +6,22 @@ including memory, file, Redis, and Milvus storage systems. It tests
 data persistence, retrieval, and the 3-tier caching architecture.
 """
 
-import pytest
-import tempfile
 import shutil
-from pathlib import Path
-from typing import List, Dict, Any, Optional
+import tempfile
 import time
+from pathlib import Path
 
 from sifaka.core.chain import Chain
-from sifaka.core.thought import Thought
 from sifaka.models.base import MockModel
-from sifaka.storage.memory import MemoryStorage
-from sifaka.storage.file import FileStorage
 from sifaka.storage.cached import CachedStorage
-from sifaka.validators.base import LengthValidator
-from sifaka.critics.reflexion import ReflexionCritic
+from sifaka.storage.file import FileStorage
+from sifaka.storage.memory import MemoryStorage
 from sifaka.utils.logging import get_logger
-
+from sifaka.validators.base import LengthValidator
 from tests.utils import (
-    create_test_thought,
-    create_test_chain,
-    assert_thought_valid,
     assert_chain_execution_success,
-    assert_storage_consistency,
-    MockModelFactory,
+    assert_thought_valid,
+    create_test_thought,
 )
 
 logger = get_logger(__name__)
@@ -132,9 +124,9 @@ class TestFileStorageIntegration:
         self.storage.save(thought.id, thought)
         assert self.storage.exists(thought.id)
 
-        # Verify file was created
-        file_path = Path(self.temp_dir) / f"{thought.id}.json"
-        assert file_path.exists()
+        # Verify the main storage file was created (not individual files)
+        storage_file_path = Path(self.temp_dir) / "sifaka_storage.json"
+        assert storage_file_path.exists()
 
         loaded_thought = self.storage.load(thought.id)
         assert loaded_thought is not None
@@ -155,8 +147,9 @@ class TestFileStorageIntegration:
 
         # Verify file storage integration
         assert self.storage.exists(result.id)
-        file_path = Path(self.temp_dir) / f"{result.id}.json"
-        assert file_path.exists()
+        # Verify the main storage file was created (not individual files)
+        storage_file_path = Path(self.temp_dir) / "sifaka_storage.json"
+        assert storage_file_path.exists()
 
     def test_file_storage_persistence(self):
         """Test that file storage persists across storage instances."""
@@ -371,13 +364,13 @@ class TestStorageErrorHandling:
             # Save normally
             storage.save(thought.id, thought)
 
-            # Corrupt the file
-            file_path = Path(temp_dir) / f"{thought.id}.json"
-            with open(file_path, "w") as f:
+            # Corrupt the main storage file
+            storage_file_path = Path(temp_dir) / "sifaka_storage.json"
+            with open(storage_file_path, "w") as f:
                 f.write("corrupted data")
 
             # Should handle corruption gracefully
-            loaded = storage.get(thought.id)
+            storage.get(thought.id)
             # Depending on implementation, this might return None or raise an exception
             # The test verifies the system doesn't crash
 
@@ -398,7 +391,7 @@ class TestStorageConsistency:
         )
 
         # Add validation results and critic feedback
-        from sifaka.core.thought import ValidationResult, CriticFeedback
+        from sifaka.core.thought import CriticFeedback, ValidationResult
 
         original_thought = original_thought.add_validation_result(
             "test_validator",

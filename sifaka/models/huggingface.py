@@ -65,7 +65,7 @@ except ImportError:
 
 from sifaka.core.thought import Thought
 from sifaka.models.shared import BaseModelImplementation
-from sifaka.utils.error_handling import ConfigurationError, ModelError
+from sifaka.utils.error_handling import ModelError
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

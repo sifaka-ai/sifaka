@@ -41,12 +41,12 @@ class RedisStorage:
 
         logger.debug(f"Initialized RedisStorage with prefix '{key_prefix}'")
 
-    def _ensure_connected(self) -> None:
+    async def _ensure_connected(self) -> None:
         """Ensure MCP client is connected."""
         if not self._connected:
             try:
-                # This would connect to the Redis MCP server
-                # For now, we'll assume connection succeeds
+                # Connect to the Redis MCP server
+                await self.mcp_client.connect()
                 self._connected = True
                 logger.debug("Connected to Redis MCP server")
             except Exception as e:
@@ -67,16 +67,59 @@ class RedisStorage:
         Returns:
             The stored value, or None if not found.
         """
-        self._ensure_connected()
+        await self._ensure_connected()
 
         try:
             redis_key = self._make_key(key)
             logger.debug(f"Redis get: {redis_key}")
 
-            # Call Redis GET via MCP
-            result = await self.mcp_client.call_tool("redis_get", {"key": redis_key})
-            if result and "value" in result:
-                return json.loads(result["value"])
+            # Call Redis GET via MCP (correct tool name)
+            result = await self.mcp_client.call_tool("get", {"key": redis_key})
+
+            # Handle MCP response format
+            if result and not result.get("isError", False) and "content" in result:
+                content = result["content"]
+                if content and isinstance(content, list) and len(content) > 0:
+                    raw_value = content[0].get("text", "")
+                    # Check if key exists
+                    if (
+                        raw_value
+                        and not raw_value.startswith("Key ")
+                        and not raw_value.endswith(" does not exist")
+                    ):
+                        try:
+                            # First, try to parse as double-encoded JSON
+                            decoded_once = json.loads(raw_value)
+                            if isinstance(decoded_once, str):
+                                # Try to decode again (double-encoded)
+                                try:
+                                    decoded_value = json.loads(decoded_once)
+                                except json.JSONDecodeError:
+                                    # Single-encoded string, return as-is
+                                    decoded_value = decoded_once
+                            else:
+                                # Already decoded, return as-is
+                                decoded_value = decoded_once
+
+                            # If the value is a dictionary and looks like a Thought, try to reconstruct it
+                            if (
+                                isinstance(decoded_value, dict)
+                                and "id" in decoded_value
+                                and "prompt" in decoded_value
+                            ):
+                                try:
+                                    from sifaka.core.thought import Thought
+
+                                    return Thought.from_dict(decoded_value)
+                                except Exception as e:
+                                    logger.debug(f"Failed to reconstruct Thought from dict: {e}")
+                                    # Return the raw dict if reconstruction fails
+                                    return decoded_value
+
+                            return decoded_value
+                        except json.JSONDecodeError:
+                            # Return raw value if not JSON
+                            return raw_value
 
             return None
 
@@ -91,17 +134,46 @@ class RedisStorage:
             key: The storage key.
             value: The value to store.
         """
-        self._ensure_connected()
+        await self._ensure_connected()
 
         try:
             redis_key = self._make_key(key)
-            serialized_value = json.dumps(value, default=str)
             logger.debug(f"Redis set: {redis_key}")
 
-            # Call Redis SET via MCP
-            await self.mcp_client.call_tool(
-                "redis_set", {"key": redis_key, "value": serialized_value}
+            # Handle different value types and escape JSON for MCP
+            if hasattr(value, "model_dump"):
+                # Pydantic model - serialize to JSON and escape
+                json_value = json.dumps(value.model_dump(), default=str)
+                # Double-encode to prevent MCP from parsing it
+                serialized_value = json.dumps(json_value)
+            elif isinstance(value, (dict, list)):
+                # Dict or list - serialize to JSON and escape
+                json_value = json.dumps(value, default=str)
+                # Double-encode to prevent MCP from parsing it
+                serialized_value = json.dumps(json_value)
+            else:
+                # Other types - convert to string and escape if needed
+                str_value = str(value)
+                # Check if it looks like JSON and escape if so
+                try:
+                    json.loads(str_value)
+                    # It's valid JSON, so escape it
+                    serialized_value = json.dumps(str_value)
+                except json.JSONDecodeError:
+                    # Not JSON, use as-is
+                    serialized_value = str_value
+
+            # Call Redis SET via MCP (correct tool name)
+            result = await self.mcp_client.call_tool(
+                "set", {"key": redis_key, "value": serialized_value}
             )
+
+            # Check for errors in response
+            if result and result.get("isError", False):
+                error_msg = "Unknown error"
+                if "content" in result and result["content"]:
+                    error_msg = result["content"][0].get("text", error_msg)
+                raise Exception(f"Redis SET failed: {error_msg}")
 
         except Exception as e:
             logger.error(f"Redis set failed for key {key}: {e}")
@@ -110,56 +182,24 @@ class RedisStorage:
     async def _search_async(self, query: str, limit: int = 10) -> List[Any]:
         """Search for items matching a query asynchronously (internal method).
 
-        For Redis storage, this scans keys and returns matching values.
+        Note: Search is not implemented for Redis storage as it requires SCAN
+        which is not available in the current Redis MCP server.
 
         Args:
             query: The search query (used for key pattern matching).
             limit: Maximum number of results to return.
 
         Returns:
-            List of matching values.
+            Empty list (search not supported).
         """
-        self._ensure_connected()
-
-        try:
-            pattern = self._make_key(f"*{query}*")
-            logger.debug(f"Redis search: pattern '{pattern}', limit {limit}")
-
-            # Call Redis SCAN via MCP
-            result = await self.mcp_client.call_tool(
-                "redis_scan", {"pattern": pattern, "count": limit}
-            )
-
-            values = []
-            if result and "keys" in result:
-                for key in result["keys"]:
-                    value_result = await self.mcp_client.call_tool("redis_get", {"key": key})
-                    if value_result and "value" in value_result:
-                        values.append(json.loads(value_result["value"]))
-
-            return values
-
-        except Exception as e:
-            logger.error(f"Redis search failed for query '{query}': {e}")
-            return []
+        logger.warning("Search is not implemented for Redis storage")
+        return []
 
     async def _clear_async(self) -> None:
         """Clear all data with the key prefix asynchronously (internal method)."""
-        self._ensure_connected()
-
-        try:
-            pattern = self._make_key("*")
-            logger.debug(f"Redis clear: pattern '{pattern}'")
-
-            # Call Redis SCAN to get all keys, then delete them
-            result = await self.mcp_client.call_tool("redis_scan", {"pattern": pattern})
-            if result and "keys" in result:
-                for key in result["keys"]:
-                    await self.mcp_client.call_tool("redis_del", {"key": key})
-
-        except Exception as e:
-            logger.error(f"Redis clear failed: {e}")
-            raise
+        logger.warning("Clear is not implemented for Redis storage (requires SCAN)")
+        # Note: Clear is not implemented as it requires SCAN which is not available
+        # in the current Redis MCP server
 
     async def _delete_async(self, key: str) -> bool:
         """Delete a value by key asynchronously (internal method).
@@ -170,15 +210,24 @@ class RedisStorage:
         Returns:
             True if the key was deleted, False if it didn't exist.
         """
-        self._ensure_connected()
+        await self._ensure_connected()
 
         try:
             redis_key = self._make_key(key)
             logger.debug(f"Redis delete: {redis_key}")
 
-            # Call Redis DEL via MCP
-            result = await self.mcp_client.call_tool("redis_del", {"key": redis_key})
-            return bool(result.get("deleted", 0) > 0)
+            # Call Redis DELETE via MCP (correct tool name)
+            result = await self.mcp_client.call_tool("delete", {"key": redis_key})
+
+            # Handle MCP response format
+            if result and not result.get("isError", False) and "content" in result:
+                content = result["content"]
+                if content and isinstance(content, list) and len(content) > 0:
+                    response_text = content[0].get("text", "")
+                    # Check if deletion was successful
+                    return "Successfully deleted" in response_text
+
+            return False
 
         except Exception as e:
             logger.error(f"Redis delete failed for key {key}: {e}")
@@ -188,26 +237,10 @@ class RedisStorage:
         """Get all keys asynchronously (internal method).
 
         Returns:
-            List of all storage keys.
+            Empty list (keys listing not supported).
         """
-        self._ensure_connected()
-
-        try:
-            pattern = self._make_key("*")
-            logger.debug(f"Redis keys: pattern '{pattern}'")
-
-            # Call Redis SCAN to get all keys
-            result = await self.mcp_client.call_tool("redis_scan", {"pattern": pattern})
-            if result and "keys" in result:
-                # Remove prefix from keys
-                prefix_len = len(self.key_prefix) + 1
-                return [key[prefix_len:] for key in result["keys"]]
-
-            return []
-
-        except Exception as e:
-            logger.error(f"Redis keys failed: {e}")
-            return []
+        logger.warning("Keys listing is not implemented for Redis storage (requires SCAN)")
+        return []
 
     # Public sync methods (backward compatible API)
     def get(self, key: str) -> Optional[Any]:

@@ -67,6 +67,18 @@ class MemoryStorage:
         """
         value = self.data.get(key)
         logger.debug(f"Memory get: {key} -> {'found' if value is not None else 'not found'}")
+
+        # If the value is a dictionary and looks like a Thought, try to reconstruct it
+        if value is not None and isinstance(value, dict) and "id" in value and "prompt" in value:
+            try:
+                from sifaka.core.thought import Thought
+
+                return Thought.from_dict(value)
+            except Exception as e:
+                logger.debug(f"Failed to reconstruct Thought from dict: {e}")
+                # Return the raw dict if reconstruction fails
+                return value
+
         return value
 
     def set(self, key: str, value: Any) -> None:
@@ -76,7 +88,14 @@ class MemoryStorage:
             key: The storage key.
             value: The value to store.
         """
-        self.data[key] = value
+        # If the value is a Thought object, convert it to a dict for consistency
+        if hasattr(value, "model_dump"):
+            # This is likely a Pydantic model (like Thought)
+            stored_value = value.model_dump()
+        else:
+            stored_value = value
+
+        self.data[key] = stored_value
         logger.debug(f"Memory set: {key} -> stored")
 
     def search(self, query: str, limit: int = 10) -> List[Any]:

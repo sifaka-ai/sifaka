@@ -174,17 +174,21 @@ json_data = thought.model_dump_json()
 
 Sifaka provides a flexible storage system supporting multiple backends (Memory, File, Redis, Milvus) that can be used individually or combined in layered configurations for optimal performance.
 
-### Local MCP Servers
-Sifaka includes local MCP servers for Redis and Milvus integration:
+### Official MCP Servers
+Sifaka integrates with the official MCP servers for Redis and Milvus:
 
 ```bash
-# Redis MCP Server
-cd mcp/mcp-redis
-python -m main.py
+# Redis MCP Server (official)
+git clone https://github.com/redis/mcp-redis.git
+cd mcp-redis
+uv sync
+uv run src/main.py
 
-# Milvus MCP Server
-cd mcp/mcp-server-milvus
-python -m mcp_server_milvus
+# Milvus MCP Server (official)
+git clone https://github.com/zilliztech/mcp-server-milvus.git
+cd mcp-server-milvus
+uv sync
+uv run src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530
 ```
 
 ### MCP Configuration Examples
@@ -192,11 +196,11 @@ python -m mcp_server_milvus
 from sifaka.storage import RedisStorage, MilvusStorage
 from sifaka.mcp import MCPServerConfig, MCPTransportType
 
-# Redis via local MCP server
+# Redis via official MCP server
 redis_config = MCPServerConfig(
     name="redis-server",
     transport_type=MCPTransportType.STDIO,
-    url="cd mcp/mcp-redis && python -m main.py"
+    url="uv run --directory /path/to/mcp-redis src/main.py"
 )
 redis_storage = RedisStorage(redis_config)
 

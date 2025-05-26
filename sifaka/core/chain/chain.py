@@ -9,7 +9,7 @@ wrapping async implementations using asyncio.run() for backward compatibility.
 """
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from sifaka.core.chain.config import ChainConfig
 from sifaka.core.chain.executor import ChainExecutor
@@ -194,7 +194,7 @@ class Chain:
         # Check if we're already in an async context
         try:
             # Try to get the current event loop
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # If we get here, we're in an async context, so we need to run in a thread
             import concurrent.futures
 

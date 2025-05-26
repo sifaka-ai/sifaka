@@ -224,7 +224,7 @@ class ProfanityClassifier(TextClassifier):
         censored_words = censored.split()
 
         profane_words = set()
-        for orig, cens in zip(original_words, censored_words):
+        for orig, cens in zip(original_words, censored_words, strict=False):
             if orig != cens and self.censor_char in cens:
                 profane_words.add(orig.lower())
 

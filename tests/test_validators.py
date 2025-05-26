@@ -6,19 +6,14 @@ content, format, classifier, and guardrails validators. It tests
 validation logic, error handling, and integration scenarios.
 """
 
-import pytest
-from typing import Any, Dict, List, Optional
 
-from sifaka.core.thought import Thought, ValidationResult
+
+from sifaka.utils.logging import get_logger
 from sifaka.validators.base import LengthValidator, RegexValidator
+from sifaka.validators.classifier import ClassifierValidator
 from sifaka.validators.content import ContentValidator
 from sifaka.validators.format import FormatValidator
-from sifaka.validators.classifier import ClassifierValidator
-from sifaka.classifiers.language import LanguageClassifier
-from sifaka.classifiers.sentiment import SentimentClassifier
-from sifaka.utils.logging import get_logger
-
-from tests.utils import create_test_thought, assert_validation_results, MockValidatorFactory
+from tests.utils import create_test_thought
 
 logger = get_logger(__name__)
 
@@ -379,7 +374,7 @@ class TestFormatValidator:
 
         # Test text containing JSON
         thought = create_test_thought(text='Here is some JSON: {"key": "value"}')
-        result = validator.validate(thought)
+        validator.validate(thought)
         # Result depends on implementation of "contains_json" format
 
     def test_format_validator_edge_cases(self):

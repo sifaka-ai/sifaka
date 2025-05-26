@@ -6,32 +6,22 @@ in various combinations and configurations. It tests the full chain execution
 with different models, validators, critics, and storage backends.
 """
 
-import pytest
 import time
-from typing import List, Dict, Any
 
 from sifaka.core.chain import Chain
-from sifaka.core.thought import Thought
+from sifaka.critics.prompt import PromptCritic
+from sifaka.critics.reflexion import ReflexionCritic
+from sifaka.critics.self_refine import SelfRefineCritic
 from sifaka.models.base import MockModel
 from sifaka.storage.memory import MemoryStorage
+from sifaka.utils.logging import get_logger
 from sifaka.validators.base import LengthValidator, RegexValidator
 from sifaka.validators.content import ContentValidator
 from sifaka.validators.format import FormatValidator
-from sifaka.critics.reflexion import ReflexionCritic
-from sifaka.critics.self_refine import SelfRefineCritic
-from sifaka.critics.prompt import PromptCritic
-from sifaka.utils.logging import get_logger
-
 from tests.utils import (
-    create_test_chain,
-    create_test_validators,
-    create_test_critics,
+    assert_chain_execution_success,
     assert_thought_valid,
     assert_validation_results,
-    assert_critic_feedback,
-    assert_chain_execution_success,
-    MockModelFactory,
-    MockStorageFactory,
 )
 
 logger = get_logger(__name__)
@@ -307,8 +297,9 @@ class TestPerformanceIntegration:
 
     def test_memory_usage_reasonable(self):
         """Test that memory usage stays within reasonable bounds."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

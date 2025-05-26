@@ -36,9 +36,9 @@ from typing import List
 
 # Sifaka imports (absolute paths only)
 from sifaka.core.chain import Chain
-from sifaka.quickstart import QuickStart
 from sifaka.core.interfaces import Critic, Model, Retriever, Validator
 from sifaka.core.thought import CriticFeedback, Document, Thought, ValidationResult
+from sifaka.quickstart import QuickStart
 
 __all__: List[str] = [
     # Core components

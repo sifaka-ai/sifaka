@@ -8,11 +8,10 @@ import os
 from typing import Any, Dict, List, Optional, Union
 
 from sifaka.core.chain import Chain
-from sifaka.core.interfaces import Critic, Model, Validator
-from sifaka.storage.protocol import Storage
+from sifaka.core.interfaces import Critic, Validator
 from sifaka.models.base import create_model
-from sifaka.utils.logging import get_logger
 from sifaka.utils.error_handling import ConfigurationError
+from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -222,7 +221,7 @@ class QuickStart:
         milvus_config = MCPServerConfig(
             name="milvus-server",
             transport_type=MCPTransportType.STDIO,
-            url="cd /Users/evanvolgas/Documents/not_beam/sifaka/mcp && python -m main.py",
+            url="uv run --directory /path/to/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530",
         )
 
         storage = MilvusStorage(mcp_config=milvus_config, collection_name=collection_name)
@@ -301,7 +300,7 @@ class QuickStart:
                 redis_config = MCPServerConfig(
                     name="redis-server",
                     transport_type=MCPTransportType.STDIO,
-                    url="python -m mcp_redis",
+                    url="uv run --directory /path/to/mcp-redis src/main.py",
                 )
                 persistence_layer = RedisStorage(mcp_config=redis_config)
 
@@ -760,14 +759,14 @@ class ConfigWizard:
 
         # Check for required packages
         try:
-            import sifaka.critics.reflexion
+            pass
 
             results["critics_available"] = True
         except ImportError:
             results["critics_available"] = False
 
         try:
-            import sifaka.validators.base
+            pass
 
             results["validators_available"] = True
         except ImportError:

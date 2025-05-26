@@ -43,7 +43,7 @@ def setup_three_tier_storage():
     redis_config = MCPServerConfig(
         name="redis-server",
         transport_type=MCPTransportType.STDIO,
-        url="cd mcp/mcp-redis && python -m main.py",
+        url="uv run --directory ../../mcp/mcp-redis src/main.py",
     )
     redis_storage = RedisStorage(mcp_config=redis_config, key_prefix="sifaka:energy")
 
@@ -51,16 +51,17 @@ def setup_three_tier_storage():
     milvus_config = MCPServerConfig(
         name="milvus-server",
         transport_type=MCPTransportType.STDIO,
-        url="cd mcp/mcp-server-milvus && python -m mcp_server_milvus",
+        url="uv run --directory ../../mcp/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530",
     )
     milvus_storage = MilvusStorage(mcp_config=milvus_config, collection_name="sustainable_energy")
 
-    # Create three-tier cached storage
+    # Create three-tier cached storage: Memory → Redis → Milvus
     cached_storage = CachedStorage(
-        memory_storage=memory_storage,
-        redis_storage=redis_storage,
-        milvus_storage=milvus_storage,
-        cache_ttl=3600,  # 1 hour cache TTL
+        cache=memory_storage,  # L1: Memory (fastest)
+        persistence=CachedStorage(
+            cache=redis_storage,  # L2: Redis (persistent cache)
+            persistence=milvus_storage,  # L3: Milvus (vector search)
+        ),
     )
 
     return cached_storage
@@ -115,10 +116,10 @@ def main():
 
     logger.info("Creating HuggingFace Reflexion with three-tiered caching example")
 
-    # Create HuggingFace model using DeepSeek
+    # Create HuggingFace model using Microsoft Phi-4
     model = HuggingFaceModel(
-        model_name="deepseek-ai/deepseek-llm-7b-chat",  # DeepSeek chat model
-        api_key=os.getenv("HUGGINGFACE_API_KEY"),
+        model_name="microsoft/phi-4",  # Microsoft Phi-4 model
+        api_token=os.getenv("HUGGINGFACE_API_KEY"),
         temperature=0.7,
         max_tokens=900,
         use_inference_api=True,
@@ -126,7 +127,7 @@ def main():
 
     # Test if HuggingFace API is available
     try:
-        test_response = model.generate("Test", max_tokens=5)
+        _ = model.generate("Test", max_tokens=5)
         logger.info("HuggingFace API is available")
     except Exception as e:
         logger.error(f"HuggingFace API not available: {e}")
@@ -142,9 +143,7 @@ def main():
     # Create Reflexion critic for iterative improvement
     critic = ReflexionCritic(
         model=model,
-        reflection_depth=2,  # Deep reflection analysis
-        improvement_focus="technical_accuracy_and_completeness",
-        name="Sustainable Energy Reflexion Critic",
+        max_memory_size=10,  # Keep memory of past reflections
     )
 
     # Create the chain with three-tiered caching
@@ -154,7 +153,7 @@ def main():
         model_retrievers=[model_retriever],  # Energy context for model
         critic_retrievers=[critic_retriever],  # Reflection guidance for critic
         storage=cached_storage,  # Three-tiered caching
-        max_improvement_iterations=3,  # Default retry behavior
+        max_improvement_iterations=2,  # Allow for improvement iterations
         apply_improvers_on_validation_failure=True,
         always_apply_critics=True,
     )
@@ -178,7 +177,7 @@ def main():
     print(f"\nProcessing Details:")
     print(f"  Iterations: {result.iteration}")
     print(f"  Chain ID: {result.chain_id}")
-    print(f"  Model: HuggingFace DeepSeek (remote)")
+    print(f"  Model: HuggingFace Phi-4 (remote)")
     print(f"  Storage: Three-tiered caching")
 
     # Show caching information
@@ -192,7 +191,7 @@ def main():
     if hasattr(result, "pre_generation_context") and result.pre_generation_context:
         print(f"\nModel Context ({len(result.pre_generation_context)} documents):")
         for i, doc in enumerate(result.pre_generation_context[:3], 1):  # Show first 3
-            print(f"  {i}. {doc.content[:120]}...")
+            print(f"  {i}. {doc.text[:120]}...")
 
     # Show Reflexion critic feedback
     if result.critic_feedback:
@@ -219,7 +218,7 @@ def main():
 
     print(f"\nSystem Features:")
     print(f"  - HuggingFace Inference API")
-    print(f"  - Three-tiered caching system")
+    print(f"  - Microsoft Phi-4 model")
     print(f"  - Reflexion-based improvement")
     print(f"  - Comprehensive energy analysis")
     print(f"  - Multi-layer storage optimization")

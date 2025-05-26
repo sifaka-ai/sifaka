@@ -36,10 +36,10 @@ def main():
 
     logger.info("Creating HuggingFace Self-RAG without additional retrievers example")
 
-    # Create HuggingFace model using DeepSeek (preferred over Qwen)
+    # Create HuggingFace model using Microsoft Phi-4
     model = HuggingFaceModel(
-        model_name="deepseek-ai/deepseek-coder-6.7b-instruct",  # DeepSeek model as preferred
-        api_key=os.getenv("HUGGINGFACE_API_KEY"),
+        model_name="microsoft/phi-4",  # Microsoft Phi-4 model
+        api_token=os.getenv("HUGGINGFACE_API_KEY"),
         temperature=0.7,
         max_tokens=800,
         use_inference_api=True,  # Use HuggingFace Inference Providers API
@@ -70,7 +70,7 @@ def main():
         prompt="Explain the fundamental principles of quantum computing, including quantum bits (qubits), superposition, entanglement, and quantum gates. Discuss how quantum computers differ from classical computers and what potential applications they might have in the future.",
         model_retrievers=None,  # No additional retrievers for model
         critic_retrievers=None,  # No additional retrievers for critic
-        max_improvement_iterations=3,  # Default retry behavior
+        max_improvement_iterations=1,  # Retry once
         apply_improvers_on_validation_failure=True,
         always_apply_critics=True,
     )
@@ -94,7 +94,7 @@ def main():
     print(f"\nProcessing Details:")
     print(f"  Iterations: {result.iteration}")
     print(f"  Chain ID: {result.chain_id}")
-    print(f"  Model: HuggingFace DeepSeek (remote)")
+    print(f"  Model: HuggingFace Phi-4 (remote)")
     print(f"  Retrievers: None (internal knowledge only)")
 
     # Show Self-RAG critic feedback
@@ -132,7 +132,7 @@ def main():
 
     print(f"\nSystem Features:")
     print(f"  - HuggingFace Inference API")
-    print(f"  - DeepSeek model (preferred over Qwen)")
+    print(f"  - Microsoft Phi-4 model")
     print(f"  - Self-RAG internal knowledge only")
     print(f"  - No external retrievers")
     print(f"  - Pure model-based generation and critique")
