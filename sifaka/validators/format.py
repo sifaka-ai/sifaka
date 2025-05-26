@@ -124,6 +124,10 @@ class FormatValidator(BaseValidator):
             A ValidationResult with information about whether the validation passed,
             any issues found, and suggestions for improvement.
         """
+        # Check for None text
+        if thought.text is None:
+            return self.create_empty_text_result(self.name)
+
         # Dispatch to the appropriate validation method
         if self.format_type == self.FORMAT_JSON:
             return self._validate_json(thought.text)
@@ -146,7 +150,6 @@ class FormatValidator(BaseValidator):
                 score=0.0,
                 issues=[f"Format type '{self.format_type}' is not supported"],
                 suggestions=["Use a supported format type"],
-                metadata={"validator": self.name, "format_type": self.format_type},
             )
 
     async def _validate_async(self, thought: Thought) -> ValidationResult:
@@ -195,11 +198,6 @@ class FormatValidator(BaseValidator):
                         score=0.0,
                         issues=["jsonschema library is not installed"],
                         suggestions=["Install jsonschema: pip install jsonschema"],
-                        metadata={
-                            "validator": self.name,
-                            "format_type": "json",
-                            "schema_provided": True,
-                        },
                     )
                 except jsonschema.ValidationError as e:
                     logger.debug(f"{self.name}: JSON schema validation failed: {e}")
@@ -213,11 +211,6 @@ class FormatValidator(BaseValidator):
                             "Verify all required fields are present",
                             "Ensure data types match schema requirements",
                         ],
-                        metadata={
-                            "validator": self.name,
-                            "format_type": "json",
-                            "schema_error": str(e),
-                        },
                     )
 
             # JSON is valid
@@ -225,11 +218,6 @@ class FormatValidator(BaseValidator):
                 passed=True,
                 message="Text is valid JSON",
                 score=1.0,
-                metadata={
-                    "validator": self.name,
-                    "format_type": "json",
-                    "schema_validated": bool(self.schema),
-                },
             )
 
         except json.JSONDecodeError as e:
@@ -244,7 +232,6 @@ class FormatValidator(BaseValidator):
                     "Verify that all quotes, brackets, and braces are properly matched",
                     "Ensure that all keys and string values are enclosed in double quotes",
                 ],
-                metadata={"validator": self.name, "format_type": "json", "parse_error": str(e)},
             )
 
     def _validate_markdown(self, text: str) -> ValidationResult:
@@ -359,10 +346,6 @@ class FormatValidator(BaseValidator):
                 passed=True,
                 message="Text is a valid email address",
                 score=1.0,
-                metadata={
-                    "validator": self.name,
-                    "format_type": "email",
-                },
             )
         else:
             return self.create_validation_result(
@@ -374,10 +357,6 @@ class FormatValidator(BaseValidator):
                     "Ensure the email has a valid format: user@domain.com",
                     "Check for missing @ symbol or domain extension",
                 ],
-                metadata={
-                    "validator": self.name,
-                    "format_type": "email",
-                },
             )
 
     def _validate_url(self, text: str) -> ValidationResult:
@@ -399,10 +378,6 @@ class FormatValidator(BaseValidator):
                 passed=True,
                 message="Text is a valid URL",
                 score=1.0,
-                metadata={
-                    "validator": self.name,
-                    "format_type": "url",
-                },
             )
         else:
             return self.create_validation_result(
@@ -414,10 +389,6 @@ class FormatValidator(BaseValidator):
                     "Ensure the URL starts with http:// or https://",
                     "Check for valid domain format",
                 ],
-                metadata={
-                    "validator": self.name,
-                    "format_type": "url",
-                },
             )
 
     def _validate_contains_json(self, text: str) -> ValidationResult:
@@ -442,10 +413,6 @@ class FormatValidator(BaseValidator):
                 score=0.0,
                 issues=["No JSON objects found in text"],
                 suggestions=["Include JSON objects in the text"],
-                metadata={
-                    "validator": self.name,
-                    "format_type": "contains_json",
-                },
             )
 
         # Try to parse each JSON-like match
@@ -463,11 +430,6 @@ class FormatValidator(BaseValidator):
                 passed=True,
                 message="Text contains valid JSON",
                 score=1.0,
-                metadata={
-                    "validator": self.name,
-                    "format_type": "contains_json",
-                    "json_objects_found": len(json_matches),
-                },
             )
         else:
             return self.create_validation_result(
@@ -476,11 +438,6 @@ class FormatValidator(BaseValidator):
                 score=0.0,
                 issues=["JSON-like patterns found but none are valid JSON"],
                 suggestions=["Ensure JSON objects have proper syntax"],
-                metadata={
-                    "validator": self.name,
-                    "format_type": "contains_json",
-                    "json_like_patterns": len(json_matches),
-                },
             )
 
 

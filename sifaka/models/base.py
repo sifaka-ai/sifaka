@@ -81,22 +81,22 @@ def create_model(
             # Import the OpenAI model implementation
             from sifaka.models.openai import create_openai_model
 
-            return create_openai_model(model_name=model_name, **kwargs)
+            return create_openai_model(model_name=model_name, **kwargs)  # type: ignore
         elif provider == "anthropic":
             # Import the Anthropic model implementation
             from sifaka.models.anthropic import create_anthropic_model
 
-            return create_anthropic_model(model_name=model_name, **kwargs)
+            return create_anthropic_model(model_name=model_name, **kwargs)  # type: ignore
         elif provider == "huggingface":
             # Import the HuggingFace model implementation
             from sifaka.models.huggingface import create_huggingface_model
 
-            return create_huggingface_model(model_name=model_name, **kwargs)
+            return create_huggingface_model(model_name=model_name, **kwargs)  # type: ignore
         elif provider == "ollama":
             # Import the Ollama model implementation
             from sifaka.models.ollama import create_ollama_model
 
-            return create_ollama_model(model_name=model_name, **kwargs)
+            return create_ollama_model(model_name=model_name, **kwargs)  # type: ignore
         elif provider == "mock":
             # Create a mock model for testing
             return MockModel(model_name=model_name, **kwargs)
@@ -165,7 +165,7 @@ class MockModel(ContextAwareMixin):
         """
         logger.debug(f"Generating text with mock model: {self.model_name}")
         if self.response_text is not None:
-            return self.response_text
+            return str(self.response_text)
         return f"Mock response from {self.model_name} for: {prompt[:50]}..."
 
     def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:

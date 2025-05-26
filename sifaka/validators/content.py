@@ -131,6 +131,10 @@ class ContentValidator(BaseValidator):
             A ValidationResult with information about whether the validation passed,
             any issues found, and suggestions for improvement.
         """
+        # Check for None text
+        if thought.text is None:
+            return self.create_empty_text_result(self.name)
+
         start_time = time.time()
         issues = []
         suggestions = []
@@ -168,12 +172,6 @@ class ContentValidator(BaseValidator):
                 passed=True,
                 message="Text meets all content requirements",
                 score=1.0,
-                metadata={
-                    "validator": self.name,
-                    "processing_time_ms": processing_time,
-                    "prohibited_patterns_checked": len(self._compiled_prohibited_patterns),
-                    "required_patterns_checked": len(self._compiled_required_patterns),
-                },
             )
 
         # Handle prohibited content violations
@@ -212,15 +210,6 @@ class ContentValidator(BaseValidator):
             score=score,
             issues=issues,
             suggestions=suggestions,
-            metadata={
-                "validator": self.name,
-                "processing_time_ms": processing_time,
-                "prohibited_matches": len(prohibited_matches),
-                "missing_required": len(missing_required),
-                "total_violations": total_violations,
-                "prohibited_patterns_checked": len(self._compiled_prohibited_patterns),
-                "required_patterns_checked": len(self._compiled_required_patterns),
-            },
         )
 
     async def _validate_async(self, thought: Thought) -> ValidationResult:

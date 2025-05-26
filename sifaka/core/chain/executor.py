@@ -228,10 +228,11 @@ class ChainExecutor:
                     # Create error feedback
                     error_feedback = CriticFeedback(
                         critic_name=critic.__class__.__name__,
+                        feedback=f"Criticism error: {str(e)}",
                         confidence=0.0,
                         violations=[f"Criticism error: {str(e)}"],
                         suggestions=["Please try again or check the critic configuration."],
-                        feedback={"error": str(e)},
+                        metadata={"error": str(e)},
                     )
                     thought = thought.add_critic_feedback(error_feedback)
 

@@ -126,7 +126,7 @@ class ReflexionCritic(BaseCritic):
 
         # Step 3: Store reflection in memory for future learning
         self._add_to_memory(
-            thought.text, critique_result["critique"], reflection_result["reflection"]
+            thought.text or "", critique_result["critique"], reflection_result["reflection"]
         )
 
         logger.debug("ReflexionCritic: Critique and reflection completed")
@@ -195,7 +195,7 @@ class ReflexionCritic(BaseCritic):
 
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(
-                            asyncio.run, self._generate_critique_async(thought)
+                            lambda: asyncio.run(self._generate_critique_async(thought))
                         )
                         critique_result = future.result()
                 except RuntimeError:
@@ -210,7 +210,9 @@ class ReflexionCritic(BaseCritic):
 
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(
-                            asyncio.run, self._generate_reflection_async(thought, critique_text)
+                            lambda: asyncio.run(
+                                self._generate_reflection_async(thought, critique_text)
+                            )
                         )
                         reflection_result = future.result()
                 except RuntimeError:

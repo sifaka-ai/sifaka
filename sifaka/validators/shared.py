@@ -4,7 +4,7 @@ This module provides common functionality that can be shared across different
 validator implementations to reduce code duplication.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol
 
 from sifaka.core.thought import Thought, ValidationResult
 from sifaka.utils.error_handling import validation_context
@@ -12,6 +12,22 @@ from sifaka.utils.logging import get_logger
 from sifaka.utils.mixins import ValidationMixin
 
 logger = get_logger(__name__)
+
+
+class ClassifierProtocol(Protocol):
+    """Protocol for classifiers used in validators.
+
+    Supports both sklearn-style interface (predict/predict_proba) and
+    custom classify interface. At minimum, predict and predict_proba are required.
+    """
+
+    def predict(self, X: List[str]) -> List[Any]:
+        """Predict class labels for samples (sklearn-style interface)."""
+        ...
+
+    def predict_proba(self, X: List[str]) -> List[List[float]]:
+        """Predict class probabilities for samples (sklearn-style interface)."""
+        ...
 
 
 class BaseValidator(ValidationMixin):
@@ -163,6 +179,8 @@ class LengthValidatorBase(BaseValidator):
             A ValidationResult with the length validation outcome.
         """
         text = thought.text
+        if text is None:
+            return self.create_empty_text_result(self.name)
         length = self._get_length(text)
 
         issues = []
@@ -202,13 +220,6 @@ class LengthValidatorBase(BaseValidator):
             score=1.0 if passed else 0.0,
             issues=issues,
             suggestions=suggestions,
-            metadata={
-                "validator": self.name,
-                "length": length,
-                "unit": self.unit,
-                "min_length": self.min_length,
-                "max_length": self.max_length,
-            },
         )
 
 
@@ -250,6 +261,8 @@ class RegexValidatorBase(BaseValidator):
             A ValidationResult with the regex validation outcome.
         """
         text = thought.text
+        if text is None:
+            return self.create_empty_text_result(self.name)
         matches = {}
 
         # Check each pattern
@@ -307,7 +320,6 @@ class RegexValidatorBase(BaseValidator):
             score=1.0 if passed else 0.0,
             issues=issues,
             suggestions=suggestions,
-            metadata={"validator": self.name, "mode": self.mode, "pattern_matches": matches},
         )
 
 
@@ -320,7 +332,7 @@ class ClassifierValidatorBase(BaseValidator):
 
     def __init__(
         self,
-        classifier,
+        classifier: ClassifierProtocol,
         threshold: float = 0.5,
         valid_labels: Optional[List[str]] = None,
         invalid_labels: Optional[List[str]] = None,
@@ -354,12 +366,23 @@ class ClassifierValidatorBase(BaseValidator):
             A ValidationResult with the classification validation outcome.
         """
         text = thought.text
+        if text is None:
+            return self.create_empty_text_result(self.name)
 
         try:
-            # Classify the text
-            result = self.classifier.classify(text)
-            predicted_label = result.label
-            confidence = result.confidence
+            # Check if classifier has a classify method (test-style API)
+            if hasattr(self.classifier, "classify"):
+                result = self.classifier.classify(text)
+                predicted_label = result.label
+                confidence = result.confidence
+            else:
+                # Use sklearn-style API
+                predictions = self.classifier.predict([text])
+                probabilities = self.classifier.predict_proba([text])
+
+                predicted_label = predictions[0]
+                prediction_probs = probabilities[0]
+                confidence = max(prediction_probs)
 
             # Check if confidence meets threshold
             if confidence < self.threshold:
@@ -372,12 +395,6 @@ class ClassifierValidatorBase(BaseValidator):
                         "Provide clearer, more definitive text",
                         "Add more context to improve classification confidence",
                     ],
-                    metadata={
-                        "validator": self.name,
-                        "predicted_label": predicted_label,
-                        "confidence": confidence,
-                        "threshold": self.threshold,
-                    },
                 )
 
             # Check against valid/invalid labels
@@ -416,13 +433,6 @@ class ClassifierValidatorBase(BaseValidator):
                 score=score,
                 issues=issues,
                 suggestions=suggestions,
-                metadata={
-                    "validator": self.name,
-                    "predicted_label": predicted_label,
-                    "confidence": confidence,
-                    "valid_labels": self.valid_labels,
-                    "invalid_labels": self.invalid_labels,
-                },
             )
 
         except Exception as e:

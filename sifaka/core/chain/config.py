@@ -170,10 +170,7 @@ class ChainConfig:
                 ]
             )
 
-        # Validate storage configuration
-        if self.storage is None:
-            errors.append("Storage is None (this should not happen)")
-            suggestions.append("Storage should default to MemoryStorage")
+        # Storage is guaranteed to be set in __init__, so no need to check for None
 
         # Validate model provider availability
         if self.model:

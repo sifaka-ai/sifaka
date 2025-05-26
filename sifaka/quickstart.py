@@ -137,7 +137,7 @@ class QuickStart:
         from sifaka.storage.file import FileStorage
 
         model = create_model(model_spec, **model_options)
-        storage = FileStorage(file_path)
+        storage = FileStorage(file_path)  # type: ignore
 
         chain = Chain(
             model=model, prompt=prompt, storage=storage, max_improvement_iterations=max_iterations
@@ -177,9 +177,9 @@ class QuickStart:
 
         # Create Redis MCP configuration
         redis_config = MCPServerConfig(
+            name="redis-server",
             transport_type=MCPTransportType.STDIO,
-            command=["python", "-m", "mcp_redis"],
-            env={"REDIS_URL": redis_url},
+            url="python -m mcp_redis",
         )
 
         storage = RedisStorage(mcp_config=redis_config, key_prefix=key_prefix)
@@ -220,9 +220,9 @@ class QuickStart:
 
         # Create Milvus MCP configuration
         milvus_config = MCPServerConfig(
+            name="milvus-server",
             transport_type=MCPTransportType.STDIO,
-            command=["python", "-m", "main.py"],
-            cwd="/Users/evanvolgas/Documents/not_beam/sifaka/mcp",
+            url="cd /Users/evanvolgas/Documents/not_beam/sifaka/mcp && python -m main.py",
         )
 
         storage = MilvusStorage(mcp_config=milvus_config, collection_name=collection_name)
@@ -294,7 +294,9 @@ class QuickStart:
                 from sifaka.storage.redis import RedisStorage
 
                 redis_config = MCPServerConfig(
-                    transport_type=MCPTransportType.STDIO, command=["python", "-m", "mcp_redis"]
+                    name="redis-server",
+                    transport_type=MCPTransportType.STDIO,
+                    url="python -m mcp_redis",
                 )
                 persistence = RedisStorage(mcp_config=redis_config)
 
@@ -303,9 +305,9 @@ class QuickStart:
                 from sifaka.storage.milvus import MilvusStorage
 
                 milvus_config = MCPServerConfig(
+                    name="milvus-server",
                     transport_type=MCPTransportType.STDIO,
-                    command=["python", "-m", "main.py"],
-                    cwd="/Users/evanvolgas/Documents/not_beam/sifaka/mcp",
+                    url="cd /Users/evanvolgas/Documents/not_beam/sifaka/mcp && python -m main.py",
                 )
                 persistence = MilvusStorage(mcp_config=milvus_config)
 

@@ -139,7 +139,7 @@ class SelfRAGCritic(BaseCritic):
         if self.retriever and retrieval_needed and not context.strip():
             try:
                 retrieved_docs = await self._retrieve_documents_async(
-                    thought.prompt + " " + thought.text
+                    thought.prompt + " " + (thought.text or "")
                 )
                 if retrieved_docs:
                     context = "\n\n".join(retrieved_docs[: self.max_retrieved_docs])
@@ -231,7 +231,9 @@ class SelfRAGCritic(BaseCritic):
                     import concurrent.futures
 
                     with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(asyncio.run, self._perform_critique_async(thought))
+                        future = executor.submit(
+                            lambda: asyncio.run(self._perform_critique_async(thought))
+                        )
                         critique_result = future.result()
                 except RuntimeError:
                     critique_result = asyncio.run(self._perform_critique_async(thought))
@@ -252,7 +254,7 @@ class SelfRAGCritic(BaseCritic):
 
                         with concurrent.futures.ThreadPoolExecutor() as executor:
                             future = executor.submit(
-                                asyncio.run, self._retrieve_documents_async(thought.prompt)
+                                lambda: asyncio.run(self._retrieve_documents_async(thought.prompt))
                             )
                             retrieved_docs = future.result()
                     except RuntimeError:
@@ -295,7 +297,7 @@ class SelfRAGCritic(BaseCritic):
         """
         # Simple heuristics for determining retrieval need
         prompt_lower = thought.prompt.lower()
-        text_lower = thought.text.lower()
+        text_lower = (thought.text or "").lower()
 
         # Tasks that typically benefit from retrieval
         retrieval_indicators = [
@@ -395,7 +397,7 @@ class SelfRAGCritic(BaseCritic):
             return "[No Support]"
 
         # Simple assessment based on content overlap
-        text_words = set(thought.text.lower().split())
+        text_words = set((thought.text or "").lower().split())
         context_words = set(context.lower().split())
 
         overlap = len(text_words.intersection(context_words))
@@ -419,7 +421,7 @@ class SelfRAGCritic(BaseCritic):
             Utility assessment token.
         """
         # Simple utility assessment based on text length and context usage
-        text_length = len(thought.text.split())
+        text_length = len((thought.text or "").split())
 
         # Base score on text length
         if text_length < 10:
@@ -454,9 +456,12 @@ class SelfRAGCritic(BaseCritic):
             return []
 
         try:
-            # Use retriever to get documents
-            results = await self.retriever.retrieve_async(query, limit=self.max_retrieved_docs)
-            return [doc.get("content", str(doc)) for doc in results]
+            # Use retriever to get documents (sync method wrapped in async)
+            import asyncio
+
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(None, self.retriever.retrieve, query)
+            return results[: self.max_retrieved_docs] if results else []
         except Exception as e:
             logger.error(f"SelfRAGCritic: Retrieval error: {e}")
             return []

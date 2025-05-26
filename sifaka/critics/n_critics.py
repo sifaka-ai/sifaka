@@ -132,7 +132,8 @@ class NCriticsCritic(BaseCritic):
                 }
                 valid_critiques.append(error_critique)
             else:
-                valid_critiques.append(result)
+                # result is guaranteed to be Dict[str, Any] here (not an exception)
+                valid_critiques.append(result)  # type: ignore
 
         # Aggregate feedback from all critics
         aggregated_feedback = self._aggregate_critiques(valid_critiques)
@@ -211,7 +212,9 @@ class NCriticsCritic(BaseCritic):
                     import concurrent.futures
 
                     with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(asyncio.run, self._perform_critique_async(thought))
+                        future = executor.submit(
+                            lambda: asyncio.run(self._perform_critique_async(thought))
+                        )
                         critique_result = future.result()
                 except RuntimeError:
                     critique_result = asyncio.run(self._perform_critique_async(thought))

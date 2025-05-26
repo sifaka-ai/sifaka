@@ -709,7 +709,6 @@ class ValidationMixin:
         score: Optional[float] = None,
         issues: Optional[List[str]] = None,
         suggestions: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
     ) -> ValidationResult:
         """Create a standardized ValidationResult.
 
@@ -719,7 +718,6 @@ class ValidationMixin:
             score: Optional confidence score.
             issues: List of issues found.
             suggestions: List of suggestions for improvement.
-            metadata: Additional metadata.
 
         Returns:
             A ValidationResult object.
@@ -730,7 +728,6 @@ class ValidationMixin:
             score=score,
             issues=issues or [],
             suggestions=suggestions or [],
-            metadata=metadata or {},
         )
 
     def create_empty_text_result(self, validator_name: str) -> ValidationResult:
@@ -747,7 +744,6 @@ class ValidationMixin:
             message="No text available for validation",
             issues=["Text is empty or None"],
             suggestions=["Provide text to validate"],
-            metadata={"validator": validator_name},
         )
 
     def create_error_result(
@@ -775,5 +771,4 @@ class ValidationMixin:
                 "Verify that all required dependencies are installed",
                 "Check the logs for more detailed error information",
             ],
-            metadata={"validator": validator_name, "error_type": type(error).__name__},
         )

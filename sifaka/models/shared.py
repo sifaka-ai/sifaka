@@ -5,7 +5,7 @@ model provider implementations to reduce code duplication.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
@@ -36,7 +36,7 @@ class BaseModelImplementation(ContextAwareMixin, APIKeyMixin):
         api_key: Optional[str] = None,
         provider_name: str = "Unknown",
         env_var_name: str = "API_KEY",
-        required_packages: Optional[list] = None,
+        required_packages: Optional[List[str]] = None,
         api_key_required: bool = True,
         **options: Any,
     ):
@@ -71,7 +71,7 @@ class BaseModelImplementation(ContextAwareMixin, APIKeyMixin):
 
         logger.debug(f"Initialized {provider_name} model '{model_name}'")
 
-    def _check_required_packages(self, required_packages: list) -> None:
+    def _check_required_packages(self, required_packages: List[str]) -> None:
         """Check if required packages are available.
 
         Args:
@@ -295,8 +295,8 @@ def create_factory_function(
     model_class: type,
     provider_name: str,
     env_var_name: str,
-    required_packages: Optional[list] = None,
-):
+    required_packages: Optional[List[str]] = None,
+) -> Callable[[str], Any]:
     """Create a standardized factory function for a model class.
 
     This function generates a factory function that follows the same pattern
@@ -312,7 +312,7 @@ def create_factory_function(
         A factory function that creates model instances.
     """
 
-    def factory_function(model_name: str, **kwargs: Any):
+    def factory_function(model_name: str, **kwargs: Any) -> Any:
         """Factory function for creating model instances.
 
         Args:

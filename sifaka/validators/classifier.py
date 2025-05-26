@@ -147,10 +147,10 @@ class ClassifierValidator(ClassifierValidatorBase):
         start_time = time.time()
 
         # Extract text for classification if function provided
-        text_to_classify = thought.text
+        text_to_classify = thought.text or ""
         if self.extraction_function:
             try:
-                text_to_classify = self.extraction_function(thought.text)
+                text_to_classify = self.extraction_function(thought.text or "")
             except Exception as e:
                 logger.error(f"{self.name}: Text extraction failed: {e}")
                 return self.create_validation_result(
@@ -158,7 +158,6 @@ class ClassifierValidator(ClassifierValidatorBase):
                     message=f"Text extraction failed: {str(e)}",
                     issues=[f"Extraction function error: {str(e)}"],
                     suggestions=["Check the extraction function implementation"],
-                    metadata={"validator": self.name, "error_type": "extraction_error"},
                 )
 
         try:
@@ -196,13 +195,6 @@ class ClassifierValidator(ClassifierValidatorBase):
                         "Provide clearer, more definitive text",
                         "Consider lowering the confidence threshold",
                     ],
-                    metadata={
-                        "validator": self.name,
-                        "predicted_label": predicted_label,
-                        "confidence": max_confidence,
-                        "threshold": self.threshold,
-                        "processing_time_ms": processing_time,
-                    },
                 )
 
             # Check against valid/invalid labels using base class logic
@@ -217,12 +209,6 @@ class ClassifierValidator(ClassifierValidatorBase):
                     passed=True,
                     message=f"Text classified as '{predicted_label}' with confidence {max_confidence:.3f}",
                     score=max_confidence,
-                    metadata={
-                        "validator": self.name,
-                        "predicted_label": predicted_label,
-                        "confidence": max_confidence,
-                        "processing_time_ms": processing_time,
-                    },
                 )
             else:
                 logger.debug(
@@ -238,14 +224,6 @@ class ClassifierValidator(ClassifierValidatorBase):
                         f"Modify text to avoid classification as '{predicted_label}'",
                         f"Ensure text aligns with valid categories: {self.valid_labels}",
                     ],
-                    metadata={
-                        "validator": self.name,
-                        "predicted_label": predicted_label,
-                        "confidence": max_confidence,
-                        "valid_labels": self.valid_labels,
-                        "invalid_labels": self.invalid_labels,
-                        "processing_time_ms": processing_time,
-                    },
                 )
 
         except Exception as e:

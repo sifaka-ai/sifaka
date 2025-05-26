@@ -157,6 +157,9 @@ class RegexValidator(RegexValidatorBase):
             A ValidationResult with the regex validation outcome.
         """
         text = thought.text
+        if text is None:
+            return self.create_empty_text_result(self.name)
+
         issues = []
         suggestions = []
 
@@ -194,11 +197,6 @@ class RegexValidator(RegexValidatorBase):
             score=1.0 if passed else 0.0,
             issues=issues,
             suggestions=suggestions,
-            metadata={
-                "validator": self.name,
-                "required_patterns": self.required_patterns,
-                "forbidden_patterns": self.forbidden_patterns,
-            },
         )
 
     async def _validate_async(self, thought: Thought) -> ValidationResult:

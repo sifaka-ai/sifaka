@@ -43,7 +43,7 @@ from typing import Any, Dict, Optional, Tuple
 try:
     import torch
     from huggingface_hub import InferenceClient
-    from transformers import (  # type: ignore
+    from transformers import (
         AutoConfig,
         AutoModelForCausalLM,
         AutoModelForSeq2SeqLM,
@@ -127,14 +127,14 @@ class HuggingFaceModelLoader:
             return None
 
         if quantization == "4bit":
-            return BitsAndBytesConfig(  # type: ignore
+            return BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4",
             )
         elif quantization == "8bit":
-            return BitsAndBytesConfig(load_in_8bit=True)  # type: ignore
+            return BitsAndBytesConfig(load_in_8bit=True)
         else:
             logger.warning(f"Unknown quantization type: {quantization}")
             return None
@@ -579,6 +579,7 @@ class HuggingFaceModel(BaseModelImplementation):
         except Exception as e:
             # Use base class error handling
             self._handle_api_error(e, "generation")
+            raise  # Re-raise after handling
 
     def count_tokens(self, text: str) -> int:
         """Count tokens in text.
