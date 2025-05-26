@@ -256,7 +256,7 @@ class SelfRAGCritic(BaseCritic):
                             future = executor.submit(
                                 lambda: asyncio.run(self._retrieve_documents_async(thought.prompt))
                             )
-                            retrieved_docs = future.result()
+                            retrieved_docs: List[str] = future.result()
                     except RuntimeError:
                         retrieved_docs = asyncio.run(self._retrieve_documents_async(thought.prompt))
 

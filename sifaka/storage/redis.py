@@ -4,6 +4,7 @@ Redis-based storage for cross-process sharing and caching. Uses the Model Contex
 Protocol to communicate with a Redis MCP server.
 """
 
+import asyncio
 import json
 from typing import Any, List, Optional
 
@@ -56,8 +57,9 @@ class RedisStorage:
         """Create a prefixed Redis key."""
         return f"{self.key_prefix}:{key}"
 
-    def get(self, key: str) -> Optional[Any]:
-        """Get a value by key from Redis.
+    # Internal async methods (required by Storage protocol)
+    async def _get_async(self, key: str) -> Optional[Any]:
+        """Get a value by key from Redis asynchronously (internal method).
 
         Args:
             key: The storage key.
@@ -69,23 +71,21 @@ class RedisStorage:
 
         try:
             redis_key = self._make_key(key)
-            # This would use MCP to call Redis GET
-            # For now, we'll simulate the operation
             logger.debug(f"Redis get: {redis_key}")
 
-            # Simulated MCP call:
-            # result = self.mcp_client.call_tool("redis_get", {"key": redis_key})
-            # if result and "value" in result:
-            #     return json.loads(result["value"])
+            # Call Redis GET via MCP
+            result = await self.mcp_client.call_tool("redis_get", {"key": redis_key})
+            if result and "value" in result:
+                return json.loads(result["value"])
 
-            return None  # Placeholder
+            return None
 
         except Exception as e:
             logger.error(f"Redis get failed for key {key}: {e}")
             return None
 
-    def set(self, key: str, value: Any) -> None:
-        """Set a value for a key in Redis.
+    async def _set_async(self, key: str, value: Any) -> None:
+        """Set a value for a key in Redis asynchronously (internal method).
 
         Args:
             key: The storage key.
@@ -96,23 +96,19 @@ class RedisStorage:
         try:
             redis_key = self._make_key(key)
             serialized_value = json.dumps(value, default=str)
-
-            # This would use MCP to call Redis SET
-            # For now, we'll simulate the operation
             logger.debug(f"Redis set: {redis_key}")
 
-            # Simulated MCP call:
-            # self.mcp_client.call_tool("redis_set", {
-            #     "key": redis_key,
-            #     "value": serialized_value
-            # })
+            # Call Redis SET via MCP
+            await self.mcp_client.call_tool(
+                "redis_set", {"key": redis_key, "value": serialized_value}
+            )
 
         except Exception as e:
             logger.error(f"Redis set failed for key {key}: {e}")
             raise
 
-    def search(self, query: str, limit: int = 10) -> List[Any]:
-        """Search for items matching a query.
+    async def _search_async(self, query: str, limit: int = 10) -> List[Any]:
+        """Search for items matching a query asynchronously (internal method).
 
         For Redis storage, this scans keys and returns matching values.
 
@@ -127,52 +123,130 @@ class RedisStorage:
 
         try:
             pattern = self._make_key(f"*{query}*")
-
-            # This would use MCP to call Redis SCAN
-            # For now, we'll simulate the operation
             logger.debug(f"Redis search: pattern '{pattern}', limit {limit}")
 
-            # Simulated MCP call:
-            # result = self.mcp_client.call_tool("redis_scan", {
-            #     "pattern": pattern,
-            #     "count": limit
-            # })
-            #
-            # values = []
-            # if result and "keys" in result:
-            #     for key in result["keys"]:
-            #         value_result = self.mcp_client.call_tool("redis_get", {"key": key})
-            #         if value_result and "value" in value_result:
-            #             values.append(json.loads(value_result["value"]))
-            #
-            # return values
+            # Call Redis SCAN via MCP
+            result = await self.mcp_client.call_tool(
+                "redis_scan", {"pattern": pattern, "count": limit}
+            )
 
-            return []  # Placeholder
+            values = []
+            if result and "keys" in result:
+                for key in result["keys"]:
+                    value_result = await self.mcp_client.call_tool("redis_get", {"key": key})
+                    if value_result and "value" in value_result:
+                        values.append(json.loads(value_result["value"]))
+
+            return values
 
         except Exception as e:
             logger.error(f"Redis search failed for query '{query}': {e}")
             return []
 
-    def clear(self) -> None:
-        """Clear all data with the key prefix."""
+    async def _clear_async(self) -> None:
+        """Clear all data with the key prefix asynchronously (internal method)."""
         self._ensure_connected()
 
         try:
             pattern = self._make_key("*")
-
-            # This would use MCP to scan and delete keys
-            # For now, we'll simulate the operation
             logger.debug(f"Redis clear: pattern '{pattern}'")
 
-            # Simulated MCP call:
-            # result = self.mcp_client.call_tool("redis_scan", {"pattern": pattern})
-            # if result and "keys" in result:
-            #     for key in result["keys"]:
-            #         self.mcp_client.call_tool("redis_del", {"key": key})
+            # Call Redis SCAN to get all keys, then delete them
+            result = await self.mcp_client.call_tool("redis_scan", {"pattern": pattern})
+            if result and "keys" in result:
+                for key in result["keys"]:
+                    await self.mcp_client.call_tool("redis_del", {"key": key})
 
         except Exception as e:
             logger.error(f"Redis clear failed: {e}")
             raise
+
+    async def _delete_async(self, key: str) -> bool:
+        """Delete a value by key asynchronously (internal method).
+
+        Args:
+            key: The storage key to delete.
+
+        Returns:
+            True if the key was deleted, False if it didn't exist.
+        """
+        self._ensure_connected()
+
+        try:
+            redis_key = self._make_key(key)
+            logger.debug(f"Redis delete: {redis_key}")
+
+            # Call Redis DEL via MCP
+            result = await self.mcp_client.call_tool("redis_del", {"key": redis_key})
+            return result.get("deleted", 0) > 0
+
+        except Exception as e:
+            logger.error(f"Redis delete failed for key {key}: {e}")
+            return False
+
+    async def _keys_async(self) -> List[str]:
+        """Get all keys asynchronously (internal method).
+
+        Returns:
+            List of all storage keys.
+        """
+        self._ensure_connected()
+
+        try:
+            pattern = self._make_key("*")
+            logger.debug(f"Redis keys: pattern '{pattern}'")
+
+            # Call Redis SCAN to get all keys
+            result = await self.mcp_client.call_tool("redis_scan", {"pattern": pattern})
+            if result and "keys" in result:
+                # Remove prefix from keys
+                prefix_len = len(self.key_prefix) + 1
+                return [key[prefix_len:] for key in result["keys"]]
+
+            return []
+
+        except Exception as e:
+            logger.error(f"Redis keys failed: {e}")
+            return []
+
+    # Public sync methods (backward compatible API)
+    def get(self, key: str) -> Optional[Any]:
+        """Get a value by key from Redis.
+
+        Args:
+            key: The storage key.
+
+        Returns:
+            The stored value, or None if not found.
+        """
+        return asyncio.run(self._get_async(key))
+
+    def set(self, key: str, value: Any) -> None:
+        """Set a value for a key in Redis.
+
+        Args:
+            key: The storage key.
+            value: The value to store.
+        """
+        return asyncio.run(self._set_async(key, value))
+
+    def search(self, query: str, limit: int = 10) -> List[Any]:
+        """Search for items matching a query.
+
+        For Redis storage, this scans keys and returns matching values.
+
+        Args:
+            query: The search query (used for key pattern matching).
+            limit: Maximum number of results to return.
+
+        Returns:
+            List of matching values.
+        """
+        return asyncio.run(self._search_async(query, limit))
+
+    def clear(self) -> None:
+        """Clear all data with the key prefix."""
+        return asyncio.run(self._clear_async())
 
     def __len__(self) -> int:
         """Return number of stored items (simulated for Redis)."""
