@@ -54,13 +54,13 @@ from sifaka.utils.error_handling import (
     model_context,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils.mixins import ContextAwareMixin
+from sifaka.utils.mixins import APIKeyMixin, ContextAwareMixin
 
 # Configure logger
 logger = get_logger(__name__)
 
 
-class OpenAIModel(ContextAwareMixin):
+class OpenAIModel(APIKeyMixin, ContextAwareMixin):
     """OpenAI model implementation for generating text and counting tokens.
 
     This class implements the Model protocol for OpenAI models, supporting both
@@ -140,22 +140,17 @@ class OpenAIModel(ContextAwareMixin):
                 "OpenAI package not installed. Install it with 'pip install openai'."
             )
 
+        # Initialize mixins
+        super().__init__()
+
         # Store model name and options
         self.model_name = model_name
         self.options = options
 
-        # Get API key from parameter or environment variable
-        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
-        if not self.api_key:
-            raise ModelError(
-                "OpenAI API key not provided and not found in environment variable OPENAI_API_KEY.",
-                component="OpenAIModel",
-                operation="initialization",
-                suggestions=[
-                    "Provide an API key when creating the model",
-                    "Set the OPENAI_API_KEY environment variable",
-                ],
-            )
+        # Get API key using the mixin (eliminates duplicate code)
+        self.api_key = self.get_api_key(
+            api_key=api_key, env_var_name="OPENAI_API_KEY", provider_name="OpenAI", required=True
+        )
 
         # Get organization from parameter or environment variable
         self.organization = organization or os.environ.get("OPENAI_ORGANIZATION")

@@ -14,22 +14,22 @@ methods wrapping async implementations using asyncio.run() for backward compatib
 """
 
 import asyncio
-import re
-from typing import List, Optional, Pattern
+from typing import List, Optional
 
 from sifaka.core.thought import Thought, ValidationResult
-from sifaka.utils.error_handling import validation_context
 from sifaka.utils.logging import get_logger
+from sifaka.validators.shared import LengthValidatorBase, RegexValidatorBase
 
 # Configure logger
 logger = get_logger(__name__)
 
 
-class LengthValidator:
+class LengthValidator(LengthValidatorBase):
     """Validator that checks if text meets length requirements.
 
     This validator checks if text meets minimum and maximum length requirements
-    in terms of character count.
+    in terms of character count. It extends the shared LengthValidatorBase to
+    reduce code duplication.
 
     Attributes:
         min_length: Minimum required length in characters.
@@ -43,67 +43,12 @@ class LengthValidator:
             min_length: Minimum required length in characters.
             max_length: Maximum allowed length in characters.
         """
-        self.min_length = min_length
-        self.max_length = max_length
-
-    def validate(self, thought: Thought) -> ValidationResult:
-        """Validate text against length requirements.
-
-        Args:
-            thought: The Thought container with the text to validate.
-
-        Returns:
-            A ValidationResult with information about whether the validation passed,
-            any issues found, and suggestions for improvement.
-
-        Raises:
-            ValidationError: If the validation fails due to an error.
-        """
-        with validation_context(
-            validator_name="LengthValidator",
-            operation="length validation",
-            message_prefix="Failed to validate text length",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return ValidationResult(
-                    passed=False,
-                    message="No text available for validation",
-                    issues=["Text is empty or None"],
-                    suggestions=["Provide text to validate"],
-                )
-
-            # Get text length
-            text_length = len(thought.text)
-            logger.debug(f"Text length: {text_length} characters")
-
-            # Check if text meets length requirements
-            issues = []
-            suggestions = []
-
-            if text_length < self.min_length:
-                issues.append(f"Text is too short ({text_length} < {self.min_length} characters)")
-                suggestions.append(f"Expand the text to at least {self.min_length} characters")
-
-            if text_length > self.max_length:
-                issues.append(f"Text is too long ({text_length} > {self.max_length} characters)")
-                suggestions.append(f"Shorten the text to at most {self.max_length} characters")
-
-            # Return validation result
-            passed = len(issues) == 0
-            message = (
-                "Text meets length requirements"
-                if passed
-                else "Text does not meet length requirements"
-            )
-
-            return ValidationResult(
-                passed=passed,
-                message=message,
-                score=1.0 if passed else 0.0,
-                issues=issues if issues else None,
-                suggestions=suggestions if suggestions else None,
-            )
+        super().__init__(
+            min_length=min_length if min_length > 0 else None,
+            max_length=max_length if max_length < 10000 else None,
+            unit="characters",
+            name="LengthValidator",
+        )
 
     async def _validate_async(self, thought: Thought) -> ValidationResult:
         """Validate text against length requirements asynchronously.
@@ -123,11 +68,12 @@ class LengthValidator:
         return self.validate(thought)
 
 
-class RegexValidator:
+class RegexValidator(RegexValidatorBase):
     """Validator that checks if text matches or doesn't match regex patterns.
 
     This validator checks if text matches required patterns and doesn't match
-    forbidden patterns.
+    forbidden patterns. It extends the shared RegexValidatorBase to reduce
+    code duplication.
 
     Attributes:
         required_patterns: List of regex patterns that text must match.
@@ -145,79 +91,86 @@ class RegexValidator:
             required_patterns: List of regex patterns that text must match.
             forbidden_patterns: List of regex patterns that text must not match.
         """
+        # Convert to the format expected by the base class
+        patterns = {}
+
+        if required_patterns:
+            for i, pattern in enumerate(required_patterns):
+                patterns[f"required_{i}"] = pattern
+
+        if forbidden_patterns:
+            for i, pattern in enumerate(forbidden_patterns):
+                patterns[f"forbidden_{i}"] = pattern
+
+        # Determine mode based on what patterns we have
+        if required_patterns and forbidden_patterns:
+            # Need to check both - use require_all for required patterns
+            # We'll override _validate_content to handle forbidden patterns
+            mode = "require_all"
+        elif required_patterns:
+            mode = "require_all"
+        elif forbidden_patterns:
+            mode = "forbid_all"
+        else:
+            mode = "require_all"  # Default, though no patterns means always pass
+
+        super().__init__(patterns=patterns, mode=mode, name="RegexValidator")
+
+        # Store original patterns for backward compatibility
         self.required_patterns = required_patterns or []
         self.forbidden_patterns = forbidden_patterns or []
 
-        # Compile patterns for efficiency
-        self.required_compiled: List[Pattern[str]] = [
-            re.compile(pattern) for pattern in self.required_patterns
-        ]
-        self.forbidden_compiled: List[Pattern[str]] = [
-            re.compile(pattern) for pattern in self.forbidden_patterns
-        ]
-
-    def validate(self, thought: Thought) -> ValidationResult:
-        """Validate text against regex patterns.
+    def _validate_content(self, thought: Thought) -> ValidationResult:
+        """Override to handle both required and forbidden patterns.
 
         Args:
             thought: The Thought container with the text to validate.
 
         Returns:
-            A ValidationResult with information about whether the validation passed,
-            any issues found, and suggestions for improvement.
-
-        Raises:
-            ValidationError: If the validation fails due to an error.
+            A ValidationResult with the regex validation outcome.
         """
-        with validation_context(
-            validator_name="RegexValidator",
-            operation="regex validation",
-            message_prefix="Failed to validate text against regex patterns",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return ValidationResult(
-                    passed=False,
-                    message="No text available for validation",
-                    issues=["Text is empty or None"],
-                    suggestions=["Provide text to validate"],
-                )
+        text = thought.text
+        issues = []
+        suggestions = []
 
-            # Check if text matches required patterns
-            issues = []
-            suggestions = []
+        # Check required patterns
+        for pattern_str in self.required_patterns:
+            import re
 
-            # Check required patterns
-            for i, pattern in enumerate(self.required_compiled):
-                if not pattern.search(thought.text):
-                    pattern_str = self.required_patterns[i]
-                    issues.append(f"Text does not match required pattern: {pattern_str}")
-                    suggestions.append(
-                        f"Modify the text to include content matching: {pattern_str}"
-                    )
+            pattern = re.compile(pattern_str, re.IGNORECASE)
+            if not pattern.search(text):
+                issues.append(f"Text does not match required pattern: {pattern_str}")
+                suggestions.append(f"Modify the text to include content matching: {pattern_str}")
 
-            # Check forbidden patterns
-            for i, pattern in enumerate(self.forbidden_compiled):
-                if pattern.search(thought.text):
-                    pattern_str = self.forbidden_patterns[i]
-                    issues.append(f"Text matches forbidden pattern: {pattern_str}")
-                    suggestions.append(f"Remove content matching: {pattern_str}")
+        # Check forbidden patterns
+        for pattern_str in self.forbidden_patterns:
+            import re
 
-            # Return validation result
-            passed = len(issues) == 0
-            message = (
-                "Text matches all required patterns and no forbidden patterns"
-                if passed
-                else "Text does not meet pattern requirements"
-            )
+            pattern = re.compile(pattern_str, re.IGNORECASE)
+            if pattern.search(text):
+                issues.append(f"Text matches forbidden pattern: {pattern_str}")
+                suggestions.append(f"Remove content matching: {pattern_str}")
 
-            return ValidationResult(
-                passed=passed,
-                message=message,
-                score=1.0 if passed else 0.0,
-                issues=issues if issues else None,
-                suggestions=suggestions if suggestions else None,
-            )
+        # Determine if validation passed
+        passed = len(issues) == 0
+
+        if passed:
+            message = "Text matches all required patterns and no forbidden patterns"
+        else:
+            message = "Text does not meet pattern requirements"
+
+        return self.create_validation_result(
+            passed=passed,
+            message=message,
+            score=1.0 if passed else 0.0,
+            issues=issues,
+            suggestions=suggestions,
+            metadata={
+                "validator": self.name,
+                "required_patterns": self.required_patterns,
+                "forbidden_patterns": self.forbidden_patterns,
+            },
+        )
 
     async def _validate_async(self, thought: Thought) -> ValidationResult:
         """Validate text against regex patterns asynchronously.

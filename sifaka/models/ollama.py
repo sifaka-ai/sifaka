@@ -38,10 +38,10 @@ from typing import Any, List
 import requests
 
 from sifaka.core.thought import Thought
-from sifaka.utils.error_handling import ConfigurationError, ModelError, model_context
+from sifaka.models.shared import BaseModelImplementation
+from sifaka.utils.error_handling import ConfigurationError, ModelError
 from sifaka.utils.factory_utils import create_with_error_handling
 from sifaka.utils.http_utils import setup_http_session
-from sifaka.utils.mixins import ContextAwareMixin
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +210,7 @@ class OllamaConnection:
             raise ModelError(f"Unexpected error during Ollama generation: {e}")
 
 
-class OllamaModel(ContextAwareMixin):
+class OllamaModel(BaseModelImplementation):
     """Ollama model implementation for local LLM inference.
 
     This class implements the Model protocol for Ollama models, providing
@@ -259,10 +259,11 @@ class OllamaModel(ContextAwareMixin):
             ConfigurationError: If Ollama is not accessible.
             ModelError: If the model is not available.
         """
-        self.model_name = model_name
+        # Initialize base class
+        super().__init__(model_name, **options)
+
         self.base_url = base_url
         self.timeout = timeout
-        self.options = options
 
         # Initialize connection and token counter
         self.connection = OllamaConnection(base_url, timeout)
@@ -309,8 +310,10 @@ class OllamaModel(ContextAwareMixin):
             logger.warning(f"Could not verify model availability: {e}")
             # Continue anyway - the model might still work
 
-    def generate(self, prompt: str, **options: Any) -> str:
-        """Generate text from a prompt.
+    def _generate_impl(self, prompt: str, **options: Any) -> str:
+        """Generate text using the Ollama API.
+
+        This is the internal implementation called by the base class generate method.
 
         Args:
             prompt: The prompt to generate text from.
@@ -319,64 +322,12 @@ class OllamaModel(ContextAwareMixin):
         Returns:
             The generated text.
         """
-        # Merge instance options with call-time options
-        merged_options = {**self.options, **options}
-
         try:
-            with model_context(
-                model_name=self.model_name,
-                operation="generation",
-                message_prefix="Failed to generate text with Ollama model",
-                suggestions=[
-                    "Check that Ollama is running and accessible",
-                    "Verify that the model is available",
-                    "Check network connectivity to Ollama server",
-                ],
-                metadata={
-                    "model_name": self.model_name,
-                    "base_url": self.base_url,
-                    "prompt_length": len(prompt),
-                    "temperature": merged_options.get("temperature"),
-                    "max_tokens": merged_options.get("max_tokens"),
-                },
-            ):
-                return self.connection.generate(prompt, self.model_name, **merged_options)
-
+            return self.connection.generate(prompt, self.model_name, **options)
         except Exception as e:
             # Log the error and re-raise
             logger.error(f"Ollama generation failed: {e}")
             raise
-
-    def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:
-        """Generate text using a Thought container.
-
-        The model uses whatever context is already in the Thought container,
-        as the Chain orchestrates all retrieval operations.
-
-        Args:
-            thought: The Thought container with context for generation.
-            **options: Additional options for generation.
-
-        Returns:
-            A tuple of (generated_text, actual_prompt_used).
-        """
-        logger.debug(f"Generating text with Ollama model using Thought: {self.model_name}")
-
-        # Use mixin to build contextualized prompt
-        full_prompt = self._build_contextualized_prompt(thought, max_docs=5)
-
-        # Add system prompt if available
-        if thought.system_prompt:
-            full_prompt = f"{thought.system_prompt}\n\n{full_prompt}"
-
-        # Log context usage
-        if self._has_context(thought):
-            context_summary = self._get_context_summary(thought)
-            logger.debug(f"OllamaModel using context: {context_summary}")
-
-        # Generate text using the contextualized prompt
-        generated_text = self.generate(full_prompt, **options)
-        return generated_text, full_prompt
 
     def count_tokens(self, text: str) -> int:
         """Count tokens in text using model-specific strategies.

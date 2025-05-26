@@ -12,8 +12,9 @@ import time
 from typing import Any, Callable, List, Optional, Protocol
 
 from sifaka.core.thought import Thought, ValidationResult
-from sifaka.utils.error_handling import ValidationError, validation_context
+from sifaka.utils.error_handling import ValidationError
 from sifaka.utils.logging import get_logger
+from sifaka.validators.shared import ClassifierValidatorBase
 
 # Configure logger
 logger = get_logger(__name__)
@@ -49,12 +50,12 @@ class Classifier(Protocol):
         ...
 
 
-class ClassifierValidator:
+class ClassifierValidator(ClassifierValidatorBase):
     """Validator that uses machine learning classifiers to validate text.
 
     This validator uses ML classifiers to validate text properties such as sentiment,
     toxicity, bias, or other characteristics. It supports any classifier that follows
-    the scikit-learn interface.
+    the scikit-learn interface. It extends ClassifierValidatorBase to reduce code duplication.
 
     Attributes:
         classifier: The ML classifier to use for validation.
@@ -107,141 +108,131 @@ class ClassifierValidator:
                 ],
             )
 
-        self.classifier = classifier
-        self.threshold = threshold
-        self.valid_labels = valid_labels or []
-        self.invalid_labels = invalid_labels or []
-        self.extraction_function = extraction_function
-        self.name = name
+        # Initialize the base class
+        super().__init__(
+            classifier=classifier,
+            threshold=threshold,
+            valid_labels=valid_labels,
+            invalid_labels=invalid_labels,
+            name=name,
+        )
 
-    def validate(self, thought: Thought) -> ValidationResult:
-        """Validate text using the classifier.
+        # Store additional attributes specific to this implementation
+        self.extraction_function = extraction_function
+
+    def _validate_content(self, thought: Thought) -> ValidationResult:
+        """Validate text using the classifier with custom text extraction.
+
+        This method overrides the base class to add text extraction functionality
+        while leveraging the shared validation patterns.
 
         Args:
             thought: The Thought container with the text to validate.
 
         Returns:
-            A ValidationResult with information about whether the validation passed,
-            any issues found, and suggestions for improvement.
-
-        Raises:
-            ValidationError: If the validation fails due to an error.
+            A ValidationResult with the classification validation outcome.
         """
         start_time = time.time()
 
-        with validation_context(
-            validator_name=self.name,
-            operation="classifier validation",
-            message_prefix="Failed to validate text with classifier",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return ValidationResult(
-                    passed=False,
-                    message="No text available for validation",
-                    issues=["Text is empty or None"],
-                    suggestions=["Provide text to validate"],
-                )
-
-            # Extract text for classification if function provided
-            text_to_classify = thought.text
-            if self.extraction_function:
-                try:
-                    text_to_classify = self.extraction_function(thought.text)
-                except Exception as e:
-                    logger.error(f"{self.name}: Text extraction failed: {e}")
-                    return ValidationResult(
-                        passed=False,
-                        message=f"Text extraction failed: {str(e)}",
-                        issues=[f"Extraction function error: {str(e)}"],
-                        suggestions=["Check the extraction function implementation"],
-                    )
-
+        # Extract text for classification if function provided
+        text_to_classify = thought.text
+        if self.extraction_function:
             try:
-                # Perform classification
-                predictions = self.classifier.predict([text_to_classify])
-                probabilities = self.classifier.predict_proba([text_to_classify])
-
-                predicted_label = predictions[0]
-                prediction_probs = probabilities[0]
-                max_confidence = max(prediction_probs)
-
-                # Calculate processing time
-                processing_time = (time.time() - start_time) * 1000
-
-                # Check if confidence meets threshold
-                if max_confidence < self.threshold:
-                    logger.debug(
-                        f"{self.name}: Low confidence prediction ({max_confidence:.3f} < {self.threshold}) "
-                        f"in {processing_time:.2f}ms"
-                    )
-                    return ValidationResult(
-                        passed=False,
-                        message=f"Classification confidence too low: {max_confidence:.3f}",
-                        score=max_confidence,
-                        issues=[
-                            f"Prediction confidence ({max_confidence:.3f}) below threshold ({self.threshold})"
-                        ],
-                        suggestions=[
-                            "Provide clearer, more definitive text",
-                            "Consider lowering the confidence threshold",
-                        ],
-                    )
-
-                # Check against valid/invalid labels
-                is_valid = self._check_label_validity(predicted_label)
-
-                if is_valid:
-                    logger.debug(
-                        f"{self.name}: Validation passed - label '{predicted_label}' "
-                        f"with confidence {max_confidence:.3f} in {processing_time:.2f}ms"
-                    )
-                    return ValidationResult(
-                        passed=True,
-                        message=f"Text classified as '{predicted_label}' with confidence {max_confidence:.3f}",
-                        score=max_confidence,
-                    )
-                else:
-                    logger.debug(
-                        f"{self.name}: Validation failed - label '{predicted_label}' "
-                        f"with confidence {max_confidence:.3f} in {processing_time:.2f}ms"
-                    )
-                    return ValidationResult(
-                        passed=False,
-                        message=f"Text classified as invalid label '{predicted_label}'",
-                        score=1.0 - max_confidence,  # Invert score for invalid labels
-                        issues=[f"Text classified as '{predicted_label}' which is not allowed"],
-                        suggestions=[
-                            f"Modify text to avoid classification as '{predicted_label}'",
-                            f"Ensure text aligns with valid categories: {self.valid_labels}",
-                        ],
-                    )
-
+                text_to_classify = self.extraction_function(thought.text)
             except Exception as e:
-                logger.error(f"{self.name}: Classification failed: {e}")
-                return ValidationResult(
+                logger.error(f"{self.name}: Text extraction failed: {e}")
+                return self.create_validation_result(
                     passed=False,
-                    message=f"Classification error: {str(e)}",
-                    issues=[f"Classifier error: {str(e)}"],
-                    suggestions=["Check classifier implementation and input format"],
+                    message=f"Text extraction failed: {str(e)}",
+                    issues=[f"Extraction function error: {str(e)}"],
+                    suggestions=["Check the extraction function implementation"],
+                    metadata={"validator": self.name, "error_type": "extraction_error"},
                 )
 
-    async def _validate_async(self, thought: Thought) -> ValidationResult:
-        """Validate text using ML classifier asynchronously.
+        try:
+            # Perform classification
+            predictions = self.classifier.predict([text_to_classify])
+            probabilities = self.classifier.predict_proba([text_to_classify])
 
-        This is the internal async implementation that provides the same functionality
-        as the sync validate method but can be called concurrently with other validators.
+            predicted_label = predictions[0]
+            prediction_probs = probabilities[0]
+            max_confidence = max(prediction_probs)
 
-        Args:
-            thought: The Thought container with the text to validate.
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
 
-        Returns:
-            A ValidationResult with information about whether the validation passed,
-            any issues found, and suggestions for improvement.
-        """
-        # Classification is CPU-bound and fast, so we can just call the sync version
-        # In a real implementation, you might want to run this in a thread pool for consistency
-        return self.validate(thought)
+            # Check if confidence meets threshold
+            if max_confidence < self.threshold:
+                logger.debug(
+                    f"{self.name}: Low confidence prediction ({max_confidence:.3f} < {self.threshold}) "
+                    f"in {processing_time:.2f}ms"
+                )
+                return self.create_validation_result(
+                    passed=False,
+                    message=f"Classification confidence too low: {max_confidence:.3f}",
+                    score=max_confidence,
+                    issues=[
+                        f"Prediction confidence ({max_confidence:.3f}) below threshold ({self.threshold})"
+                    ],
+                    suggestions=[
+                        "Provide clearer, more definitive text",
+                        "Consider lowering the confidence threshold",
+                    ],
+                    metadata={
+                        "validator": self.name,
+                        "predicted_label": predicted_label,
+                        "confidence": max_confidence,
+                        "threshold": self.threshold,
+                        "processing_time_ms": processing_time,
+                    },
+                )
+
+            # Check against valid/invalid labels using base class logic
+            is_valid = self._check_label_validity(predicted_label)
+
+            if is_valid:
+                logger.debug(
+                    f"{self.name}: Validation passed - label '{predicted_label}' "
+                    f"with confidence {max_confidence:.3f} in {processing_time:.2f}ms"
+                )
+                return self.create_validation_result(
+                    passed=True,
+                    message=f"Text classified as '{predicted_label}' with confidence {max_confidence:.3f}",
+                    score=max_confidence,
+                    metadata={
+                        "validator": self.name,
+                        "predicted_label": predicted_label,
+                        "confidence": max_confidence,
+                        "processing_time_ms": processing_time,
+                    },
+                )
+            else:
+                logger.debug(
+                    f"{self.name}: Validation failed - label '{predicted_label}' "
+                    f"with confidence {max_confidence:.3f} in {processing_time:.2f}ms"
+                )
+                return self.create_validation_result(
+                    passed=False,
+                    message=f"Text classified as invalid label '{predicted_label}'",
+                    score=1.0 - max_confidence,  # Invert score for invalid labels
+                    issues=[f"Text classified as '{predicted_label}' which is not allowed"],
+                    suggestions=[
+                        f"Modify text to avoid classification as '{predicted_label}'",
+                        f"Ensure text aligns with valid categories: {self.valid_labels}",
+                    ],
+                    metadata={
+                        "validator": self.name,
+                        "predicted_label": predicted_label,
+                        "confidence": max_confidence,
+                        "valid_labels": self.valid_labels,
+                        "invalid_labels": self.invalid_labels,
+                        "processing_time_ms": processing_time,
+                    },
+                )
+
+        except Exception as e:
+            # Let the base class handle the error using the mixin
+            return self.create_error_result(e, self.name, "classification")
 
     def _check_label_validity(self, label: str) -> bool:
         """Check if a predicted label is valid.
@@ -264,6 +255,23 @@ class ClassifierValidator:
         # If only valid_labels specified and label in it, it's valid
         # If both specified, label must be in valid and not in invalid
         return True
+
+    async def _validate_async(self, thought: Thought) -> ValidationResult:
+        """Validate text using ML classifier asynchronously.
+
+        This is the internal async implementation that provides the same functionality
+        as the sync validate method but can be called concurrently with other validators.
+
+        Args:
+            thought: The Thought container with the text to validate.
+
+        Returns:
+            A ValidationResult with information about whether the validation passed,
+            any issues found, and suggestions for improvement.
+        """
+        # Classification is CPU-bound and fast, so we can just call the sync version
+        # In a real implementation, you might want to run this in a thread pool for consistency
+        return self.validate(thought)
 
 
 def create_classifier_validator(

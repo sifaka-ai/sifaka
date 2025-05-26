@@ -144,10 +144,86 @@ class ChainConfig:
         Raises:
             ValueError: If the configuration is invalid or incomplete.
         """
+        from sifaka.utils.error_handling import ConfigurationError
+
+        errors = []
+        suggestions = []
+
+        # Check required components
         if not self.model:
-            raise ValueError("No model specified for the chain")
+            errors.append("No model specified for the chain")
+            suggestions.extend(
+                [
+                    "Use create_model() to create a model instance",
+                    "Example: model = create_model('openai:gpt-4')",
+                    "Or use QuickStart.basic_chain() for simplified setup",
+                ]
+            )
+
         if not self.prompt:
-            raise ValueError("No prompt specified for the chain")
+            errors.append("No prompt specified for the chain")
+            suggestions.extend(
+                [
+                    "Provide a prompt string for text generation",
+                    "Example: prompt = 'Write a story about AI'",
+                    "Or use QuickStart.for_development() for testing",
+                ]
+            )
+
+        # Validate storage configuration
+        if self.storage is None:
+            errors.append("Storage is None (this should not happen)")
+            suggestions.append("Storage should default to MemoryStorage")
+
+        # Validate model provider availability
+        if self.model:
+            try:
+                # Try to get model info to validate it's properly configured
+                model_name = getattr(self.model, "model_name", "unknown")
+                if hasattr(self.model, "validate_configuration"):
+                    self.model.validate_configuration()
+            except Exception as e:
+                errors.append(f"Model configuration error: {str(e)}")
+                suggestions.extend(
+                    [
+                        "Check that required API keys are set in environment variables",
+                        "Verify model name is correct and supported",
+                        "Test model connectivity before creating the chain",
+                    ]
+                )
+
+        # Validate validators
+        for i, validator in enumerate(self.validators):
+            if not hasattr(validator, "validate"):
+                errors.append(f"Validator {i} does not implement validate() method")
+                suggestions.append("Ensure all validators inherit from the Validator interface")
+
+        # Validate critics
+        for i, critic in enumerate(self.critics):
+            if not hasattr(critic, "critique"):
+                errors.append(f"Critic {i} does not implement critique() method")
+                suggestions.append("Ensure all critics inherit from the Critic interface")
+
+        # Validate options
+        max_iterations = self.options.get("max_improvement_iterations", 3)
+        if not isinstance(max_iterations, int) or max_iterations < 0:
+            errors.append("max_improvement_iterations must be a non-negative integer")
+            suggestions.append("Set max_improvement_iterations to a value >= 0")
+
+        if max_iterations > 10:
+            suggestions.append("Consider using fewer iterations (<=10) for better performance")
+
+        # If there are errors, raise a comprehensive error
+        if errors:
+            error_message = "Chain configuration validation failed:\n" + "\n".join(
+                f"- {error}" for error in errors
+            )
+            raise ConfigurationError(
+                error_message,
+                component="ChainConfig",
+                operation="validation",
+                suggestions=suggestions,
+            )
 
     def get_option(self, key: str, default: Any = None) -> Any:
         """Get a configuration option value.

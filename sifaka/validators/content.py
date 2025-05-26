@@ -13,14 +13,15 @@ import time
 from typing import List, Pattern
 
 from sifaka.core.thought import Thought, ValidationResult
-from sifaka.utils.error_handling import ValidationError, validation_context
+from sifaka.utils.error_handling import ValidationError
 from sifaka.utils.logging import get_logger
+from sifaka.validators.shared import BaseValidator
 
 # Configure logger
 logger = get_logger(__name__)
 
 
-class ContentValidator:
+class ContentValidator(BaseValidator):
     """Validator that checks if text contains prohibited content.
 
     This validator checks if text contains prohibited words, phrases, or patterns.
@@ -63,11 +64,13 @@ class ContentValidator:
                 suggestions=["Provide at least one prohibited word, phrase, or pattern"],
             )
 
+        # Initialize the base class
+        super().__init__(name=name)
+
         self.prohibited = prohibited
         self.case_sensitive = case_sensitive
         self.whole_word = whole_word
         self.regex = regex
-        self.name = name
 
         # Compile patterns for efficiency
         self._compiled_patterns: List[Pattern[str]] = []
@@ -101,7 +104,7 @@ class ContentValidator:
                 logger.warning(f"Invalid regex pattern '{item}': {e}")
                 # Skip invalid patterns but continue with others
 
-    def validate(self, thought: Thought) -> ValidationResult:
+    def _validate_content(self, thought: Thought) -> ValidationResult:
         """Validate text against prohibited content.
 
         Args:
@@ -110,79 +113,74 @@ class ContentValidator:
         Returns:
             A ValidationResult with information about whether the validation passed,
             any issues found, and suggestions for improvement.
-
-        Raises:
-            ValidationError: If the validation fails due to an error.
         """
         start_time = time.time()
 
-        with validation_context(
-            validator_name=self.name,
-            operation="content validation",
-            message_prefix="Failed to validate text content",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return ValidationResult(
-                    passed=False,
-                    message="No text available for validation",
-                    issues=["Text is empty or None"],
-                    suggestions=["Provide text to validate"],
+        # Find prohibited content matches
+        matches = []
+        for i, pattern in enumerate(self._compiled_patterns):
+            for match in pattern.finditer(thought.text):
+                matches.append(
+                    {
+                        "match": match.group(),
+                        "start": match.start(),
+                        "end": match.end(),
+                        "prohibited_item": self.prohibited[i],
+                        "pattern_index": i,
+                    }
                 )
 
-            # Find prohibited content matches
-            matches = []
-            for i, pattern in enumerate(self._compiled_patterns):
-                for match in pattern.finditer(thought.text):
-                    matches.append(
-                        {
-                            "match": match.group(),
-                            "start": match.start(),
-                            "end": match.end(),
-                            "prohibited_item": self.prohibited[i],
-                            "pattern_index": i,
-                        }
-                    )
+        # Calculate processing time
+        processing_time = (time.time() - start_time) * 1000
 
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            if not matches:
-                # No prohibited content found
-                logger.debug(f"{self.name}: No prohibited content found in {processing_time:.2f}ms")
-                return ValidationResult(
-                    passed=True,
-                    message="Text does not contain prohibited content",
-                    score=1.0,
-                )
-
-            # Found prohibited content
-            match_items = [str(m["match"]) for m in matches]
-            prohibited_items = [str(m["prohibited_item"]) for m in matches]
-
-            # Create issues and suggestions
-            unique_matches = set(match_items)
-            unique_prohibited = set(prohibited_items)
-            issues = [f"Text contains prohibited content: {', '.join(unique_matches)}"]
-            suggestions = [
-                f"Remove or rephrase the following prohibited content: {', '.join(unique_matches)}",
-                f"Avoid using terms like: {', '.join(unique_prohibited)}",
-            ]
-
-            # Calculate score based on number of matches
-            score = max(0.0, 1.0 - (len(matches) / len(self.prohibited)))
-
-            logger.debug(
-                f"{self.name}: Validation failed with {len(matches)} matches in {processing_time:.2f}ms"
+        if not matches:
+            # No prohibited content found
+            logger.debug(f"{self.name}: No prohibited content found in {processing_time:.2f}ms")
+            return self.create_validation_result(
+                passed=True,
+                message="Text does not contain prohibited content",
+                score=1.0,
+                metadata={
+                    "validator": self.name,
+                    "processing_time_ms": processing_time,
+                    "patterns_checked": len(self._compiled_patterns),
+                },
             )
 
-            return ValidationResult(
-                passed=False,
-                message=f"Text contains {len(matches)} prohibited content match(es)",
-                score=score,
-                issues=issues,
-                suggestions=suggestions,
-            )
+        # Found prohibited content
+        match_items = [str(m["match"]) for m in matches]
+        prohibited_items = [str(m["prohibited_item"]) for m in matches]
+
+        # Create issues and suggestions
+        unique_matches = set(match_items)
+        unique_prohibited = set(prohibited_items)
+        issues = [f"Text contains prohibited content: {', '.join(unique_matches)}"]
+        suggestions = [
+            f"Remove or rephrase the following prohibited content: {', '.join(unique_matches)}",
+            f"Avoid using terms like: {', '.join(unique_prohibited)}",
+        ]
+
+        # Calculate score based on number of matches
+        score = max(0.0, 1.0 - (len(matches) / len(self.prohibited)))
+
+        logger.debug(
+            f"{self.name}: Validation failed with {len(matches)} matches in {processing_time:.2f}ms"
+        )
+
+        return self.create_validation_result(
+            passed=False,
+            message=f"Text contains {len(matches)} prohibited content match(es)",
+            score=score,
+            issues=issues,
+            suggestions=suggestions,
+            metadata={
+                "validator": self.name,
+                "processing_time_ms": processing_time,
+                "matches_found": len(matches),
+                "unique_matches": list(unique_matches),
+                "patterns_checked": len(self._compiled_patterns),
+            },
+        )
 
     async def _validate_async(self, thought: Thought) -> ValidationResult:
         """Validate text against prohibited content asynchronously.

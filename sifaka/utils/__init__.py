@@ -24,7 +24,7 @@ from sifaka.utils.error_handling import (
     validation_context,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils.mixins import ContextAwareMixin
+from sifaka.utils.mixins import APIKeyMixin, ContextAwareMixin, ValidationMixin
 from sifaka.utils.performance import PerformanceMonitor, time_operation
 
 __all__ = [
@@ -49,6 +49,8 @@ __all__ = [
     # Other utilities
     "get_logger",
     "ContextAwareMixin",
+    "APIKeyMixin",
+    "ValidationMixin",
     "time_operation",
     "PerformanceMonitor",
 ]

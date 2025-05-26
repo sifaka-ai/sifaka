@@ -13,14 +13,15 @@ import time
 from typing import Any, Dict, List, Optional
 
 from sifaka.core.thought import Thought, ValidationResult
-from sifaka.utils.error_handling import ValidationError, validation_context
+from sifaka.utils.error_handling import ValidationError
 from sifaka.utils.logging import get_logger
+from sifaka.validators.shared import BaseValidator
 
 # Configure logger
 logger = get_logger(__name__)
 
 
-class GuardrailsValidator:
+class GuardrailsValidator(BaseValidator):
     """Validator that uses GuardrailsAI for validation.
 
     This validator integrates with GuardrailsAI to provide advanced text validation
@@ -54,7 +55,7 @@ class GuardrailsValidator:
         Raises:
             ValidationError: If GuardrailsAI is not available or configuration is invalid.
         """
-        self.name = name
+        super().__init__(name)
         self.validators = validators or []
         self.validator_args = validator_args or {}
 
@@ -188,7 +189,7 @@ class GuardrailsValidator:
                 ],
             )
 
-    def validate(self, thought: Thought) -> ValidationResult:
+    def _validate_content(self, thought: Thought) -> ValidationResult:
         """Validate text using GuardrailsAI.
 
         Args:
@@ -197,102 +198,76 @@ class GuardrailsValidator:
         Returns:
             A ValidationResult with information about whether the validation passed,
             any issues found, and suggestions for improvement.
-
-        Raises:
-            ValidationError: If the validation fails due to an error.
         """
         start_time = time.time()
 
-        with validation_context(
-            validator_name=self.name,
-            operation="guardrails validation",
-            message_prefix="Failed to validate text with GuardrailsAI",
-        ):
-            # Check if GuardrailsAI is initialized
-            if not self._initialized:
-                return ValidationResult(
+        # Check if GuardrailsAI is initialized
+        if not self._initialized:
+            return self.create_validation_result(
+                passed=False,
+                message="GuardrailsAI not properly initialized",
+                issues=["GuardrailsAI validator is not initialized"],
+                suggestions=["Check GuardrailsAI configuration and API key"],
+            )
+
+        try:
+            # Check if guard is available
+            if self._guard is None:
+                return self.create_validation_result(
                     passed=False,
-                    message="GuardrailsAI not properly initialized",
-                    issues=["GuardrailsAI validator is not initialized"],
-                    suggestions=["Check GuardrailsAI configuration and API key"],
+                    message="GuardrailsAI guard is not available",
+                    issues=["GuardrailsAI guard is not configured"],
+                    suggestions=["Configure GuardrailsAI guard or install guardrails-ai"],
                 )
 
-            # Check if text is available
-            if not thought.text:
-                return ValidationResult(
-                    passed=False,
-                    message="No text available for validation",
-                    issues=["Text is empty or None"],
-                    suggestions=["Provide text to validate"],
+            # Validate with GuardrailsAI
+            result = self._guard.validate(thought.text)
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000
+
+            # Check validation result
+            if result.validation_passed:
+                logger.debug(f"{self.name}: Validation passed in {processing_time:.2f}ms")
+                return self.create_validation_result(
+                    passed=True,
+                    message="Text passed GuardrailsAI validation",
+                    score=1.0,
+                )
+            else:
+                # Extract issues from GuardrailsAI result
+                issues = []
+                suggestions = []
+
+                if hasattr(result, "error_spans") and result.error_spans:
+                    for error_span in result.error_spans:
+                        issues.append(f"Validation error: {error_span.reason}")
+                        suggestions.append(f"Fix issue: {error_span.reason}")
+
+                if hasattr(result, "errors") and result.errors:
+                    for error in result.errors:
+                        issues.append(f"Validation error: {str(error)}")
+                        suggestions.append("Address the validation error")
+
+                if not issues:
+                    issues = ["Text failed GuardrailsAI validation"]
+                    suggestions = ["Modify text to meet validation requirements"]
+
+                logger.debug(
+                    f"{self.name}: Validation failed with {len(issues)} issues in {processing_time:.2f}ms"
                 )
 
-            try:
-                # Check if guard is available
-                if self._guard is None:
-                    return ValidationResult(
-                        passed=False,
-                        message="GuardrailsAI guard is not available",
-                        issues=["GuardrailsAI guard is not configured"],
-                        suggestions=["Configure GuardrailsAI guard or install guardrails-ai"],
-                    )
-
-                # Validate with GuardrailsAI
-                result = self._guard.validate(thought.text)
-
-                # Calculate processing time
-                processing_time = (time.time() - start_time) * 1000
-
-                # Check validation result
-                if result.validation_passed:
-                    logger.debug(f"{self.name}: Validation passed in {processing_time:.2f}ms")
-                    return ValidationResult(
-                        passed=True,
-                        message="Text passed GuardrailsAI validation",
-                        score=1.0,
-                    )
-                else:
-                    # Extract issues from GuardrailsAI result
-                    issues = []
-                    suggestions = []
-
-                    if hasattr(result, "error_spans") and result.error_spans:
-                        for error_span in result.error_spans:
-                            issues.append(f"Validation error: {error_span.reason}")
-                            suggestions.append(f"Fix issue: {error_span.reason}")
-
-                    if hasattr(result, "errors") and result.errors:
-                        for error in result.errors:
-                            issues.append(f"Validation error: {str(error)}")
-                            suggestions.append("Address the validation error")
-
-                    if not issues:
-                        issues = ["Text failed GuardrailsAI validation"]
-                        suggestions = ["Modify text to meet validation requirements"]
-
-                    logger.debug(
-                        f"{self.name}: Validation failed with {len(issues)} issues in {processing_time:.2f}ms"
-                    )
-
-                    return ValidationResult(
-                        passed=False,
-                        message="Text failed GuardrailsAI validation",
-                        score=0.0,
-                        issues=issues,
-                        suggestions=suggestions,
-                    )
-
-            except Exception as e:
-                logger.error(f"{self.name}: GuardrailsAI validation failed: {e}")
-                return ValidationResult(
+                return self.create_validation_result(
                     passed=False,
-                    message=f"GuardrailsAI validation error: {str(e)}",
-                    issues=[f"Validation error: {str(e)}"],
-                    suggestions=[
-                        "Check GuardrailsAI configuration",
-                        "Verify API key and network connectivity",
-                        "Check input text format",
-                    ],
+                    message="Text failed GuardrailsAI validation",
+                    score=0.0,
+                    issues=issues,
+                    suggestions=suggestions,
                 )
+
+        except Exception as e:
+            logger.error(f"{self.name}: GuardrailsAI validation failed: {e}")
+            return self.create_error_result(e, self.name, "guardrails_validation")
 
     async def _validate_async(self, thought: Thought) -> ValidationResult:
         """Validate text using GuardrailsAI asynchronously.

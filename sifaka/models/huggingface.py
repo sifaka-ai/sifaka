@@ -64,9 +64,9 @@ except ImportError:
     torch = None  # type: ignore
 
 from sifaka.core.thought import Thought
-from sifaka.utils.error_handling import ConfigurationError, ModelError, model_context
+from sifaka.models.shared import BaseModelImplementation
+from sifaka.utils.error_handling import ConfigurationError, ModelError
 from sifaka.utils.logging import get_logger
-from sifaka.utils.mixins import ContextAwareMixin
 
 logger = get_logger(__name__)
 
@@ -333,7 +333,7 @@ class HuggingFaceModelLoader:
             torch.cuda.empty_cache()
 
 
-class HuggingFaceModel(ContextAwareMixin):
+class HuggingFaceModel(BaseModelImplementation):
     """HuggingFace model implementation with dual mode support.
 
     This class provides both cloud-based inference (via Inference API) and
@@ -386,23 +386,29 @@ class HuggingFaceModel(ContextAwareMixin):
             retriever: Optional retriever for direct access
             **options: Additional options for the model
         """
-        if not HUGGINGFACE_AVAILABLE:
-            raise ImportError(
-                "HuggingFace dependencies not available. Please install with: "
-                "pip install 'transformers>=4.30.0' 'torch>=2.0.0' 'accelerate>=0.20.0'"
-            )
+        # Initialize base class with HuggingFace-specific configuration
+        # For HuggingFace, API key is only required for Inference API mode
+        super().__init__(
+            model_name=model_name,
+            api_key=api_token,
+            provider_name="HuggingFace",
+            env_var_name="HUGGINGFACE_API_TOKEN",
+            required_packages=(
+                ["transformers", "torch", "accelerate"] if not HUGGINGFACE_AVAILABLE else None
+            ),
+            api_key_required=use_inference_api,  # Only require API key for Inference API mode
+            **options,
+        )
 
-        self.model_name = model_name
+        # Store HuggingFace-specific configuration
         self.use_inference_api = use_inference_api
-        self.api_token = api_token
         self.device = device
         self.quantization = quantization
-        self.options = options
 
         # Initialize based on mode
         if use_inference_api:
             # Use new Inference Providers API with correct provider
-            self.client = InferenceClient(provider="hf-inference", api_key=api_token)
+            self.client = InferenceClient(provider="hf-inference", api_key=self.api_key)
             self.model = None
             self.tokenizer = None
             self.loader = None
@@ -551,8 +557,11 @@ class HuggingFaceModel(ContextAwareMixin):
 
         return str(generated_text).strip()
 
-    def generate(self, prompt: str, **options: Any) -> str:
-        """Generate text from a prompt.
+    def _generate_impl(self, prompt: str, **options: Any) -> str:
+        """Generate text using HuggingFace models (API or local).
+
+        This is the internal implementation called by the base class generate method.
+        It handles both Inference API and local inference modes.
 
         Args:
             prompt: The prompt to generate text from
@@ -562,59 +571,14 @@ class HuggingFaceModel(ContextAwareMixin):
             The generated text
         """
         try:
-            with model_context(
-                model_name=self.model_name,
-                operation="generation",
-                message_prefix="Failed to generate text with HuggingFace model",
-                suggestions=[
-                    "Check your HuggingFace API token if using Inference API",
-                    "Verify model name is correct",
-                    "Check available GPU memory for local inference",
-                ],
-                metadata={
-                    "model_name": self.model_name,
-                    "use_inference_api": self.use_inference_api,
-                    "prompt_length": len(prompt),
-                    "temperature": options.get("temperature"),
-                    "max_tokens": options.get("max_tokens"),
-                },
-            ):
-                if self.use_inference_api:
-                    return self._generate_via_api(prompt, **options)
-                else:
-                    return self._generate_local(prompt, **options)
+            if self.use_inference_api:
+                return self._generate_via_api(prompt, **options)
+            else:
+                return self._generate_local(prompt, **options)
 
         except Exception as e:
-            logger.error(f"HuggingFace generation failed: {e}")
-            raise
-
-    def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:
-        """Generate text using a Thought container.
-
-        Args:
-            thought: The Thought container with context for generation
-            **options: Additional options for generation
-
-        Returns:
-            A tuple of (generated_text, actual_prompt_used)
-        """
-        logger.debug(f"Generating text with HuggingFace model using Thought: {self.model_name}")
-
-        # Use mixin to build contextualized prompt
-        full_prompt = self._build_contextualized_prompt(thought, max_docs=5)
-
-        # Add system prompt if available
-        if thought.system_prompt:
-            full_prompt = f"{thought.system_prompt}\n\n{full_prompt}"
-
-        # Log context usage
-        if self._has_context(thought):
-            context_summary = self._get_context_summary(thought)
-            logger.debug(f"HuggingFaceModel using context: {context_summary}")
-
-        # Generate text using the contextualized prompt
-        generated_text = self.generate(full_prompt, **options)
-        return generated_text, full_prompt
+            # Use base class error handling
+            self._handle_api_error(e, "generation")
 
     def count_tokens(self, text: str) -> int:
         """Count tokens in text.
@@ -676,6 +640,7 @@ class HuggingFaceModel(ContextAwareMixin):
         return self.generate_with_thought(thought, **options)
 
 
+# Custom factory function for HuggingFace models to handle dual-mode parameters
 def create_huggingface_model(
     model_name: str, use_inference_api: bool = True, **kwargs: Any
 ) -> HuggingFaceModel:

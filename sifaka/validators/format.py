@@ -10,18 +10,18 @@ structural requirements and formatting standards.
 
 import json
 import re
-import time
 from typing import Any, Callable, Dict, Optional
 
 from sifaka.core.thought import Thought, ValidationResult
 from sifaka.utils.error_handling import ValidationError, validation_context
 from sifaka.utils.logging import get_logger
+from sifaka.validators.shared import BaseValidator
 
 # Configure logger
 logger = get_logger(__name__)
 
 
-class FormatValidator:
+class FormatValidator(BaseValidator):
     """Validator that checks if text follows a specific format.
 
     This validator checks if text follows a specific format, such as JSON, Markdown,
@@ -78,12 +78,12 @@ class FormatValidator:
                 ],
             )
 
+        super().__init__(name)
         self.format_type = format_type
         self.custom_validator = custom_validator
         self.schema = schema
-        self.name = name
 
-    def validate(self, thought: Thought) -> ValidationResult:
+    def _validate_content(self, thought: Thought) -> ValidationResult:
         """Validate text against format requirements.
 
         Args:
@@ -92,48 +92,25 @@ class FormatValidator:
         Returns:
             A ValidationResult with information about whether the validation passed,
             any issues found, and suggestions for improvement.
-
-        Raises:
-            ValidationError: If the validation fails due to an error.
         """
-        start_time = time.time()
-
-        with validation_context(
-            validator_name=self.name,
-            operation="format validation",
-            message_prefix="Failed to validate text format",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return ValidationResult(
-                    passed=False,
-                    message="No text available for validation",
-                    issues=["Text is empty or None"],
-                    suggestions=["Provide text to validate"],
-                )
-
-            # Dispatch to the appropriate validation method
-            if self.format_type == self.FORMAT_JSON:
-                result = self._validate_json(thought.text)
-            elif self.format_type == self.FORMAT_MARKDOWN:
-                result = self._validate_markdown(thought.text)
-            elif self.format_type == self.FORMAT_CUSTOM:
-                result = self._validate_custom(thought.text)
-            else:
-                # This should never happen due to validation in __init__
-                logger.error(f"{self.name}: Unsupported format type: {self.format_type}")
-                result = ValidationResult(
-                    passed=False,
-                    message=f"Unsupported format type: {self.format_type}",
-                    issues=[f"Format type '{self.format_type}' is not supported"],
-                    suggestions=["Use a supported format type"],
-                )
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-            logger.debug(f"{self.name}: Format validation completed in {processing_time:.2f}ms")
-
-            return result
+        # Dispatch to the appropriate validation method
+        if self.format_type == self.FORMAT_JSON:
+            return self._validate_json(thought.text)
+        elif self.format_type == self.FORMAT_MARKDOWN:
+            return self._validate_markdown(thought.text)
+        elif self.format_type == self.FORMAT_CUSTOM:
+            return self._validate_custom(thought.text)
+        else:
+            # This should never happen due to validation in __init__
+            logger.error(f"{self.name}: Unsupported format type: {self.format_type}")
+            return self.create_validation_result(
+                passed=False,
+                message=f"Unsupported format type: {self.format_type}",
+                score=0.0,
+                issues=[f"Format type '{self.format_type}' is not supported"],
+                suggestions=["Use a supported format type"],
+                metadata={"validator": self.name, "format_type": self.format_type},
+            )
 
     async def _validate_async(self, thought: Thought) -> ValidationResult:
         """Validate text format asynchronously.
@@ -175,43 +152,62 @@ class FormatValidator:
                     logger.debug(f"{self.name}: JSON schema validation successful")
                 except ImportError:
                     logger.warning("jsonschema library not available for schema validation")
-                    return ValidationResult(
+                    return self.create_validation_result(
                         passed=False,
                         message="JSON schema validation requires jsonschema library",
+                        score=0.0,
                         issues=["jsonschema library is not installed"],
                         suggestions=["Install jsonschema: pip install jsonschema"],
+                        metadata={
+                            "validator": self.name,
+                            "format_type": "json",
+                            "schema_provided": True,
+                        },
                     )
                 except jsonschema.ValidationError as e:
                     logger.debug(f"{self.name}: JSON schema validation failed: {e}")
-                    return ValidationResult(
+                    return self.create_validation_result(
                         passed=False,
                         message="JSON does not match the required schema",
+                        score=0.0,
                         issues=[f"Schema validation error: {str(e)}"],
                         suggestions=[
                             "Check that the JSON structure matches the required schema",
                             "Verify all required fields are present",
                             "Ensure data types match schema requirements",
                         ],
+                        metadata={
+                            "validator": self.name,
+                            "format_type": "json",
+                            "schema_error": str(e),
+                        },
                     )
 
             # JSON is valid
-            return ValidationResult(
+            return self.create_validation_result(
                 passed=True,
                 message="Text is valid JSON",
                 score=1.0,
+                metadata={
+                    "validator": self.name,
+                    "format_type": "json",
+                    "schema_validated": bool(self.schema),
+                },
             )
 
         except json.JSONDecodeError as e:
             logger.debug(f"{self.name}: JSON parsing failed: {e}")
-            return ValidationResult(
+            return self.create_validation_result(
                 passed=False,
                 message=f"Invalid JSON: {str(e)}",
+                score=0.0,
                 issues=[f"JSON parsing error: {str(e)}"],
                 suggestions=[
                     f"Check line {e.lineno}, column {e.colno} for syntax errors",
                     "Verify that all quotes, brackets, and braces are properly matched",
                     "Ensure that all keys and string values are enclosed in double quotes",
                 ],
+                metadata={"validator": self.name, "format_type": "json", "parse_error": str(e)},
             )
 
     def _validate_markdown(self, text: str) -> ValidationResult:

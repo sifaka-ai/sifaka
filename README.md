@@ -108,6 +108,46 @@ pip install sifaka[all]
 
 ## Quick Start
 
+### Simple Setup (Recommended)
+
+```python
+from sifaka.quickstart import QuickStart
+
+# One-liner setup for common use cases
+chain = QuickStart.for_production(
+    "openai:gpt-4",  # Requires OPENAI_API_KEY
+    "Write a short story about a robot learning to help humans.",
+    validators=["length"],
+    critics=["reflexion"]
+)
+
+# Run the chain
+thought = chain.run()
+print(f"Generated text: {thought.text}")
+```
+
+### More Examples
+
+```python
+# Development setup (fast, uses mock model)
+dev_chain = QuickStart.for_development()
+
+# Research setup (comprehensive, with retrievers)
+research_chain = QuickStart.for_research(
+    "anthropic:claude-3-sonnet",
+    "Analyze the impact of AI on scientific research"
+)
+
+# Preset-based configuration
+content_chain = QuickStart.from_preset(
+    "content_generation",
+    "openai:gpt-4",
+    "Write a blog post about sustainable energy"
+)
+```
+
+### Manual Setup (Advanced)
+
 ```python
 from sifaka import Chain
 from sifaka.models import create_model
@@ -227,6 +267,7 @@ For detailed installation and configuration instructions, see **[Storage Documen
 
 ## Documentation
 
+- **[Configuration Guide](docs/CONFIGURATION_GUIDE.md)** - Simplified setup and configuration
 - **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation
 - **[Architecture Guide](docs/ARCHITECTURE.md)** - System design and interactions
 - **[Storage Guide](docs/STORAGE.md)** - Storage backends and configuration

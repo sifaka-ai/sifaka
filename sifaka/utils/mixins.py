@@ -6,12 +6,16 @@ a clean way to share functionality across different implementations.
 
 Available mixins:
 - ContextAwareMixin: Adds retriever context support to any critic or model
+- APIKeyMixin: Standardized API key management for model providers
+- ValidationMixin: Common validation result creation patterns
 """
 
+import os
 import re
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Type
 
-from sifaka.core.thought import Thought
+from sifaka.core.thought import Thought, ValidationResult
+from sifaka.utils.error_handling import ConfigurationError, log_error
 from sifaka.utils.logging import get_logger
 
 # Configure logger
@@ -650,3 +654,136 @@ class ContextAwareMixin:
         )
 
         return compressed_context
+
+
+class APIKeyMixin:
+    """Mixin that provides standardized API key management.
+
+    This mixin handles API key retrieval from environment variables,
+    validation, and error handling in a consistent way across all model providers.
+    """
+
+    def get_api_key(
+        self, api_key: Optional[str], env_var_name: str, provider_name: str, required: bool = True
+    ) -> Optional[str]:
+        """Get API key from parameter or environment variable.
+
+        Args:
+            api_key: Explicitly provided API key.
+            env_var_name: Environment variable name to check.
+            provider_name: Name of the provider for error messages.
+            required: Whether the API key is required.
+
+        Returns:
+            The API key if found, None if not required and not found.
+
+        Raises:
+            ConfigurationError: If API key is required but not found.
+        """
+        # Use provided key if available
+        if api_key:
+            return api_key
+
+        # Try environment variable
+        env_key = os.getenv(env_var_name)
+        if env_key:
+            return env_key
+
+        # Handle missing key
+        if required:
+            raise ConfigurationError(
+                f"{provider_name} API key not provided",
+                component=provider_name,
+                operation="initialization",
+                suggestions=[
+                    f"Set the {env_var_name} environment variable",
+                    f"Pass api_key parameter to the {provider_name} constructor",
+                    f"Ensure your API key is valid and has the necessary permissions",
+                ],
+            )
+
+        return None
+
+
+class ValidationMixin:
+    """Mixin that provides standardized validation result creation.
+
+    This mixin reduces duplication in validation logic by providing
+    common patterns for creating ValidationResult objects.
+    """
+
+    def create_validation_result(
+        self,
+        passed: bool,
+        message: str,
+        score: Optional[float] = None,
+        issues: Optional[List[str]] = None,
+        suggestions: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> ValidationResult:
+        """Create a standardized ValidationResult.
+
+        Args:
+            passed: Whether validation passed.
+            message: Validation message.
+            score: Optional confidence score.
+            issues: List of issues found.
+            suggestions: List of suggestions for improvement.
+            metadata: Additional metadata.
+
+        Returns:
+            A ValidationResult object.
+        """
+        return ValidationResult(
+            passed=passed,
+            message=message,
+            score=score,
+            issues=issues or [],
+            suggestions=suggestions or [],
+            metadata=metadata or {},
+        )
+
+    def create_empty_text_result(self, validator_name: str) -> ValidationResult:
+        """Create a validation result for empty text.
+
+        Args:
+            validator_name: Name of the validator.
+
+        Returns:
+            A ValidationResult indicating empty text failure.
+        """
+        return self.create_validation_result(
+            passed=False,
+            message="No text available for validation",
+            issues=["Text is empty or None"],
+            suggestions=["Provide text to validate"],
+            metadata={"validator": validator_name},
+        )
+
+    def create_error_result(
+        self, error: Exception, validator_name: str, operation: str = "validation"
+    ) -> ValidationResult:
+        """Create a validation result for errors.
+
+        Args:
+            error: The exception that occurred.
+            validator_name: Name of the validator.
+            operation: The operation that failed.
+
+        Returns:
+            A ValidationResult indicating an error.
+        """
+        error_message = str(error)
+        log_error(error, component=validator_name, operation=operation)
+
+        return self.create_validation_result(
+            passed=False,
+            message=f"{operation.title()} error: {error_message}",
+            issues=[f"{validator_name} error: {error_message}"],
+            suggestions=[
+                f"Check {validator_name} implementation and input format",
+                "Verify that all required dependencies are installed",
+                "Check the logs for more detailed error information",
+            ],
+            metadata={"validator": validator_name, "error_type": type(error).__name__},
+        )

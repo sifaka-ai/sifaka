@@ -458,9 +458,10 @@ def create_actionable_suggestions(error: Exception, component: Optional[str] = N
     """
     suggestions = []
     error_type = type(error).__name__
+    error_message = str(error).lower()
 
     # Connection-related errors
-    if "Connection" in error_type or "Network" in error_type:
+    if "Connection" in error_type or "Network" in error_type or "connection" in error_message:
         suggestions.extend(
             [
                 "Check network connectivity",
@@ -471,7 +472,7 @@ def create_actionable_suggestions(error: Exception, component: Optional[str] = N
         )
 
     # Timeout errors
-    elif "Timeout" in error_type:
+    elif "Timeout" in error_type or "timeout" in error_message:
         suggestions.extend(
             [
                 "Increase timeout values",
@@ -482,7 +483,14 @@ def create_actionable_suggestions(error: Exception, component: Optional[str] = N
         )
 
     # Authentication errors
-    elif "Auth" in error_type or "Permission" in error_type:
+    elif (
+        "Auth" in error_type
+        or "Permission" in error_type
+        or any(
+            keyword in error_message
+            for keyword in ["auth", "permission", "unauthorized", "forbidden", "api key"]
+        )
+    ):
         suggestions.extend(
             [
                 "Check API keys and credentials",
@@ -493,13 +501,94 @@ def create_actionable_suggestions(error: Exception, component: Optional[str] = N
         )
 
     # Rate limiting errors
-    elif "Rate" in error_type or "Limit" in error_type:
+    elif (
+        "Rate" in error_type
+        or "Limit" in error_type
+        or any(keyword in error_message for keyword in ["rate limit", "quota", "too many requests"])
+    ):
         suggestions.extend(
             [
                 "Implement exponential backoff",
                 "Reduce request frequency",
                 "Check rate limit quotas",
                 "Consider upgrading service plan for higher limits",
+            ]
+        )
+
+    # Model-specific errors
+    elif "model" in error_message or component == "Model":
+        if "not found" in error_message or "does not exist" in error_message:
+            suggestions.extend(
+                [
+                    "Verify the model name is correct",
+                    "Check if the model is available in your region",
+                    "Ensure you have access to the specified model",
+                    "Try using a different model variant",
+                ]
+            )
+        elif "memory" in error_message or "cuda" in error_message:
+            suggestions.extend(
+                [
+                    "Reduce batch size or sequence length",
+                    "Use model quantization (4bit/8bit)",
+                    "Try using a smaller model variant",
+                    "Clear GPU memory cache",
+                ]
+            )
+
+    # Storage-specific errors
+    elif component in ["Storage", "Redis", "Milvus"]:
+        if "connection" in error_message:
+            suggestions.extend(
+                [
+                    "Check if the storage service is running",
+                    "Verify connection parameters (host, port, credentials)",
+                    "Test network connectivity to the storage service",
+                    "Check firewall and security group settings",
+                ]
+            )
+
+    # Validation-specific errors
+    elif component == "Validator":
+        suggestions.extend(
+            [
+                "Check input text format and encoding",
+                "Verify validator configuration parameters",
+                "Ensure required dependencies are installed",
+                "Try with simpler validation rules",
+            ]
+        )
+
+    # Import/dependency errors
+    elif "ImportError" in error_type or "ModuleNotFoundError" in error_type:
+        suggestions.extend(
+            [
+                "Install missing dependencies with pip",
+                "Check if optional dependencies are needed",
+                "Verify Python environment and package versions",
+                "Try reinstalling the package",
+            ]
+        )
+
+    # File/path errors
+    elif "FileNotFoundError" in error_type or "PermissionError" in error_type:
+        suggestions.extend(
+            [
+                "Check if the file or directory exists",
+                "Verify file permissions and access rights",
+                "Ensure the path is correct and accessible",
+                "Check if the directory needs to be created",
+            ]
+        )
+
+    # JSON/parsing errors
+    elif "JSON" in error_type or "json" in error_message:
+        suggestions.extend(
+            [
+                "Check JSON format and syntax",
+                "Verify data encoding (UTF-8)",
+                "Ensure all quotes and brackets are properly closed",
+                "Try validating JSON with an online validator",
             ]
         )
 
@@ -541,13 +630,24 @@ def create_actionable_suggestions(error: Exception, component: Optional[str] = N
                 ]
             )
 
+    # Add generic suggestions if none were added
+    if not suggestions:
+        suggestions.extend(
+            [
+                "Check the error message for specific details",
+                "Verify configuration and parameters",
+                "Consult the documentation for troubleshooting",
+                "Enable debug logging for more information",
+            ]
+        )
+
     return suggestions[:5]  # Limit to top 5 suggestions
 
 
 def enhance_error_message(
     error: Exception, component: Optional[str] = None, operation: Optional[str] = None
 ) -> str:
-    """Enhance error message with context and suggestions.
+    """Enhance an error message with context and actionable suggestions.
 
     Args:
         error: The exception that occurred.
@@ -555,20 +655,87 @@ def enhance_error_message(
         operation: Optional operation name.
 
     Returns:
-        Enhanced error message.
+        An enhanced error message with suggestions.
     """
     base_message = str(error)
-
-    # Add component and operation context
-    if component:
-        base_message = f"[{component}] {base_message}"
-    if operation:
-        base_message = f"{base_message} (during {operation})"
-
-    # Add actionable suggestions
     suggestions = create_actionable_suggestions(error, component)
-    if suggestions:
-        suggestion_text = "; ".join(suggestions)
-        base_message = f"{base_message}. Suggestions: {suggestion_text}"
 
-    return base_message
+    # Format the enhanced message
+    enhanced_message = base_message
+
+    if component:
+        enhanced_message = f"[{component}] {enhanced_message}"
+
+    if operation:
+        enhanced_message = f"{enhanced_message} (during {operation})"
+
+    if suggestions:
+        suggestion_text = "\n  • " + "\n  • ".join(suggestions)
+        enhanced_message = f"{enhanced_message}\n\nSuggestions:{suggestion_text}"
+
+    return enhanced_message
+
+
+def create_troubleshooting_guide(
+    error: Exception, component: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a comprehensive troubleshooting guide for an error.
+
+    Args:
+        error: The exception that occurred.
+        component: Optional component name.
+
+    Returns:
+        A dictionary with troubleshooting information.
+    """
+    error_type = type(error).__name__
+    error_message = str(error)
+    suggestions = create_actionable_suggestions(error, component)
+
+    guide = {
+        "error_type": error_type,
+        "error_message": error_message,
+        "component": component,
+        "suggestions": suggestions,
+        "common_causes": [],
+        "related_docs": [],
+    }
+
+    # Add common causes based on error type
+    if "Connection" in error_type or "connection" in error_message.lower():
+        guide["common_causes"] = [
+            "Network connectivity issues",
+            "Service not running or accessible",
+            "Firewall blocking connections",
+            "Incorrect connection parameters",
+        ]
+        guide["related_docs"] = [
+            "docs/STORAGE.md - Storage configuration",
+            "docs/TROUBLESHOOTING.md - Network issues",
+        ]
+
+    elif "Auth" in error_type or "api key" in error_message.lower():
+        guide["common_causes"] = [
+            "Missing or invalid API key",
+            "Expired authentication token",
+            "Insufficient permissions",
+            "Service authentication requirements changed",
+        ]
+        guide["related_docs"] = [
+            "docs/API_REFERENCE.md - Authentication",
+            "README.md - Environment setup",
+        ]
+
+    elif "Import" in error_type or "Module" in error_type:
+        guide["common_causes"] = [
+            "Missing optional dependencies",
+            "Incorrect package installation",
+            "Python environment issues",
+            "Package version conflicts",
+        ]
+        guide["related_docs"] = [
+            "README.md - Installation instructions",
+            "docs/CONTRIBUTING.md - Development setup",
+        ]
+
+    return guide
