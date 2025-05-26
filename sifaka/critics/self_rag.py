@@ -7,6 +7,16 @@ to enhance generation quality.
 Based on "Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection":
 https://arxiv.org/abs/2310.11511
 
+@misc{asai2023selfraglearningretrievegenerate,
+      title={Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection},
+      author={Akari Asai and Zeqiu Wu and Yizhong Wang and Avirup Sil and Hannaneh Hajishirzi},
+      year={2023},
+      eprint={2310.11511},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2310.11511},
+}
+
 The SelfRAGCritic uses retrieval-augmented generation with self-reflection tokens
 to provide comprehensive feedback and improve text quality.
 """

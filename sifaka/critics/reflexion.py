@@ -6,6 +6,16 @@ self-reflection to improve text quality through iterative refinement.
 Based on "Reflexion: Language Agents with Verbal Reinforcement Learning":
 https://arxiv.org/abs/2303.11366
 
+@misc{shinn2023reflexionlanguageagentsverbal,
+      title={Reflexion: Language Agents with Verbal Reinforcement Learning},
+      author={Noah Shinn and Federico Cassano and Edward Berman and Ashwin Gopinath and Karthik Narasimhan and Shunyu Yao},
+      year={2023},
+      eprint={2303.11366},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2303.11366},
+}
+
 The ReflexionCritic uses a language model to:
 1. Generate an initial critique of the text
 2. Reflect on the critique and identify specific improvements

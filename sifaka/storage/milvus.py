@@ -45,6 +45,153 @@ class MilvusStorage:
 
         logger.debug(f"Initialized MilvusStorage with collection '{collection_name}'")
 
+    def _truncate_field(self, field_value: str, field_name: str, max_length: int = 65536) -> str:
+        """Truncate field value to fit Milvus field length limits.
+
+        Uses smart truncation that preserves beginning and end of content.
+
+        Args:
+            field_value: The field value to truncate
+            field_name: Name of the field (for logging)
+            max_length: Maximum allowed length (default: 65536 for Milvus)
+
+        Returns:
+            Truncated field value with metadata about truncation
+        """
+        if len(field_value) <= max_length:
+            return field_value
+
+        # Calculate truncation points (preserve beginning and end)
+        truncation_marker = "\n\n[... TRUNCATED FOR MILVUS STORAGE ...]\n\n"
+        marker_length = len(truncation_marker)
+        available_length = max_length - marker_length
+
+        # Split available space: 70% for beginning, 30% for end
+        beginning_length = int(available_length * 0.7)
+        ending_length = available_length - beginning_length
+
+        # Extract beginning and end
+        beginning = field_value[:beginning_length]
+        ending = field_value[-ending_length:] if ending_length > 0 else ""
+
+        # Combine with truncation marker
+        truncated_value = beginning + truncation_marker + ending
+
+        # Log truncation for debugging
+        original_length = len(field_value)
+        logger.warning(
+            f"Truncated {field_name} field from {original_length} to {len(truncated_value)} characters "
+            f"(saved {beginning_length} + {len(ending)} chars)"
+        )
+
+        return truncated_value
+
+    def _smart_truncate_json(self, json_str: str, max_length: int = 65536) -> str:
+        """Smart truncation of JSON content that preserves important fields.
+
+        Truncates fields in order of importance:
+        1. Keep: id, prompt, timestamp, iteration (small, critical)
+        2. Truncate if needed: text, metadata, validation_results
+        3. Truncate heavily: history, pre/post_generation_context
+        4. Truncate last: large text fields
+
+        Args:
+            json_str: JSON string to truncate
+            max_length: Maximum allowed length
+
+        Returns:
+            Truncated JSON string that fits within limits
+        """
+        if len(json_str) <= max_length:
+            return json_str
+
+        try:
+            # Parse JSON to work with individual fields
+            data = json.loads(json_str)
+
+            # Field priority (higher number = truncate first)
+            field_priorities = {
+                # Keep these (priority 0 - never truncate)
+                "id": 0,
+                "prompt": 0,
+                "timestamp": 0,
+                "iteration": 0,
+                "chain_id": 0,
+                # Truncate moderately (priority 1)
+                "text": 1,
+                "metadata": 1,
+                "validation_results": 1,
+                "critic_feedback": 1,
+                # Truncate heavily (priority 2)
+                "history": 2,
+                "pre_generation_context": 2,
+                "post_generation_context": 2,
+                "system_prompt": 2,
+                "model_prompt": 2,
+                # Truncate aggressively (priority 3)
+                "parent_id": 3,
+            }
+
+            # Start truncating from highest priority fields
+            for priority in [3, 2, 1]:
+                current_json = json.dumps(data, default=str)
+                if len(current_json) <= max_length:
+                    break
+
+                # Truncate fields at this priority level
+                for field_name, field_priority in field_priorities.items():
+                    if field_priority == priority and field_name in data:
+                        if isinstance(data[field_name], str):
+                            # Calculate how much to truncate
+                            if priority == 1:
+                                # Moderate truncation (keep 50%)
+                                max_field_length = len(data[field_name]) // 2
+                            elif priority == 2:
+                                # Heavy truncation (keep 25%)
+                                max_field_length = len(data[field_name]) // 4
+                            else:
+                                # Aggressive truncation (keep 10%)
+                                max_field_length = len(data[field_name]) // 10
+
+                            if len(data[field_name]) > max_field_length:
+                                data[field_name] = self._truncate_field(
+                                    data[field_name], field_name, max_field_length
+                                )
+                        elif isinstance(data[field_name], (list, dict)):
+                            # For complex fields, convert to string and truncate
+                            str_value = str(data[field_name])
+                            if priority == 1:
+                                max_field_length = 1000
+                            elif priority == 2:
+                                max_field_length = 500
+                            else:
+                                max_field_length = 100
+
+                            if len(str_value) > max_field_length:
+                                data[field_name] = (
+                                    f"[TRUNCATED: {type(data[field_name]).__name__} with {len(str_value)} chars]"
+                                )
+
+                # Check if we're under the limit now
+                current_json = json.dumps(data, default=str)
+                if len(current_json) <= max_length:
+                    break
+
+            # Final check - if still too big, truncate the entire JSON
+            final_json = json.dumps(data, default=str)
+            if len(final_json) > max_length:
+                logger.warning(
+                    f"JSON still too large ({len(final_json)} chars), applying final truncation"
+                )
+                final_json = self._truncate_field(final_json, "entire_json", max_length)
+
+            return final_json
+
+        except json.JSONDecodeError:
+            # If JSON parsing fails, fall back to simple truncation
+            logger.warning("Failed to parse JSON for smart truncation, using simple truncation")
+            return self._truncate_field(json_str, "json_fallback", max_length)
+
     async def _ensure_connected(self) -> None:
         """Ensure MCP client is connected and collection exists."""
         if not self._connected:
@@ -220,6 +367,11 @@ class MilvusStorage:
                 # Other types - convert to string
                 serialized_value = str(value)
                 text_value = str(value)
+
+            # Apply smart field truncation for Milvus limits
+            serialized_value = self._smart_truncate_json(serialized_value)
+            text_value = self._truncate_field(text_value, "text")
+            key = self._truncate_field(key, "key", max_length=512)  # Keys should be shorter
 
             # First, delete any existing entry with this key
             try:

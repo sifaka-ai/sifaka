@@ -7,6 +7,16 @@ external feedback.
 Based on "Self-Refine: Iterative Refinement with Self-Feedback":
 https://arxiv.org/abs/2303.17651
 
+@misc{madaan2023selfrefineiterativerefinementselffeedback,
+      title={Self-Refine: Iterative Refinement with Self-Feedback},
+      author={Aman Madaan and Niket Tandon and Prakhar Gupta and Skyler Hallinan and Luyu Gao and Sarah Wiegreffe and Uri Alon and Nouha Dziri and Shrimai Prabhumoye and Yiming Yang and Shashank Gupta and Bodhisattwa Prasad Majumder and Katherine Hermann and Sean Welleck and Amir Yazdanbakhsh and Peter Clark},
+      year={2023},
+      eprint={2303.17651},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2303.17651},
+}
+
 The SelfRefineCritic implements a multi-round refinement process where the model
 critiques its own output and then revises it based on that critique.
 """

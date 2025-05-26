@@ -7,6 +7,16 @@ the refinement process.
 Based on "N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics":
 https://arxiv.org/abs/2310.18679
 
+@misc{mousavi2023ncriticsselfrefinementlargelanguage,
+      title={N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics},
+      author={Sajad Mousavi and Ricardo Luna Gutiérrez and Desik Rengarajan and Vineet Gundecha and Ashwin Ramesh Babu and Avisek Naug and Antonio Guillen and Soumyendu Sarkar},
+      year={2023},
+      eprint={2310.18679},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2310.18679},
+}
+
 The NCriticsCritic leverages multiple specialized critics, each focusing on different
 aspects of the text, to provide comprehensive feedback.
 """
