@@ -45,8 +45,6 @@ def create_file_storage():
 
     file_storage = FileStorage(
         file_path=storage_file,
-        auto_save=True,  # Automatically save after each operation
-        backup_count=5,  # Keep 5 backup files
     )
 
     return file_storage, storage_file
@@ -89,7 +87,7 @@ def main():
 
     # Create mock model for reliable demonstration
     model = MockModel(
-        name="ML Education Model",
+        model_name="ML Education Model",
         responses=[
             "Machine learning is a subset of artificial intelligence that enables computers to learn and make decisions from data without being explicitly programmed for every task.",
             "Machine learning is a powerful subset of artificial intelligence that enables computers to automatically learn patterns and make intelligent decisions from data, without requiring explicit programming for each specific task or scenario.",
@@ -98,12 +96,10 @@ def main():
     )
 
     # Create Reflexion critic for improvement
-    critic = ReflexionCritic(model=model, reflection_depth=1, name="ML Education Reflexion Critic")
+    critic = ReflexionCritic(model=model)
 
     # Create length validator
-    length_validator = LengthValidator(
-        min_length=100, max_length=500, name="Educational Content Length Validator"
-    )
+    length_validator = LengthValidator(min_length=100, max_length=500)
 
     # Create the chain with file storage
     chain = Chain(
@@ -140,9 +136,9 @@ def main():
     # Show validation results
     if result.validation_results:
         print(f"\nValidation Results:")
-        for validation_result in result.validation_results:
-            status = "✓ PASSED" if validation_result.is_valid else "✗ FAILED"
-            print(f"  {validation_result.validator_name}: {status}")
+        for validator_name, validation_result in result.validation_results.items():
+            status = "✓ PASSED" if validation_result.passed else "✗ FAILED"
+            print(f"  {validator_name}: {status}")
 
     # Show critic feedback
     if result.critic_feedback:
@@ -156,9 +152,9 @@ def main():
     # Show thought history
     print(f"\nThought History ({len(result.history)} iterations):")
     for i, historical_thought in enumerate(result.history, 1):
-        print(f"  Iteration {i}: {len(historical_thought.text)} characters")
+        print(f"  Iteration {historical_thought.iteration}: {historical_thought.summary}")
         if i <= 3:  # Show first 3 iterations in detail
-            print(f"    Text: {historical_thought.text[:100]}...")
+            print(f"    Summary: {historical_thought.summary}")
 
     # Demonstrate file storage features
     print(f"\nFile Storage Features:")

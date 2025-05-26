@@ -22,9 +22,8 @@ from sifaka.critics.self_refine import SelfRefineCritic
 from sifaka.mcp import MCPServerConfig, MCPTransportType
 from sifaka.models.base import MockModel
 from sifaka.storage.cached import CachedStorage
+from sifaka.storage.file import FileStorage
 from sifaka.storage.memory import MemoryStorage
-from sifaka.storage.milvus import MilvusStorage
-from sifaka.storage.redis import RedisStorage
 from sifaka.utils.logging import get_logger
 from sifaka.validators.base import LengthValidator
 
@@ -36,74 +35,65 @@ logger = get_logger(__name__)
 
 
 def create_three_tier_storage():
-    """Create three-tiered caching storage system."""
+    """Create three-tiered caching storage system (mock version)."""
 
     # Layer 1: Memory storage (fastest, temporary)
     memory_storage = MemoryStorage()
     logger.info("Created memory storage layer (Layer 1)")
 
-    # Layer 2: Redis storage (fast, persistent)
-    redis_config = MCPServerConfig(
-        name="redis-server",
-        transport_type=MCPTransportType.STDIO,
-        url="cd mcp/mcp-redis && python -m main.py",
-    )
-    redis_storage = RedisStorage(mcp_config=redis_config, key_prefix="sifaka:thoughts")
-    logger.info("Created Redis storage layer (Layer 2)")
+    # Layer 2: File storage as mock Redis (fast, persistent)
+    # In a real implementation, this would be Redis
+    file_storage = FileStorage(file_path="mock_redis_cache.json")
+    logger.info("Created file storage layer (Layer 2 - mock Redis)")
 
-    # Layer 3: Milvus storage (slower, vector search, long-term)
-    milvus_config = MCPServerConfig(
-        name="milvus-server",
-        transport_type=MCPTransportType.STDIO,
-        url="cd mcp/mcp-server-milvus && python -m mcp_server_milvus",
-    )
-    milvus_storage = MilvusStorage(mcp_config=milvus_config, collection_name="thought_cache")
-    logger.info("Created Milvus storage layer (Layer 3)")
+    # Layer 3: File storage as mock Milvus (slower, vector search, long-term)
+    # In a real implementation, this would be Milvus
+    milvus_mock_storage = FileStorage(file_path="mock_milvus_cache.json")
+    logger.info("Created file storage layer (Layer 3 - mock Milvus)")
 
-    # Create three-tier cached storage
+    # Create cached storage combining memory and file storage
     cached_storage = CachedStorage(
-        memory_storage=memory_storage,
-        redis_storage=redis_storage,
-        milvus_storage=milvus_storage,
-        cache_ttl=3600,  # 1 hour cache TTL
-        enable_write_through=True,  # Write to all layers
-        enable_read_through=True,  # Read from fastest available layer
+        cache=memory_storage,
+        persistence=file_storage,
     )
 
-    logger.info("Created three-tier cached storage system")
-    return cached_storage, memory_storage, redis_storage, milvus_storage
+    logger.info("Created three-tier cached storage system (mock)")
+    return cached_storage, memory_storage, file_storage, milvus_mock_storage
 
 
-def demonstrate_tier_access(cached_storage, memory_storage, redis_storage, milvus_storage, thought):
-    """Demonstrate how thoughts are accessed across different tiers."""
+def demonstrate_tier_access(cached_storage, memory_storage, file_storage, milvus_storage, thought):
+    """Demonstrate how thoughts are accessed across different tiers (mock version)."""
 
     print(f"\nThree-Tier Access Demonstration:")
 
     # Check memory tier
     start_time = time.time()
-    memory_result = memory_storage.get_thought(thought.chain_id, thought.iteration)
+    memory_key = f"{thought.chain_id}:{thought.iteration}"
+    memory_result = memory_storage.get(memory_key)
     memory_time = (time.time() - start_time) * 1000
     print(f"  Memory Tier: {'✓ Found' if memory_result else '✗ Not found'} ({memory_time:.2f}ms)")
 
-    # Check Redis tier
+    # Check file storage tier (mock Redis)
     try:
         start_time = time.time()
-        redis_result = redis_storage.get_thought(thought.chain_id, thought.iteration)
-        redis_time = (time.time() - start_time) * 1000
-        print(f"  Redis Tier: {'✓ Found' if redis_result else '✗ Not found'} ({redis_time:.2f}ms)")
-    except Exception as e:
-        print(f"  Redis Tier: ✗ Error ({e})")
-
-    # Check Milvus tier
-    try:
-        start_time = time.time()
-        milvus_result = milvus_storage.get_thought(thought.chain_id, thought.iteration)
-        milvus_time = (time.time() - start_time) * 1000
+        file_result = file_storage.get(memory_key)
+        file_time = (time.time() - start_time) * 1000
         print(
-            f"  Milvus Tier: {'✓ Found' if milvus_result else '✗ Not found'} ({milvus_time:.2f}ms)"
+            f"  File Tier (mock Redis): {'✓ Found' if file_result else '✗ Not found'} ({file_time:.2f}ms)"
         )
     except Exception as e:
-        print(f"  Milvus Tier: ✗ Error ({e})")
+        print(f"  File Tier (mock Redis): ✗ Error ({e})")
+
+    # Check Milvus tier (mock)
+    try:
+        start_time = time.time()
+        milvus_result = milvus_storage.get(memory_key)
+        milvus_time = (time.time() - start_time) * 1000
+        print(
+            f"  File Tier (mock Milvus): {'✓ Found' if milvus_result else '✗ Not found'} ({milvus_time:.2f}ms)"
+        )
+    except Exception as e:
+        print(f"  File Tier (mock Milvus): ✗ Error ({e})")
 
 
 def main():
@@ -112,11 +102,11 @@ def main():
     logger.info("Creating three-tiered thought caching example")
 
     # Create three-tier storage system
-    cached_storage, memory_storage, redis_storage, milvus_storage = create_three_tier_storage()
+    cached_storage, memory_storage, file_storage, milvus_storage = create_three_tier_storage()
 
     # Create mock model with distributed systems responses
     model = MockModel(
-        name="Distributed Systems Model",
+        model_name="Distributed Systems Model",
         responses=[
             "Distributed systems are collections of independent computers that appear to users as a single coherent system, working together to achieve common goals.",
             "Distributed systems are sophisticated collections of independent computers that appear to users as a single, coherent system, working together through network communication to achieve common computational goals while handling challenges like network failures, data consistency, and load distribution.",
@@ -125,14 +115,10 @@ def main():
     )
 
     # Create Self-Refine critic for improvement
-    critic = SelfRefineCritic(
-        model=model, max_refinements=2, name="Distributed Systems Self-Refine Critic"
-    )
+    critic = SelfRefineCritic(model=model, max_iterations=2)
 
     # Create length validator
-    length_validator = LengthValidator(
-        min_length=150, max_length=800, name="Technical Content Length Validator"
-    )
+    length_validator = LengthValidator(min_length=150, max_length=800)
 
     # Create the chain with three-tier caching
     chain = Chain(
@@ -169,9 +155,9 @@ def main():
     # Show validation results
     if result.validation_results:
         print(f"\nValidation Results:")
-        for validation_result in result.validation_results:
-            status = "✓ PASSED" if validation_result.is_valid else "✗ FAILED"
-            print(f"  {validation_result.validator_name}: {status}")
+        for validator_name, validation_result in result.validation_results.items():
+            status = "✓ PASSED" if validation_result.passed else "✗ FAILED"
+            print(f"  {validator_name}: {status}")
 
     # Show critic feedback
     if result.critic_feedback:
@@ -183,33 +169,33 @@ def main():
                 print(f"     Suggestions: {feedback.suggestions[:250]}...")
 
     # Demonstrate tier access
-    demonstrate_tier_access(cached_storage, memory_storage, redis_storage, milvus_storage, result)
+    demonstrate_tier_access(cached_storage, memory_storage, file_storage, milvus_storage, result)
 
     # Show caching architecture details
-    print(f"\nThree-Tier Caching Architecture:")
+    print(f"\nThree-Tier Caching Architecture (Mock):")
     print(f"  ┌─ Layer 1: Memory Storage")
     print(f"  │  ├─ Speed: Fastest (~0.1ms)")
     print(f"  │  ├─ Persistence: Temporary (process lifetime)")
     print(f"  │  └─ Capacity: Limited by RAM")
     print(f"  │")
-    print(f"  ├─ Layer 2: Redis Storage")
+    print(f"  ├─ Layer 2: File Storage (mock Redis)")
     print(f"  │  ├─ Speed: Fast (~1-10ms)")
-    print(f"  │  ├─ Persistence: Configurable TTL (2 hours)")
+    print(f"  │  ├─ Persistence: File-based")
     print(f"  │  └─ Capacity: High (disk-backed)")
     print(f"  │")
-    print(f"  └─ Layer 3: Milvus Storage")
+    print(f"  └─ Layer 3: File Storage (mock Milvus)")
     print(f"     ├─ Speed: Moderate (~10-100ms)")
     print(f"     ├─ Persistence: Long-term")
-    print(f"     └─ Features: Vector search, semantic similarity")
+    print(f"     └─ Features: File-based storage (would be vector search in real Milvus)")
 
     # Show thought history across tiers
     print(f"\nThought History Across Tiers ({len(result.history)} iterations):")
     for i, historical_thought in enumerate(result.history, 1):
-        print(f"  Iteration {i}:")
-        print(f"    Text length: {len(historical_thought.text)} characters")
+        print(f"  Iteration {historical_thought.iteration}:")
+        print(f"    Summary: {historical_thought.summary}")
         print(f"    Cached in: Memory + Redis + Milvus")
         if i <= 2:  # Show first 2 iterations in detail
-            print(f"    Preview: {historical_thought.text[:80]}...")
+            print(f"    Details: {historical_thought.summary}")
 
     # Performance and benefits analysis
     print(f"\nCaching Benefits:")

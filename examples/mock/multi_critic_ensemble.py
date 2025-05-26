@@ -189,11 +189,21 @@ def main():
 
         # Show which critic likely influenced this iteration
         if i <= len(critics):
-            critic_name = critics[i - 1].name if i > 1 else "Initial Generation"
+            critic_name = critics[i - 1].__class__.__name__ if i > 1 else "Initial Generation"
             print(f"    Influenced by: {critic_name}")
 
     # Analyze improvement metrics
-    initial_length = len(result.history[0].text) if result.history else 0
+    # Extract character count from summary if available
+    initial_length = 0
+    if result.history:
+        summary = result.history[0].summary
+        # Extract character count from summary like "Iteration 0: 103 chars"
+        import re
+
+        match = re.search(r"(\d+) chars", summary)
+        if match:
+            initial_length = int(match.group(1))
+
     final_length = len(result.text)
     improvement_ratio = final_length / initial_length if initial_length > 0 else 1
 

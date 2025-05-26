@@ -40,6 +40,50 @@ __all__: List[str] = [
 ]
 
 # Import classifiers - these should always work since they have fallbacks
+try:
+    from sifaka.classifiers.bias import (
+        BiasClassifier,
+        CachedBiasClassifier,
+        create_bias_validator,
+        create_cached_bias_validator,
+    )
+except ImportError:
+    pass
+
+try:
+    from sifaka.classifiers.language import LanguageClassifier, create_language_validator
+except ImportError:
+    pass
+
+try:
+    from sifaka.classifiers.profanity import ProfanityClassifier, create_profanity_validator
+except ImportError:
+    pass
+
+try:
+    from sifaka.classifiers.sentiment import (
+        SentimentClassifier,
+        CachedSentimentClassifier,
+        create_sentiment_validator,
+        create_cached_sentiment_validator,
+    )
+except ImportError:
+    pass
+
+try:
+    from sifaka.classifiers.spam import SpamClassifier, create_spam_validator
+except ImportError:
+    pass
+
+try:
+    from sifaka.classifiers.toxicity import (
+        ToxicityClassifier,
+        CachedToxicityClassifier,
+        create_toxicity_validator,
+        create_cached_toxicity_validator,
+    )
+except ImportError:
+    pass
 
 __all__.extend(
     [
