@@ -43,7 +43,7 @@ def setup_three_tier_storage():
     redis_config = MCPServerConfig(
         name="redis-server",
         transport_type=MCPTransportType.STDIO,
-        url="uv run --directory ../../mcp/mcp-redis src/main.py",
+        url="uv run --directory mcp/mcp-redis src/main.py",
     )
     redis_storage = RedisStorage(mcp_config=redis_config, key_prefix="sifaka:energy")
 
@@ -51,7 +51,7 @@ def setup_three_tier_storage():
     milvus_config = MCPServerConfig(
         name="milvus-server",
         transport_type=MCPTransportType.STDIO,
-        url="uv run --directory ../../mcp/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530",
+        url="uv run --directory mcp/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530",
     )
     milvus_storage = MilvusStorage(mcp_config=milvus_config, collection_name="sustainable_energy")
 
