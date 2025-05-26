@@ -11,11 +11,11 @@ This is the simplest possible Sifaka example, perfect for getting started
 and understanding the basic chain workflow.
 """
 
-from sifaka.core.chain import Chain
-from sifaka.models.base import MockModel
-from sifaka.validators.base import LengthValidator
-from sifaka.critics.reflexion import ReflexionCritic
+from sifaka import Chain
+from sifaka.critics import ReflexionCritic
+from sifaka.models import create_model
 from sifaka.utils.logging import get_logger
+from sifaka.validators import LengthValidator
 
 # Configure logging
 logger = get_logger(__name__)
@@ -27,8 +27,8 @@ def main():
     logger.info("Creating basic chain demo with mock model")
 
     # Create mock model with predefined responses
-    model = MockModel(
-        model_name="Demo Model",
+    model = create_model(
+        "mock:Demo Model",
         responses=[
             "Artificial intelligence is a field of computer science focused on creating systems that can perform tasks typically requiring human intelligence.",
             "Artificial intelligence is a rapidly evolving field of computer science focused on creating intelligent systems that can perform complex tasks typically requiring human intelligence, such as learning, reasoning, and problem-solving.",

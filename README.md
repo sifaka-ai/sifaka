@@ -109,10 +109,10 @@ pip install sifaka[all]
 ## Quick Start
 
 ```python
-from sifaka.core.chain import Chain
-from sifaka.models.base import create_model
-from sifaka.validators.base import LengthValidator
-from sifaka.critics.reflexion import ReflexionCritic
+from sifaka import Chain
+from sifaka.models import create_model
+from sifaka.validators import LengthValidator
+from sifaka.critics import ReflexionCritic
 
 # Create components
 model = create_model("openai:gpt-4")  # Requires OPENAI_API_KEY

@@ -41,15 +41,15 @@ from typing import Any, Dict, Optional, Tuple
 
 # Try to import HuggingFace dependencies
 try:
+    import torch
     from huggingface_hub import InferenceClient
     from transformers import (  # type: ignore
-        AutoTokenizer,
+        AutoConfig,
         AutoModelForCausalLM,
         AutoModelForSeq2SeqLM,
-        AutoConfig,
+        AutoTokenizer,
         BitsAndBytesConfig,
     )
-    import torch
 
     HUGGINGFACE_AVAILABLE = True
 except ImportError:
@@ -65,8 +65,8 @@ except ImportError:
 
 from sifaka.core.thought import Thought
 from sifaka.utils.error_handling import ConfigurationError, ModelError, model_context
-from sifaka.utils.mixins import ContextAwareMixin
 from sifaka.utils.logging import get_logger
+from sifaka.utils.mixins import ContextAwareMixin
 
 logger = get_logger(__name__)
 

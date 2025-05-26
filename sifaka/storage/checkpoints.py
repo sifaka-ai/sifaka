@@ -20,11 +20,11 @@ logger = get_logger(__name__)
 
 class ChainCheckpoint(BaseModel):
     """Represents a checkpoint in chain execution.
-    
+
     Captures the complete state of a chain at a specific point in execution,
     allowing for recovery and resumption from that point.
     """
-    
+
     checkpoint_id: str = ""
     chain_id: str
     timestamp: datetime
@@ -36,7 +36,7 @@ class ChainCheckpoint(BaseModel):
     completed_validators: List[str] = []
     completed_critics: List[str] = []
     metadata: Dict[str, Any] = {}
-    
+
     def __init__(self, **data: Any):
         """Initialize checkpoint with auto-generated ID if not provided."""
         if "checkpoint_id" not in data or not data["checkpoint_id"]:
@@ -48,45 +48,47 @@ class ChainCheckpoint(BaseModel):
 
 class CachedCheckpointStorage:
     """Cached storage for chain checkpoints.
-    
+
     Provides efficient storage and retrieval of chain checkpoints with
     caching support for improved performance.
     """
-    
+
     def __init__(self, storage: Storage):
         """Initialize checkpoint storage.
-        
+
         Args:
             storage: The underlying storage backend.
         """
         self.storage = storage
         logger.debug("Initialized CachedCheckpointStorage")
-    
+
     def save_checkpoint(self, checkpoint: ChainCheckpoint) -> None:
         """Save a checkpoint to storage.
-        
+
         Args:
             checkpoint: The checkpoint to save.
         """
         try:
             key = f"checkpoint:{checkpoint.chain_id}:{checkpoint.checkpoint_id}"
             self.storage.set(key, checkpoint.model_dump())
-            
+
             # Also save as latest checkpoint for the chain
             latest_key = f"checkpoint:latest:{checkpoint.chain_id}"
             self.storage.set(latest_key, checkpoint.model_dump())
-            
-            logger.debug(f"Saved checkpoint {checkpoint.checkpoint_id} for chain {checkpoint.chain_id}")
+
+            logger.debug(
+                f"Saved checkpoint {checkpoint.checkpoint_id} for chain {checkpoint.chain_id}"
+            )
         except Exception as e:
             logger.error(f"Failed to save checkpoint: {e}")
             raise
-    
+
     def get_checkpoint(self, checkpoint_id: str) -> Optional[ChainCheckpoint]:
         """Get a specific checkpoint by ID.
-        
+
         Args:
             checkpoint_id: The checkpoint ID to retrieve.
-            
+
         Returns:
             The checkpoint if found, None otherwise.
         """
@@ -102,13 +104,13 @@ class CachedCheckpointStorage:
         except Exception as e:
             logger.error(f"Failed to get checkpoint {checkpoint_id}: {e}")
             return None
-    
+
     def get_latest_checkpoint(self, chain_id: str) -> Optional[ChainCheckpoint]:
         """Get the latest checkpoint for a chain.
-        
+
         Args:
             chain_id: The chain ID to get the latest checkpoint for.
-            
+
         Returns:
             The latest checkpoint if found, None otherwise.
         """
@@ -121,13 +123,13 @@ class CachedCheckpointStorage:
         except Exception as e:
             logger.error(f"Failed to get latest checkpoint for chain {chain_id}: {e}")
             return None
-    
+
     def get_chain_checkpoints(self, chain_id: str) -> List[ChainCheckpoint]:
         """Get all checkpoints for a specific chain.
-        
+
         Args:
             chain_id: The chain ID to get checkpoints for.
-            
+
         Returns:
             List of checkpoints for the chain.
         """
@@ -135,11 +137,11 @@ class CachedCheckpointStorage:
             # This is a simplified implementation
             # In production, you'd want better indexing and querying
             checkpoints = []
-            
+
             # Search for checkpoints with the chain_id pattern
             # This would be more efficient with proper indexing
             results = self.storage.search(f"checkpoint:{chain_id}:", limit=100)
-            
+
             for result in results:
                 if isinstance(result, dict):
                     try:
@@ -147,21 +149,21 @@ class CachedCheckpointStorage:
                         checkpoints.append(checkpoint)
                     except Exception as e:
                         logger.warning(f"Failed to parse checkpoint data: {e}")
-            
+
             # Sort by timestamp
             checkpoints.sort(key=lambda x: x.timestamp)
             return checkpoints
-            
+
         except Exception as e:
             logger.error(f"Failed to get checkpoints for chain {chain_id}: {e}")
             return []
-    
+
     def delete_checkpoint(self, checkpoint_id: str) -> bool:
         """Delete a specific checkpoint.
-        
+
         Args:
             checkpoint_id: The checkpoint ID to delete.
-            
+
         Returns:
             True if deleted successfully, False otherwise.
         """
@@ -178,13 +180,13 @@ class CachedCheckpointStorage:
         except Exception as e:
             logger.error(f"Failed to delete checkpoint {checkpoint_id}: {e}")
             return False
-    
+
     def cleanup_old_checkpoints(self, max_age_days: int = 30) -> int:
         """Clean up old checkpoints.
-        
+
         Args:
             max_age_days: Maximum age of checkpoints to keep.
-            
+
         Returns:
             Number of checkpoints cleaned up.
         """
@@ -195,10 +197,10 @@ class CachedCheckpointStorage:
         except Exception as e:
             logger.error(f"Failed to cleanup old checkpoints: {e}")
             return 0
-    
+
     def get_storage_stats(self) -> Dict[str, Any]:
         """Get storage statistics.
-        
+
         Returns:
             Dictionary with storage statistics.
         """
@@ -213,10 +215,10 @@ class CachedCheckpointStorage:
         except Exception as e:
             logger.error(f"Failed to get storage stats: {e}")
             return {}
-    
+
     def _get_all_chain_ids(self) -> List[str]:
         """Get all chain IDs that have checkpoints.
-        
+
         Returns:
             List of chain IDs.
         """

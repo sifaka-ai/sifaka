@@ -30,7 +30,7 @@ Example:
 from typing import List
 
 # Import base classes and protocols
-from sifaka.classifiers.base import ClassificationResult, TextClassifier, CachedTextClassifier
+from sifaka.classifiers.base import CachedTextClassifier, ClassificationResult, TextClassifier
 
 # Import classifier implementations
 __all__: List[str] = [
@@ -42,24 +42,24 @@ __all__: List[str] = [
 # Import classifiers - these should always work since they have fallbacks
 from sifaka.classifiers.bias import (
     BiasClassifier,
-    create_bias_validator,
     CachedBiasClassifier,
+    create_bias_validator,
     create_cached_bias_validator,
 )
 from sifaka.classifiers.language import LanguageClassifier, create_language_validator
 from sifaka.classifiers.profanity import ProfanityClassifier, create_profanity_validator
 from sifaka.classifiers.sentiment import (
-    SentimentClassifier,
-    create_sentiment_validator,
     CachedSentimentClassifier,
+    SentimentClassifier,
     create_cached_sentiment_validator,
+    create_sentiment_validator,
 )
 from sifaka.classifiers.spam import SpamClassifier, create_spam_validator
 from sifaka.classifiers.toxicity import (
-    ToxicityClassifier,
-    create_toxicity_validator,
     CachedToxicityClassifier,
+    ToxicityClassifier,
     create_cached_toxicity_validator,
+    create_toxicity_validator,
 )
 
 __all__.extend(

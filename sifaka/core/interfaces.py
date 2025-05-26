@@ -9,7 +9,7 @@ The interfaces are defined as Protocols with abstract methods that must be imple
 by concrete classes. The sync methods are implemented by the concrete classes.
 """
 
-from typing import Any, Dict, List, Protocol, runtime_checkable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from sifaka.core.thought import Thought, ValidationResult

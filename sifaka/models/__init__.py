@@ -45,11 +45,7 @@ except ImportError:
 
 # Anthropic
 try:
-    from sifaka.models.anthropic import (
-        ANTHROPIC_AVAILABLE,
-        AnthropicModel,
-        create_anthropic_model,
-    )
+    from sifaka.models.anthropic import ANTHROPIC_AVAILABLE, AnthropicModel, create_anthropic_model
 
     if ANTHROPIC_AVAILABLE:
         __all__.extend(["AnthropicModel", "create_anthropic_model"])

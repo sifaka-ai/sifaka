@@ -17,11 +17,11 @@ from sifaka.core.chain.orchestrator import ChainOrchestrator
 from sifaka.core.chain.recovery import RecoveryManager
 from sifaka.core.interfaces import Critic, Model, Retriever, Validator
 from sifaka.core.thought import Thought
-from sifaka.storage.protocol import Storage
 from sifaka.storage.checkpoints import CachedCheckpointStorage, ChainCheckpoint
-from sifaka.utils.performance import time_operation
+from sifaka.storage.protocol import Storage
 from sifaka.utils.error_handling import ChainError
 from sifaka.utils.logging import get_logger
+from sifaka.utils.performance import time_operation
 
 logger = get_logger(__name__)
 

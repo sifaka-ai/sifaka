@@ -41,11 +41,7 @@ For caching, vector search, and persistence, use the unified storage system:
     ```
 """
 
-from sifaka.retrievers.simple import (
-    InMemoryRetriever,
-    MockRetriever,
-    Retriever,
-)
+from sifaka.retrievers.simple import InMemoryRetriever, MockRetriever, Retriever
 
 __all__ = [
     "Retriever",

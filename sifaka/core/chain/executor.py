@@ -14,9 +14,9 @@ from sifaka.core.chain.config import ChainConfig
 from sifaka.core.chain.orchestrator import ChainOrchestrator
 from sifaka.core.interfaces import Critic, Validator
 from sifaka.core.thought import CriticFeedback, Thought, ValidationResult
-from sifaka.utils.performance import time_operation
 from sifaka.utils.error_handling import chain_context
 from sifaka.utils.logging import get_logger
+from sifaka.utils.performance import time_operation
 
 logger = get_logger(__name__)
 

@@ -46,28 +46,24 @@ Example:
 # Import base validators
 from sifaka.validators.base import LengthValidator, RegexValidator
 
-# Import content validator
-from sifaka.validators.content import (
-    ContentValidator,
-    create_content_validator,
-    prohibited_content,
+# Import classifier validator
+from sifaka.validators.classifier import (
+    Classifier,
+    ClassifierValidator,
+    classifier_validator,
+    create_classifier_validator,
 )
+
+# Import content validator
+from sifaka.validators.content import ContentValidator, create_content_validator, prohibited_content
 
 # Import format validator
 from sifaka.validators.format import (
     FormatValidator,
     create_format_validator,
+    custom_format,
     json_format,
     markdown_format,
-    custom_format,
-)
-
-# Import classifier validator
-from sifaka.validators.classifier import (
-    ClassifierValidator,
-    Classifier,
-    create_classifier_validator,
-    classifier_validator,
 )
 
 # Import guardrails validator

@@ -12,14 +12,15 @@ for both model context and constitutional principles evaluation.
 """
 
 import os
+
 from dotenv import load_dotenv
 
 from sifaka.core.chain import Chain
-from sifaka.models.ollama import OllamaModel
 from sifaka.critics.constitutional import ConstitutionalCritic
-from sifaka.storage.redis import RedisStorage
 from sifaka.mcp import MCPServerConfig, MCPTransportType
+from sifaka.models.ollama import OllamaModel
 from sifaka.retrievers.simple import InMemoryRetriever
+from sifaka.storage.redis import RedisStorage
 from sifaka.utils.logging import get_logger
 
 # Load environment variables

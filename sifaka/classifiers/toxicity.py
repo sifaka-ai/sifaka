@@ -7,10 +7,10 @@ language using machine learning with fallback to rule-based detection.
 from typing import List
 
 from sifaka.classifiers.base import (
+    CachedTextClassifier,
     ClassificationResult,
     ClassifierError,
     TextClassifier,
-    CachedTextClassifier,
 )
 from sifaka.utils.logging import get_logger
 from sifaka.validators.classifier import ClassifierValidator

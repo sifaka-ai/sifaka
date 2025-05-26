@@ -12,13 +12,13 @@ to improve content from multiple perspectives simultaneously.
 """
 
 from sifaka.core.chain import Chain
-from sifaka.models.base import MockModel
-from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.critics.constitutional import ConstitutionalCritic
-from sifaka.critics.self_refine import SelfRefineCritic
 from sifaka.critics.prompt import PromptCritic
-from sifaka.validators.base import LengthValidator
+from sifaka.critics.reflexion import ReflexionCritic
+from sifaka.critics.self_refine import SelfRefineCritic
+from sifaka.models.base import MockModel
 from sifaka.utils.logging import get_logger
+from sifaka.validators.base import LengthValidator
 
 # Configure logging
 logger = get_logger(__name__)
@@ -57,7 +57,6 @@ def create_critic_ensemble(model):
     # 3. Self-Refine Critic - For iterative self-improvement
     self_refine_critic = SelfRefineCritic(
         model=model,
-        
         focus_areas=["completeness", "engagement"],
         name="Completeness Self-Refine Critic",
     )
@@ -110,9 +109,7 @@ def main():
     critics = create_critic_ensemble(model)
 
     # Create length validator
-    length_validator = LengthValidator(
-        min_length=100, max_length=1000
-    )
+    length_validator = LengthValidator(min_length=100, max_length=1000)
 
     # Create the chain
     chain = Chain(

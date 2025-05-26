@@ -12,15 +12,16 @@ context to the model and Milvus providing specialized knowledge to the critics.
 """
 
 import os
+
 from dotenv import load_dotenv
 
 from sifaka.core.chain import Chain
-from sifaka.models.openai import OpenAIModel
 from sifaka.critics.n_critics import NCriticsCritic
-from sifaka.storage.redis import RedisStorage
-from sifaka.storage.milvus import MilvusStorage
 from sifaka.mcp import MCPServerConfig, MCPTransportType
+from sifaka.models.openai import OpenAIModel
 from sifaka.retrievers.simple import InMemoryRetriever
+from sifaka.storage.milvus import MilvusStorage
+from sifaka.storage.redis import RedisStorage
 from sifaka.utils.logging import get_logger
 
 # Load environment variables

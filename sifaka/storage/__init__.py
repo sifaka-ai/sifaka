@@ -42,12 +42,12 @@ Example:
     ```
 """
 
-from .protocol import Storage
-from .memory import MemoryStorage
-from .file import FileStorage
-from .redis import RedisStorage
-from .milvus import MilvusStorage
-from .cached import CachedStorage
+from sifaka.storage.cached import CachedStorage
+from sifaka.storage.file import FileStorage
+from sifaka.storage.memory import MemoryStorage
+from sifaka.storage.milvus import MilvusStorage
+from sifaka.storage.protocol import Storage
+from sifaka.storage.redis import RedisStorage
 
 __all__ = [
     "Storage",

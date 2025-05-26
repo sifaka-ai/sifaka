@@ -44,14 +44,14 @@ Example:
 
 # Import base critic
 from sifaka.critics.base import BaseCritic
+from sifaka.critics.constitutional import ConstitutionalCritic, create_constitutional_critic
+from sifaka.critics.n_critics import NCriticsCritic, create_n_critics_critic
+from sifaka.critics.prompt import PromptCritic, create_prompt_critic
 
 # Import specialized critics
 from sifaka.critics.reflexion import ReflexionCritic, create_reflexion_critic
 from sifaka.critics.self_rag import SelfRAGCritic, create_self_rag_critic
 from sifaka.critics.self_refine import SelfRefineCritic, create_self_refine_critic
-from sifaka.critics.constitutional import ConstitutionalCritic, create_constitutional_critic
-from sifaka.critics.prompt import PromptCritic, create_prompt_critic
-from sifaka.critics.n_critics import NCriticsCritic, create_n_critics_critic
 
 __all__ = [
     # Base critic

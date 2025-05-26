@@ -11,22 +11,22 @@ from typing import List
 
 import pytest
 
+from sifaka.classifiers.language import LanguageClassifier
 from sifaka.core.chain import Chain
 from sifaka.core.thought import Thought
-from sifaka.models.base import MockModel
-from sifaka.validators.base import LengthValidator, RegexValidator
-from sifaka.validators.content import ContentValidator
-from sifaka.validators.format import FormatValidator
-from sifaka.validators.classifier import ClassifierValidator
-from sifaka.validators.guardrails import GuardrailsValidator
-from sifaka.critics.reflexion import ReflexionCritic
-from sifaka.critics.self_refine import SelfRefineCritic
 from sifaka.critics.constitutional import ConstitutionalCritic
-from sifaka.critics.self_rag import SelfRAGCritic
 from sifaka.critics.n_critics import NCriticsCritic
 from sifaka.critics.prompt import PromptCritic
-from sifaka.classifiers.language import LanguageClassifier
+from sifaka.critics.reflexion import ReflexionCritic
+from sifaka.critics.self_rag import SelfRAGCritic
+from sifaka.critics.self_refine import SelfRefineCritic
+from sifaka.models.base import MockModel
 from sifaka.utils.logging import get_logger
+from sifaka.validators.base import LengthValidator, RegexValidator
+from sifaka.validators.classifier import ClassifierValidator
+from sifaka.validators.content import ContentValidator
+from sifaka.validators.format import FormatValidator
+from sifaka.validators.guardrails import GuardrailsValidator
 
 # Configure logging
 logger = get_logger(__name__)

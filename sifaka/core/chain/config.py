@@ -8,8 +8,8 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from sifaka.core.interfaces import Critic, Model, Retriever, Validator
-from sifaka.storage.protocol import Storage
 from sifaka.storage.checkpoints import CachedCheckpointStorage
+from sifaka.storage.protocol import Storage
 
 
 class ChainConfig:

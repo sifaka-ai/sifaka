@@ -8,10 +8,10 @@ discriminatory language using machine learning.
 from typing import Any, List, Optional
 
 from sifaka.classifiers.base import (
+    CachedTextClassifier,
     ClassificationResult,
     ClassifierError,
     TextClassifier,
-    CachedTextClassifier,
 )
 from sifaka.utils.logging import get_logger
 from sifaka.validators.classifier import ClassifierValidator

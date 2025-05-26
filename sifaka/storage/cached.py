@@ -4,12 +4,12 @@ Combines multiple storage backends for layered caching. Typically used to combin
 fast in-memory storage with persistent storage backends.
 """
 
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, List, Optional
 
 from sifaka.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from .protocol import Storage
+    from sifaka.storage.protocol import Storage
 
 logger = get_logger(__name__)
 

@@ -8,11 +8,11 @@ This module contains the thought state management components:
 
 # Import main classes for backward compatibility
 from sifaka.core.thought.thought import (
-    Thought,
-    Document,
-    ValidationResult,
     CriticFeedback,
+    Document,
+    Thought,
     ThoughtReference,
+    ValidationResult,
 )
 
 __all__ = [

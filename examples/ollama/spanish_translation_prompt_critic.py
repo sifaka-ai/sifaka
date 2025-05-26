@@ -13,14 +13,15 @@ to ensure translation accuracy, fluency, and cultural appropriateness.
 """
 
 import os
+
 from dotenv import load_dotenv
 
-from sifaka.core.chain import Chain
-from sifaka.models.ollama import OllamaModel
-from sifaka.critics.prompt import PromptCritic
-from sifaka.validators.classifier import ClassifierValidator
 from sifaka.classifiers.language import LanguageClassifier
+from sifaka.core.chain import Chain
+from sifaka.critics.prompt import PromptCritic
+from sifaka.models.ollama import OllamaModel
 from sifaka.utils.logging import get_logger
+from sifaka.validators.classifier import ClassifierValidator
 
 # Load environment variables
 load_dotenv()
@@ -31,7 +32,7 @@ logger = get_logger(__name__)
 
 def create_translation_prompt_critic(model):
     """Create a specialized prompt critic for Spanish-English translation."""
-    
+
     translation_critique_prompt = """
 You are an expert translation critic specializing in Spanish to English translation.
 Evaluate the following English translation of Spanish text based on these criteria:
@@ -57,28 +58,28 @@ If the translation is excellent, acknowledge its quality.
 
 Rate the translation quality: EXCELLENT / GOOD / NEEDS_IMPROVEMENT / POOR
 """
-    
+
     return PromptCritic(
         model=model,
         critique_prompt=translation_critique_prompt,
         improvement_prompt="Based on the critique feedback, provide an improved English translation that addresses all identified issues while maintaining accuracy and fluency.",
-        name="Spanish-English Translation Critic"
+        name="Spanish-English Translation Critic",
     )
 
 
 def main():
     """Run the Ollama Spanish Translation with Prompt Critic example."""
-    
+
     logger.info("Creating Ollama Spanish translation with prompt critic example")
-    
+
     # Create Ollama model (using a model good for translation)
     model = OllamaModel(
         model_name="llama2",  # or "mistral", "codellama" - adjust based on available models
         base_url="http://localhost:11434",
         temperature=0.3,  # Lower temperature for more consistent translations
-        max_tokens=800
+        max_tokens=800,
     )
-    
+
     # Test if Ollama is available
     try:
         model.health_check()
@@ -87,19 +88,19 @@ def main():
         logger.error(f"Ollama service not available: {e}")
         print("Error: Ollama service is not running. Please start Ollama and try again.")
         return
-    
+
     # Create translation prompt critic
     critic = create_translation_prompt_critic(model)
-    
+
     # Create language validator to ensure English output
     language_classifier = LanguageClassifier()
     language_validator = ClassifierValidator(
         classifier=language_classifier,
         expected_class="en",  # Must be English
         confidence_threshold=0.8,
-        name="English Output Validator"
+        name="English Output Validator",
     )
-    
+
     # Spanish text to translate
     spanish_text = """
     La inteligencia artificial está transformando rápidamente nuestra sociedad. 
@@ -110,7 +111,7 @@ def main():
     desarrollemos esta tecnología de manera responsable, considerando su 
     impacto en el empleo, la privacidad y la equidad social.
     """
-    
+
     # Create translation prompt
     translation_prompt = f"""
     Translate the following Spanish text to English. Ensure the translation is:
@@ -124,41 +125,41 @@ def main():
     
     Provide only the English translation:
     """
-    
+
     # Create the chain with exactly 2 retries
     chain = Chain(
         model=model,
         prompt=translation_prompt,
         max_improvement_iterations=2,  # Exactly 2 retries as specified
         apply_improvers_on_validation_failure=True,
-        always_apply_critics=True
+        always_apply_critics=True,
     )
-    
+
     # Add validator and critic (no retrievers as specified)
     chain.validate_with(language_validator)
     chain.improve_with(critic)
-    
+
     # Run the chain
     logger.info("Running Spanish to English translation with prompt critic...")
     result = chain.run()
-    
+
     # Display results
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("OLLAMA SPANISH TO ENGLISH TRANSLATION WITH PROMPT CRITIC")
-    print("="*80)
+    print("=" * 80)
     print(f"\nOriginal Spanish Text:")
     print("-" * 30)
     print(spanish_text.strip())
-    
+
     print(f"\nFinal English Translation ({len(result.text)} characters):")
     print("-" * 30)
     print(result.text)
-    
+
     print(f"\nTranslation Process:")
     print(f"  Iterations: {result.iteration}")
     print(f"  Max Retries: 2 (as specified)")
     print(f"  Chain ID: {result.chain_id}")
-    
+
     # Show validation results
     if result.validation_results:
         print(f"\nLanguage Validation:")
@@ -166,10 +167,12 @@ def main():
             status = "✓ PASSED" if validation_result.is_valid else "✗ FAILED"
             print(f"  {validation_result.validator_name}: {status}")
             if validation_result.is_valid:
-                print(f"    Detected language: English (confidence: {validation_result.confidence:.2f})")
+                print(
+                    f"    Detected language: English (confidence: {validation_result.confidence:.2f})"
+                )
             else:
                 print(f"    Error: {validation_result.error_message}")
-    
+
     # Show translation critic feedback
     if result.critic_feedback:
         print(f"\nTranslation Critic Feedback:")
@@ -188,16 +191,16 @@ def main():
                     print(f"     Rating: NEEDS_IMPROVEMENT")
                 elif "POOR" in suggestions:
                     print(f"     Rating: POOR")
-                
+
                 print(f"     Detailed Feedback: {suggestions[:400]}...")
-    
+
     print(f"\nTranslation Features:")
     print(f"  - No retrievers used (pure translation)")
     print(f"  - Local Ollama model processing")
     print(f"  - Specialized translation critique")
     print(f"  - Language validation")
-    
-    print("\n" + "="*80)
+
+    print("\n" + "=" * 80)
     logger.info("Spanish translation with prompt critic example completed successfully")
 
 

@@ -32,12 +32,12 @@ Example:
 
 import functools
 import logging
+import threading
 import time
 from collections import defaultdict, deque
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union, Deque, Generator
-import threading
+from typing import Any, Callable, Deque, Dict, Generator, List, Optional, TypeVar, Union
 
 from sifaka.utils.logging import get_logger
 

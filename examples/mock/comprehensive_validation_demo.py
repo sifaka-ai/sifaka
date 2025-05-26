@@ -11,15 +11,12 @@ This example shows how to use multiple validators to ensure high-quality
 output that meets various criteria simultaneously.
 """
 
-from sifaka.core.chain import Chain
-from sifaka.models.base import MockModel
-from sifaka.validators.base import LengthValidator, RegexValidator
-from sifaka.validators.content import ContentValidator
-from sifaka.validators.classifier import ClassifierValidator
-from sifaka.classifiers.language import LanguageClassifier
-from sifaka.classifiers.sentiment import SentimentClassifier
-from sifaka.critics.self_refine import SelfRefineCritic
+from sifaka import Chain
+from sifaka.classifiers import LanguageClassifier, SentimentClassifier
+from sifaka.critics import SelfRefineCritic
+from sifaka.models import create_model
 from sifaka.utils.logging import get_logger
+from sifaka.validators import ClassifierValidator, ContentValidator, LengthValidator, RegexValidator
 
 # Configure logging
 logger = get_logger(__name__)
@@ -79,8 +76,8 @@ def main():
     logger.info("Creating comprehensive validation demo")
 
     # Create mock model with technology-focused responses
-    model = MockModel(
-        model_name="Technology Education Model",
+    model = create_model(
+        "mock:Technology Education Model",
         responses=[
             "Technology is changing our world rapidly.",  # Too short, will fail length validation
             "Technology and innovation are rapidly transforming our world, creating new opportunities for development and growth. The future holds exciting possibilities as we continue to advance in various fields, enabling us to solve complex problems and improve quality of life for people everywhere.",  # Should pass most validations

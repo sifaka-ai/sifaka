@@ -14,29 +14,43 @@ Key components:
 Example:
     ```python
     from sifaka import Chain
-    from sifaka.classifiers import create_toxicity_validator
+    from sifaka.models import create_model
+    from sifaka.validators import LengthValidator
 
-    # Create a simple chain with toxicity checking
+    # Create a simple chain with validation
+    model = create_model("mock:gpt-4")
+    validator = LengthValidator(min_length=10, max_length=1000)
+
     result = (Chain()
-        .with_model("mock:gpt-4")
+        .with_model(model)
         .with_prompt("Write a friendly greeting.")
-        .validate_with(create_toxicity_validator())
+        .validate_with(validator)
         .run())
 
     print(result.text)
     ```
 """
 
+# Standard library imports
 from typing import List
 
-# Core components available for import but not imported at package level
-# to avoid circular import issues. Import them directly:
-# from sifaka.core.chain import Chain
-# from sifaka.core.thought import Thought
-# from sifaka.core.interfaces import Model, Validator, Critic
+# Sifaka imports (absolute paths only)
+from sifaka.core.chain import Chain
+from sifaka.core.interfaces import Critic, Model, Retriever, Validator
+from sifaka.core.thought import CriticFeedback, Document, Thought, ValidationResult
 
 __all__: List[str] = [
-    # Components available for direct import
+    # Core components
+    "Chain",
+    "Thought",
+    "Document",
+    "ValidationResult",
+    "CriticFeedback",
+    # Interfaces
+    "Model",
+    "Validator",
+    "Critic",
+    "Retriever",
 ]
 
 # Version info

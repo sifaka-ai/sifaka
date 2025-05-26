@@ -4,16 +4,35 @@ This module contains the RecoveryManager class which handles checkpointing
 and recovery functionality for chain execution.
 """
 
-from typing import List, Optional
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel
 
 from sifaka.core.chain.config import ChainConfig
 from sifaka.core.thought import Thought
 from sifaka.storage.checkpoints import ChainCheckpoint
-from sifaka.recovery.manager import RecoveryAction, RecoveryStrategy
-from sifaka.utils.performance import PerformanceMonitor
 from sifaka.utils.logging import get_logger
+from sifaka.utils.performance import PerformanceMonitor
 
 logger = get_logger(__name__)
+
+
+class RecoveryStrategy(Enum):
+    """Enumeration of recovery strategies for chain execution failures."""
+
+    RETRY_CURRENT_STEP = "retry_current_step"
+    SKIP_TO_NEXT_STEP = "skip_to_next_step"
+    FULL_RESTART = "full_restart"
+
+
+class RecoveryAction(BaseModel):
+    """Represents a recovery action that can be taken when a chain execution fails."""
+
+    strategy: RecoveryStrategy
+    description: str
+    confidence: float  # 0.0 to 1.0, how confident we are this will work
+    parameters: Dict[str, Any] = {}
 
 
 class RecoveryManager:

@@ -8,8 +8,8 @@ from typing import List, Optional
 
 from sifaka.core.chain.config import ChainConfig
 from sifaka.core.thought import Document, Thought
-from sifaka.utils.performance import time_operation
 from sifaka.utils.logging import get_logger
+from sifaka.utils.performance import time_operation
 
 logger = get_logger(__name__)
 

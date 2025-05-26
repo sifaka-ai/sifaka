@@ -10,7 +10,7 @@ from typing import Optional, Union
 
 
 def configure_logging(
-    level: Union[int, str] = logging.INFO, 
+    level: Union[int, str] = logging.INFO,
     log_file: Optional[str] = None,
     format_string: Optional[str] = None,
 ) -> None:
@@ -31,11 +31,11 @@ def configure_logging(
             "CRITICAL": logging.CRITICAL,
         }
         level = level_map.get(level.upper(), logging.INFO)
-    
+
     # Get the root logger for sifaka
     logger = logging.getLogger("sifaka")
     logger.setLevel(level)
-    
+
     # Clear existing handlers to avoid duplicates
     if logger.handlers:
         logger.handlers.clear()
@@ -43,7 +43,7 @@ def configure_logging(
     # Use default format if none provided
     if format_string is None:
         format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    
+
     formatter = logging.Formatter(format_string)
 
     # Create console handler

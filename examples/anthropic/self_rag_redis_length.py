@@ -12,16 +12,17 @@ scientific context and Self-RAG ensuring factual accuracy through retrieval.
 """
 
 import os
+
 from dotenv import load_dotenv
 
 from sifaka.core.chain import Chain
-from sifaka.models.anthropic import AnthropicModel
 from sifaka.critics.self_rag import SelfRAGCritic
-from sifaka.validators.base import LengthValidator
-from sifaka.storage.redis import RedisStorage
 from sifaka.mcp import MCPServerConfig, MCPTransportType
+from sifaka.models.anthropic import AnthropicModel
 from sifaka.retrievers.simple import InMemoryRetriever
+from sifaka.storage.redis import RedisStorage
 from sifaka.utils.logging import get_logger
+from sifaka.validators.base import LengthValidator
 
 # Load environment variables
 load_dotenv()

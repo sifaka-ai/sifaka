@@ -8,10 +8,10 @@ import importlib
 from typing import List, Optional
 
 from sifaka.classifiers.base import (
+    CachedTextClassifier,
     ClassificationResult,
     ClassifierError,
     TextClassifier,
-    CachedTextClassifier,
 )
 from sifaka.utils.logging import get_logger
 from sifaka.validators.classifier import ClassifierValidator
