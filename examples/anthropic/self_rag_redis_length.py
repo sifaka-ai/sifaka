@@ -33,11 +33,11 @@ logger = get_logger(__name__)
 def setup_climate_redis_retriever():
     """Set up Redis retriever with climate science documents."""
 
-    # Create Redis MCP configuration
+    # Create Redis MCP configuration (using local server)
     redis_config = MCPServerConfig(
         name="redis-server",
         transport_type=MCPTransportType.STDIO,
-        url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379/1",
+        url="cd mcp/mcp-redis && python -m main.py",
     )
 
     # Create Redis storage for climate context

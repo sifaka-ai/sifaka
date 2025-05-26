@@ -1,24 +1,28 @@
 # Sifaka Architecture
 
-Sifaka is a framework for AI text generation with validation and iterative improvement. The core architecture uses a `Thought` container that flows through a `Chain` of components: Model → Validators → Critics.
+Sifaka is a framework for AI text generation with validation and iterative improvement. The core architecture uses a `Thought` container that flows through a modular `Chain` of components: Model → Validators → Critics.
 
 ## Execution Flow
 
 1. Create a `Thought` from the input prompt
-2. Model generates text and adds it to the `Thought`
-3. Validators check the generated text and record results in the `Thought`
-4. If validation fails or critics are configured to always run, critics provide feedback
-5. Process repeats with the feedback until validation passes or max iterations reached
+2. Optional pre-generation retrieval adds context to the `Thought`
+3. Model generates text using the `Thought` (including any retrieved context)
+4. Optional post-generation retrieval adds additional context for critics
+5. Validators check the generated text and record results in the `Thought`
+6. If validation fails or critics are configured to always run, critics provide feedback
+7. Process repeats with the feedback until validation passes or max iterations reached
 
 ```mermaid
 graph LR
     A[Prompt] --> B[Thought]
-    B --> C[Model]
-    C --> D[Validators]
-    D --> E{Valid?}
-    E -->|No| F[Critics]
-    F --> C
-    E -->|Yes| G[Done]
+    B --> C[Pre-Retrieval]
+    C --> D[Model]
+    D --> E[Post-Retrieval]
+    E --> F[Validators]
+    F --> G{Valid?}
+    G -->|No| H[Critics]
+    H --> D
+    G -->|Yes| I[Done]
 ```
 
 ## Core Components
@@ -27,16 +31,53 @@ graph LR
 Central state object that carries data between components. Contains the prompt, generated text, validation results, critic feedback, and iteration history. Provides immutable state management and complete audit trail.
 
 ### Chain
-Orchestrates the execution flow. Runs model → validators → critics in sequence, handles retrieval operations, and manages iteration limits. Entry point is `chain.run()`.
+Orchestrates the execution flow using a modular architecture:
+- **ChainConfig**: Manages configuration state and component references
+- **ChainOrchestrator**: Coordinates high-level workflow and iteration logic
+- **ChainExecutor**: Handles low-level execution of individual steps
+- **RecoveryManager**: Manages checkpointing and error recovery (optional)
+
+Entry point is `chain.run()` or `chain.run_with_recovery()`.
 
 ### Models
-Generate text from prompts. Supported types include OpenAI, Anthropic, HuggingFace, Ollama, and Mock implementations. Interface: `model.generate_with_thought(thought) → (text, prompt_used)`.
+Generate text from prompts. Supported providers:
+- **OpenAI**: GPT-3.5, GPT-4 models via OpenAI API
+- **Anthropic**: Claude models via Anthropic API
+- **HuggingFace**: Remote models via Inference API
+- **Ollama**: Local models via Ollama server
+- **Mock**: Deterministic responses for testing
+
+Interface: `model.generate_with_thought(thought) → (text, prompt_used)`
 
 ### Validators
-Check generated text against specified requirements. Types include length constraints, regex patterns, content filters, and ML classifiers. Interface: `validator.validate(text) → ValidationResult(passed=bool)`.
+Check generated text against requirements. Available types:
+- **LengthValidator**: Min/max character or word limits
+- **RegexValidator**: Pattern matching validation
+- **ContentValidator**: Prohibited content detection
+- **FormatValidator**: JSON, Markdown, custom format validation
+- **ClassifierValidator**: ML-based classification (bias, toxicity, sentiment, etc.)
+- **GuardrailsValidator**: Integration with GuardrailsAI
+
+Interface: `validator.validate(thought) → ValidationResult(passed=bool, message=str)`
 
 ### Critics
-Provide improvement suggestions for generated text. Types include Reflexion, Self-RAG, Constitutional, and N-Critics ensemble approaches. Interface: `critic.critique(thought) → CriticFeedback(suggestions=list)`.
+Provide improvement suggestions. Available approaches:
+- **ReflexionCritic**: Self-reflection based improvement
+- **SelfRAGCritic**: Retrieval-augmented self-critique
+- **ConstitutionalCritic**: Constitutional AI principles
+- **NCriticsCritic**: Ensemble of multiple critics
+- **SelfRefineCritic**: Iterative self-refinement
+- **PromptCritic**: Custom prompt-based critique
+
+Interface: `critic.critique(thought) → CriticFeedback(suggestions=list)`
+
+### Retrievers
+Find relevant context for generation and critique:
+- **MockRetriever**: Predefined documents for testing
+- **InMemoryRetriever**: Keyword search in memory
+- **CachedRetriever**: Wraps any retriever with 3-tier caching
+
+Interface: `retriever.retrieve_for_thought(thought, is_pre_generation=bool) → Thought`
 
 ## How Chain Execution Actually Works
 
@@ -129,45 +170,56 @@ next_thought = thought.next_iteration()
 json_data = thought.model_dump_json()
 ```
 
-## Storage & Retrieval
+## Storage Architecture
 
-### 3-Tier Storage System
-Memory → Redis → Milvus architecture:
+Sifaka provides a flexible storage system supporting multiple backends (Memory, File, Redis, Milvus) that can be used individually or combined in layered configurations for optimal performance.
 
-- **L1 (Memory)**: Fastest access, LRU cache, process-local
-- **L2 (Redis)**: Fast network access, cross-process shared cache
-- **L3 (Milvus)**: Persistent storage with vector search
+### Local MCP Servers
+Sifaka includes local MCP servers for Redis and Milvus integration:
 
-```python
-# All storage follows the same pattern
-storage = SifakaStorage(redis_config, milvus_config)
+```bash
+# Redis MCP Server
+cd mcp/mcp-redis
+python -m main.py
 
-# Get specialized storage
-thought_storage = storage.get_thought_storage()
-cached_retriever = storage.get_retriever_cache(base_retriever)
-
-# Automatic tier management
-value = storage.get(key)  # Checks L1 → L2 → L3, caches in faster tiers
-storage.set(key, value)   # Saves to L1, async saves to L2 + L3
+# Milvus MCP Server
+cd mcp/mcp-server-milvus
+python -m mcp_server_milvus
 ```
 
-### Retrievers
-Find relevant documents for context. The Chain orchestrates retrieval timing automatically.
-
+### MCP Configuration Examples
 ```python
-# Chain handles retrieval for you
-chain = Chain(model=model, retrievers=[retriever])
-result = chain.run()  # Retriever runs at the right times
+from sifaka.storage import RedisStorage, MilvusStorage
+from sifaka.mcp import MCPServerConfig, MCPTransportType
 
-# Manual usage (if needed)
-documents = retriever.retrieve("search query")
-thought = retriever.retrieve_for_thought(thought, is_pre_generation=True)
+# Redis via local MCP server
+redis_config = MCPServerConfig(
+    name="redis-server",
+    transport_type=MCPTransportType.STDIO,
+    url="cd mcp/mcp-redis && python -m main.py"
+)
+redis_storage = RedisStorage(redis_config)
+
+# Milvus via local MCP server
+milvus_config = MCPServerConfig(
+    name="milvus-server",
+    transport_type=MCPTransportType.STDIO,
+    url="cd mcp/mcp-server-milvus && python -m mcp_server_milvus"
+)
+milvus_storage = MilvusStorage(milvus_config, collection_name="thoughts")
+
+# 3-tier storage: Memory → Redis → Milvus
+from sifaka.storage import CachedStorage, MemoryStorage
+layered_storage = CachedStorage(
+    cache=MemoryStorage(),
+    persistence=CachedStorage(
+        cache=redis_storage,
+        persistence=milvus_storage
+    )
+)
 ```
 
-Available types:
-- **MockRetriever**: Returns predefined documents for testing with optional retry/fallback
-- **InMemoryRetriever**: Keyword search in memory with optional retry/fallback
-- **CachedRetriever**: Wraps any retriever with 3-tier caching
+For detailed storage setup, configuration, and usage examples, see the **[Storage Guide](STORAGE.md)**.
 
 ## Design Principles
 
@@ -190,11 +242,11 @@ chain = Chain(
 - Previous iterations preserved in `thought.history`
 - Complete audit trail maintained
 
-### 4. Error Recovery
-- Circuit breakers prevent cascading failures
-- Automatic retries with exponential backoff
-- Fallback mechanisms for service failures
-- Graceful degradation when components fail
+### 4. Error Recovery & Checkpointing
+- Optional checkpointing saves execution state at key points
+- Automatic recovery suggestions based on error analysis
+- Chain can resume from last successful checkpoint
+- Recovery strategies include retry, skip, restart, or parameter modification
 
 ### 5. Performance Monitoring
 - Built-in timing for all components
@@ -202,39 +254,41 @@ chain = Chain(
 - JSON export for external analysis
 - Minimal performance overhead
 
-## Error Recovery
+## Error Recovery & Checkpointing
 
-The framework implements automatic error recovery:
+The framework provides optional error recovery through checkpointing:
 
 ```python
-# This is what happens behind the scenes
-try:
-    result = model.generate(prompt)
-except APIError:
-    if circuit_breaker.is_open():
-        raise FastFailError("Service unavailable")
+from sifaka.storage.checkpoints import CachedCheckpointStorage
 
-    # Try with exponential backoff
-    for attempt in [1, 2, 4, 8]:  # seconds
-        try:
-            time.sleep(attempt)
-            result = model.generate(prompt)
-            break
-        except APIError:
-            continue
-    else:
-        # Use fallback model if available
-        if fallback_model:
-            result = fallback_model.generate(prompt)
-        else:
-            raise AllRetriesFailedError()
+# Enable checkpointing and recovery
+checkpoint_storage = CachedCheckpointStorage(your_storage)
+chain = Chain(
+    model=model,
+    checkpoint_storage=checkpoint_storage
+)
+
+# Run with automatic recovery
+try:
+    result = chain.run_with_recovery()
+except Exception as e:
+    # Recovery is handled automatically
+    # Check logs for recovery attempts and strategies
+    print(f"Chain execution failed after recovery attempts: {e}")
 ```
 
-### Features
-- Automatic retries with exponential backoff
-- Circuit breakers to prevent cascading failures
-- Fallback mechanisms for service failures
-- Graceful degradation under partial failures
+### Recovery Features
+- **Checkpointing**: Saves state at initialization, generation, validation, and completion
+- **Error Analysis**: Analyzes error types and suggests appropriate recovery strategies
+- **Recovery Strategies**: Retry current step, skip to next step, restart iteration, modify parameters
+- **Resumption**: Can resume from last successful checkpoint when possible
+
+### Recovery Strategies
+The system automatically chooses recovery strategies based on error type:
+- **Connection/Timeout errors**: Retry with exponential backoff
+- **Validation errors**: Skip validation or restart from generation
+- **Rate limit errors**: Add delays and reduce request frequency
+- **Memory errors**: Reduce batch sizes and context length
 
 ## Performance Monitoring
 
@@ -269,12 +323,15 @@ with open("performance.json", "w") as f:
 
 ## Summary
 
-The architecture provides:
+The Sifaka architecture provides:
 
-1. Simple API: `Chain(model, validators, critics, retrievers).run()`
-2. Automatic error recovery and retry mechanisms
-3. Complete audit trail via the `Thought` container
-4. Built-in performance monitoring and analysis
-5. Composable component design
+1. **Modular Design**: Separated concerns with ChainConfig, ChainOrchestrator, ChainExecutor, and RecoveryManager
+2. **Simple API**: `Chain(model, validators, critics, retrievers).run()` or `.run_with_recovery()`
+3. **Immutable State**: All data flows through the central `Thought` container with complete audit trail
+4. **Flexible Storage**: Unified storage protocol supporting Memory, File, Redis, and Milvus backends
+5. **Composable Components**: Mix and match models, validators, critics, and retrievers
+6. **Optional Recovery**: Checkpointing and automatic error recovery when enabled
+7. **Performance Monitoring**: Built-in timing and bottleneck detection
+8. **Type Safety**: Protocol-based interfaces ensure component compatibility
 
-All data flows through the central `Thought` container, providing predictable execution and complete observability.
+The architecture emphasizes simplicity for basic use cases while providing advanced features like recovery and multi-tier storage when needed. All components follow consistent interfaces and can be easily extended or replaced.

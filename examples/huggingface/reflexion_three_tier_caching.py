@@ -42,18 +42,17 @@ def setup_three_tier_storage():
     redis_config = MCPServerConfig(
         name="redis-server",
         transport_type=MCPTransportType.STDIO,
-        url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379/3",
+        url="cd mcp/mcp-redis && python -m main.py",
     )
     redis_storage = RedisStorage(mcp_config=redis_config, key_prefix="sifaka:energy")
 
     # Layer 3: Milvus storage (slowest, vector search)
-    milvus_storage = MilvusStorage(
-        collection_name="sustainable_energy",
-        embedding_model="BAAI/bge-m3",
-        dimension=1024,
-        host="localhost",
-        port=19530,
+    milvus_config = MCPServerConfig(
+        name="milvus-server",
+        transport_type=MCPTransportType.STDIO,
+        url="cd mcp/mcp-server-milvus && python -m mcp_server_milvus",
     )
+    milvus_storage = MilvusStorage(mcp_config=milvus_config, collection_name="sustainable_energy")
 
     # Create three-tier cached storage
     cached_storage = CachedStorage(

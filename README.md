@@ -186,19 +186,19 @@ layered_storage = CachedStorage(
 from sifaka.storage import RedisStorage, MilvusStorage
 from sifaka.mcp import MCPServerConfig, MCPTransportType
 
-# Redis via MCP
+# Redis via MCP (using local server)
 redis_config = MCPServerConfig(
     name="redis-server",
     transport_type=MCPTransportType.STDIO,
-    url="npx -y @modelcontextprotocol/server-redis redis://localhost:6379"
+    url="cd mcp/mcp-redis && python -m main.py"
 )
 redis_storage = RedisStorage(redis_config)
 
-# Milvus via MCP for vector search
+# Milvus via MCP for vector search (using local server)
 milvus_config = MCPServerConfig(
     name="milvus-server",
     transport_type=MCPTransportType.STDIO,
-    url="npx -y @milvus-io/mcp-server-milvus"
+    url="cd mcp/mcp-server-milvus && python -m mcp_server_milvus"
 )
 milvus_storage = MilvusStorage(milvus_config, collection_name="thoughts")
 ```
@@ -214,29 +214,22 @@ ANTHROPIC_API_KEY=your_anthropic_api_key
 HUGGINGFACE_API_TOKEN=your_hf_token
 ```
 
-## Optional Dependencies
+## Storage Backends
 
-**Redis** (for caching):
-```bash
-docker run -d -p 6379:6379 redis:alpine
-npm install -g @modelcontextprotocol/server-redis
-```
+Sifaka supports multiple storage backends for different use cases:
 
-**Milvus** (for vector search):
-```bash
-# Download and start Milvus
-curl -sfL https://raw.githubusercontent.com/milvus-io/milvus/master/scripts/standalone_embed.sh -o standalone_embed.sh
-bash standalone_embed.sh start
+- **Memory**: In-memory storage for development and testing
+- **File**: JSON file persistence for simple deployments
+- **Redis**: High-performance caching via MCP
+- **Milvus**: Vector storage for semantic search via MCP
 
-# Install MCP server (requires Python 3.10+)
-git clone https://github.com/zilliztech/mcp-server-milvus.git
-cd mcp-server-milvus
-```
+For detailed installation and configuration instructions, see **[Storage Documentation](docs/STORAGE.md)**.
 
 ## Documentation
 
 - **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation
 - **[Architecture Guide](docs/ARCHITECTURE.md)** - System design and interactions
+- **[Storage Guide](docs/STORAGE.md)** - Storage backends and configuration
 - **[Examples](examples/)** - Working examples for different providers
 - **[Contributing Guide](docs/CONTRIBUTING.md)** - Guidelines for contributors
 
