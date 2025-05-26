@@ -83,6 +83,14 @@ class MockModelFactory:
                 self._call_count += 1
                 return response
 
+            def generate_with_thought(self, thought: Any, **options: Any) -> tuple[str, str]:
+                # Use mixin to build contextualized prompt
+                full_prompt = self._build_contextualized_prompt(thought, max_docs=5)
+                # Get the variable response
+                response = self._responses[self._call_count % len(self._responses)]
+                self._call_count += 1
+                return response, full_prompt
+
         return VariableResponseModel(model_name=model_name)
 
 
@@ -98,9 +106,12 @@ class MockStorageFactory:
     def create_failing() -> Mock:
         """Create a mock storage that fails operations."""
         storage = Mock()
-        storage.save.side_effect = Exception("Storage save failed")
-        storage.load.side_effect = Exception("Storage load failed")
-        storage.exists.return_value = False
+        storage.set.side_effect = Exception("Storage set failed")
+        storage.get.side_effect = Exception("Storage get failed")
+        storage._set_async.side_effect = Exception("Storage set async failed")
+        storage._get_async.side_effect = Exception("Storage get async failed")
+        storage.search.side_effect = Exception("Storage search failed")
+        storage.clear.side_effect = Exception("Storage clear failed")
         return storage
 
     @staticmethod
@@ -108,17 +119,20 @@ class MockStorageFactory:
         """Create a mock storage with slow operations."""
         storage = Mock()
 
-        def slow_save(*args, **kwargs):
-            time.sleep(delay_seconds)
-            return True
-
-        def slow_load(*args, **kwargs):
+        def slow_set(*args, **kwargs):
             time.sleep(delay_seconds)
             return None
 
-        storage.save.side_effect = slow_save
-        storage.load.side_effect = slow_load
-        storage.exists.return_value = True
+        def slow_get(*args, **kwargs):
+            time.sleep(delay_seconds)
+            return None
+
+        storage.set.side_effect = slow_set
+        storage.get.side_effect = slow_get
+        storage._set_async.side_effect = slow_set
+        storage._get_async.side_effect = slow_get
+        storage.search.return_value = []
+        storage.clear.return_value = None
         return storage
 
 
@@ -161,9 +175,7 @@ class MockValidatorFactory:
     def create_passing(name: str = "passing-validator") -> Mock:
         """Create a validator that always passes."""
         validator = Mock()
-        validator.validate.return_value = ValidationResult(
-            passed=True, message="Validation passed", validator_name=name
-        )
+        validator.validate.return_value = ValidationResult(passed=True, message="Validation passed")
         return validator
 
     @staticmethod
@@ -172,9 +184,7 @@ class MockValidatorFactory:
     ) -> Mock:
         """Create a validator that always fails."""
         validator = Mock()
-        validator.validate.return_value = ValidationResult(
-            passed=False, message=error_message, validator_name=name
-        )
+        validator.validate.return_value = ValidationResult(passed=False, message=error_message)
         return validator
 
     @staticmethod
@@ -184,9 +194,7 @@ class MockValidatorFactory:
 
         def slow_validate(*args, **kwargs):
             time.sleep(delay_seconds)
-            return ValidationResult(
-                passed=True, message="Slow validation passed", validator_name=name
-            )
+            return ValidationResult(passed=True, message="Slow validation passed")
 
         validator.validate.side_effect = slow_validate
         return validator

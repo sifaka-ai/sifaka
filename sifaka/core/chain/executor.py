@@ -394,8 +394,24 @@ class ChainExecutor:
 
         return thought
 
+    async def _save_thought_to_storage_async(self, thought: Thought) -> None:
+        """Save a thought to the configured storage asynchronously.
+
+        Args:
+            thought: The thought to save.
+        """
+        try:
+            # Save by thought ID for easy retrieval
+            await self.config.storage._set_async(thought.id, thought)
+            # Also save by chain/iteration key for debugging
+            thought_key = f"thought_{self.config.chain_id}_{thought.iteration}"
+            await self.config.storage._set_async(thought_key, thought)
+            logger.debug(f"Saved thought (iteration {thought.iteration}) to storage")
+        except Exception as e:
+            logger.warning(f"Failed to save thought to storage: {e}")
+
     def _save_thought_to_storage(self, thought: Thought) -> None:
-        """Save a thought to the configured storage.
+        """Save a thought to the configured storage (sync wrapper).
 
         Args:
             thought: The thought to save.

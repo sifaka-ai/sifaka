@@ -137,7 +137,7 @@ class QuickStart:
         from sifaka.storage.file import FileStorage
 
         model = create_model(model_spec, **model_options)
-        storage = FileStorage(file_path)  # type: ignore
+        storage = FileStorage(file_path)
 
         chain = Chain(
             model=model, prompt=prompt, storage=storage, max_improvement_iterations=max_iterations
@@ -268,11 +268,15 @@ class QuickStart:
             if storage_parts[0] == "memory":
                 storage_instance = QuickStart.with_memory_storage(
                     model_spec, **model_options
-                ).storage
+                )._config.storage
             elif storage_parts[0] == "redis":
-                storage_instance = QuickStart.with_redis(model_spec, **model_options).storage
+                storage_instance = QuickStart.with_redis(
+                    model_spec, **model_options
+                )._config.storage
             elif storage_parts[0] == "milvus":
-                storage_instance = QuickStart.with_milvus(model_spec, **model_options).storage
+                storage_instance = QuickStart.with_milvus(
+                    model_spec, **model_options
+                )._config.storage
             else:
                 raise ValueError(f"Unknown storage backend: {storage_parts[0]}")
 
@@ -289,6 +293,7 @@ class QuickStart:
                 raise ValueError(f"Unsupported cache type: {cache_type}")
 
             # Create persistence layer
+            persistence_layer: Any
             if persist_type == "redis":
                 from sifaka.mcp import MCPServerConfig, MCPTransportType
                 from sifaka.storage.redis import RedisStorage
@@ -298,7 +303,7 @@ class QuickStart:
                     transport_type=MCPTransportType.STDIO,
                     url="python -m mcp_redis",
                 )
-                persistence = RedisStorage(mcp_config=redis_config)
+                persistence_layer = RedisStorage(mcp_config=redis_config)
 
             elif persist_type == "milvus":
                 from sifaka.mcp import MCPServerConfig, MCPTransportType
@@ -309,12 +314,12 @@ class QuickStart:
                     transport_type=MCPTransportType.STDIO,
                     url="cd /Users/evanvolgas/Documents/not_beam/sifaka/mcp && python -m main.py",
                 )
-                persistence = MilvusStorage(mcp_config=milvus_config)
+                persistence_layer = MilvusStorage(mcp_config=milvus_config)
 
             else:
                 raise ValueError(f"Unsupported persistence type: {persist_type}")
 
-            storage_instance = CachedStorage(cache=cache, persistence=persistence)
+            combined_storage: Any = CachedStorage(cache=cache, persistence=persistence_layer)
 
         else:
             raise ValueError(f"Too many storage backends specified: {storage}")
@@ -322,7 +327,7 @@ class QuickStart:
         chain = Chain(
             model=model,
             prompt=prompt,
-            storage=storage_instance,
+            storage=combined_storage if len(storage_parts) == 2 else storage_instance,
             max_improvement_iterations=max_iterations,
         )
 
@@ -573,8 +578,8 @@ class QuickStart:
                 model_retriever.add_document("research_context", "Academic research context")
                 critic_retriever.add_document("evaluation_criteria", "Research evaluation criteria")
 
-                chain.config.model_retrievers.append(model_retriever)
-                chain.config.critic_retrievers.append(critic_retriever)
+                chain._config.model_retrievers.append(model_retriever)
+                chain._config.critic_retrievers.append(critic_retriever)
             except ImportError:
                 logger.warning("Retrievers not available, skipping retriever setup")
 
@@ -718,7 +723,7 @@ class ConfigWizard:
         ```
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the configuration wizard."""
         self.logger = get_logger(self.__class__.__name__)
 
@@ -869,10 +874,9 @@ class ConfigWizard:
 
 
 # Add convenience method to QuickStart for using presets
-def _add_preset_method():
+def _add_preset_method() -> None:
     """Add from_preset method to QuickStart class."""
 
-    @staticmethod
     def from_preset(
         preset_name: str, model_spec: str, prompt: Optional[str] = None, **overrides: Any
     ) -> Chain:
@@ -891,7 +895,7 @@ def _add_preset_method():
         return wizard.setup_for_use_case(preset_name, model_spec, prompt)
 
     # Add the method to QuickStart
-    QuickStart.from_preset = from_preset
+    QuickStart.from_preset = staticmethod(from_preset)  # type: ignore[attr-defined]
 
 
 # Apply the method addition

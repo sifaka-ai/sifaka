@@ -241,6 +241,25 @@ class FileStorage:
         """Clear all stored data and remove file."""
         return asyncio.run(self._clear_async())
 
+    def delete(self, key: str) -> bool:
+        """Delete a value by key.
+
+        Args:
+            key: The storage key to delete.
+
+        Returns:
+            True if the key was deleted, False if it didn't exist.
+        """
+        return asyncio.run(self._delete_async(key))
+
+    def keys(self) -> List[str]:
+        """Get all keys in storage.
+
+        Returns:
+            List of all storage keys.
+        """
+        return asyncio.run(self._keys_async())
+
     def __len__(self) -> int:
         """Return number of stored items."""
         return len(self.data)

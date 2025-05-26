@@ -178,7 +178,7 @@ class RedisStorage:
 
             # Call Redis DEL via MCP
             result = await self.mcp_client.call_tool("redis_del", {"key": redis_key})
-            return result.get("deleted", 0) > 0
+            return bool(result.get("deleted", 0) > 0)
 
         except Exception as e:
             logger.error(f"Redis delete failed for key {key}: {e}")
@@ -247,6 +247,25 @@ class RedisStorage:
     def clear(self) -> None:
         """Clear all data with the key prefix."""
         return asyncio.run(self._clear_async())
+
+    def delete(self, key: str) -> bool:
+        """Delete a value by key from Redis.
+
+        Args:
+            key: The storage key to delete.
+
+        Returns:
+            True if the key was deleted, False if it didn't exist.
+        """
+        return asyncio.run(self._delete_async(key))
+
+    def keys(self) -> List[str]:
+        """Get all keys in storage.
+
+        Returns:
+            List of all storage keys.
+        """
+        return asyncio.run(self._keys_async())
 
     def __len__(self) -> int:
         """Return number of stored items (simulated for Redis)."""

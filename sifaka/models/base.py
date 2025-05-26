@@ -81,7 +81,7 @@ def create_model(
             # Import the OpenAI model implementation
             from sifaka.models.openai import create_openai_model
 
-            return create_openai_model(model_name=model_name, **kwargs)  # type: ignore
+            return create_openai_model(model_name=model_name, **kwargs)
         elif provider == "anthropic":
             # Import the Anthropic model implementation
             from sifaka.models.anthropic import create_anthropic_model
@@ -91,12 +91,12 @@ def create_model(
             # Import the HuggingFace model implementation
             from sifaka.models.huggingface import create_huggingface_model
 
-            return create_huggingface_model(model_name=model_name, **kwargs)  # type: ignore
+            return create_huggingface_model(model_name=model_name, **kwargs)
         elif provider == "ollama":
             # Import the Ollama model implementation
             from sifaka.models.ollama import create_ollama_model
 
-            return create_ollama_model(model_name=model_name, **kwargs)  # type: ignore
+            return create_ollama_model(model_name=model_name, **kwargs)
         elif provider == "mock":
             # Create a mock model for testing
             return MockModel(model_name=model_name, **kwargs)

@@ -228,7 +228,7 @@ class Chain:
             )
 
             # Save initial thought
-            self._executor._save_thought_to_storage(thought)
+            await self._executor._save_thought_to_storage_async(thought)
 
             # Pre-generation retrieval
             thought = self._orchestrator.orchestrate_retrieval(thought, "pre_generation")
@@ -246,7 +246,7 @@ class Chain:
             thought = await self._execute_improvement_loop_async(thought, validation_passed)
 
             # Save final thought
-            self._executor._save_thought_to_storage(thought)
+            await self._executor._save_thought_to_storage_async(thought)
 
             return thought
 
@@ -323,7 +323,7 @@ class Chain:
         thought = self._orchestrator.orchestrate_retrieval(thought, "post_generation")
 
         # Save the improved thought to storage
-        self._executor._save_thought_to_storage(thought)
+        await self._executor._save_thought_to_storage_async(thought)
 
         logger.debug(f"Completed async improvement iteration {thought.iteration}")
         return thought

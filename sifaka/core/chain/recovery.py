@@ -223,10 +223,8 @@ class RecoveryManager:
                 logger.info("Performing full restart")
                 return True
 
-            # All enum values are handled above, but mypy requires exhaustive handling
+            # All enum values are handled above
             # This should never be reached with valid enum values
-            logger.warning(f"Unknown recovery strategy: {action.strategy}")
-            return False
 
         except Exception as e:
             logger.error(f"Failed to apply recovery action {action.strategy}: {e}")

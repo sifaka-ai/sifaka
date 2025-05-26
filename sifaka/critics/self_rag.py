@@ -252,11 +252,13 @@ class SelfRAGCritic(BaseCritic):
                         asyncio.get_running_loop()
                         import concurrent.futures
 
+                        # Run async retrieval in thread pool
+                        async def _retrieve_docs() -> List[str]:
+                            return await self._retrieve_documents_async(thought.prompt)
+
                         with concurrent.futures.ThreadPoolExecutor() as executor:
-                            future = executor.submit(
-                                lambda: asyncio.run(self._retrieve_documents_async(thought.prompt))
-                            )
-                            retrieved_docs: List[str] = future.result()
+                            future = executor.submit(asyncio.run, _retrieve_docs())  # type: ignore[arg-type]
+                            retrieved_docs: List[str] = future.result()  # type: ignore[assignment]
                     except RuntimeError:
                         retrieved_docs = asyncio.run(self._retrieve_documents_async(thought.prompt))
 
