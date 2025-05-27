@@ -1,7 +1,7 @@
 """Reflexion critic for Sifaka.
 
-This module implements the Reflexion approach for text improvement, which uses
-self-reflection to improve text quality through iterative refinement.
+This module implements a Reflexion-inspired approach for iterative improvement
+through trial-and-error learning with verbal reinforcement.
 
 Based on "Reflexion: Language Agents with Verbal Reinforcement Learning":
 https://arxiv.org/abs/2303.11366
@@ -16,10 +16,14 @@ https://arxiv.org/abs/2303.11366
       url={https://arxiv.org/abs/2303.11366},
 }
 
-The ReflexionCritic uses a language model to:
-1. Generate an initial critique of the text
-2. Reflect on the critique and identify specific improvements
-3. Generate improved text based on the reflection
+The ReflexionCritic implements key Reflexion concepts:
+1. Trial-based learning with episodic memory
+2. Task performance feedback integration
+3. Self-reflection on failures and successes
+4. Verbal reinforcement for future attempts
+
+Note: This is a simplified implementation that captures core Reflexion principles
+without the full multi-agent Actor/Evaluator/Self-Reflection architecture.
 """
 
 import time
@@ -32,6 +36,11 @@ from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+# Task feedback can be stored in CriticFeedback.metadata
+# Trial memory can be stored in Thought.history and Thought.metadata
+# This leverages the existing Thought infrastructure instead of duplicating it
 
 
 class ReflexionCritic(BaseCritic):
@@ -126,12 +135,15 @@ class ReflexionCritic(BaseCritic):
         Returns:
             A dictionary with critique results (without processing_time_ms).
         """
-        # Step 1: Generate initial critique
-        critique_result = await self._generate_critique_async(thought)
+        # Check for external task feedback in thought metadata
+        task_feedback = self._extract_task_feedback(thought)
 
-        # Step 2: Generate reflection on the critique
+        # Step 1: Generate initial critique (considering task feedback if available)
+        critique_result = await self._generate_critique_async(thought, task_feedback)
+
+        # Step 2: Generate self-reflection on the critique and task performance
         reflection_result = await self._generate_reflection_async(
-            thought, critique_result["critique"]
+            thought, critique_result["critique"], task_feedback
         )
 
         # Step 3: Store reflection in memory for future learning
@@ -151,6 +163,8 @@ class ReflexionCritic(BaseCritic):
                 "reflection": reflection_result["reflection"],
                 "improvement_strategy": reflection_result["improvement_strategy"],
                 "memory_size": len(self.memory_buffer),
+                "task_feedback": task_feedback,
+                "trial_number": thought.iteration,
             },
         }
 
@@ -205,11 +219,11 @@ class ReflexionCritic(BaseCritic):
 
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(
-                            lambda: asyncio.run(self._generate_critique_async(thought))
+                            lambda: asyncio.run(self._generate_critique_async(thought, None))
                         )
                         critique_result = future.result()
                 except RuntimeError:
-                    critique_result = asyncio.run(self._generate_critique_async(thought))
+                    critique_result = asyncio.run(self._generate_critique_async(thought, None))
 
                 critique_text = critique_result["critique"]
 
@@ -221,13 +235,13 @@ class ReflexionCritic(BaseCritic):
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(
                             lambda: asyncio.run(
-                                self._generate_reflection_async(thought, critique_text)
+                                self._generate_reflection_async(thought, critique_text, None)
                             )
                         )
                         reflection_result = future.result()
                 except RuntimeError:
                     reflection_result = asyncio.run(
-                        self._generate_reflection_async(thought, critique_text)
+                        self._generate_reflection_async(thought, critique_text, None)
                     )
 
                 reflection_text = reflection_result["reflection"]
@@ -257,7 +271,9 @@ class ReflexionCritic(BaseCritic):
 
             return improved_text.strip()
 
-    async def _generate_critique_async(self, thought: Thought) -> Dict[str, Any]:
+    async def _generate_critique_async(
+        self, thought: Thought, task_feedback: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """Generate initial critique of the text asynchronously.
 
         Args:
@@ -329,7 +345,9 @@ class ReflexionCritic(BaseCritic):
             "needs_improvement": needs_improvement,
         }
 
-    async def _generate_reflection_async(self, thought: Thought, critique: str) -> Dict[str, Any]:
+    async def _generate_reflection_async(
+        self, thought: Thought, critique: str, task_feedback: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """Generate reflection on the critique to identify specific improvements asynchronously.
 
         Args:
@@ -436,3 +454,61 @@ class ReflexionCritic(BaseCritic):
             memory_parts.append(memory_part)
 
         return "\n".join(memory_parts)
+
+    def _extract_task_feedback(self, thought: Thought) -> Optional[Dict[str, Any]]:
+        """Extract task performance feedback from thought metadata.
+
+        Args:
+            thought: The Thought container to extract feedback from.
+
+        Returns:
+            Task feedback dictionary if available, None otherwise.
+        """
+        # Check thought metadata for task feedback
+        if thought.metadata and "task_feedback" in thought.metadata:
+            return thought.metadata["task_feedback"]
+
+        # Check previous iterations for task feedback
+        if thought.history:
+            for ref in thought.history[:3]:  # Check last 3 iterations
+                # In a real implementation, you'd load the thought from storage
+                # For now, just check if there's feedback info in the reference
+                pass
+
+        return None
+
+    def add_task_feedback(
+        self,
+        thought: Thought,
+        success: bool,
+        score: Optional[float] = None,
+        error_message: Optional[str] = None,
+        external_feedback: Optional[str] = None,
+    ) -> Thought:
+        """Add external task performance feedback to a thought.
+
+        This method allows external systems to provide task performance feedback
+        that will be used in the Reflexion process.
+
+        Args:
+            thought: The Thought to add feedback to.
+            success: Whether the task was completed successfully.
+            score: Optional numeric score (0.0 to 1.0).
+            error_message: Optional error message if task failed.
+            external_feedback: Optional external feedback text.
+
+        Returns:
+            Updated thought with task feedback in metadata.
+        """
+        task_feedback = {
+            "success": success,
+            "score": score,
+            "error_message": error_message,
+            "external_feedback": external_feedback,
+            "timestamp": time.time(),
+        }
+
+        updated_metadata = dict(thought.metadata or {})
+        updated_metadata["task_feedback"] = task_feedback
+
+        return thought.model_copy(update={"metadata": updated_metadata})

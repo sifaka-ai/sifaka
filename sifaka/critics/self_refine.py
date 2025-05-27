@@ -17,8 +17,15 @@ https://arxiv.org/abs/2303.17651
       url={https://arxiv.org/abs/2303.17651},
 }
 
-The SelfRefineCritic implements a multi-round refinement process where the model
-critiques its own output and then revises it based on that critique.
+The SelfRefineCritic implements key Self-Refine concepts:
+1. Iterative refinement through self-feedback
+2. Multi-round critique and revision cycles
+3. Self-generated improvement suggestions
+4. Convergence detection for stopping criteria
+
+Note: This is a simplified implementation that captures core Self-Refine principles
+without the specialized training or the extensive evaluation across diverse tasks
+from the original paper.
 """
 
 import time

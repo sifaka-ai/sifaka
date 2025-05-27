@@ -17,8 +17,15 @@ https://arxiv.org/abs/2310.11511
       url={https://arxiv.org/abs/2310.11511},
 }
 
-The SelfRAGCritic uses retrieval-augmented generation with self-reflection tokens
-to provide comprehensive feedback and improve text quality.
+The SelfRAGCritic implements key Self-RAG concepts:
+1. Adaptive retrieval based on task requirements
+2. Self-reflection tokens for quality assessment
+3. Retrieval relevance and support evaluation
+4. Utility-based scoring for text quality
+
+Note: This is a simplified implementation that captures core Self-RAG principles
+without the specialized training on reflection tokens or the fine-tuned generator
+and critic models from the original paper.
 """
 
 import time

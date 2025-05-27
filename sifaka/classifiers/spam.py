@@ -173,7 +173,7 @@ class SpamClassifier(TextClassifier):
 
         try:
             if self.model is not None:
-                return self._classify_with_ml(text)  # type: ignore[unreachable]
+                return self._classify_with_ml(text)
             else:
                 return self._classify_with_rules(text)
 
@@ -195,7 +195,7 @@ class SpamClassifier(TextClassifier):
             )
 
         # Get prediction probabilities
-        probabilities = self.model.predict_proba([text])[0]  # type: ignore[unreachable]
+        probabilities = self.model.predict_proba([text])[0]
 
         # Get the predicted class (0 = ham, 1 = spam)
         predicted_class = self.model.predict([text])[0]

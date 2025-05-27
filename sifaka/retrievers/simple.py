@@ -91,6 +91,33 @@ class MockRetriever:
             f"{max_retries} max retries"
         )
 
+    def _calculate_relevance_score(self, query: str, text: str, rank: int) -> float:
+        """Calculate relevance score based on actual similarity.
+
+        Args:
+            query: The search query
+            text: The document text
+            rank: The rank position (0-based)
+
+        Returns:
+            A relevance score between 0.0 and 1.0
+        """
+        query_terms = set(query.lower().split())
+        doc_terms = set(text.lower().split())
+
+        if not query_terms:
+            return 0.0
+
+        # Jaccard similarity with rank penalty
+        intersection = len(query_terms.intersection(doc_terms))
+        union = len(query_terms.union(doc_terms))
+        jaccard = intersection / union if union > 0 else 0.0
+
+        # Apply rank penalty (top results get higher scores)
+        rank_penalty = 1.0 / (1.0 + rank * 0.1)
+
+        return jaccard * rank_penalty
+
     def retrieve(self, query: str) -> List[str]:
         """Retrieve relevant documents for a query.
 
@@ -133,8 +160,12 @@ class MockRetriever:
                     )
                     time.sleep(delay)
 
-        # Should not reach here, but return empty list as fallback
-        return []
+        # If all retries failed, raise the last exception
+        raise RetrieverError(
+            f"Retrieval failed after {self.max_retries} attempts",
+            component="MockRetriever",
+            operation="retrieval",
+        )
 
     def retrieve_for_thought(self, thought: Thought, is_pre_generation: bool = True) -> Thought:
         """Retrieve documents for a thought.
@@ -162,12 +193,12 @@ class MockRetriever:
             # Retrieve documents
             document_texts = self.retrieve(query)
 
-            # Convert to Document objects
+            # Convert to Document objects with proper relevance scoring
             documents = [
                 Document(
                     text=text,
                     metadata={"source": "mock", "query": query},
-                    score=1.0 - (i * 0.1),  # Mock scores
+                    score=self._calculate_relevance_score(query, text, i),
                 )
                 for i, text in enumerate(document_texts)
             ]
@@ -216,6 +247,33 @@ class InMemoryRetriever:
             f"Initialized InMemoryRetriever with {len(self.documents)} documents, "
             f"{max_retries} max retries"
         )
+
+    def _calculate_relevance_score(self, query: str, text: str, rank: int) -> float:
+        """Calculate relevance score based on actual similarity.
+
+        Args:
+            query: The search query
+            text: The document text
+            rank: The rank position (0-based)
+
+        Returns:
+            A relevance score between 0.0 and 1.0
+        """
+        query_terms = set(query.lower().split())
+        doc_terms = set(text.lower().split())
+
+        if not query_terms:
+            return 0.0
+
+        # Jaccard similarity with rank penalty
+        intersection = len(query_terms.intersection(doc_terms))
+        union = len(query_terms.union(doc_terms))
+        jaccard = intersection / union if union > 0 else 0.0
+
+        # Apply rank penalty (top results get higher scores)
+        rank_penalty = 1.0 / (1.0 + rank * 0.1)
+
+        return jaccard * rank_penalty
 
     def add_document(
         self,
@@ -290,8 +348,12 @@ class InMemoryRetriever:
                     )
                     time.sleep(delay)
 
-        # Should not reach here, but return empty list as fallback
-        return []
+        # If all retries failed, raise the last exception
+        raise RetrieverError(
+            f"Retrieval failed after {self.max_retries} attempts",
+            component="InMemoryRetriever",
+            operation="retrieval",
+        )
 
     def retrieve_for_thought(self, thought: Thought, is_pre_generation: bool = True) -> Thought:
         """Retrieve documents for a thought.
@@ -343,7 +405,7 @@ class InMemoryRetriever:
                     Document(
                         text=text,
                         metadata=doc_metadata,
-                        score=1.0 - (i * 0.1),  # Simple scoring based on rank
+                        score=self._calculate_relevance_score(query, text, i),
                     )
                 )
 

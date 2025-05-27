@@ -51,6 +51,13 @@ class Chain:
         max_improvement_iterations: int = 3,
         apply_improvers_on_validation_failure: bool = False,
         always_apply_critics: bool = False,
+        # Additional options that tests expect
+        max_iterations: Optional[int] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        top_p: Optional[float] = None,
+        retriever: Optional[Retriever] = None,  # For backward compatibility
+        **kwargs: Any,
     ):
         """Initialize the Chain with configuration.
 
@@ -64,7 +71,24 @@ class Chain:
             max_improvement_iterations: Maximum number of improvement iterations.
             apply_improvers_on_validation_failure: Whether to apply improvers when validation fails.
             always_apply_critics: Whether to always apply critics regardless of validation status.
+            max_iterations: Alternative name for max_improvement_iterations (for backward compatibility).
+            temperature: Temperature for text generation.
+            max_tokens: Maximum tokens for text generation.
+            top_p: Top-p for text generation.
+            retriever: Single retriever (for backward compatibility).
+            **kwargs: Additional options.
         """
+        # Handle backward compatibility for max_iterations
+        if max_iterations is not None:
+            max_improvement_iterations = max_iterations
+
+        # Handle backward compatibility for single retriever
+        if retriever is not None:
+            if model_retrievers is None:
+                model_retrievers = [retriever]
+            else:
+                model_retrievers = list(model_retrievers) + [retriever]
+
         # Create configuration
         self._config = ChainConfig(
             model=model,
@@ -77,6 +101,21 @@ class Chain:
             apply_improvers_on_validation_failure=apply_improvers_on_validation_failure,
             always_apply_critics=always_apply_critics,
         )
+
+        # Add additional options
+        additional_options = {}
+        if temperature is not None:
+            additional_options["temperature"] = temperature
+        if max_tokens is not None:
+            additional_options["max_tokens"] = max_tokens
+        if top_p is not None:
+            additional_options["top_p"] = top_p
+
+        # Add any other kwargs as options
+        additional_options.update(kwargs)
+
+        if additional_options:
+            self._config.update_options(**additional_options)
 
         # Create specialized components
         self._orchestrator = ChainOrchestrator(self._config)
@@ -140,10 +179,22 @@ class Chain:
             validator: The validator to check if the generated text meets requirements.
 
         Returns:
-            The chain instance for method chaining.
+            A new chain instance with the validator added.
         """
-        self._config.add_validator(validator)
-        return self
+        # Create a copy of the configuration
+        new_config = self._config.copy()
+        new_config.add_validator(validator)
+
+        # Create a new chain with the copied configuration
+        new_chain = Chain.__new__(Chain)
+        new_chain._config = new_config
+        new_chain._orchestrator = ChainOrchestrator(new_config)
+        new_chain._executor = ChainExecutor(new_config, new_chain._orchestrator)
+        new_chain._recovery_manager = (
+            RecoveryManager(new_config) if new_config.checkpoint_storage else None
+        )
+
+        return new_chain
 
     def improve_with(self, critic: Critic) -> "Chain":
         """Add a critic to the chain.
@@ -152,10 +203,22 @@ class Chain:
             critic: The critic to improve the generated text.
 
         Returns:
-            The chain instance for method chaining.
+            A new chain instance with the critic added.
         """
-        self._config.add_critic(critic)
-        return self
+        # Create a copy of the configuration
+        new_config = self._config.copy()
+        new_config.add_critic(critic)
+
+        # Create a new chain with the copied configuration
+        new_chain = Chain.__new__(Chain)
+        new_chain._config = new_config
+        new_chain._orchestrator = ChainOrchestrator(new_config)
+        new_chain._executor = ChainExecutor(new_config, new_chain._orchestrator)
+        new_chain._recovery_manager = (
+            RecoveryManager(new_config) if new_config.checkpoint_storage else None
+        )
+
+        return new_chain
 
     def with_options(self, **options: Any) -> "Chain":
         """Set options for the chain.
@@ -164,10 +227,28 @@ class Chain:
             **options: Options to set for the chain.
 
         Returns:
-            The chain instance for method chaining.
+            A new chain instance with the options updated.
         """
-        self._config.update_options(**options)
-        return self
+        # Create a copy of the configuration
+        new_config = self._config.copy()
+        new_config.update_options(**options)
+
+        # Create a new chain with the copied configuration
+        new_chain = Chain.__new__(Chain)
+        new_chain._config = new_config
+        new_chain._orchestrator = ChainOrchestrator(new_config)
+        new_chain._executor = ChainExecutor(new_config, new_chain._orchestrator)
+        new_chain._recovery_manager = (
+            RecoveryManager(new_config) if new_config.checkpoint_storage else None
+        )
+
+        return new_chain
+
+    # Properties for backward compatibility
+    @property
+    def config(self) -> "ChainConfig":
+        """Get the chain configuration for backward compatibility."""
+        return self._config
 
     # Execution methods
 
@@ -194,16 +275,25 @@ class Chain:
         # Check if we're already in an async context
         try:
             # Try to get the current event loop
-            asyncio.get_running_loop()
-            # If we get here, we're in an async context, so we need to run in a thread
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, self._run_async())
-                return future.result()
+            loop = asyncio.get_running_loop()
+            # If we get here, we're in an async context, run in thread pool
+            return asyncio.run_coroutine_threadsafe(self._run_async(), loop).result()
         except RuntimeError:
             # No running event loop, safe to use asyncio.run()
             return asyncio.run(self._run_async())
+
+    async def run_async(self) -> Thought:
+        """Execute the chain asynchronously (public async API).
+
+        This method provides a public async interface for chain execution.
+
+        Returns:
+            A Thought object containing the final text and all results.
+
+        Raises:
+            ChainError: If the chain is not properly configured or execution fails.
+        """
+        return await self._run_async()
 
     async def _run_async(self) -> Thought:
         """Execute the chain asynchronously and return the result.
@@ -236,14 +326,21 @@ class Chain:
             # Generate text (async)
             thought = await self._execute_generation_async(thought)
 
+            # Increment iteration after first generation
+            thought = thought.model_copy(update={"iteration": thought.iteration + 1})
+
             # Post-generation retrieval
             thought = self._orchestrator.orchestrate_retrieval(thought, "post_generation")
 
             # Validation (async with concurrent validators)
             thought, validation_passed = await self._executor._execute_validation_async(thought)
 
-            # Improvement loop (async with concurrent critics)
-            thought = await self._execute_improvement_loop_async(thought, validation_passed)
+            # Retry loop for validation failures (without critics)
+            if not validation_passed and not self._config.critics:
+                thought = await self._execute_retry_loop_async(thought)
+            else:
+                # Improvement loop (async with concurrent critics)
+                thought = await self._execute_improvement_loop_async(thought, validation_passed)
 
             # Save final thought
             await self._executor._save_thought_to_storage_async(thought)
@@ -298,6 +395,44 @@ class Chain:
                 break
 
         logger.debug(f"Completed async improvement loop after {current_iteration} iterations")
+        return thought
+
+    async def _execute_retry_loop_async(self, thought: Thought) -> Thought:
+        """Execute retry loop for validation failures without critics."""
+        max_iterations = self._orchestrator.get_max_iterations()
+        current_iteration = thought.iteration
+
+        logger.debug(
+            f"Starting retry loop for validation failure (max {max_iterations} iterations)"
+        )
+
+        while current_iteration < max_iterations:
+            current_iteration += 1
+            logger.debug(f"Retry iteration {current_iteration}/{max_iterations}")
+
+            # Create next iteration for retry
+            thought = thought.model_copy(update={"iteration": current_iteration})
+
+            # Apply pre-generation retrieval for the retry
+            thought = self._orchestrator.orchestrate_retrieval(thought, "pre_generation")
+
+            # Generate text again
+            thought = await self._execute_generation_async(thought)
+
+            # Apply post-generation retrieval
+            thought = self._orchestrator.orchestrate_retrieval(thought, "post_generation")
+
+            # Re-validate
+            thought, validation_passed = await self._executor._execute_validation_async(thought)
+
+            # If validation passes, we can stop retrying
+            if validation_passed:
+                logger.debug(
+                    f"Validation passed after retry iteration {current_iteration}, stopping retry loop"
+                )
+                break
+
+        logger.debug(f"Completed retry loop after {current_iteration} iterations")
         return thought
 
     async def _execute_improvement_iteration_async(self, thought: Thought) -> Thought:
@@ -440,3 +575,55 @@ class Chain:
     def chain_id(self) -> str:
         """Get the chain ID."""
         return self._config.chain_id
+
+    @property
+    def model(self) -> Optional[Model]:
+        """Get the model."""
+        return self._config.model
+
+    @property
+    def prompt(self) -> Optional[str]:
+        """Get the prompt."""
+        return self._config.prompt
+
+    @property
+    def validators(self) -> List[Validator]:
+        """Get the list of validators."""
+        return self._config.validators
+
+    @property
+    def critics(self) -> List[Critic]:
+        """Get the list of critics."""
+        return self._config.critics
+
+    @property
+    def storage(self) -> Storage:
+        """Get the storage."""
+        return self._config.storage
+
+    @property
+    def max_iterations(self) -> int:
+        """Get the maximum improvement iterations."""
+        return self._config.get_option("max_improvement_iterations", 3)
+
+    @property
+    def temperature(self) -> Optional[float]:
+        """Get the temperature option."""
+        return self._config.get_option("temperature")
+
+    @property
+    def max_tokens(self) -> Optional[int]:
+        """Get the max_tokens option."""
+        return self._config.get_option("max_tokens")
+
+    @property
+    def top_p(self) -> Optional[float]:
+        """Get the top_p option."""
+        return self._config.get_option("top_p")
+
+    @property
+    def retriever(self) -> Optional[Retriever]:
+        """Get the first model retriever (for backward compatibility)."""
+        if self._config.model_retrievers:
+            return self._config.model_retrievers[0]
+        return None

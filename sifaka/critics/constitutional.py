@@ -17,8 +17,15 @@ https://arxiv.org/abs/2212.08073
       url={https://arxiv.org/abs/2212.08073},
 }
 
-The ConstitutionalCritic evaluates text against a set of predefined principles
-and provides detailed feedback on principle violations.
+The ConstitutionalCritic implements key Constitutional AI concepts:
+1. Principle-based evaluation against a written constitution
+2. Natural language feedback on principle violations
+3. Iterative improvement through constitutional critique
+4. Harmlessness assessment through AI feedback
+
+Note: This is a simplified implementation that captures core Constitutional AI principles
+without the full two-phase training architecture (supervised learning + reinforcement learning)
+or the self-critique and revision training process from the original paper.
 """
 
 import json

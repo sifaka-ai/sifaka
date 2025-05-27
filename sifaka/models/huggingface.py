@@ -94,6 +94,43 @@ class HuggingFaceModelLoader:
         self._model_cache: Dict[str, Dict[str, Any]] = {}
         self._max_cached_models = max_cached_models
 
+    def _generate_cache_key(
+        self, model_name: str, device: str, quantization: Optional[str], **kwargs: Any
+    ) -> str:
+        """Generate a stable cache key for model caching.
+
+        Args:
+            model_name: Name of the model
+            device: Device to load on
+            quantization: Quantization type
+            **kwargs: Additional model loading options
+
+        Returns:
+            A stable cache key string
+        """
+        import hashlib
+        import json
+
+        # Filter kwargs to only include serializable values
+        serializable_kwargs = {
+            k: v
+            for k, v in sorted(kwargs.items())
+            if isinstance(v, (str, int, float, bool, type(None)))
+        }
+
+        key_data = {
+            "model_name": model_name,
+            "device": device,
+            "quantization": quantization,
+            "kwargs": serializable_kwargs,
+        }
+
+        # Create stable JSON representation
+        key_str = json.dumps(key_data, sort_keys=True)
+
+        # Use MD5 hash for shorter cache keys
+        return hashlib.md5(key_str.encode()).hexdigest()
+
     def _detect_device(self, device: str = "auto") -> str:
         """Detect the best available device for model inference.
 
@@ -247,7 +284,7 @@ class HuggingFaceModelLoader:
             Tuple of (model, tokenizer)
         """
         # Generate cache key
-        cache_key = f"{model_name}:{device}:{quantization}:{hash(str(sorted(kwargs.items())))}"
+        cache_key = self._generate_cache_key(model_name, device, quantization, **kwargs)
 
         # Check if model is already cached
         if cache_key in self._model_cache:
@@ -426,7 +463,7 @@ class HuggingFaceModel(BaseModelImplementation):
         if self.use_inference_api:
             return  # Not needed for API mode
 
-        if self.model is None or self.tokenizer is None:  # type: ignore[unreachable]
+        if self.model is None or self.tokenizer is None:
             if self.loader is None:
                 raise ModelError("Model loader not initialized for local inference")
             self.model, self.tokenizer = self.loader.load_model(
@@ -485,11 +522,11 @@ class HuggingFaceModel(BaseModelImplementation):
 
     def _generate_causal(self, prompt: str, **options: Any) -> str:
         """Generate text using causal language model."""
-        if self.tokenizer is None or self.model is None:  # type: ignore[unreachable]
+        if self.tokenizer is None or self.model is None:
             raise ModelError("Model and tokenizer must be loaded for local inference")
 
         # Tokenize input
-        inputs = self.tokenizer.encode(prompt, return_tensors="pt")  # type: ignore[unreachable]
+        inputs = self.tokenizer.encode(prompt, return_tensors="pt")
 
         # Move to same device as model
         if hasattr(self.model, "device"):
@@ -523,11 +560,11 @@ class HuggingFaceModel(BaseModelImplementation):
 
     def _generate_seq2seq(self, prompt: str, **options: Any) -> str:
         """Generate text using sequence-to-sequence model."""
-        if self.tokenizer is None or self.model is None:  # type: ignore[unreachable]
+        if self.tokenizer is None or self.model is None:
             raise ModelError("Model and tokenizer must be loaded for local inference")
 
         # Tokenize input
-        inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)  # type: ignore[unreachable]
+        inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
 
         # Move to same device as model
         if hasattr(self.model, "device"):
@@ -602,7 +639,7 @@ class HuggingFaceModel(BaseModelImplementation):
                 self._ensure_local_model_loaded()
                 if self.tokenizer is None:
                     raise ModelError("Tokenizer not loaded for token counting")
-                tokens = self.tokenizer.encode(text)  # type: ignore[unreachable]
+                tokens = self.tokenizer.encode(text)
                 return len(tokens)
 
         except Exception as e:

@@ -172,7 +172,7 @@ class SentimentClassifier(TextClassifier):
                 operation="textblob_classification",
             )
 
-        try:  # type: ignore[unreachable]
+        try:
             blob = self.textblob.TextBlob(text)
             polarity = blob.sentiment.polarity  # Range: -1 (negative) to 1 (positive)
             subjectivity = blob.sentiment.subjectivity  # Range: 0 (objective) to 1 (subjective)
@@ -288,7 +288,7 @@ class CachedSentimentClassifier(CachedTextClassifier):
 
         try:
             if self.textblob is not None:
-                return self._classify_with_textblob(text)  # type: ignore[unreachable]
+                return self._classify_with_textblob(text)
             else:
                 return self._classify_with_lexicon(text)
         except Exception as e:
@@ -308,7 +308,7 @@ class CachedSentimentClassifier(CachedTextClassifier):
                 operation="textblob_classification",
             )
 
-        try:  # type: ignore[unreachable]
+        try:
             blob = self.textblob.TextBlob(text)
             polarity = blob.sentiment.polarity
             subjectivity = blob.sentiment.subjectivity

@@ -23,6 +23,7 @@ class ValidationResult(BaseModel):
     score: Optional[float] = None
     issues: Optional[List[str]] = None
     suggestions: Optional[List[str]] = None
+    validator_name: Optional[str] = None  # Add validator_name for backward compatibility
 
 
 class CriticFeedback(BaseModel):
@@ -54,6 +55,7 @@ class Thought(BaseModel):
     text: Optional[str] = None
     system_prompt: Optional[str] = None
     model_prompt: Optional[str] = None
+    model_name: Optional[str] = None  # Add model_name for backward compatibility
     pre_generation_context: Optional[List[Document]] = None
     post_generation_context: Optional[List[Document]] = None
     validation_results: Optional[Dict[str, ValidationResult]] = None
@@ -110,10 +112,29 @@ class Thought(BaseModel):
         current_context = self.post_generation_context or []
         return self.model_copy(update={"post_generation_context": current_context + documents})
 
-    def add_validation_result(self, name: str, result: ValidationResult) -> "Thought":
-        """Add a validation result to this thought."""
+    def add_validation_result(self, name_or_result, result=None) -> "Thought":
+        """Add a validation result to this thought.
+
+        Args:
+            name_or_result: Either the name (str) or the ValidationResult object
+            result: The ValidationResult object (if name_or_result is a string)
+
+        Returns:
+            A new Thought with the validation result added.
+        """
+        if isinstance(name_or_result, str) and result is not None:
+            # Old signature: add_validation_result(name, result)
+            name = name_or_result
+            validation_result = result
+        elif isinstance(name_or_result, ValidationResult) and result is None:
+            # New signature: add_validation_result(result)
+            validation_result = name_or_result
+            name = validation_result.validator_name or "unknown_validator"
+        else:
+            raise ValueError("Invalid arguments to add_validation_result")
+
         results = dict(self.validation_results or {})
-        results[name] = result
+        results[name] = validation_result
         return self.model_copy(update={"validation_results": results})
 
     def add_critic_feedback(self, feedback: CriticFeedback) -> "Thought":
@@ -132,7 +153,13 @@ class Thought(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert the Thought to a dictionary."""
-        return self.model_dump(exclude={"history"})
+        data = self.model_dump(exclude={"history"})
+
+        # Convert datetime to string for JSON serialization
+        if data.get("timestamp") and hasattr(data["timestamp"], "isoformat"):
+            data["timestamp"] = data["timestamp"].isoformat()
+
+        return data
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Thought":
@@ -141,4 +168,25 @@ class Thought(BaseModel):
         if version != "1.0.0":
             # Handle version differences if needed
             pass
+
+        # Handle timestamp parsing
+        if "timestamp" in data and isinstance(data["timestamp"], str):
+            from datetime import datetime
+
+            try:
+                data["timestamp"] = datetime.fromisoformat(data["timestamp"])
+            except ValueError:
+                # If parsing fails, use current time
+                data["timestamp"] = datetime.now()
+
+        # Handle validation_results format conversion
+        if "validation_results" in data and isinstance(data["validation_results"], list):
+            # Convert list format to dict format
+            validation_dict = {}
+            for result_data in data["validation_results"]:
+                if isinstance(result_data, dict):
+                    validator_name = result_data.get("validator_name", "unknown_validator")
+                    validation_dict[validator_name] = ValidationResult(**result_data)
+            data["validation_results"] = validation_dict
+
         return cls.model_validate(data)

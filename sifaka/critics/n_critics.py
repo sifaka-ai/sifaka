@@ -17,8 +17,15 @@ https://arxiv.org/abs/2310.18679
       url={https://arxiv.org/abs/2310.18679},
 }
 
-The NCriticsCritic leverages multiple specialized critics, each focusing on different
-aspects of the text, to provide comprehensive feedback.
+The NCriticsCritic implements key N-Critics concepts:
+1. Ensemble of specialized critics with different roles
+2. Parallel critique generation for comprehensive feedback
+3. Score-based aggregation and consensus building
+4. Multi-perspective text evaluation and improvement
+
+Note: This is a simplified implementation that captures core N-Critics principles
+without the specialized training or the extensive role-specific fine-tuning
+from the original paper.
 """
 
 import asyncio
