@@ -281,7 +281,9 @@ class TestThoughtSerialization:
 
         assert thought.validation_results is not None
         assert len(thought.validation_results) == 1
-        assert thought.validation_results[0].passed is True
+        # validation_results is a dict, get the first validator result
+        validator_result = list(thought.validation_results.values())[0]
+        assert validator_result.passed is True
 
     def test_serialization_roundtrip(self):
         """Test that serialization roundtrip preserves data."""
@@ -296,13 +298,13 @@ class TestThoughtSerialization:
         result = ValidationResult(
             passed=True, message="Validation passed", validator_name="test_validator"
         )
-        original.add_validation_result(result)
+        original = original.add_validation_result(result)
 
         # Add critic feedback
         feedback = CriticFeedback(
             critic_name="test_critic", feedback="Good work", needs_improvement=False, confidence=0.9
         )
-        original.add_critic_feedback(feedback)
+        original = original.add_critic_feedback(feedback)
 
         # Serialize and deserialize
         data = original.to_dict()
@@ -314,8 +316,8 @@ class TestThoughtSerialization:
         assert restored.text == original.text
         assert restored.model_name == original.model_name
         assert restored.metadata == original.metadata
-        assert len(restored.validation_results) == len(original.validation_results)
-        assert len(restored.critic_feedback) == len(original.critic_feedback)
+        assert len(restored.validation_results or {}) == len(original.validation_results or {})
+        assert len(restored.critic_feedback or []) == len(original.critic_feedback or [])
 
     def test_json_serialization(self):
         """Test JSON serialization compatibility."""

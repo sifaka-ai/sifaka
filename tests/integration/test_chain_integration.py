@@ -35,7 +35,9 @@ class TestBasicChainIntegration:
 
         assert result.validation_results is not None
         assert len(result.validation_results) == 1
-        assert result.validation_results[0].passed is True
+        # validation_results is a dict, get the first validator result
+        validator_result = list(result.validation_results.values())[0]
+        assert validator_result.passed is True
 
     def test_chain_with_single_critic(self, mock_model):
         """Test Chain with a single critic."""
@@ -69,7 +71,7 @@ class TestBasicChainIntegration:
         assert result.validation_results is not None
         assert len(result.validation_results) == 3
         # All validations should pass
-        assert all(vr.passed for vr in result.validation_results)
+        assert all(vr.passed for vr in result.validation_results.values())
 
     def test_chain_with_validation_failure(self, mock_model):
         """Test Chain behavior with validation failure."""
@@ -90,7 +92,7 @@ class TestBasicChainIntegration:
         assert result.validation_results is not None
         assert len(result.validation_results) == 2
         # At least one validation should fail
-        assert not all(vr.passed for vr in result.validation_results)
+        assert not all(vr.passed for vr in result.validation_results.values())
 
     def test_chain_with_multiple_critics(self, mock_model):
         """Test Chain with multiple critics."""
@@ -305,7 +307,7 @@ class TestChainConfigurationIntegration:
     def test_chain_configuration_inheritance(self, mock_model):
         """Test that chain configuration is properly inherited."""
         original_chain = Chain(
-            model=mock_model, prompt="Original prompt", max_retries=5, always_apply_critics=True
+            model=mock_model, prompt="Original prompt", always_apply_critics=True, max_retries=5
         )
 
         validator = LengthValidator(min_length=10, max_length=100)

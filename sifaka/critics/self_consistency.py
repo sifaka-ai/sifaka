@@ -1,7 +1,7 @@
 """Self-Consistency critic for Sifaka.
 
 This module implements a Self-Consistency approach for text critique and improvement,
-where multiple critiques are generated for the same text and consensus is used to
+where multiple critiques are generated for the same text and majority voting is used to
 determine the most reliable feedback.
 
 Based on "Self-Consistency Improves Chain of Thought Reasoning in Language Models":
@@ -17,19 +17,14 @@ https://arxiv.org/abs/2203.11171
       url={https://arxiv.org/abs/2203.11171},
 }
 
-The SelfConsistencyCritic implements key Self-Consistency concepts:
-1. Multiple critique generation for the same text
-2. Chain-of-thought reasoning in each critique
-3. Consensus-based aggregation of feedback
-4. Confidence scoring based on agreement level
-5. Majority voting for final recommendations
-6. Learning from consistency patterns and reliability prediction (enhanced)
-7. Adaptive consensus mechanisms based on task types and past performance (enhanced)
+The SelfConsistencyCritic implements the core Self-Consistency algorithm:
+1. Multiple critique generation for the same text using chain-of-thought reasoning
+2. Majority voting to select the most consistent feedback
+3. Confidence scoring based on agreement level
 
-Note: This is an adaptation of the Self-Consistency approach from the original paper
-with enhanced learning capabilities through integration with the Sifaka thoughts system.
-The critic learns when consensus is reliable vs. unreliable and adapts its approach
-based on past consistency patterns for different types of tasks.
+Note: This implementation follows the original Self-Consistency paper closely,
+using simple majority voting over multiple reasoning paths without additional
+learning mechanisms that were not part of the original research.
 """
 
 import asyncio
@@ -59,12 +54,8 @@ class SelfConsistencyCritic(BaseCritic):
         self,
         model: Optional[Model] = None,
         model_name: Optional[str] = None,
-        base_critic: Optional[BaseCritic] = None,
         num_iterations: int = 5,
-        consensus_threshold: float = 0.6,
-        aggregation_method: str = "majority_vote",
         use_chain_of_thought: bool = True,
-        similarity_threshold: float = 0.7,
         critique_prompt_template: Optional[str] = None,
         improve_prompt_template: Optional[str] = None,
         **model_kwargs: Any,
@@ -74,27 +65,17 @@ class SelfConsistencyCritic(BaseCritic):
         Args:
             model: The language model to use for critique and improvement.
             model_name: The name of the model to use if model is not provided.
-            base_critic: Optional base critic to use for generating individual critiques.
             num_iterations: Number of critique iterations to generate (default: 5).
-            consensus_threshold: Minimum agreement ratio for high confidence (default: 0.6).
-            aggregation_method: Method for aggregating critiques ("majority_vote", "weighted").
             use_chain_of_thought: Whether to use chain-of-thought prompting.
-            similarity_threshold: Threshold for considering issues/suggestions similar.
             critique_prompt_template: Template for the critique prompt.
             improve_prompt_template: Template for the improvement prompt.
             **model_kwargs: Additional keyword arguments for model creation.
         """
         super().__init__(model=model, model_name=model_name, **model_kwargs)
 
-        # Set up base critic (if provided) or use self-critique
-        self.base_critic = base_critic
-
         # Configuration parameters
         self.num_iterations = max(3, num_iterations)  # Minimum 3 for meaningful consensus
-        self.consensus_threshold = max(0.5, min(1.0, consensus_threshold))
-        self.aggregation_method = aggregation_method
         self.use_chain_of_thought = use_chain_of_thought
-        self.similarity_threshold = similarity_threshold
 
         # Set up prompt templates
         self.critique_prompt_template = (
@@ -150,38 +131,22 @@ class SelfConsistencyCritic(BaseCritic):
         Returns:
             A dictionary with critique results (without processing_time_ms).
         """
-        # Extract learning context from thought for enhanced consistency evaluation
-        learning_context = self._extract_consistency_learning_context(thought)
+        # Generate multiple critiques following original Self-Consistency algorithm
+        critiques = await self._generate_multiple_critiques_async(thought)
 
-        # Generate multiple critiques with learning-informed approach
-        critiques = await self._generate_multiple_critiques_with_learning_async(
-            thought, learning_context
-        )
+        # Aggregate critiques using majority voting
+        aggregated_result = self._aggregate_critiques(critiques)
 
-        # Aggregate critiques using enhanced consensus with learning
-        aggregated_result = self._aggregate_critiques_with_learning(critiques, learning_context)
+        # Calculate confidence based on agreement
+        confidence = self._calculate_confidence(critiques, aggregated_result)
 
-        # Calculate confidence based on agreement and learned patterns
-        confidence = self._calculate_confidence_with_learning(
-            critiques, aggregated_result, learning_context
-        )
-
-        # Determine if improvement is needed based on consensus and learning
-        needs_improvement = self._determine_improvement_need_with_learning(
-            critiques, aggregated_result, learning_context
-        )
+        # Determine if improvement is needed based on majority vote
+        needs_improvement = self._determine_improvement_need(critiques, aggregated_result)
 
         # Create comprehensive feedback message
         combined_message = self._format_consensus_message(critiques, aggregated_result, confidence)
 
-        # Store consistency learning outcomes for future evaluations
-        self._store_consistency_outcomes(
-            thought, learning_context, critiques, aggregated_result, confidence
-        )
-
-        logger.debug(
-            f"SelfConsistencyCritic: Completed {len(critiques)} critique iterations with learning integration"
-        )
+        logger.debug(f"SelfConsistencyCritic: Completed {len(critiques)} critique iterations")
 
         return {
             "needs_improvement": needs_improvement,
@@ -191,15 +156,9 @@ class SelfConsistencyCritic(BaseCritic):
             "confidence": confidence,
             "metadata": {
                 "num_iterations": len(critiques),
-                "consensus_threshold": self.consensus_threshold,
-                "aggregation_method": self.aggregation_method,
                 "individual_critiques": critiques,
                 "consensus_stats": aggregated_result["stats"],
-                "base_critic_used": self.base_critic is not None,
                 "use_chain_of_thought": self.use_chain_of_thought,
-                "learning_applied": bool(learning_context.get("consistency_patterns")),
-                "task_type": learning_context.get("task_type", "general"),
-                "predicted_reliability": learning_context.get("predicted_reliability", 0.5),
             },
         }
 
@@ -212,37 +171,23 @@ class SelfConsistencyCritic(BaseCritic):
         Returns:
             List of critique results from multiple iterations.
         """
+        # Generate critiques using our own model (following original Self-Consistency)
+        tasks = [self._generate_single_critique_async(thought) for _ in range(self.num_iterations)]
+        critique_results = await asyncio.gather(*tasks, return_exceptions=True)
+
         critiques = []
-
-        if self.base_critic:
-            # Use base critic for multiple iterations
-            tasks = [self.base_critic._critique_async(thought) for _ in range(self.num_iterations)]
-            critique_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            for i, result in enumerate(critique_results):
-                if isinstance(result, Exception):
-                    logger.warning(f"Critique iteration {i+1} failed: {result}")
-                    continue
-                critiques.append(result)
-        else:
-            # Generate critiques using our own model
-            tasks = [
-                self._generate_single_critique_async(thought) for _ in range(self.num_iterations)
-            ]
-            critique_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            for i, result in enumerate(critique_results):
-                if isinstance(result, Exception):
-                    logger.warning(f"Critique iteration {i+1} failed: {result}")
-                    continue
-                critiques.append(result)
+        for i, result in enumerate(critique_results):
+            if isinstance(result, Exception):
+                logger.warning(f"Critique iteration {i+1} failed: {result}")
+                continue
+            critiques.append(result)
 
         if not critiques:
             raise ImproverError(
                 message="All critique iterations failed",
                 component="SelfConsistencyCritic",
                 operation="generate_multiple_critiques",
-                suggestions=["Check model availability", "Verify base critic configuration"],
+                suggestions=["Check model availability"],
             )
 
         logger.debug(
@@ -378,13 +323,13 @@ class SelfConsistencyCritic(BaseCritic):
         }
 
     def _aggregate_critiques(self, critiques: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Aggregate multiple critiques using consensus-based approach.
+        """Aggregate multiple critiques using majority voting (original Self-Consistency).
 
         Args:
             critiques: List of individual critique results.
 
         Returns:
-            Aggregated critique result with consensus information.
+            Aggregated critique result with majority vote information.
         """
         if not critiques:
             return {
@@ -403,9 +348,9 @@ class SelfConsistencyCritic(BaseCritic):
             all_suggestions.extend(critique.get("suggestions", []))
             improvement_votes.append(critique.get("needs_improvement", False))
 
-        # Find consensus items using similarity-based grouping
-        consensus_issues = self._find_consensus_items(all_issues)
-        consensus_suggestions = self._find_consensus_items(all_suggestions)
+        # Find majority consensus items using simple frequency counting
+        consensus_issues = self._find_majority_items(all_issues)
+        consensus_suggestions = self._find_majority_items(all_suggestions)
 
         # Calculate statistics
         total_critiques = len(critiques)
@@ -424,28 +369,28 @@ class SelfConsistencyCritic(BaseCritic):
             },
         }
 
-    def _find_consensus_items(self, items: List[str]) -> List[Dict[str, Any]]:
-        """Find consensus items from a list using frequency and similarity.
+    def _find_majority_items(self, items: List[str]) -> List[Dict[str, Any]]:
+        """Find majority items from a list using frequency counting.
 
         Args:
             items: List of issues or suggestions.
 
         Returns:
-            List of consensus items with frequency information.
+            List of majority items with frequency information.
         """
         if not items:
             return []
 
-        # Simple frequency-based consensus (can be enhanced with semantic similarity)
+        # Simple frequency-based majority voting (original Self-Consistency approach)
         item_counts = Counter(items)
-        consensus_items = []
+        majority_items = []
 
-        # Items that appear in multiple critiques
-        min_frequency = max(2, int(self.num_iterations * self.consensus_threshold))
+        # Items that appear in majority of critiques (more than half)
+        min_frequency = max(2, (self.num_iterations + 1) // 2)
 
         for item, count in item_counts.items():
             if count >= min_frequency:
-                consensus_items.append(
+                majority_items.append(
                     {
                         "text": item,
                         "frequency": count,
@@ -454,9 +399,9 @@ class SelfConsistencyCritic(BaseCritic):
                 )
 
         # Sort by frequency (most common first)
-        consensus_items.sort(key=lambda x: x["frequency"], reverse=True)
+        majority_items.sort(key=lambda x: x["frequency"], reverse=True)
 
-        return consensus_items
+        return majority_items
 
     def _calculate_confidence(
         self, critiques: List[Dict[str, Any]], aggregated_result: Dict[str, Any]
@@ -499,34 +444,24 @@ class SelfConsistencyCritic(BaseCritic):
     def _determine_improvement_need(
         self, critiques: List[Dict[str, Any]], aggregated_result: Dict[str, Any]
     ) -> bool:
-        """Determine if improvement is needed based on consensus.
+        """Determine if improvement is needed based on majority vote.
 
         Args:
             critiques: List of individual critique results.
             aggregated_result: Aggregated critique result.
 
         Returns:
-            True if improvement is needed based on consensus.
+            True if improvement is needed based on majority vote.
         """
         if not critiques:
             return False
 
-        # Check majority vote for improvement need
+        # Simple majority vote for improvement need (original Self-Consistency)
         improvement_votes = aggregated_result["improvement_votes"]
         improvement_ratio = sum(improvement_votes) / len(improvement_votes)
 
-        # Need improvement if majority agrees
-        if improvement_ratio >= self.consensus_threshold:
-            return True
-
-        # Also check if we have consensus issues/suggestions
-        consensus_items = len(aggregated_result["consensus_issues"]) + len(
-            aggregated_result["consensus_suggestions"]
-        )
-        if consensus_items > 0:
-            return True
-
-        return False
+        # Need improvement if majority agrees (more than half)
+        return improvement_ratio > 0.5
 
     def _format_consensus_message(
         self, critiques: List[Dict[str, Any]], aggregated_result: Dict[str, Any], confidence: float
@@ -547,7 +482,7 @@ class SelfConsistencyCritic(BaseCritic):
 
         message = f"=== Self-Consistency Evaluation ({num_critiques} iterations) ===\n\n"
         message += f"Confidence Level: {confidence:.1%}\n"
-        message += f"Agreement Threshold: {self.consensus_threshold:.1%}\n\n"
+        message += f"Majority Threshold: >50% (original Self-Consistency)\n\n"
 
         if consensus_issues:
             message += "CONSENSUS ISSUES (found in multiple evaluations):\n"
@@ -686,421 +621,3 @@ class SelfConsistencyCritic(BaseCritic):
             logger.debug(f"SelfConsistencyCritic: Improvement completed in {processing_time:.2f}ms")
 
             return improved_text.strip()
-
-    def _extract_consistency_learning_context(self, thought: Thought) -> Dict[str, Any]:
-        """Extract learning context from thought for enhanced consistency evaluation.
-
-        Args:
-            thought: The Thought to extract learning context from.
-
-        Returns:
-            Dictionary with consistency learning context.
-        """
-        learning_context = {
-            "consistency_sessions": 0,
-            "reliable_consensus": [],
-            "unreliable_consensus": [],
-            "consistency_patterns": {},
-            "task_type": self._classify_consistency_task_type(thought.prompt),
-            "predicted_reliability": 0.5,
-        }
-
-        # Extract from thought metadata
-        if thought.metadata:
-            consistency_data = thought.metadata.get("self_consistency_memory", {})
-            if consistency_data:
-                learning_context["consistency_sessions"] = len(consistency_data.get("sessions", []))
-                learning_context["reliable_consensus"] = consistency_data.get(
-                    "reliable_consensus", []
-                )[
-                    -10:
-                ]  # Last 10
-                learning_context["unreliable_consensus"] = consistency_data.get(
-                    "unreliable_consensus", []
-                )[
-                    -10:
-                ]  # Last 10
-                learning_context["consistency_patterns"] = consistency_data.get(
-                    "consistency_patterns", {}
-                )
-
-        # Extract from thought history
-        if thought.history:
-            learning_context["previous_attempts"] = len(thought.history)
-
-        # Extract from critic feedback history
-        if thought.critic_feedback:
-            consistency_feedback = [
-                f for f in thought.critic_feedback if f.critic_name == "SelfConsistencyCritic"
-            ]
-            if consistency_feedback:
-                learning_context["previous_feedback_count"] = len(consistency_feedback)
-                # Analyze consistency reliability from previous feedback
-                reliable_count = 0
-                total_count = 0
-                for feedback in consistency_feedback[-5:]:  # Last 5 feedback instances
-                    if feedback.metadata:
-                        confidence = feedback.metadata.get("confidence", 0.5)
-                        consensus_stats = feedback.metadata.get("consensus_stats", {})
-                        agreement_ratio = consensus_stats.get("agreement_ratio", 0.5)
-
-                        total_count += 1
-                        if confidence > 0.7 and agreement_ratio > 0.6:
-                            reliable_count += 1
-                            learning_context["reliable_consensus"].append(
-                                {
-                                    "task_type": learning_context["task_type"],
-                                    "confidence": confidence,
-                                    "agreement_ratio": agreement_ratio,
-                                }
-                            )
-                        elif confidence < 0.4 or agreement_ratio < 0.3:
-                            learning_context["unreliable_consensus"].append(
-                                {
-                                    "task_type": learning_context["task_type"],
-                                    "confidence": confidence,
-                                    "agreement_ratio": agreement_ratio,
-                                }
-                            )
-
-                # Predict reliability for this task type
-                if total_count > 0:
-                    learning_context["predicted_reliability"] = reliable_count / total_count
-
-        return learning_context
-
-    def _classify_consistency_task_type(self, prompt: str) -> str:
-        """Classify the task type for consistency learning purposes.
-
-        Args:
-            prompt: The task prompt to classify.
-
-        Returns:
-            String representing the consistency task type.
-        """
-        prompt_lower = prompt.lower()
-
-        # Tasks where consistency is typically high/low
-        if any(word in prompt_lower for word in ["objective", "fact", "data", "statistic"]):
-            return "objective"
-        elif any(
-            word in prompt_lower for word in ["subjective", "opinion", "creative", "artistic"]
-        ):
-            return "subjective"
-        elif any(
-            word in prompt_lower for word in ["technical", "code", "programming", "specification"]
-        ):
-            return "technical"
-        elif any(word in prompt_lower for word in ["analysis", "evaluate", "assess", "critique"]):
-            return "analytical"
-        elif any(word in prompt_lower for word in ["summary", "summarize", "brief", "overview"]):
-            return "summary"
-        elif any(word in prompt_lower for word in ["explain", "describe", "define", "what is"]):
-            return "explanatory"
-        elif any(word in prompt_lower for word in ["compare", "contrast", "versus", "vs"]):
-            return "comparative"
-        else:
-            return "general"
-
-    async def _generate_multiple_critiques_with_learning_async(
-        self, thought: Thought, learning_context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """Generate multiple critiques with learning-informed approach.
-
-        Args:
-            thought: The Thought container with the text to critique.
-            learning_context: Learning context from past consistency evaluations.
-
-        Returns:
-            List of critique results from multiple iterations.
-        """
-        # Adjust number of iterations based on predicted reliability
-        predicted_reliability = learning_context.get("predicted_reliability", 0.5)
-        task_type = learning_context.get("task_type", "general")
-
-        # Adaptive iteration count based on learning
-        if predicted_reliability > 0.8:
-            # High reliability expected, fewer iterations needed
-            adaptive_iterations = max(3, self.num_iterations - 1)
-            logger.debug(
-                f"High reliability predicted for {task_type}, using {adaptive_iterations} iterations"
-            )
-        elif predicted_reliability < 0.3:
-            # Low reliability expected, more iterations needed
-            adaptive_iterations = min(10, self.num_iterations + 2)
-            logger.debug(
-                f"Low reliability predicted for {task_type}, using {adaptive_iterations} iterations"
-            )
-        else:
-            adaptive_iterations = self.num_iterations
-
-        # Use the original method with adaptive iteration count
-        original_iterations = self.num_iterations
-        self.num_iterations = adaptive_iterations
-
-        try:
-            critiques = await self._generate_multiple_critiques_async(thought)
-        finally:
-            # Restore original iteration count
-            self.num_iterations = original_iterations
-
-        return critiques
-
-    def _aggregate_critiques_with_learning(
-        self, critiques: List[Dict[str, Any]], learning_context: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Aggregate critiques using enhanced consensus with learning.
-
-        Args:
-            critiques: List of individual critique results.
-            learning_context: Learning context from past consistency evaluations.
-
-        Returns:
-            Aggregated critique result with enhanced consensus information.
-        """
-        # Start with base aggregation
-        base_result = self._aggregate_critiques(critiques)
-
-        # Enhance with learning-based adjustments
-        task_type = learning_context.get("task_type", "general")
-        consistency_patterns = learning_context.get("consistency_patterns", {})
-
-        # Adjust consensus threshold based on task type patterns
-        if task_type in consistency_patterns:
-            pattern = consistency_patterns[task_type]
-            avg_reliability = pattern.get("avg_reliability", 0.5)
-
-            if avg_reliability > 0.7:
-                # High reliability task type, can be more lenient with consensus
-                adjusted_threshold = max(0.4, self.consensus_threshold - 0.1)
-            elif avg_reliability < 0.3:
-                # Low reliability task type, need stricter consensus
-                adjusted_threshold = min(0.8, self.consensus_threshold + 0.1)
-            else:
-                adjusted_threshold = self.consensus_threshold
-
-            logger.debug(f"Adjusted consensus threshold for {task_type}: {adjusted_threshold:.2f}")
-
-            # Re-find consensus items with adjusted threshold
-            original_threshold = self.consensus_threshold
-            self.consensus_threshold = adjusted_threshold
-
-            try:
-                # Recalculate consensus with adjusted threshold
-                all_issues = []
-                all_suggestions = []
-                for critique in critiques:
-                    all_issues.extend(critique.get("issues", []))
-                    all_suggestions.extend(critique.get("suggestions", []))
-
-                enhanced_consensus_issues = self._find_consensus_items(all_issues)
-                enhanced_consensus_suggestions = self._find_consensus_items(all_suggestions)
-
-                base_result["consensus_issues"] = enhanced_consensus_issues
-                base_result["consensus_suggestions"] = enhanced_consensus_suggestions
-                base_result["stats"]["adjusted_threshold"] = adjusted_threshold
-
-            finally:
-                # Restore original threshold
-                self.consensus_threshold = original_threshold
-
-        return base_result
-
-    def _calculate_confidence_with_learning(
-        self,
-        critiques: List[Dict[str, Any]],
-        aggregated_result: Dict[str, Any],
-        learning_context: Dict[str, Any],
-    ) -> float:
-        """Calculate confidence with learning from past patterns.
-
-        Args:
-            critiques: List of individual critique results.
-            aggregated_result: Aggregated critique result.
-            learning_context: Learning context from past evaluations.
-
-        Returns:
-            Enhanced confidence score between 0.0 and 1.0.
-        """
-        # Start with base confidence
-        base_confidence = self._calculate_confidence(critiques, aggregated_result)
-
-        # Adjust based on learning patterns
-        task_type = learning_context.get("task_type", "general")
-        predicted_reliability = learning_context.get("predicted_reliability", 0.5)
-
-        # Adjust confidence based on predicted reliability for this task type
-        if predicted_reliability > 0.7:
-            # This task type typically has reliable consensus
-            enhanced_confidence = min(1.0, base_confidence * 1.1)
-        elif predicted_reliability < 0.3:
-            # This task type typically has unreliable consensus
-            enhanced_confidence = max(0.1, base_confidence * 0.9)
-        else:
-            enhanced_confidence = base_confidence
-
-        # Further adjust based on consistency patterns
-        consistency_patterns = learning_context.get("consistency_patterns", {})
-        if task_type in consistency_patterns:
-            pattern = consistency_patterns[task_type]
-            avg_confidence = pattern.get("avg_confidence", 0.5)
-
-            # If this task type typically has different confidence levels, adjust accordingly
-            confidence_adjustment = (avg_confidence - 0.5) * 0.2  # Small adjustment
-            enhanced_confidence = max(0.1, min(1.0, enhanced_confidence + confidence_adjustment))
-
-        logger.debug(
-            f"Enhanced confidence for {task_type}: {enhanced_confidence:.3f} (base: {base_confidence:.3f})"
-        )
-
-        return enhanced_confidence
-
-    def _determine_improvement_need_with_learning(
-        self,
-        critiques: List[Dict[str, Any]],
-        aggregated_result: Dict[str, Any],
-        learning_context: Dict[str, Any],
-    ) -> bool:
-        """Determine improvement need with learning from past patterns.
-
-        Args:
-            critiques: List of individual critique results.
-            aggregated_result: Aggregated critique result.
-            learning_context: Learning context from past evaluations.
-
-        Returns:
-            Enhanced determination of whether improvement is needed.
-        """
-        # Start with base determination
-        base_need = self._determine_improvement_need(critiques, aggregated_result)
-
-        # Adjust based on learning patterns
-        task_type = learning_context.get("task_type", "general")
-        predicted_reliability = learning_context.get("predicted_reliability", 0.5)
-
-        # If reliability is very low, be more conservative about improvement recommendations
-        if predicted_reliability < 0.3:
-            # Low reliability consensus, only recommend improvement if very strong agreement
-            improvement_votes = aggregated_result["improvement_votes"]
-            strong_agreement_ratio = (
-                sum(improvement_votes) / len(improvement_votes) if improvement_votes else 0
-            )
-
-            if strong_agreement_ratio < 0.8:  # Need very strong agreement
-                logger.debug(
-                    f"Low reliability predicted for {task_type}, requiring stronger consensus for improvement"
-                )
-                return False
-
-        return base_need
-
-    def _store_consistency_outcomes(
-        self,
-        thought: Thought,
-        learning_context: Dict[str, Any],
-        critiques: List[Dict[str, Any]],
-        aggregated_result: Dict[str, Any],
-        confidence: float,
-    ) -> None:
-        """Store consistency outcomes in thought metadata for future learning.
-
-        Args:
-            thought: The Thought to store outcomes in.
-            learning_context: The learning context used.
-            critiques: The critiques generated.
-            aggregated_result: The aggregated result.
-            confidence: The final confidence score.
-        """
-        if not thought.metadata:
-            thought.metadata = {}
-
-        # Initialize self-consistency memory if not exists
-        if "self_consistency_memory" not in thought.metadata:
-            thought.metadata["self_consistency_memory"] = {
-                "sessions": [],
-                "reliable_consensus": [],
-                "unreliable_consensus": [],
-                "consistency_patterns": {},
-            }
-
-        # Analyze this consistency session
-        task_type = learning_context.get("task_type", "general")
-        agreement_ratio = aggregated_result["stats"]["agreement_ratio"]
-        consensus_items = len(aggregated_result["consensus_issues"]) + len(
-            aggregated_result["consensus_suggestions"]
-        )
-
-        session_data = {
-            "session_id": f"consistency_session_{int(time.time())}",
-            "task_type": task_type,
-            "num_critiques": len(critiques),
-            "confidence": confidence,
-            "agreement_ratio": agreement_ratio,
-            "consensus_items": consensus_items,
-            "predicted_reliability": learning_context.get("predicted_reliability", 0.5),
-            "timestamp": time.time(),
-        }
-
-        # Determine if this was a reliable or unreliable consensus
-        is_reliable = confidence > 0.7 and agreement_ratio > 0.6
-
-        if is_reliable:
-            thought.metadata["self_consistency_memory"]["reliable_consensus"].append(
-                {
-                    "task_type": task_type,
-                    "confidence": confidence,
-                    "agreement_ratio": agreement_ratio,
-                    "consensus_items": consensus_items,
-                }
-            )
-        else:
-            thought.metadata["self_consistency_memory"]["unreliable_consensus"].append(
-                {
-                    "task_type": task_type,
-                    "confidence": confidence,
-                    "agreement_ratio": agreement_ratio,
-                    "consensus_items": consensus_items,
-                }
-            )
-
-        # Update consistency patterns for this task type
-        if task_type not in thought.metadata["self_consistency_memory"]["consistency_patterns"]:
-            thought.metadata["self_consistency_memory"]["consistency_patterns"][task_type] = {
-                "sessions": 0,
-                "reliable_sessions": 0,
-                "total_confidence": 0.0,
-                "total_agreement": 0.0,
-            }
-
-        patterns = thought.metadata["self_consistency_memory"]["consistency_patterns"][task_type]
-        patterns["sessions"] += 1
-        patterns["total_confidence"] += confidence
-        patterns["total_agreement"] += agreement_ratio
-
-        if is_reliable:
-            patterns["reliable_sessions"] += 1
-
-        # Calculate averages
-        patterns["avg_reliability"] = patterns["reliable_sessions"] / patterns["sessions"]
-        patterns["avg_confidence"] = patterns["total_confidence"] / patterns["sessions"]
-        patterns["avg_agreement"] = patterns["total_agreement"] / patterns["sessions"]
-
-        # Store this session
-        thought.metadata["self_consistency_memory"]["sessions"].append(session_data)
-
-        # Keep only last 20 sessions
-        if len(thought.metadata["self_consistency_memory"]["sessions"]) > 20:
-            thought.metadata["self_consistency_memory"]["sessions"] = thought.metadata[
-                "self_consistency_memory"
-            ]["sessions"][-20:]
-
-        # Keep only last 30 reliable/unreliable consensus records
-        if len(thought.metadata["self_consistency_memory"]["reliable_consensus"]) > 30:
-            thought.metadata["self_consistency_memory"]["reliable_consensus"] = thought.metadata[
-                "self_consistency_memory"
-            ]["reliable_consensus"][-30:]
-
-        if len(thought.metadata["self_consistency_memory"]["unreliable_consensus"]) > 30:
-            thought.metadata["self_consistency_memory"]["unreliable_consensus"] = thought.metadata[
-                "self_consistency_memory"
-            ]["unreliable_consensus"][-30:]

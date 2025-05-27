@@ -79,13 +79,9 @@ class ReflexionCritic(BaseCritic):
         """
         super().__init__(model=model, model_name=model_name, **model_kwargs)
 
-        # Enhanced memory system using thoughts infrastructure
+        # Simple memory system for episodic learning (original Reflexion concept)
         self.max_memory_size = max_memory_size
-
-        # Trial tracking for episodic learning
-        self._trial_patterns: Dict[str, List[Dict[str, Any]]] = {}
-        self._success_patterns: List[Dict[str, Any]] = []
-        self._failure_patterns: List[Dict[str, Any]] = []
+        self.memory_buffer: List[Dict[str, Any]] = []
 
         # Set up prompt templates
         self.critique_prompt_template = critique_prompt_template or (

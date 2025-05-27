@@ -238,20 +238,29 @@ class CachedStorage:
         """
         # Try cache first (fast)
         if self.cache is not None:
-            value = self.cache.get(key)
-            if value is not None:
-                logger.debug(f"Cached get: {key} -> cache hit")
-                return value
+            try:
+                value = self.cache.get(key)
+                if value is not None:
+                    logger.debug(f"Cached get: {key} -> cache hit")
+                    return value
+            except Exception as e:
+                logger.warning(f"Cache get failed for {key}: {e}")
 
         # Try persistence (slower)
         if self.persistence is not None:
-            value = self.persistence.get(key)
-            if value is not None:
-                # Cache the value for next time
-                if self.cache is not None:
-                    self.cache.set(key, value)
-                logger.debug(f"Cached get: {key} -> persistence hit, cached")
-                return value
+            try:
+                value = self.persistence.get(key)
+                if value is not None:
+                    # Cache the value for next time
+                    if self.cache is not None:
+                        try:
+                            self.cache.set(key, value)
+                        except Exception as e:
+                            logger.warning(f"Failed to cache value for {key}: {e}")
+                    logger.debug(f"Cached get: {key} -> persistence hit, cached")
+                    return value
+            except Exception as e:
+                logger.error(f"Persistence get failed for {key}: {e}")
 
         logger.debug(f"Cached get: {key} -> miss")
         return None
@@ -263,13 +272,31 @@ class CachedStorage:
             key: The storage key.
             value: The value to store.
         """
+        cache_success = False
+        persistence_success = False
+
         # Write to cache immediately (fast)
         if self.cache is not None:
-            self.cache.set(key, value)
+            try:
+                self.cache.set(key, value)
+                cache_success = True
+            except Exception as e:
+                logger.warning(f"Cache set failed for {key}: {e}")
 
         # Write to persistence (may be slower)
         if self.persistence is not None:
-            self.persistence.set(key, value)
+            try:
+                self.persistence.set(key, value)
+                persistence_success = True
+            except Exception as e:
+                logger.error(f"Persistence set failed for {key}: {e}")
+                # If both cache and persistence failed, raise StorageError
+                if not cache_success:
+                    from sifaka.utils.error_handling import StorageError
+
+                    raise StorageError(
+                        f"Failed to save to both cache and persistence: {e}", storage_type="cached"
+                    )
 
         logger.debug(f"Cached set: {key} -> stored in available backends")
 
@@ -355,3 +382,36 @@ class CachedStorage:
             True if the key exists, False otherwise.
         """
         return key in self
+
+    def load(self, key: str) -> Optional[Any]:
+        """Load a value by key (alias for get).
+
+        Args:
+            key: The storage key.
+
+        Returns:
+            The stored value, or None if not found.
+        """
+        return self.get(key)
+
+    def delete(self, key: str) -> bool:
+        """Delete a value by key from both cache and persistence.
+
+        Args:
+            key: The storage key to delete.
+
+        Returns:
+            True if the key was deleted from at least one backend, False otherwise.
+        """
+        deleted = False
+
+        if self.cache is not None and hasattr(self.cache, "delete"):
+            cache_deleted = self.cache.delete(key)
+            deleted = deleted or cache_deleted
+
+        if self.persistence is not None and hasattr(self.persistence, "delete"):
+            persistence_deleted = self.persistence.delete(key)
+            deleted = deleted or persistence_deleted
+
+        logger.debug(f"Cached delete: {key} -> {'deleted' if deleted else 'not found'}")
+        return deleted

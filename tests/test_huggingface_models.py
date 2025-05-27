@@ -9,6 +9,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 from sifaka.models.huggingface import HuggingFaceModel
 from sifaka.utils.error_handling import ModelError
 
@@ -23,16 +28,24 @@ class TestHuggingFaceModel:
         mock_tokenizer = Mock()
         mock_tokenizer.encode.return_value = [1, 2, 3, 4, 5]
         mock_tokenizer.decode.return_value = "Generated text response"
+        mock_tokenizer.eos_token_id = 50256
 
         mock_model = Mock()
         mock_model.generate.return_value = [[1, 2, 3, 4, 5, 6, 7]]
+        mock_model.device = "cpu"
 
         mock_transformers = Mock()
         mock_transformers.AutoTokenizer.from_pretrained.return_value = mock_tokenizer
         mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
         mock_import.return_value = mock_transformers
 
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
+
+        # Manually set the model and tokenizer to bypass the loader
+        model.model = mock_model
+        model.tokenizer = mock_tokenizer
+        model.model_type = "causal"
+
         response = model.generate("Test prompt")
 
         assert isinstance(response, str)
@@ -54,7 +67,7 @@ class TestHuggingFaceModel:
         mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
         mock_import.return_value = mock_transformers
 
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
         response = model.generate(
             "Test prompt", max_length=100, temperature=0.8, top_p=0.9, do_sample=True
         )
@@ -80,7 +93,7 @@ class TestHuggingFaceModel:
         mock_transformers.AutoTokenizer.from_pretrained.return_value = mock_tokenizer
         mock_import.return_value = mock_transformers
 
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
         count = model.count_tokens("This is a test sentence")
 
         assert count == 5
@@ -98,15 +111,15 @@ class TestHuggingFaceModel:
         mock_import.return_value = mock_transformers
 
         # Create two instances with same model name
-        model1 = HuggingFaceModel(model_name="gpt2")
-        model2 = HuggingFaceModel(model_name="gpt2")
+        model1 = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
+        model2 = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
 
         # Should use cached model for second instance
         assert mock_transformers.AutoModelForCausalLM.from_pretrained.call_count <= 2
 
     def test_huggingface_model_cache_key_generation(self):
         """Test cache key generation for model caching."""
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
 
         # Test basic cache key
         key1 = model._generate_cache_key("gpt2", "cpu", None)
@@ -123,7 +136,7 @@ class TestHuggingFaceModel:
 
     def test_huggingface_model_cache_key_with_kwargs(self):
         """Test cache key generation with additional kwargs."""
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
 
         key1 = model._generate_cache_key(
             "gpt2", "cpu", None, torch_dtype="float16", trust_remote_code=True
@@ -148,11 +161,11 @@ class TestHuggingFaceModel:
         mock_import.return_value = mock_transformers
 
         # Test CPU device
-        model_cpu = HuggingFaceModel(model_name="gpt2", device="cpu")
+        model_cpu = HuggingFaceModel(model_name="gpt2", device="cpu", use_inference_api=False)
         assert model_cpu.device == "cpu"
 
         # Test CUDA device
-        model_cuda = HuggingFaceModel(model_name="gpt2", device="cuda")
+        model_cuda = HuggingFaceModel(model_name="gpt2", device="cuda", use_inference_api=False)
         assert model_cuda.device == "cuda"
 
     @patch("sifaka.models.huggingface.HuggingFaceModel._import_transformers")
@@ -167,11 +180,15 @@ class TestHuggingFaceModel:
         mock_import.return_value = mock_transformers
 
         # Test 8-bit quantization
-        model_8bit = HuggingFaceModel(model_name="gpt2", quantization="8bit")
+        model_8bit = HuggingFaceModel(
+            model_name="gpt2", quantization="8bit", use_inference_api=False
+        )
         assert model_8bit.quantization == "8bit"
 
         # Test 4-bit quantization
-        model_4bit = HuggingFaceModel(model_name="gpt2", quantization="4bit")
+        model_4bit = HuggingFaceModel(
+            model_name="gpt2", quantization="4bit", use_inference_api=False
+        )
         assert model_4bit.quantization == "4bit"
 
     @patch("sifaka.models.huggingface.HuggingFaceModel._import_transformers")
@@ -181,7 +198,7 @@ class TestHuggingFaceModel:
         mock_import.side_effect = ImportError("transformers not installed")
 
         with pytest.raises(ModelError):
-            HuggingFaceModel(model_name="gpt2")
+            HuggingFaceModel(model_name="gpt2", use_inference_api=False)
 
     @patch("sifaka.models.huggingface.HuggingFaceModel._import_transformers")
     def test_huggingface_model_loading_error(self, mock_import):
@@ -191,7 +208,7 @@ class TestHuggingFaceModel:
         mock_import.return_value = mock_transformers
 
         with pytest.raises(ModelError):
-            HuggingFaceModel(model_name="nonexistent-model")
+            HuggingFaceModel(model_name="nonexistent-model", use_inference_api=False)
 
     @patch("sifaka.models.huggingface.HuggingFaceModel._import_transformers")
     def test_huggingface_model_generation_error(self, mock_import):
@@ -207,7 +224,7 @@ class TestHuggingFaceModel:
         mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
         mock_import.return_value = mock_transformers
 
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
 
         with pytest.raises(ModelError):
             model.generate("Test prompt")
@@ -227,7 +244,7 @@ class TestHuggingFaceModel:
         mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
         mock_import.return_value = mock_transformers
 
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
         response = model.generate("")
 
         assert response == ""
@@ -249,7 +266,7 @@ class TestHuggingFaceModel:
         mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
         mock_import.return_value = mock_transformers
 
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
         long_prompt = "This is a very long prompt. " * 100
         response = model.generate(long_prompt)
 
@@ -272,7 +289,7 @@ class TestHuggingFaceModel:
         mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
         mock_import.return_value = mock_transformers
 
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
         response = model.generate("Test prompt")
 
         assert response == "Response with special tokens"
@@ -280,7 +297,7 @@ class TestHuggingFaceModel:
     def test_huggingface_model_configuration(self):
         """Test HuggingFace model configuration options."""
         # Test default configuration
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
         assert model.model_name == "gpt2"
         assert model.device == "cpu"  # Default device
         assert model.quantization is None  # Default quantization
@@ -291,6 +308,7 @@ class TestHuggingFaceModel:
             device="cuda",
             quantization="8bit",
             torch_dtype="float16",
+            use_inference_api=False,
         )
         assert model_custom.model_name == "microsoft/DialoGPT-medium"
         assert model_custom.device == "cuda"
@@ -307,7 +325,7 @@ class TestHuggingFaceModel:
         mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
         mock_import.return_value = mock_transformers
 
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
 
         # Test cleanup method if it exists
         if hasattr(model, "cleanup"):
@@ -331,7 +349,7 @@ class TestHuggingFaceModel:
         mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
         mock_import.return_value = mock_transformers
 
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
 
         # Test multiple generations
         prompts = ["Prompt 1", "Prompt 2", "Prompt 3"]
@@ -367,7 +385,7 @@ class TestHuggingFaceModelIntegration:
         mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
         mock_import.return_value = mock_transformers
 
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
         chain = Chain(model=model, prompt="Test chain integration")
 
         result = chain.run()
@@ -391,7 +409,7 @@ class TestHuggingFaceModelIntegration:
         mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
         mock_import.return_value = mock_transformers
 
-        model = HuggingFaceModel(model_name="gpt2")
+        model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
         validator = LengthValidator(min_length=10, max_length=100)
 
         chain = Chain(model=model, prompt="Generate text").validate_with(validator)

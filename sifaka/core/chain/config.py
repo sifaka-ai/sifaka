@@ -78,6 +78,7 @@ class ChainConfig:
             "max_improvement_iterations": max_improvement_iterations,
             "apply_improvers_on_validation_failure": apply_improvers_on_validation_failure,
             "always_apply_critics": always_apply_critics,
+            "max_retries": 3,  # Default max retries for validation failures
         }
 
         self.chain_id = str(uuid.uuid4())
@@ -87,6 +88,11 @@ class ChainConfig:
     def max_iterations(self) -> int:
         """Get max_improvement_iterations for backward compatibility."""
         return self.options.get("max_improvement_iterations", 3)
+
+    @property
+    def max_retries(self) -> int:
+        """Get max_retries for backward compatibility."""
+        return self.options.get("max_retries", 3)
 
     @max_iterations.setter
     def max_iterations(self, value: int) -> None:

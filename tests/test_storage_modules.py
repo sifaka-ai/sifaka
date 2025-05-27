@@ -412,11 +412,13 @@ class TestCachedStorage:
 
     def test_cached_storage_error_handling(self):
         """Test cached storage error handling."""
-        cache = MemoryStorage()
+        # Mock cache that fails
+        cache = Mock()
+        cache.set.side_effect = Exception("Cache failed")
 
         # Mock persistence that always fails
         persistence = Mock()
-        persistence.save.side_effect = Exception("Persistence failed")
+        persistence.set.side_effect = Exception("Persistence failed")
         persistence.exists.return_value = False
 
         storage = CachedStorage(cache=cache, persistence=persistence)
@@ -429,6 +431,7 @@ class TestCachedStorage:
         """Test cached storage fallback behavior."""
         # Mock cache that fails
         cache = Mock()
+        cache.get.side_effect = Exception("Cache failed")
         cache.load.side_effect = Exception("Cache failed")
         cache.exists.return_value = False
 
@@ -455,7 +458,7 @@ class TestStorageIntegration:
         from sifaka.models.base import MockModel
 
         storage = MemoryStorage()
-        model = MockModel(response_text="Test storage integration")
+        model = MockModel(model_name="test-model", response_text="Test storage integration")
 
         chain = Chain(model=model, prompt="Test prompt", storage=storage)
 

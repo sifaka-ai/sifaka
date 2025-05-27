@@ -101,7 +101,7 @@ class RegexValidator(RegexValidatorBase):
         required_patterns: Optional[List[str]] = None,
         forbidden_patterns: Optional[List[str]] = None,
         prohibited_patterns: Optional[List[str]] = None,
-        case_sensitive: bool = False,
+        case_sensitive: bool = True,
         name: Optional[str] = None,
     ):
         """Initialize the validator.
@@ -194,7 +194,16 @@ class RegexValidator(RegexValidatorBase):
         if passed:
             message = "Text matches all required patterns and no forbidden patterns"
         else:
-            message = "Text does not meet pattern requirements"
+            # Create more specific error messages
+            if any("required pattern" in issue for issue in issues):
+                if any("forbidden pattern" in issue for issue in issues):
+                    message = "Text missing required patterns and contains forbidden patterns"
+                else:
+                    message = "Text missing required patterns"
+            elif any("forbidden pattern" in issue for issue in issues):
+                message = "Text contains forbidden patterns"
+            else:
+                message = "Text does not meet pattern requirements"
 
         return self.create_validation_result(
             passed=passed,

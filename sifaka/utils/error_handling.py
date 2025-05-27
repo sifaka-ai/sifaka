@@ -375,13 +375,43 @@ def error_context(
         # Create the new exception
         if issubclass(error_class, SifakaError):
             # If the target is a SifakaError, use its constructor with all parameters
-            new_exception: Exception = error_class(
-                message=new_message,
-                component=component,
-                operation=operation,
-                suggestions=suggestions,
-                metadata=context.metadata,
-            )
+            # Handle specialized error classes with their specific parameters
+            if error_class == ModelError:
+                new_exception: Exception = error_class(
+                    message=new_message,
+                    model_name=context.metadata.get("model_name"),
+                    component=component,
+                    operation=operation,
+                    suggestions=suggestions,
+                    metadata=context.metadata,
+                )
+            elif error_class == ValidationError:
+                new_exception = error_class(
+                    message=new_message,
+                    validator_name=context.metadata.get("validator_name"),
+                    component=component,
+                    operation=operation,
+                    suggestions=suggestions,
+                    metadata=context.metadata,
+                )
+            elif error_class == StorageError:
+                new_exception = error_class(
+                    message=new_message,
+                    storage_type=context.metadata.get("storage_type"),
+                    component=component,
+                    operation=operation,
+                    suggestions=suggestions,
+                    metadata=context.metadata,
+                )
+            else:
+                # Generic SifakaError or other subclasses
+                new_exception = error_class(
+                    message=new_message,
+                    component=component,
+                    operation=operation,
+                    suggestions=suggestions,
+                    metadata=context.metadata,
+                )
         else:
             # Otherwise, use the standard constructor
             new_exception = error_class(new_message)
@@ -575,7 +605,7 @@ def storage_context(
         # Add storage type to the context if provided
         if storage_type:
             context.metadata["storage_type"] = storage_type
-        yield
+        yield context
 
 
 # Utility functions for enhanced error messages
