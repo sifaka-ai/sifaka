@@ -127,7 +127,7 @@ def sample_text_data() -> dict[str, str]:
     """Provide sample text data for various test scenarios."""
     return {
         "short": "Short text.",
-        "medium": "This is a medium length text that contains multiple sentences. It should be suitable for most validation and processing tests.",
+        "medium": "This is a medium length text that contains multiple sentences for testing.",
         "long": "This is a very long text that contains many sentences and should be suitable for testing scenarios that require longer content. "
         * 10,
         "empty": "",

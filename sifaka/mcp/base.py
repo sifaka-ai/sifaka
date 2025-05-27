@@ -49,7 +49,9 @@ class MCPServerConfig:
     Attributes:
         name: Human-readable name for the server.
         transport_type: Type of transport to use.
-        url: Server URL or connection string.
+        url: Server URL or connection string (optional for STDIO).
+        command: Command to run for STDIO transport (optional).
+        args: Command arguments for STDIO transport (optional).
         timeout: Connection timeout in seconds.
         retry_attempts: Number of retry attempts for failed requests.
         retry_delay: Delay between retry attempts in seconds.
@@ -60,7 +62,9 @@ class MCPServerConfig:
 
     name: str
     transport_type: MCPTransportType
-    url: str
+    url: str = ""
+    command: Optional[str] = None
+    args: List[str] = field(default_factory=list)
     timeout: float = 30.0
     retry_attempts: int = 3
     retry_delay: float = 1.0
@@ -284,9 +288,16 @@ class STDIOTransport(MCPTransport):
             error_class=RetrieverError,
             message_prefix="Failed to start MCP server process",
         ):
-            # Parse the command from the URL
-            # URL format: "npx @modelcontextprotocol/server-memory" or "python server.py"
-            command_parts = self.config.url.split()
+            # Determine command parts
+            if self.config.command:
+                # Use command and args from config
+                command_parts = [self.config.command] + self.config.args
+            elif self.config.url:
+                # Parse the command from the URL (backward compatibility)
+                # URL format: "npx @modelcontextprotocol/server-memory" or "python server.py"
+                command_parts = self.config.url.split()
+            else:
+                raise RetrieverError("Either command or url must be specified for STDIO transport")
 
             # Start the process
             self.process = await asyncio.create_subprocess_exec(

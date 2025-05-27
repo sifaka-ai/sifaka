@@ -197,7 +197,7 @@ class TestRegexValidator:
 
     def test_required_patterns_fail_missing_uppercase(self):
         """Test validation with required patterns that fail (missing uppercase)."""
-        validator = RegexValidator(required_patterns=[r"\d+", r"[A-Z]"])
+        validator = RegexValidator(required_patterns=[r"\d+", r"[A-Z]"], case_sensitive=True)
         thought = Thought(prompt="Test", text="test 123")  # No uppercase
 
         result = validator.validate(thought)
@@ -225,7 +225,7 @@ class TestRegexValidator:
 
     def test_case_sensitive_matching(self):
         """Test case-sensitive pattern matching."""
-        validator = RegexValidator(required_patterns=[r"Test"])
+        validator = RegexValidator(required_patterns=[r"Test"], case_sensitive=True)
 
         # Exact case should pass
         thought_exact = Thought(prompt="Test", text="Test content")

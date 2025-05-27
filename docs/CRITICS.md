@@ -150,26 +150,25 @@ critic = PromptCritic(
 ## 2. SelfRefineCritic 🔄
 **Complexity: ⭐⭐ (Intermediate)**
 
-Iteratively improves text through multiple rounds of self-critique and revision with learning from past refinement patterns.
+Iteratively improves text through multiple rounds of self-critique and revision.
 
 ### Visual Flow
 ```
-Input Text ──→ [Extract Learning] ──→ [Enhanced Critique] ──→ [Smart Improve] ──→ [Store Outcomes] ──→ Final Text
-     │              │                        │                      │                    │
-     │              │                        │                      │                    │
-     └─── Past ─────┴─── Successful ────────┴─── Apply ────────────┴─── Learn ─────────┘
-       Patterns         Strategies           Learned              for Future
-                                           Strategies
+Input Text ──→ [Critique] ──→ [Improve] ──→ [Critique Again] ──→ [Improve Again] ──→ Final Text
+     │              │              │              │                    │
+     │              │              │              │                    │
+     └─── Round 1 ──┴─── Round 2 ──┴─── Round 3 ──┴─── Continue ──────┘
+                                                    Until Satisfied
 ```
 
 ### Key Concept
-Like a writer who not only reviews their work multiple times, but also learns from experience. Remembers what refinement strategies worked well in the past and applies them to new tasks. Builds expertise over time through pattern recognition.
+Like a writer who reviews their work multiple times, making incremental improvements with each pass. Each iteration builds on the previous critique to create progressively better text.
 
 ### When to Use
-- General text improvement with learning
-- When you want multiple refinement passes that get smarter over time
-- Tasks where refinement patterns can be learned and reused
-- Long-term improvement across similar tasks
+- General text improvement through iteration
+- When you want multiple refinement passes
+- Tasks that benefit from incremental improvement
+- When single-pass critique isn't sufficient
 
 ### Example
 ```python
@@ -223,26 +222,27 @@ critic = ReflexionCritic(
 ## 4. ConstitutionalCritic ⚖️
 **Complexity: ⭐⭐⭐ (Intermediate-Advanced)**
 
-Evaluates text against a set of constitutional principles with learning about which principles matter most for different contexts.
+Evaluates text against a set of constitutional principles to ensure compliance and ethical alignment.
 
 ### Visual Flow
 ```
-Input Text ──→ [Extract Learning] ──→ [Weighted Principles] ──→ [Smart Evaluation] ──→ [Learn & Store] ──→ Constitutional Feedback
-     │              │                        │                      │                    │
-     │              │                        │                      │                    │
-     └─ Past ─────┴─── Violation ──────────┴─── Apply ────────────┴─── Update ─────────┘
-       Patterns         Patterns             Learned              Principle
-                                           Weights               Weights
+Input Text ──→ [Check Against Principles] ──→ [Identify Violations] ──→ [Generate Feedback] ──→ Constitutional Critique
+     │                    │                         │                        │
+     │                    │                         │                        │
+     └─── Principle 1 ────┼─── Principle 2 ────────┼─── Principle N ────────┘
+          Principle 2      │    Principle 3         │
+          Principle 3      │    ...                 │
+          ...              │                        │
 ```
 
 ### Key Concept
-Like an experienced constitutional court that learns which principles are most important for different types of cases. Remembers violation patterns and adapts principle emphasis based on context and past experience.
+Like a constitutional court that evaluates decisions against established principles. Systematically checks text against each constitutional principle and provides specific feedback on violations and improvements needed.
 
 ### When to Use
-- Ensuring ethical AI outputs with adaptive learning
-- Compliance with organizational guidelines that vary by context
-- Safety-critical applications that improve over time
-- Content moderation with contextual principle weighting
+- Ensuring ethical AI outputs
+- Compliance with organizational guidelines
+- Safety-critical applications
+- Content moderation and policy enforcement
 
 ### Example
 ```python
@@ -263,26 +263,26 @@ critic = ConstitutionalCritic(model=model, principles=principles)
 ## 5. SelfRAGCritic 🔍
 **Complexity: ⭐⭐⭐⭐ (Advanced)**
 
-Combines retrieval-augmented generation with self-reflection, learning when external knowledge helps vs. hurts.
+Combines retrieval-augmented generation with self-reflection tokens to provide structured quality assessment.
 
 ### Visual Flow
 ```
-Input Text ──→ [Extract Learning] ──→ [Smart Retrieval Decision] ──→ [Retrieve Docs] ──→ [Critique & Learn] ──→ [Improve]
-     │              │                        │                           │                    │
-     │              │                        │                           │                    │
-     └─ Past ─────┴─── Retrieval ──────────┴─── Apply ─────────────────┴─── Store ─────────┘
-       Patterns         Effectiveness         Learned                    Outcomes
-                        Data                  Strategies                 for Future
+Input Text ──→ [Retrieval Decision] ──→ [Retrieve Docs] ──→ [Self-RAG Critique] ──→ [Utility Assessment] ──→ Improved Text
+     │              │                      │                    │                      │
+     │              │                      │                    │                      │
+     └─── Analyze ──┴─── If Needed ───────┴─── [Retrieve] ─────┴─── [Relevant] ──────┘
+        Task Type        Get Context         [Relevant]         [Utility]
+                                            [Support]
 ```
 
 ### Key Concept
-Like an experienced researcher who learns when to look up information. Remembers which types of tasks benefit from retrieval and adapts decisions based on past effectiveness patterns.
+Like a researcher who systematically decides when to look up information and then provides structured assessment using reflection tokens ([Retrieve], [Relevant], [Support], [Utility]) to evaluate text quality and factual support.
 
 ### When to Use
-- Fact-checking and accuracy with adaptive learning
-- Domain-specific knowledge requirements that vary by task type
-- When external context matters and you want to optimize retrieval decisions
-- Research and analysis tasks that benefit from retrieval pattern learning
+- Fact-checking and accuracy verification
+- Domain-specific knowledge requirements
+- When external context matters for evaluation
+- Research and analysis tasks requiring structured assessment
 
 ### Example
 ```python
@@ -301,26 +301,28 @@ critic = SelfRAGCritic(
 ## 6. SelfConsistencyCritic 🎯
 **Complexity: ⭐⭐⭐⭐ (Advanced)**
 
-Generates multiple independent critiques and uses consensus to determine the most reliable feedback, learning when consensus is reliable vs. unreliable.
+Generates multiple independent critiques and uses consensus to determine the most reliable feedback.
 
 ### Visual Flow
 ```
-Input Text ──→ [Extract Learning] ──→ [Adaptive Critiques] ──→ [Smart Consensus] ──→ [Learn & Store] ──→ Reliable Feedback
-     │              │                        │                      │                    │
-     │              │                        │                      │                    │
-     └─ Past ─────┴─── Reliability ────────┴─── Apply ────────────┴─── Update ─────────┘
-       Patterns         Predictions         Learned              Consistency
-                                           Thresholds            Patterns
+Input Text ──→ [Critique #1] ──→ [Critique #2] ──→ [Critique #3] ──→ [Majority Vote] ──→ Consensus Feedback
+     │              │              │              │                    │
+     │              │              │              │                    │
+     └─── Same ─────┼─── Same ─────┼─── Same ─────┼─── Aggregate ─────┘
+        Model        │    Model     │    Model     │   Results
+                     │              │              │
+                 Different      Different      Different
+                 Reasoning      Reasoning      Reasoning
 ```
 
 ### Key Concept
-Like an experienced panel of reviewers who learn when their consensus is reliable. Remembers which types of tasks lead to consistent vs. inconsistent critiques and adapts the consensus mechanism accordingly.
+Like a panel of reviewers who independently evaluate the same text and then use majority voting to determine the most reliable consensus. Reduces the impact of inconsistent or low-quality individual critiques through multiple reasoning paths.
 
 ### When to Use
-- High-stakes decisions requiring reliability with adaptive learning
-- Reducing critique noise and errors through learned patterns
-- When single critiques might be inconsistent and you want to predict reliability
-- Quality assurance scenarios that benefit from consistency pattern learning
+- High-stakes decisions requiring reliability
+- Reducing critique noise and errors
+- When single critiques might be inconsistent
+- Quality assurance scenarios requiring consensus
 
 ### Example
 ```python
@@ -339,26 +341,25 @@ critic = SelfConsistencyCritic(
 ## 7. MetaRewardingCritic 🏆
 **Complexity: ⭐⭐⭐⭐⭐ (Expert)**
 
-Two-stage judgment process: first critique, then meta-evaluate the quality of that critique, learning when meta-judgment helps vs. hurts.
+Two-stage judgment process: first critique, then meta-evaluate the quality of that critique to provide the most reliable assessment.
 
 ### Visual Flow
 ```
-Input Text ──→ [Extract Learning] ──→ [Smart Initial Judge] ──→ [Adaptive Meta-Judge] ──→ [Learn & Store] ──→ Final Critique
-     │              │                        │                      │                    │
-     │              │                        │                      │                    │
-     └─ Past ─────┴─── Meta-Effectiveness ──┴─── Apply ────────────┴─── Update ─────────┘
-       Patterns         Predictions         Learned              Meta-Learning
-                                           Strategies            Patterns
+Input Text ──→ [Initial Judgment] ──→ [Meta-Judgment] ──→ [Combine Assessments] ──→ Final Critique
+     │              │                      │                      │
+     │              │                      │                      │
+     └─── Stage 1 ──┴─── Stage 2 ─────────┴─── Integration ──────┘
+        (Judge Text)   (Judge the Judge)     (Best Assessment)
 ```
 
 ### Key Concept
-Like an experienced senior reviewer who learns when meta-evaluation improves vs. worsens judgments. Remembers which types of tasks benefit from meta-judgment and adapts the meta-evaluation approach accordingly.
+Like having a senior reviewer who not only evaluates the text but also evaluates the quality of their own evaluation. The meta-judge asks "How good was my initial judgment?" and uses both perspectives to provide the most reliable final assessment.
 
 ### When to Use
-- Maximum quality assurance with adaptive learning
-- Training and evaluation scenarios that improve over time
-- When critique quality varies significantly and you want to predict when meta-judgment helps
-- Research and development with meta-learning capabilities
+- Maximum quality assurance scenarios
+- High-stakes content evaluation
+- When single-stage critique might miss important issues
+- Research and development requiring thorough evaluation
 
 ### Example
 ```python
@@ -515,13 +516,13 @@ chain.improve_with(multi_role_critic)
 Each critic is based on research papers with some adaptations for practical use:
 
 - **PromptCritic**: Custom implementation for domain-specific critique criteria
-- **SelfRefineCritic**: Based on "Self-Refine: Iterative Refinement with Self-Feedback" with enhanced learning from refinement patterns
+- **SelfRefineCritic**: Based on "Self-Refine: Iterative Refinement with Self-Feedback"
 - **ReflexionCritic**: Simplified from full Actor/Evaluator/Self-Reflection architecture
-- **ConstitutionalCritic**: Based on "Constitutional AI: Harmlessness from AI Feedback" with enhanced learning from principle violation patterns
-- **SelfRAGCritic**: Combines retrieval with self-reflection tokens from "Self-RAG" with enhanced learning from retrieval effectiveness patterns
-- **SelfConsistencyCritic**: Adapted from reasoning to text critique domain with enhanced learning from consistency patterns
+- **ConstitutionalCritic**: Adapts core principle-based evaluation from "Constitutional AI: Harmlessness from AI Feedback" for text critique (original focuses on training methodology)
+- **SelfRAGCritic**: Combines retrieval with self-reflection tokens from "Self-RAG"
+- **SelfConsistencyCritic**: Adapted from reasoning to text critique domain
 - **NCriticsCritic**: Based on "N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics"
-- **MetaRewardingCritic**: Implements two-stage judgment with meta-evaluation from "Meta-Rewarding" with enhanced learning from meta-judgment effectiveness patterns
+- **MetaRewardingCritic**: Adapts core two-stage judgment from "Meta-Rewarding Language Models" for text critique (original focuses on training methodology)
 
 For full research context, see the [API Reference](api/api-reference.md#critics).
 
