@@ -85,12 +85,12 @@ print(f"History: {len(thought.history)} previous iterations")
 
 ### Components
 
-**Models**: Support for OpenAI, Anthropic, Google Gemini, HuggingFace, Ollama, and Mock providers
-**Validators**: Length, regex, content, format, ML classifiers, GuardrailsAI integration
-**Classifiers**: Bias, Language, Profanity, Sentiment, Spam, Toxicity detection with ML and rule-based fallbacks
-**Critics**: Reflexion, Self-Refine, Self-RAG, Constitutional AI, Meta-Rewarding, Self-Consistency, N-Critics, custom prompt-based
-**Retrievers**: In-memory, Redis-cached, MCP-based with 3-tier storage
-**Storage**: Memory, File, Redis, Milvus with unified protocol
+- **Models**: Support for OpenAI, Anthropic, Google Gemini, HuggingFace, Ollama, and Mock providers
+- **Validators**: Length, regex, content, format, ML classifiers, GuardrailsAI integration
+- **Classifiers**: Bias, Language, Profanity, Sentiment, Spam, Toxicity detection with ML and rule-based fallbacks
+- **Critics**: Reflexion, Self-Refine, Self-RAG, Constitutional AI, Meta-Rewarding, Self-Consistency, N-Critics, custom prompt-based
+- **Retrievers**: In-memory, Redis-cached, MCP-based with 3-tier storage
+- **Storage**: Memory, File, Redis, Milvus with unified protocol
 
 ## Installation
 
@@ -385,6 +385,7 @@ For detailed installation and configuration instructions, see **[Storage Setup G
 - **[API Reference](docs/api/api-reference.md)** - Complete API documentation
 - **[Architecture](docs/architecture.md)** - System design and interactions
 - **[Examples](examples/)** - Working examples for different providers
+- **[Critics](docs/critics.md) - Critics and their use cases
 
 ### Guidelines
 - **[Contributing](docs/guidelines/contributing.md)** - Guidelines for contributors
