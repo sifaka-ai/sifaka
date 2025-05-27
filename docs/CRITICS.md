@@ -263,7 +263,7 @@ critic = ConstitutionalCritic(model=model, principles=principles)
 ## 5. SelfRAGCritic 🔍
 **Complexity: ⭐⭐⭐⭐ (Advanced)**
 
-Combines retrieval-augmented generation with self-reflection tokens to provide structured quality assessment.
+Combines retrieval-augmented generation with self-reflection tokens to provide structured quality assessment. Supports multiple levels of retriever configuration for maximum flexibility.
 
 ### Visual Flow
 ```
@@ -275,25 +275,103 @@ Input Text ──→ [Retrieval Decision] ──→ [Retrieve Docs] ──→ [S
                                             [Support]
 ```
 
+### Retriever Configuration Levels
+```
+┌─ Critic-Specific Retriever (Highest Precedence) ─┐
+│  SelfRAGCritic(retriever=medical_retriever)       │
+│  ↓ If not available, fallback to:                 │
+├─ Chain-Level Retrievers (Fallback)               ─┤
+│  Chain(critic_retrievers=[general_retriever])     │
+│  ↓ If neither available:                          │
+└─ No Retrieval (Basic Mode)                      ─┘
+```
+
 ### Key Concept
-Like a researcher who systematically decides when to look up information and then provides structured assessment using reflection tokens ([Retrieve], [Relevant], [Support], [Utility]) to evaluate text quality and factual support.
+Like a researcher who systematically decides when to look up information and then provides structured assessment using reflection tokens ([Retrieve], [Relevant], [Support], [Utility]) to evaluate text quality and factual support. Can use specialized retrievers for domain-specific knowledge or fall back to general chain-level retrievers.
 
 ### When to Use
 - Fact-checking and accuracy verification
 - Domain-specific knowledge requirements
 - When external context matters for evaluation
 - Research and analysis tasks requiring structured assessment
+- Mixed retrieval scenarios (specialized + general knowledge)
 
-### Example
+### Retriever Configuration Examples
 ```python
 from sifaka.critics.self_rag import SelfRAGCritic
+from sifaka.retrievers import InMemoryRetriever
 
+# Option 1: Critic-specific retriever (highest precedence)
+medical_retriever = MedicalKnowledgeRetriever()
 critic = SelfRAGCritic(
     model=model,
-    retriever=your_retriever,  # External knowledge source
+    retriever=medical_retriever,  # Specialized retriever for this critic
     use_reflection_tokens=True,
     max_retrieved_docs=5
 )
+
+# Option 2: Chain-level fallback retriever
+general_retriever = InMemoryRetriever()
+chain = Chain(
+    model=model,
+    critic_retrievers=[general_retriever]  # Fallback for all critics
+).improve_with(SelfRAGCritic(model=model))  # Uses chain retriever
+
+# Option 3: Both levels (critic-specific takes precedence)
+chain = Chain(
+    model=model,
+    critic_retrievers=[general_retriever]  # Fallback
+).improve_with(SelfRAGCritic(
+    model=model,
+    retriever=medical_retriever  # Takes precedence over chain retriever
+))
+
+# Option 4: Generator + Critic retrieval (full RAG pipeline)
+chain = Chain(
+    model=model,
+    model_retrievers=[context_retriever],    # For text generation
+    critic_retrievers=[fact_check_retriever] # For critique
+).improve_with(SelfRAGCritic(
+    model=model,
+    retriever=domain_retriever  # For specialized critique
+))
+```
+
+### Full RAG Pipeline Example
+```python
+# Complete example: Retrieval at all levels
+from sifaka import Chain
+from sifaka.critics.self_rag import SelfRAGCritic
+from sifaka.retrievers import InMemoryRetriever
+
+# Different retrievers for different purposes
+context_retriever = WikipediaRetriever()      # General context for generation
+fact_checker = FactCheckingRetriever()        # Fact verification for critique
+medical_db = MedicalKnowledgeRetriever()      # Domain-specific for SelfRAG
+
+# Full RAG pipeline
+chain = Chain(
+    model=model,
+    prompt="Write a medical analysis of treatment options for diabetes",
+
+    # Generation-time retrieval
+    model_retrievers=[context_retriever],     # Provides context during text generation
+
+    # Critique-time retrieval (fallback)
+    critic_retrievers=[fact_checker]          # General fact-checking for all critics
+)
+
+# Add SelfRAG with specialized medical retriever
+chain = chain.improve_with(SelfRAGCritic(
+    model=model,
+    retriever=medical_db,                     # Specialized medical knowledge
+    use_reflection_tokens=True
+))
+
+# Result:
+# 1. Generator uses Wikipedia context to write initial text
+# 2. SelfRAG uses medical database to critique and improve
+# 3. Other critics would use fact-checker as fallback
 ```
 
 ---

@@ -423,16 +423,24 @@ class HuggingFaceModel(BaseModelImplementation):
             retriever: Optional retriever for direct access
             **options: Additional options for the model
         """
+        # Check if HuggingFace packages are available for local inference
+        if not use_inference_api and not HUGGINGFACE_AVAILABLE:
+            from sifaka.utils.error_handling import ConfigurationError
+            raise ConfigurationError(
+                "Required packages not available: 'transformers', 'torch', 'accelerate'",
+                component="HuggingFace",
+                operation="initialization",
+                suggestions=[
+                    "Install missing packages: pip install transformers torch accelerate",
+                    "Check the HuggingFace documentation for installation instructions",
+                ],
+            )
+
         # Initialize base class with HuggingFace-specific configuration
         # For HuggingFace, API key is only required for Inference API mode
         super().__init__(
             model_name=model_name,
             api_key=api_token,
-            provider_name="HuggingFace",
-            env_var_name="HUGGINGFACE_API_TOKEN",
-            required_packages=(
-                ["transformers", "torch", "accelerate"] if not HUGGINGFACE_AVAILABLE else None
-            ),
             api_key_required=use_inference_api,  # Only require API key for Inference API mode
             **options,
         )

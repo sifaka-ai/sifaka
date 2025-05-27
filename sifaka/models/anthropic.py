@@ -117,13 +117,23 @@ class AnthropicModel(BaseModelImplementation):
             )
             ```
         """
+        # Check if Anthropic package is available
+        if not ANTHROPIC_AVAILABLE:
+            from sifaka.utils.error_handling import ConfigurationError
+            raise ConfigurationError(
+                "Required packages not available: 'anthropic'",
+                component="Anthropic",
+                operation="initialization",
+                suggestions=[
+                    "Install missing packages: pip install anthropic",
+                    "Check the Anthropic documentation for installation instructions",
+                ],
+            )
+
         # Initialize base class with Anthropic-specific configuration
         super().__init__(
             model_name=model_name,
             api_key=api_key,
-            provider_name="Anthropic",
-            env_var_name="ANTHROPIC_API_KEY",
-            required_packages=["anthropic"] if not ANTHROPIC_AVAILABLE else None,
             **options,
         )
 
