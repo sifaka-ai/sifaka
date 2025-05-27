@@ -39,6 +39,7 @@ dependencies = [
     "better-profanity>=0.7.0",
     "openai>=1.82.0",
     "tiktoken>=0.9.0",
+    "google-generativeai>=0.8.5",
 ]
 
 [project.optional-dependencies]
@@ -58,6 +59,9 @@ huggingface = [
 ]
 ollama = [
     "ollama>=0.1.0",
+]
+gemini = [
+    "google-generativeai>=0.8.0",
 ]
 
 # Retrievers and vector databases
@@ -120,7 +124,7 @@ dev = [
 
 # Convenience groups
 models = [
-    "sifaka[openai,anthropic,huggingface,ollama]",
+    "sifaka[openai,anthropic,huggingface,ollama,gemini]",
 ]
 retrievers = [
     "sifaka[redis,milvus]",

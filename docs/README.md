@@ -98,6 +98,7 @@ Looking for working examples? Check out the [examples directory](../examples/) i
 
 - **[OpenAI Examples](../examples/openai/)** - Using OpenAI models
 - **[Anthropic Examples](../examples/anthropic/)** - Using Claude models
+- **[Google Gemini Examples](../examples/gemini/)** - Using Gemini models
 - **[HuggingFace Examples](../examples/huggingface/)** - Using open-source models
 - **[Storage Examples](../examples/thought_caching/)** - Redis and Milvus integration
 - **[Validation Examples](../examples/guardrails/)** - Advanced validation patterns

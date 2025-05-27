@@ -2,7 +2,9 @@
 
 ## Mission
 
-Sifaka aims to bridge the gap between cutting-edge AI research and production-ready applications by providing a framework that implements academic breakthroughs as reliable, observable, and debuggable components.
+Sifaka is an open-source framework that adds reflection and reliability to large language model (LLM) applications. Our mission is to bridge the gap between cutting-edge AI research and production-ready applications by providing researchers and practitioners with production-grade tools that implement academic breakthroughs as reliable, observable, and debuggable components.
+
+We empower researchers to conduct rigorous experiments with industry-standard infrastructure while enabling practitioners to deploy cutting-edge techniques with confidence. By democratizing access to research-grade AI tools, Sifaka accelerates the translation of academic innovations into real-world impact.
 
 ## Core Philosophy
 
@@ -13,6 +15,8 @@ We believe the future of AI applications lies in implementing proven academic re
 - **Self-Refine** (Madaan et al. 2023) - Iterative self-improvement through critique and revision
 - **Self-RAG** (Asai et al. 2023) for retrieval-augmented critique
 - **Constitutional AI** (Anthropic) for principle-based evaluation
+- **Meta-Rewarding** (Wu et al. 2024) - Two-stage judgment with meta-evaluation
+- **Self-Consistency** (Wang et al. 2022) - Multiple critique generation with consensus
 - **N-Critics** (Mousavi et al. 2023) - Ensemble of specialized critics
 
 ### Thought-Centric Architecture

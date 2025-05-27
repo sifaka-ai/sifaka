@@ -295,6 +295,10 @@ model = create_model("openai:gpt-3.5-turbo")
 # Anthropic models
 model = create_model("anthropic:claude-3-sonnet", api_key="your-key")
 
+# Google Gemini models
+model = create_model("gemini:gemini-1.5-flash", api_key="your-key")
+model = create_model("gemini:gemini-1.5-pro")
+
 # HuggingFace models
 model = create_model("huggingface:microsoft/DialoGPT-medium")
 
@@ -330,6 +334,20 @@ from sifaka.models.anthropic import AnthropicModel
 model = AnthropicModel(
     model_name: str = "claude-3-sonnet-20240229",
     api_key: Optional[str] = None,  # Uses ANTHROPIC_API_KEY env var if not provided
+    temperature: float = 0.7,
+    max_tokens: Optional[int] = None,
+    **kwargs: Any
+)
+```
+
+#### GeminiModel
+
+```python
+from sifaka.models.gemini import GeminiModel
+
+model = GeminiModel(
+    model_name: str = "gemini-1.5-flash",
+    api_key: Optional[str] = None,  # Uses GOOGLE_API_KEY env var if not provided
     temperature: float = 0.7,
     max_tokens: Optional[int] = None,
     **kwargs: Any
@@ -1120,6 +1138,7 @@ from sifaka.core.thought import Thought
 from sifaka.models.base import create_model
 from sifaka.models.openai import OpenAIModel
 from sifaka.models.anthropic import AnthropicModel
+from sifaka.models.gemini import GeminiModel
 
 # Validators
 from sifaka.validators.base import LengthValidator, RegexValidator

@@ -43,6 +43,7 @@ Entry point is `chain.run()` or `chain.run_with_recovery()`.
 Generate text from prompts. Supported providers:
 - **OpenAI**: GPT-3.5, GPT-4 models via OpenAI API
 - **Anthropic**: Claude models via Anthropic API
+- **Google Gemini**: Gemini Pro and Flash models via Google AI API
 - **HuggingFace**: Remote models via Inference API
 - **Ollama**: Local models via Ollama server
 - **Mock**: Deterministic responses for testing
@@ -236,7 +237,7 @@ All components implement standardized interfaces for interoperability and type s
 Components can be mixed and matched:
 ```python
 chain = Chain(
-    model=any_model,           # OpenAI, Anthropic, HuggingFace, Ollama
+    model=any_model,           # OpenAI, Anthropic, Gemini, HuggingFace, Ollama
     validators=[any_validators], # Length, Regex, Content, ML classifiers
     critics=[any_critics],      # Reflexion, Self-RAG, Constitutional
     retrievers=[any_retrievers] # Mock, InMemory, Redis, Milvus

@@ -51,3 +51,12 @@ try:
         __all__.extend(["AnthropicModel", "create_anthropic_model"])
 except ImportError:
     pass
+
+# Gemini
+try:
+    from sifaka.models.gemini import GEMINI_AVAILABLE
+
+    if GEMINI_AVAILABLE:
+        __all__.extend(["GeminiModel", "create_gemini_model"])
+except ImportError:
+    pass

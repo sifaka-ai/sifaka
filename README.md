@@ -83,7 +83,7 @@ print(f"History: {len(thought.history)} previous iterations")
 
 ### Components
 
-**Models**: Support for OpenAI, Anthropic, HuggingFace, Ollama, and Mock providers
+**Models**: Support for OpenAI, Anthropic, Google Gemini, HuggingFace, Ollama, and Mock providers
 **Validators**: Length, regex, content, format, ML classifiers, GuardrailsAI integration
 **Critics**: Reflexion, Self-Refine, Self-RAG, Constitutional AI, Meta-Rewarding, Self-Consistency, N-Critics, custom prompt-based
 **Retrievers**: In-memory, Redis-cached, MCP-based with 3-tier storage
@@ -118,6 +118,7 @@ from sifaka.quickstart import QuickStart
 # One-liner setup for common use cases
 chain = QuickStart.for_production(
     "openai:gpt-4",  # Requires OPENAI_API_KEY
+    # "gemini:gemini-1.5-flash",  # Or use Gemini (requires GOOGLE_API_KEY)
     "Write a short story about a robot learning to help humans.",
     validators=["length"],
     critics=["reflexion", "self_consistency"]
@@ -310,6 +311,7 @@ Set API keys as environment variables or in a `.env` file:
 # .env file
 OPENAI_API_KEY=your_openai_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
+GOOGLE_API_KEY=your_google_api_key
 HUGGINGFACE_API_TOKEN=your_hf_token
 ```
 

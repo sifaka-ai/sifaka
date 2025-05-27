@@ -247,6 +247,8 @@ correct_models = [
     "anthropic:claude-3-opus",
     "anthropic:claude-3-sonnet",
     "anthropic:claude-3-haiku",
+    "gemini:gemini-1.5-flash",
+    "gemini:gemini-1.5-pro",
     "mock:test-model"
 ]
 

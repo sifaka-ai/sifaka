@@ -40,6 +40,12 @@ pip install sifaka[anthropic]
 ```
 Includes: Anthropic API client
 
+#### Google Gemini Models
+```bash
+pip install sifaka[gemini]
+```
+Includes: Google GenerativeAI client
+
 #### All Model Providers
 ```bash
 pip install sifaka[models]

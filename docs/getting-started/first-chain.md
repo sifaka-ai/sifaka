@@ -215,7 +215,7 @@ Now that you've created your first chain:
 
 You've successfully created your first Sifaka chain! The framework provides much more:
 
-- **Multiple model providers** (OpenAI, Anthropic, HuggingFace, Ollama)
+- **Multiple model providers** (OpenAI, Anthropic, Google Gemini, HuggingFace, Ollama)
 - **Rich validation** (length, content, format, ML classifiers)
 - **Advanced critics** (Reflexion, Constitutional AI, Self-RAG)
 - **Persistent storage** (Redis, Milvus, file-based)

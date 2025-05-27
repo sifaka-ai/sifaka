@@ -27,6 +27,9 @@ pip install sifaka[openai]
 # Anthropic models (Claude)
 pip install sifaka[anthropic]
 
+# Google Gemini models
+pip install sifaka[gemini]
+
 # All model providers
 pip install sifaka[models]
 ```
