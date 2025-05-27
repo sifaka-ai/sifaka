@@ -445,6 +445,9 @@ class Chain:
         # Apply critics to get feedback (async with concurrent critics)
         thought = await self._executor._execute_criticism_async(thought)
 
+        # Save the thought with critic feedback BEFORE creating next iteration
+        await self._executor._save_thought_to_storage_async(thought)
+
         # Create next iteration with feedback for the model to see
         thought = thought.next_iteration()
 

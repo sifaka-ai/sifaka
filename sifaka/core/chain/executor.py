@@ -333,6 +333,9 @@ class ChainExecutor:
         # Apply critics to get feedback
         thought = self.execute_criticism(thought)
 
+        # Save the thought with critic feedback BEFORE creating next iteration
+        self._save_thought_to_storage(thought)
+
         # Create next iteration with feedback for the model to see
         thought = thought.next_iteration()
 

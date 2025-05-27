@@ -193,23 +193,16 @@ print(f"Validation results: {thought.validation_results}")
 
 ```python
 from sifaka.critics.constitutional import ConstitutionalCritic
-from sifaka.critics.self_rag import SelfRAGCritic
-from sifaka.critics.meta_rewarding import MetaRewardingCritic
-from sifaka.critics.self_consistency import SelfConsistencyCritic
+from sifaka.critics.self_refine import SelfRefineCritic
 from sifaka.models import create_model
+from sifaka.storage import FileStorage
+from sifaka.retrievers import InMemoryRetriever
+from sifaka import Chain
 
 # Create a model for the critics
 model = create_model("openai:gpt-4")  # Requires OPENAI_API_KEY
 
-# Multiple ways to configure retrievers for Self-RAG:
-
-# Option 1: Critic-specific retriever (highest precedence)
-from sifaka.retrievers import InMemoryRetriever
-critic_retriever = InMemoryRetriever()
-# Or use None for basic usage without critic-specific retrieval
-critic_retriever = None
-
-# Option 2: Chain-level retrievers (fallback for all critics)
+# Chain-level retrievers (fallback for all critics)
 chain_retriever = InMemoryRetriever()
 
 # Constitutional AI with custom principles
@@ -222,42 +215,34 @@ constitutional_critic = ConstitutionalCritic(
     ]
 )
 
-# Self-RAG with multiple retriever options
-self_rag_critic = SelfRAGCritic(
-    model=model,
-    retriever=critic_retriever  # Critic-specific retriever (optional)
-)
+# Self-Refine critic for iterative improvement
+self_refine_critic = SelfRefineCritic(model=model)
 
-# Meta-Rewarding with two-stage judgment
-meta_rewarding_critic = MetaRewardingCritic(
-    model=model,
-    base_critic=constitutional_critic,  # Use Constitutional AI for initial judgment
-    meta_judge_model_name="openai:gpt-4"  # Separate model for meta-judgment
-)
-
-# Self-Consistency with multiple critique generation
-self_consistency_critic = SelfConsistencyCritic(
-    model=model,
-    base_critic=constitutional_critic,  # Use Constitutional AI for individual critiques
-    num_iterations=5,  # Generate 5 critiques for consensus
-    consensus_threshold=0.6  # 60% agreement threshold
-)
-
-# Create a chain with both retriever levels
-from sifaka import Chain
+# Create a chain with retriever
 chain = Chain(
     model=model,
     prompt="Write a comprehensive analysis of the benefits and risks of artificial intelligence in healthcare, including specific examples and recommendations.",
-    critic_retrievers=[chain_retriever]  # Chain-level retriever (fallback for all critics)
+    critic_retrievers=[chain_retriever],  # Chain-level retriever (fallback for all critics)
+    storage=FileStorage("./thoughts.json"),  # Persistent storage
+    max_improvement_iterations=2,
+    always_apply_critics=True  # Ensures critics always run, even if validation passes
 )
 
-# Add critics - SelfRAG uses its own retriever, others use chain-level retriever
-chain.improve_with(constitutional_critic).improve_with(self_rag_critic).improve_with(self_consistency_critic)
+# Add critics - IMPORTANT: This creates a NEW chain instance with critics
+chain = chain.improve_with(constitutional_critic).improve_with(self_refine_critic)
 
-# Retriever precedence:
-# 1. SelfRAGCritic uses critic_retriever (if provided)
-# 2. If no critic_retriever, SelfRAGCritic falls back to chain_retriever
-# 3. Other critics use chain_retriever from critic_retrievers
+# Run the chain and get results
+result = chain.run()
+
+# Inspect the results
+print(f"Final iteration: {result.iteration}")
+print(f"History length: {len(result.history or [])}")
+print(f"Critic feedback count: {len(result.critic_feedback or [])}")
+
+# The thoughts.json file will contain:
+# - Complete critic feedback for each iteration
+# - Proper history chains showing iteration progression
+# - Context propagation with previous feedback passed to next iteration
 ```
 
 ### Working with Classifiers
