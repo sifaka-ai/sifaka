@@ -80,7 +80,9 @@ next_iteration = thought.next_iteration()
 
 # Complete audit trail
 print(f"Iteration: {thought.iteration}")
-print(f"History: {len(thought.history)} previous iterations")
+print(f"History: {len(thought.history or [])} previous iterations")
+print(f"Next iteration: {next_iteration.iteration}")
+print(f"Next iteration history: {len(next_iteration.history or [])} previous iterations")
 ```
 
 ### Components
@@ -123,6 +125,7 @@ chain = QuickStart.for_production(
     "openai:gpt-4",  # Requires OPENAI_API_KEY
     # "gemini:gemini-1.5-flash",  # Or use Gemini (requires GOOGLE_API_KEY)
     "Write a short story about a robot learning to help humans.",
+    storage="memory",  # Use memory storage (or configure Redis/Milvus paths)
     validators=["length"],
     critics=["reflexion", "self_consistency"]
 )
@@ -140,14 +143,15 @@ dev_chain = QuickStart.for_development()
 
 # Research setup (comprehensive, with retrievers)
 research_chain = QuickStart.for_research(
-    "anthropic:claude-3-sonnet",
-    "Analyze the impact of AI on scientific research"
+    "anthropic:claude-3-5-sonnet-latest",  # Requires ANTHROPIC_API_KEY
+    "Analyze the impact of AI on scientific research",
+    storage="memory"  # Use memory storage (or configure Redis/Milvus paths)
 )
 
 # Preset-based configuration
 content_chain = QuickStart.from_preset(
     "content_generation",
-    "openai:gpt-4",
+    "openai:gpt-4",  # Requires OPENAI_API_KEY
     "Write a blog post about sustainable energy"
 )
 ```
@@ -192,6 +196,21 @@ from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.self_rag import SelfRAGCritic
 from sifaka.critics.meta_rewarding import MetaRewardingCritic
 from sifaka.critics.self_consistency import SelfConsistencyCritic
+from sifaka.models import create_model
+
+# Create a model for the critics
+model = create_model("openai:gpt-4")  # Requires OPENAI_API_KEY
+
+# Multiple ways to configure retrievers for Self-RAG:
+
+# Option 1: Critic-specific retriever (highest precedence)
+from sifaka.retrievers import InMemoryRetriever
+critic_retriever = InMemoryRetriever()
+# Or use None for basic usage without critic-specific retrieval
+critic_retriever = None
+
+# Option 2: Chain-level retrievers (fallback for all critics)
+chain_retriever = InMemoryRetriever()
 
 # Constitutional AI with custom principles
 constitutional_critic = ConstitutionalCritic(
@@ -203,10 +222,10 @@ constitutional_critic = ConstitutionalCritic(
     ]
 )
 
-# Self-RAG with retrieval context
+# Self-RAG with multiple retriever options
 self_rag_critic = SelfRAGCritic(
     model=model,
-    retriever=retriever
+    retriever=critic_retriever  # Critic-specific retriever (optional)
 )
 
 # Meta-Rewarding with two-stage judgment
@@ -224,7 +243,21 @@ self_consistency_critic = SelfConsistencyCritic(
     consensus_threshold=0.6  # 60% agreement threshold
 )
 
+# Create a chain with both retriever levels
+from sifaka import Chain
+chain = Chain(
+    model=model,
+    prompt="Write a comprehensive analysis of the benefits and risks of artificial intelligence in healthcare, including specific examples and recommendations.",
+    critic_retrievers=[chain_retriever]  # Chain-level retriever (fallback for all critics)
+)
+
+# Add critics - SelfRAG uses its own retriever, others use chain-level retriever
 chain.improve_with(constitutional_critic).improve_with(self_rag_critic).improve_with(self_consistency_critic)
+
+# Retriever precedence:
+# 1. SelfRAGCritic uses critic_retriever (if provided)
+# 2. If no critic_retriever, SelfRAGCritic falls back to chain_retriever
+# 3. Other critics use chain_retriever from critic_retrievers
 ```
 
 ### Working with Classifiers
@@ -235,6 +268,7 @@ from sifaka.classifiers import (
     create_toxicity_validator, create_sentiment_validator
 )
 from sifaka.validators.classifier import create_classifier_validator
+from sifaka import Chain
 
 # Use classifiers standalone for analysis
 toxicity_classifier = ToxicityClassifier()
@@ -247,15 +281,19 @@ print(f"Sentiment: {result.label} (confidence: {result.confidence:.2f})")
 
 # Create validators from classifiers
 toxicity_validator = create_toxicity_validator(threshold=0.8)
-sentiment_validator = create_sentiment_validator(target_sentiment="positive", threshold=0.7)
+sentiment_validator = create_sentiment_validator(required_sentiment="positive", min_confidence=0.7)
 
 # Use with chains for content filtering
-chain = Chain(model=model, prompt="Write a positive review")
+chain = Chain(model=model, prompt="Write a positive review of a new smartphone, highlighting its camera quality and battery life")
 chain.validate_with(toxicity_validator).validate_with(sentiment_validator)
 
 # Custom classifier integration
 bias_classifier = BiasClassifier()
-custom_validator = create_classifier_validator(bias_classifier, threshold=0.6)
+custom_validator = create_classifier_validator(
+    bias_classifier,
+    threshold=0.6,
+    invalid_labels=["biased"]  # Reject text classified as biased
+)
 chain.validate_with(custom_validator)
 ```
 
@@ -263,6 +301,11 @@ chain.validate_with(custom_validator)
 
 ```python
 from sifaka.storage import MemoryStorage, FileStorage, CachedStorage
+from sifaka import Chain
+from sifaka.models import create_model
+
+# Create a model for the chain
+model = create_model("openai:gpt-4")  # Requires OPENAI_API_KEY
 
 # File persistence
 file_storage = FileStorage("./thoughts.json")
@@ -278,24 +321,47 @@ layered_storage = CachedStorage(
 ### MCP Integration
 
 ```python
-from sifaka.storage import RedisStorage, MilvusStorage
-from sifaka.mcp import MCPServerConfig, MCPTransportType
+from sifaka.quickstart import QuickStart
 
-# Redis via MCP (using official Redis MCP server)
-redis_config = MCPServerConfig(
-    name="redis-server",
-    transport_type=MCPTransportType.STDIO,
-    url="uv run --directory /path/to/mcp-redis src/main.py"
+# Using Redis storage with custom MCP server path
+chain = QuickStart.with_redis(
+    "openai:gpt-4",
+    prompt="Your prompt here",
+    mcp_redis_command="uv run --directory /path/to/mcp-redis src/main.py"
 )
-redis_storage = RedisStorage(redis_config)
 
-# Milvus via MCP for vector search (using official Milvus MCP server)
-milvus_config = MCPServerConfig(
-    name="milvus-server",
-    transport_type=MCPTransportType.STDIO,
-    url="uv run --directory /path/to/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530"
+# Using Milvus storage with custom MCP server path
+chain = QuickStart.with_milvus(
+    "openai:gpt-4",
+    prompt="Your prompt here",
+    mcp_milvus_command="uv run --directory /path/to/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530"
 )
-milvus_storage = MilvusStorage(milvus_config, collection_name="thoughts")
+
+# Production setup with file storage (saves thoughts to disk)
+from sifaka.validators.base import LengthValidator
+from sifaka.critics.reflexion import ReflexionCritic
+from sifaka.models import create_model
+from sifaka.storage import FileStorage
+from sifaka import Chain
+
+# Create components
+model = create_model("openai:gpt-4")  # Requires OPENAI_API_KEY
+file_storage = FileStorage("./thoughts.json")
+
+# Create chain with file storage and always apply critics
+chain = Chain(
+    model=model,
+    storage=file_storage,
+    prompt="Write a comprehensive analysis of renewable energy trends in 2024, including solar, wind, and battery storage technologies",
+    max_improvement_iterations=3,
+    always_apply_critics=True  # Ensures critics always run, even if validation passes
+)
+
+# Add validators and critics
+length_validator = LengthValidator(min_length=50, max_length=2000)
+reflexion_critic = ReflexionCritic(model=model)
+
+chain = chain.validate_with(length_validator).improve_with(reflexion_critic)
 ```
 
 ## MCP Server Setup

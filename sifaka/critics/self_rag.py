@@ -180,18 +180,33 @@ class SelfRAGCritic(BaseCritic):
         # Step 1: Determine if retrieval would be beneficial
         retrieval_needed = self._should_retrieve(thought)
 
-        # Step 2: Retrieve documents if needed
+        # Step 2: Retrieve documents if needed using multiple retriever sources
         context = ""
         retrieved_docs = []
-        if retrieval_needed and self.retriever:
-            try:
-                query = f"{thought.prompt} {thought.text or ''}".strip()
-                retrieved_docs = await self._retrieve_documents_async(query)
-                if retrieved_docs:
-                    context = "\n\n".join(retrieved_docs[: self.max_retrieved_docs])
-                    logger.debug(f"SelfRAGCritic: Retrieved {len(retrieved_docs)} documents")
-            except Exception as e:
-                logger.warning(f"SelfRAGCritic: Retrieval failed: {e}")
+        retriever_used = None
+
+        if retrieval_needed:
+            # Try critic-specific retriever first (highest precedence)
+            if self.retriever:
+                try:
+                    query = f"{thought.prompt} {thought.text or ''}".strip()
+                    retrieved_docs = await self._retrieve_documents_async(query, self.retriever)
+                    retriever_used = "critic_specific"
+                    if retrieved_docs:
+                        context = "\n\n".join(retrieved_docs[: self.max_retrieved_docs])
+                        logger.debug(
+                            f"SelfRAGCritic: Retrieved {len(retrieved_docs)} documents using critic-specific retriever"
+                        )
+                except Exception as e:
+                    logger.warning(f"SelfRAGCritic: Critic-specific retrieval failed: {e}")
+
+            # Fallback to chain-level context if no critic-specific retriever or it failed
+            if not retrieved_docs:
+                chain_context = self._prepare_context(thought)
+                if chain_context and chain_context != "No retrieved context available.":
+                    context = chain_context
+                    retriever_used = "chain_level"
+                    logger.debug("SelfRAGCritic: Using chain-level retrieved context")
 
         # Step 3: Generate Self-RAG style critique
         critique_prompt = self._build_critique_prompt(thought, context, retrieval_needed)
@@ -223,6 +238,7 @@ class SelfRAGCritic(BaseCritic):
                 "rag_assessments": rag_assessments,
                 "utility_score": utility_score,
                 "context_length": len(context),
+                "retriever_used": retriever_used,
             },
         }
 
@@ -284,29 +300,47 @@ class SelfRAGCritic(BaseCritic):
             # Prepare context for improvement (using mixin + retrieval)
             context = self._prepare_context(thought)
 
-            # If we have a retriever, get additional context for improvement
-            if self.retriever and not context.strip():
-                try:
-                    import asyncio
-
+            # If we have a retriever or chain context, get additional context for improvement
+            if not context.strip():
+                # Try critic-specific retriever first
+                if self.retriever:
                     try:
-                        asyncio.get_running_loop()
-                        import concurrent.futures
+                        import asyncio
 
-                        # Run async retrieval in thread pool
-                        async def _retrieve_docs() -> List[str]:
-                            return await self._retrieve_documents_async(thought.prompt)
+                        try:
+                            asyncio.get_running_loop()
+                            import concurrent.futures
 
-                        with concurrent.futures.ThreadPoolExecutor() as executor:
-                            future = executor.submit(asyncio.run, _retrieve_docs())  # type: ignore[arg-type]
-                            retrieved_docs: List[str] = future.result()  # type: ignore[assignment]
-                    except RuntimeError:
-                        retrieved_docs = asyncio.run(self._retrieve_documents_async(thought.prompt))
+                            # Run async retrieval in thread pool
+                            async def _retrieve_docs() -> List[str]:
+                                return await self._retrieve_documents_async(
+                                    thought.prompt, self.retriever
+                                )
 
-                    if retrieved_docs:
-                        context = "\n\n".join(retrieved_docs[: self.max_retrieved_docs])
-                except Exception as e:
-                    logger.warning(f"SelfRAGCritic: Retrieval failed during improvement: {e}")
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(asyncio.run, _retrieve_docs())  # type: ignore[arg-type]
+                                retrieved_docs: List[str] = future.result()  # type: ignore[assignment]
+                        except RuntimeError:
+                            retrieved_docs = asyncio.run(
+                                self._retrieve_documents_async(thought.prompt, self.retriever)
+                            )
+
+                        if retrieved_docs:
+                            context = "\n\n".join(retrieved_docs[: self.max_retrieved_docs])
+                            logger.debug(
+                                "SelfRAGCritic: Using critic-specific retriever for improvement"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"SelfRAGCritic: Critic-specific retrieval failed during improvement: {e}"
+                        )
+
+                # Fallback to chain-level context if still no context
+                if not context.strip():
+                    chain_context = self._prepare_context(thought)
+                    if chain_context and chain_context != "No retrieved context available.":
+                        context = chain_context
+                        logger.debug("SelfRAGCritic: Using chain-level context for improvement")
 
             # Create improvement prompt with context
             improve_prompt = self.improve_prompt_template.format(
@@ -458,16 +492,20 @@ Assessment:
 
         return prompt
 
-    async def _retrieve_documents_async(self, query: str) -> List[str]:
+    async def _retrieve_documents_async(
+        self, query: str, retriever: Optional[Retriever] = None
+    ) -> List[str]:
         """Retrieve documents for the given query.
 
         Args:
             query: The query to search for.
+            retriever: Optional specific retriever to use. If None, uses self.retriever.
 
         Returns:
             List of retrieved document texts.
         """
-        if not self.retriever:
+        target_retriever = retriever or self.retriever
+        if not target_retriever:
             return []
 
         try:
@@ -475,7 +513,7 @@ Assessment:
             import asyncio
 
             loop = asyncio.get_event_loop()
-            results = await loop.run_in_executor(None, self.retriever.retrieve, query)
+            results = await loop.run_in_executor(None, target_retriever.retrieve, query)
             return results[: self.max_retrieved_docs] if results else []
         except Exception as e:
             logger.error(f"SelfRAGCritic: Retrieval error: {e}")

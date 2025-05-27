@@ -86,9 +86,6 @@ class GeminiModel(BaseModelImplementation):
         self,
         model_name: str,
         api_key: Optional[str] = None,
-        provider_name: str = "Gemini",
-        env_var_name: str = "GOOGLE_API_KEY",
-        required_packages: Optional[list] = None,
         **options: Any,
     ):
         """Initialize the Gemini model with the specified parameters.
@@ -121,14 +118,23 @@ class GeminiModel(BaseModelImplementation):
             )
             ```
         """
+        # Check if Gemini package is available
+        if not GEMINI_AVAILABLE:
+            from sifaka.utils.error_handling import ConfigurationError
+            raise ConfigurationError(
+                "Required packages not available: 'google.generativeai'",
+                component="Gemini",
+                operation="initialization",
+                suggestions=[
+                    "Install missing packages: pip install google-generativeai",
+                    "Check the Gemini documentation for installation instructions",
+                ],
+            )
+
         # Initialize base class with Gemini-specific configuration
         super().__init__(
             model_name=model_name,
             api_key=api_key,
-            provider_name=provider_name,
-            env_var_name=env_var_name,
-            required_packages=required_packages
-            or (["google.generativeai"] if not GEMINI_AVAILABLE else None),
             **options,
         )
 

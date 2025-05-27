@@ -152,6 +152,7 @@ class QuickStart:
         key_prefix: str = "sifaka",
         prompt: Optional[str] = None,
         max_iterations: int = 3,
+        mcp_redis_command: Optional[str] = None,
         **model_options: Any,
     ) -> Chain:
         """Create a chain with Redis storage.
@@ -162,6 +163,8 @@ class QuickStart:
             key_prefix: Prefix for Redis keys.
             prompt: Optional prompt to use for generation.
             max_iterations: Maximum improvement iterations.
+            mcp_redis_command: Optional custom MCP Redis server command.
+                             Defaults to "uv run --directory /path/to/mcp-redis src/main.py"
             **model_options: Additional options for the model.
 
         Returns:
@@ -174,11 +177,15 @@ class QuickStart:
 
         model = create_model(model_spec, **model_options)
 
+        # Use provided command or default
+        if mcp_redis_command is None:
+            mcp_redis_command = "uv run --directory mcp/mcp-server-redis src/main.py"
+
         # Create Redis MCP configuration
         redis_config = MCPServerConfig(
             name="redis-server",
             transport_type=MCPTransportType.STDIO,
-            url="python -m mcp_redis",
+            url=mcp_redis_command,
         )
 
         storage = RedisStorage(mcp_config=redis_config, key_prefix=key_prefix)
@@ -196,6 +203,7 @@ class QuickStart:
         collection_name: str = "sifaka_storage",
         prompt: Optional[str] = None,
         max_iterations: int = 3,
+        mcp_milvus_command: Optional[str] = None,
         **model_options: Any,
     ) -> Chain:
         """Create a chain with Milvus vector storage.
@@ -205,6 +213,8 @@ class QuickStart:
             collection_name: Name of the Milvus collection.
             prompt: Optional prompt to use for generation.
             max_iterations: Maximum improvement iterations.
+            mcp_milvus_command: Optional custom MCP Milvus server command.
+                              Defaults to "uv run --directory /path/to/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530"
             **model_options: Additional options for the model.
 
         Returns:
@@ -217,11 +227,15 @@ class QuickStart:
 
         model = create_model(model_spec, **model_options)
 
+        # Use provided command or default
+        if mcp_milvus_command is None:
+            mcp_milvus_command = "uv run --directory mcp/mcp-server-milvus/ src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530"
+
         # Create Milvus MCP configuration
         milvus_config = MCPServerConfig(
             name="milvus-server",
             transport_type=MCPTransportType.STDIO,
-            url="uv run --directory /path/to/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530",
+            url=mcp_milvus_command,
         )
 
         storage = MilvusStorage(mcp_config=milvus_config, collection_name=collection_name)
@@ -311,7 +325,7 @@ class QuickStart:
                 milvus_config = MCPServerConfig(
                     name="milvus-server",
                     transport_type=MCPTransportType.STDIO,
-                    url="cd /Users/evanvolgas/Documents/not_beam/sifaka/mcp && python -m main.py",
+                    url="uv run --directory /path/to/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530",
                 )
                 persistence_layer = MilvusStorage(mcp_config=milvus_config)
 

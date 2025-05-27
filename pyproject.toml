@@ -114,6 +114,7 @@ dev = [
     "autoflake>=2.0.0",
     "typer>=0.9.0",
     "pre-commit>=3.0.0",
+    "ipython>=8.0.0",
     # Type stubs
     "types-aiofiles>=23.0.0",
     "types-jsonschema>=4.21.0",
