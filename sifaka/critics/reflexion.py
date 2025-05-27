@@ -597,7 +597,7 @@ class ReflexionCritic(BaseCritic):
         if thought.history:
             memory_parts.append("\nRecent Trial History:")
             for ref in thought.history[-3:]:  # Last 3 trials
-                memory_parts.append(f"- Trial {ref.iteration}: {ref.chain_id}")
+                memory_parts.append(f"- Trial {ref.iteration}: {ref.summary or 'No summary'}")
 
         # Extract from critic feedback history
         if thought.critic_feedback:

@@ -153,11 +153,17 @@ class Thought(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert the Thought to a dictionary."""
-        data = self.model_dump(exclude={"history"})
+        data = self.model_dump()
 
         # Convert datetime to string for JSON serialization
         if data.get("timestamp") and hasattr(data["timestamp"], "isoformat"):
             data["timestamp"] = data["timestamp"].isoformat()
+
+        # Convert history timestamps to strings for JSON serialization
+        if data.get("history"):
+            for ref in data["history"]:
+                if ref.get("timestamp") and hasattr(ref["timestamp"], "isoformat"):
+                    ref["timestamp"] = ref["timestamp"].isoformat()
 
         return data
 
@@ -178,6 +184,17 @@ class Thought(BaseModel):
             except ValueError:
                 # If parsing fails, use current time
                 data["timestamp"] = datetime.now()
+
+        # Handle history timestamp parsing
+        if "history" in data and data["history"]:
+            from datetime import datetime
+
+            for ref in data["history"]:
+                if "timestamp" in ref and isinstance(ref["timestamp"], str):
+                    try:
+                        ref["timestamp"] = datetime.fromisoformat(ref["timestamp"])
+                    except ValueError:
+                        ref["timestamp"] = datetime.now()
 
         # Handle validation_results format conversion
         if "validation_results" in data and isinstance(data["validation_results"], list):
