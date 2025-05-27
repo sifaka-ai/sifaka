@@ -385,7 +385,7 @@ For detailed installation and configuration instructions, see **[Storage Setup G
 - **[API Reference](docs/api/api-reference.md)** - Complete API documentation
 - **[Architecture](docs/architecture.md)** - System design and interactions
 - **[Examples](examples/)** - Working examples for different providers
-- **[Critics](docs/critics.md) - Critics and their use cases
+- **[Critics](docs/critics.md)** - Critics and their use cases
 
 ### Guidelines
 - **[Contributing](docs/guidelines/contributing.md)** - Guidelines for contributors
