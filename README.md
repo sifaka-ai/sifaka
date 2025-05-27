@@ -29,6 +29,8 @@ The **Thought** container maintains complete state including:
 - **Self-Refine** (Madaan et al. 2023) - Iterative self-improvement through critique and revision
 - **Self-RAG** (Asai et al. 2023) - Retrieval-augmented self-critique
 - **Constitutional AI** (Anthropic) - Principle-based text evaluation
+- **Meta-Rewarding** (Wu et al. 2024) - Two-stage judgment with meta-evaluation
+- **Self-Consistency** (Wang et al. 2022) - Multiple critique generation with consensus
 - **N-Critics** (Mousavi et al. 2023) - Ensemble of specialized critics
 
 **Validation-First Design**: Built-in validation and iterative improvement as core concepts, not afterthoughts.
@@ -83,7 +85,7 @@ print(f"History: {len(thought.history)} previous iterations")
 
 **Models**: Support for OpenAI, Anthropic, HuggingFace, Ollama, and Mock providers
 **Validators**: Length, regex, content, format, ML classifiers, GuardrailsAI integration
-**Critics**: Reflexion, Self-Refine, Self-RAG, Constitutional AI, N-Critics, custom prompt-based
+**Critics**: Reflexion, Self-Refine, Self-RAG, Constitutional AI, Meta-Rewarding, Self-Consistency, N-Critics, custom prompt-based
 **Retrievers**: In-memory, Redis-cached, MCP-based with 3-tier storage
 **Storage**: Memory, File, Redis, Milvus with unified protocol
 
@@ -118,7 +120,7 @@ chain = QuickStart.for_production(
     "openai:gpt-4",  # Requires OPENAI_API_KEY
     "Write a short story about a robot learning to help humans.",
     validators=["length"],
-    critics=["reflexion"]
+    critics=["reflexion", "self_consistency"]
 )
 
 # Run the chain
@@ -184,6 +186,8 @@ print(f"Validation results: {thought.validation_results}")
 ```python
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.self_rag import SelfRAGCritic
+from sifaka.critics.meta_rewarding import MetaRewardingCritic
+from sifaka.critics.self_consistency import SelfConsistencyCritic
 
 # Constitutional AI with custom principles
 constitutional_critic = ConstitutionalCritic(
@@ -201,7 +205,22 @@ self_rag_critic = SelfRAGCritic(
     retriever=retriever
 )
 
-chain.improve_with(constitutional_critic).improve_with(self_rag_critic)
+# Meta-Rewarding with two-stage judgment
+meta_rewarding_critic = MetaRewardingCritic(
+    model=model,
+    base_critic=constitutional_critic,  # Use Constitutional AI for initial judgment
+    meta_judge_model_name="openai:gpt-4"  # Separate model for meta-judgment
+)
+
+# Self-Consistency with multiple critique generation
+self_consistency_critic = SelfConsistencyCritic(
+    model=model,
+    base_critic=constitutional_critic,  # Use Constitutional AI for individual critiques
+    num_iterations=5,  # Generate 5 critiques for consensus
+    consensus_threshold=0.6  # 60% agreement threshold
+)
+
+chain.improve_with(constitutional_critic).improve_with(self_rag_critic).improve_with(self_consistency_critic)
 ```
 
 ### Storage and Persistence

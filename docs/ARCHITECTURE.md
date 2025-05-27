@@ -65,6 +65,8 @@ Provide improvement suggestions. Available approaches:
 - **ReflexionCritic**: Self-reflection based improvement
 - **SelfRAGCritic**: Retrieval-augmented self-critique
 - **ConstitutionalCritic**: Constitutional AI principles
+- **MetaRewardingCritic**: Two-stage judgment with meta-evaluation
+- **SelfConsistencyCritic**: Multiple critique generation with consensus
 - **NCriticsCritic**: Ensemble of multiple critics
 - **SelfRefineCritic**: Iterative self-refinement
 - **PromptCritic**: Custom prompt-based critique

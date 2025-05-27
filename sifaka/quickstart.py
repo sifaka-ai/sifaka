@@ -423,6 +423,16 @@ class QuickStart:
 
                     model = create_model(model_spec, **model_options)
                     chain.improve_with(SelfRAGCritic(model=model))
+                elif critic == "meta_rewarding":
+                    from sifaka.critics.meta_rewarding import MetaRewardingCritic
+
+                    model = create_model(model_spec, **model_options)
+                    chain.improve_with(MetaRewardingCritic(model=model))
+                elif critic == "self_consistency":
+                    from sifaka.critics.self_consistency import SelfConsistencyCritic
+
+                    model = create_model(model_spec, **model_options)
+                    chain.improve_with(SelfConsistencyCritic(model=model, num_iterations=3))
                 else:
                     logger.warning(f"Unknown critic type: {critic}")
             else:
@@ -528,6 +538,26 @@ class QuickStart:
 
                 model = create_model(model_spec, **model_options)
                 chain.improve_with(ReflexionCritic(model=model))
+            elif critic == "constitutional":
+                from sifaka.critics.constitutional import ConstitutionalCritic
+
+                model = create_model(model_spec, **model_options)
+                chain.improve_with(ConstitutionalCritic(model=model))
+            elif critic == "self_rag":
+                from sifaka.critics.self_rag import SelfRAGCritic
+
+                model = create_model(model_spec, **model_options)
+                chain.improve_with(SelfRAGCritic(model=model))
+            elif critic == "meta_rewarding":
+                from sifaka.critics.meta_rewarding import MetaRewardingCritic
+
+                model = create_model(model_spec, **model_options)
+                chain.improve_with(MetaRewardingCritic(model=model))
+            elif critic == "self_consistency":
+                from sifaka.critics.self_consistency import SelfConsistencyCritic
+
+                model = create_model(model_spec, **model_options)
+                chain.improve_with(SelfConsistencyCritic(model=model, num_iterations=3))
 
         logger.debug("Production chain created successfully")
         return chain
@@ -697,7 +727,7 @@ class ConfigPresets:
             "always_apply_critics": True,
             "storage_type": "memory+redis",
             "validators": ["length", "toxicity"],
-            "critics": ["constitutional", "reflexion"],
+            "critics": ["constitutional", "meta_rewarding"],
             "length_min": 50,
             "length_max": 2000,
         }
