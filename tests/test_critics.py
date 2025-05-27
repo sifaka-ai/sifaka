@@ -83,7 +83,7 @@ class TestReflexionCritic:
         chain = Chain(
             model=main_model, prompt="Write about machine learning.", always_apply_critics=True
         )
-        chain.improve_with(critic)
+        chain = chain.improve_with(critic)
 
         result = chain.run()
 
@@ -393,9 +393,9 @@ class TestCriticIntegration:
         )
 
         # Add multiple critics
-        chain.improve_with(ReflexionCritic(model=critic_model))
-        chain.improve_with(SelfRefineCritic(model=critic_model))
-        chain.improve_with(PromptCritic(model=critic_model))
+        chain = chain.improve_with(ReflexionCritic(model=critic_model))
+        chain = chain.improve_with(SelfRefineCritic(model=critic_model))
+        chain = chain.improve_with(PromptCritic(model=critic_model))
 
         result = chain.run()
 

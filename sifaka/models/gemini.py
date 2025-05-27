@@ -1,0 +1,277 @@
+"""Google Gemini model implementation for Sifaka.
+
+This module provides an implementation of the Model protocol for Google Gemini models,
+supporting text generation with the Gemini Pro family of models. It handles
+token counting, error handling, and configuration for Gemini models.
+
+The GeminiModel class implements the Model protocol and provides methods for
+generating text and counting tokens. It also provides a configure method for
+updating model options after initialization.
+
+Example:
+    ```python
+    from sifaka.models.gemini import GeminiModel, create_gemini_model
+
+    # Create a model directly
+    model1 = GeminiModel(model_name="gemini-1.5-flash", api_key="your-api-key")
+
+    # Create a model using the factory function
+    model2 = create_gemini_model(model_name="gemini-1.5-pro", api_key="your-api-key")
+
+    # Generate text
+    response = model1.generate(
+        "Write a short story about a robot.",
+        temperature=0.7,
+        max_tokens=500,
+        system_message="You are a creative writer."
+    )
+    print(response)
+
+    # Count tokens
+    token_count = model1.count_tokens("This is a test.")
+    print(f"Token count: {token_count}")
+    ```
+"""
+
+from typing import Any, Optional
+
+try:
+    import google.generativeai as genai
+    from google.generativeai.types import GenerationConfig, HarmBlockThreshold, HarmCategory
+
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
+from sifaka.core.thought import Thought
+from sifaka.models.shared import BaseModelImplementation
+from sifaka.utils.logging import get_logger
+
+# Configure logger
+logger = get_logger(__name__)
+
+
+class GeminiModel(BaseModelImplementation):
+    """Google Gemini model implementation for generating text and counting tokens.
+
+    This class implements the Model protocol for Google Gemini models, supporting
+    the Gemini Pro family of models for text generation. It handles token counting,
+    error handling, and configuration for Gemini models.
+
+    The class also provides methods for counting tokens and configuring the model
+    after initialization.
+
+    Example:
+        ```python
+        from sifaka.models.gemini import GeminiModel
+
+        # Create a model
+        model = GeminiModel(
+            model_name="gemini-1.5-flash",
+            api_key="your-api-key",
+            temperature=0.7
+        )
+
+        # Generate text with a system message
+        response = model.generate(
+            "Write a short story about a robot.",
+            system_message="You are a creative writer.",
+            max_tokens=500
+        )
+        print(response)
+        ```
+    """
+
+    def __init__(
+        self,
+        model_name: str,
+        api_key: Optional[str] = None,
+        provider_name: str = "Gemini",
+        env_var_name: str = "GOOGLE_API_KEY",
+        required_packages: Optional[list] = None,
+        **options: Any,
+    ):
+        """Initialize the Gemini model with the specified parameters.
+
+        Args:
+            model_name: The name of the Gemini model to use (e.g., "gemini-1.5-flash", "gemini-1.5-pro").
+            api_key: Optional API key to use. If not provided, it will be read from the
+                GOOGLE_API_KEY environment variable.
+            **options: Additional options to pass to the Gemini API, such as:
+                - temperature: Controls randomness in generation (0.0 to 2.0).
+                - max_tokens: Maximum number of tokens to generate.
+                - top_p: Controls diversity via nucleus sampling.
+                - top_k: Controls diversity by limiting to top k tokens.
+
+        Raises:
+            ConfigurationError: If the google-generativeai package is not installed.
+            ModelError: If the API key is not provided and not available in the environment.
+
+        Example:
+            ```python
+            # Create a model with API key from environment variable
+            model1 = GeminiModel(model_name="gemini-1.5-flash")
+
+            # Create a model with explicit API key and options
+            model2 = GeminiModel(
+                model_name="gemini-1.5-pro",
+                api_key="your-api-key",
+                temperature=0.7,
+                max_tokens=500
+            )
+            ```
+        """
+        # Initialize base class with Gemini-specific configuration
+        super().__init__(
+            model_name=model_name,
+            api_key=api_key,
+            provider_name=provider_name,
+            env_var_name=env_var_name,
+            required_packages=required_packages
+            or (["google.generativeai"] if not GEMINI_AVAILABLE else None),
+            **options,
+        )
+
+        # Configure the Gemini API
+        genai.configure(api_key=self.api_key)
+
+        # Initialize the Gemini model
+        self.model = genai.GenerativeModel(model_name)
+
+        # Set up safety settings (allow most content for flexibility)
+        self.safety_settings = {
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        }
+
+    def _generate_impl(self, prompt: str, **options: Any) -> str:
+        """Generate text using the Gemini API.
+
+        This is the internal implementation called by the base class generate method.
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options for generation.
+
+        Returns:
+            The generated text.
+
+        Raises:
+            ModelAPIError: If there is an error calling the Gemini API.
+        """
+        # Extract system message if provided
+        system_message = options.pop("system_message", None)
+
+        try:
+            # Build generation config
+            generation_config = GenerationConfig(
+                temperature=options.get("temperature", 0.7),
+                top_p=options.get("top_p", 0.95),
+                top_k=options.get("top_k", 40),
+                max_output_tokens=options.get("max_tokens", 1024),
+                stop_sequences=options.get("stop_sequences", None),
+            )
+
+            # Prepare the full prompt with system message if provided
+            full_prompt = prompt
+            if system_message:
+                full_prompt = f"System: {system_message}\n\nUser: {prompt}"
+
+            # Generate content
+            response = self.model.generate_content(
+                full_prompt,
+                generation_config=generation_config,
+                safety_settings=self.safety_settings,
+            )
+
+            # Extract the response text
+            if response.text:
+                return response.text.strip()
+            else:
+                # Handle case where response is blocked or empty
+                return ""
+
+        except Exception as e:
+            # Use base class error handling
+            self._handle_api_error(e, "generation")
+            raise  # Re-raise after handling
+
+    def _supports_system_prompt(self) -> bool:
+        """Check if the model supports system prompts.
+
+        Returns:
+            True since we can simulate system prompts by prepending to the user message.
+        """
+        return True
+
+    def count_tokens(self, text: str) -> int:
+        """Count tokens in text using the Gemini tokenizer.
+
+        This method uses the Gemini API's built-in token counting functionality
+        to provide accurate token counts for the specific model.
+
+        Args:
+            text: The text to count tokens in.
+
+        Returns:
+            The number of tokens in the text according to the model's tokenization scheme.
+
+        Example:
+            ```python
+            # Count tokens in text
+            token_count = model.count_tokens("This is a test.")
+            print(f"Token count: {token_count}")
+            ```
+        """
+        try:
+            # Use Gemini's built-in token counting
+            result = self.model.count_tokens(text)
+            return result.total_tokens
+        except Exception as e:
+            logger.warning(f"Failed to count tokens with Gemini API: {e}")
+            # Fallback to simple word-based approximation
+            return len(text.split()) if text else 0
+
+    # Async methods required by Model protocol
+    async def _generate_async(self, prompt: str, **options: Any) -> str:
+        """Generate text from a prompt asynchronously.
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options for generation.
+
+        Returns:
+            The generated text.
+        """
+        # For now, just call the sync method
+        # In a real implementation, you would use the async Gemini client
+        return self.generate(prompt, **options)
+
+    async def _generate_with_thought_async(
+        self, thought: Thought, **options: Any
+    ) -> tuple[str, str]:
+        """Generate text using a Thought container asynchronously.
+
+        Args:
+            thought: The Thought container with context for generation.
+            **options: Additional options for generation.
+
+        Returns:
+            A tuple of (generated_text, actual_prompt_used).
+        """
+        # For now, just call the sync method
+        # In a real implementation, you would use the async Gemini client
+        return self.generate_with_thought(thought, **options)
+
+
+# Create factory function using the shared pattern
+from sifaka.models.shared import create_factory_function
+
+create_gemini_model = create_factory_function(
+    model_class=GeminiModel,
+    provider_name="Gemini",
+    env_var_name="GOOGLE_API_KEY",
+    required_packages=["google.generativeai"] if not GEMINI_AVAILABLE else None,
+)

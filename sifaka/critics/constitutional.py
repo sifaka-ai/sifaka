@@ -17,8 +17,17 @@ https://arxiv.org/abs/2212.08073
       url={https://arxiv.org/abs/2212.08073},
 }
 
-The ConstitutionalCritic evaluates text against a set of predefined principles
-and provides detailed feedback on principle violations.
+The ConstitutionalCritic implements key Constitutional AI concepts:
+1. Principle-based evaluation against a written constitution
+2. Natural language feedback on principle violations
+3. Iterative improvement through constitutional critique
+4. Harmlessness assessment through AI feedback
+5. Learning from principle violation patterns and contextual importance (enhanced)
+6. Adaptive principle weighting based on task types and effectiveness (enhanced)
+
+Note: This implementation captures core Constitutional AI principles with enhanced
+learning capabilities through integration with the Sifaka thoughts system.
+The critic learns which principles are most important for different contexts.
 """
 
 import json
@@ -116,26 +125,24 @@ class ConstitutionalCritic(BaseCritic):
         Returns:
             A dictionary with critique results (without processing_time_ms).
         """
-        # Format principles for the prompt
-        principles_text = "\n".join(
-            f"{i+1}. {principle}" for i, principle in enumerate(self.principles)
-        )
+        # Extract learning context from thought for enhanced constitutional evaluation
+        learning_context = self._extract_constitutional_learning_context(thought)
+
+        # Format principles for the prompt with learned weights
+        principles_text = self._format_principles_with_learning(learning_context)
 
         # Prepare context from retrieved documents (using mixin)
         context = self._prepare_context(thought)
 
-        # Create critique prompt with context
-        critique_prompt = self.critique_prompt_template.format(
-            principles=principles_text,
-            prompt=thought.prompt,
-            text=thought.text,
-            context=context,
+        # Create enhanced critique prompt with learning context
+        critique_prompt = self._build_enhanced_constitutional_prompt(
+            thought.prompt, thought.text, context, principles_text, learning_context
         )
 
-        # Generate critique
+        # Generate critique with enhanced constitutional awareness
         critique_response = await self.model._generate_async(
             prompt=critique_prompt,
-            system_message="You are an expert constitutional AI evaluator analyzing text for principle violations.",
+            system_message="You are an expert constitutional AI evaluator with learning from past principle violation patterns.",
         )
 
         # Parse the critique
@@ -151,8 +158,13 @@ class ConstitutionalCritic(BaseCritic):
         confidence = 1.0 - (len(violations) / len(self.principles)) if self.principles else 1.0
         confidence = max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
 
+        # Store constitutional learning outcomes for future evaluations
+        self._store_constitutional_outcomes(
+            thought, learning_context, violations, confidence, issues
+        )
+
         logger.debug(
-            f"ConstitutionalCritic: Found {len(violations)} violations, confidence: {confidence:.2f}"
+            f"ConstitutionalCritic: Found {len(violations)} violations, confidence: {confidence:.2f} with learning integration"
         )
 
         return {
@@ -165,6 +177,8 @@ class ConstitutionalCritic(BaseCritic):
                 "principle_violations": violations,
                 "principles_evaluated": len(self.principles),
                 "strict_mode": self.strict_mode,
+                "learning_applied": bool(learning_context.get("principle_weights")),
+                "task_type": learning_context.get("task_type", "general"),
             },
         }
 
@@ -368,3 +382,278 @@ class ConstitutionalCritic(BaseCritic):
                     )
 
         return violations
+
+    def _extract_constitutional_learning_context(self, thought: Thought) -> Dict[str, Any]:
+        """Extract learning context from thought for enhanced constitutional evaluation.
+
+        Args:
+            thought: The Thought to extract learning context from.
+
+        Returns:
+            Dictionary with constitutional learning context.
+        """
+        learning_context = {
+            "constitutional_sessions": 0,
+            "principle_violations": {},
+            "principle_weights": {},
+            "violation_patterns": [],
+            "task_type": self._classify_constitutional_task_type(thought.prompt),
+        }
+
+        # Extract from thought metadata
+        if thought.metadata:
+            constitutional_data = thought.metadata.get("constitutional_memory", {})
+            if constitutional_data:
+                learning_context["constitutional_sessions"] = len(
+                    constitutional_data.get("sessions", [])
+                )
+                learning_context["principle_violations"] = constitutional_data.get(
+                    "principle_violations", {}
+                )
+                learning_context["principle_weights"] = constitutional_data.get(
+                    "principle_weights", {}
+                )
+                learning_context["violation_patterns"] = constitutional_data.get(
+                    "violation_patterns", []
+                )[
+                    -10:
+                ]  # Last 10
+
+        # Extract from thought history
+        if thought.history:
+            learning_context["previous_attempts"] = len(thought.history)
+
+        # Extract from critic feedback history
+        if thought.critic_feedback:
+            constitutional_feedback = [
+                f for f in thought.critic_feedback if f.critic_name == "ConstitutionalCritic"
+            ]
+            if constitutional_feedback:
+                learning_context["previous_feedback_count"] = len(constitutional_feedback)
+                # Analyze principle violation patterns from previous feedback
+                for feedback in constitutional_feedback[-5:]:  # Last 5 feedback instances
+                    if feedback.metadata and "principle_violations" in feedback.metadata:
+                        violations = feedback.metadata["principle_violations"]
+                        for violation in violations:
+                            violation_type = violation.get("type", "unknown")
+                            if violation_type not in learning_context["principle_violations"]:
+                                learning_context["principle_violations"][violation_type] = 0
+                            learning_context["principle_violations"][violation_type] += 1
+
+        return learning_context
+
+    def _classify_constitutional_task_type(self, prompt: str) -> str:
+        """Classify the task type for constitutional learning purposes.
+
+        Args:
+            prompt: The task prompt to classify.
+
+        Returns:
+            String representing the constitutional task type.
+        """
+        prompt_lower = prompt.lower()
+
+        # Safety-critical tasks that need strong constitutional oversight
+        if any(word in prompt_lower for word in ["advice", "recommendation", "should", "guidance"]):
+            return "advisory"
+        elif any(
+            word in prompt_lower for word in ["sensitive", "controversial", "political", "religion"]
+        ):
+            return "sensitive"
+        elif any(word in prompt_lower for word in ["medical", "health", "treatment", "diagnosis"]):
+            return "medical"
+        elif any(word in prompt_lower for word in ["legal", "law", "court", "lawsuit"]):
+            return "legal"
+        elif any(word in prompt_lower for word in ["financial", "investment", "money", "trading"]):
+            return "financial"
+        elif any(word in prompt_lower for word in ["personal", "private", "confidential"]):
+            return "personal"
+        elif any(word in prompt_lower for word in ["creative", "story", "fiction", "poem"]):
+            return "creative"
+        elif any(word in prompt_lower for word in ["technical", "code", "programming", "software"]):
+            return "technical"
+        else:
+            return "general"
+
+    def _format_principles_with_learning(self, learning_context: Dict[str, Any]) -> str:
+        """Format principles with learned weights and importance.
+
+        Args:
+            learning_context: Learning context from past constitutional evaluations.
+
+        Returns:
+            Formatted principles string with learned emphasis.
+        """
+        task_type = learning_context.get("task_type", "general")
+        principle_weights = learning_context.get("principle_weights", {})
+
+        formatted_principles = []
+        for i, principle in enumerate(self.principles):
+            principle_key = f"principle_{i}"
+            weight = principle_weights.get(task_type, {}).get(principle_key, 1.0)
+
+            # Add emphasis based on learned importance
+            if weight > 1.5:
+                emphasis = " [HIGH PRIORITY]"
+            elif weight > 1.2:
+                emphasis = " [IMPORTANT]"
+            elif weight < 0.8:
+                emphasis = " [LOWER PRIORITY]"
+            else:
+                emphasis = ""
+
+            formatted_principles.append(f"{i+1}. {principle}{emphasis}")
+
+        return "\n".join(formatted_principles)
+
+    def _build_enhanced_constitutional_prompt(
+        self,
+        prompt: str,
+        text: str,
+        context: str,
+        principles_text: str,
+        learning_context: Dict[str, Any],
+    ) -> str:
+        """Build enhanced constitutional prompt with learning context.
+
+        Args:
+            prompt: The original task prompt.
+            text: The text to evaluate.
+            context: Retrieved context.
+            principles_text: Formatted principles with learned weights.
+            learning_context: Learning context from past evaluations.
+
+        Returns:
+            Enhanced constitutional prompt string.
+        """
+        base_prompt = self.critique_prompt_template.format(
+            principles=principles_text,
+            prompt=prompt,
+            text=text,
+            context=context,
+        )
+
+        # Add learning enhancements if available
+        task_type = learning_context.get("task_type", "general")
+        violation_patterns = learning_context.get("violation_patterns", [])
+
+        if violation_patterns or learning_context.get("constitutional_sessions", 0) > 3:
+            learning_section = "\n\nConstitutional Learning Context:\n"
+
+            if violation_patterns:
+                learning_section += f"Common violation patterns for {task_type} tasks:\n"
+                for pattern in violation_patterns[-5:]:  # Last 5 patterns
+                    learning_section += f"- {pattern}\n"
+
+            if learning_context.get("principle_violations"):
+                learning_section += "Previously violated principles to pay special attention to:\n"
+                violations = learning_context["principle_violations"]
+                for violation_type, count in sorted(
+                    violations.items(), key=lambda x: x[1], reverse=True
+                )[:3]:
+                    learning_section += f"- {violation_type} (occurred {count} times)\n"
+
+            learning_section += f"\nThis is a {task_type} task. Focus on principles most relevant to this context.\n"
+
+            base_prompt += learning_section
+
+        return base_prompt
+
+    def _store_constitutional_outcomes(
+        self,
+        thought: Thought,
+        learning_context: Dict[str, Any],
+        violations: List[Dict[str, Any]],
+        confidence: float,
+        issues: List[str],
+    ) -> None:
+        """Store constitutional outcomes in thought metadata for future learning.
+
+        Args:
+            thought: The Thought to store outcomes in.
+            learning_context: The learning context used.
+            violations: The violations found.
+            confidence: The confidence score.
+            issues: The issues identified.
+        """
+        if not thought.metadata:
+            thought.metadata = {}
+
+        # Initialize constitutional memory if not exists
+        if "constitutional_memory" not in thought.metadata:
+            thought.metadata["constitutional_memory"] = {
+                "sessions": [],
+                "principle_violations": {},
+                "principle_weights": {},
+                "violation_patterns": [],
+            }
+
+        # Analyze this constitutional session
+        task_type = learning_context.get("task_type", "general")
+        session_data = {
+            "session_id": f"constitutional_session_{int(time.time())}",
+            "task_type": task_type,
+            "violations_found": len(violations),
+            "confidence": confidence,
+            "issues_count": len(issues),
+            "principles_evaluated": len(self.principles),
+            "timestamp": time.time(),
+        }
+
+        # Update principle violation tracking
+        for violation in violations:
+            violation_type = violation.get("type", "unknown")
+            if (
+                violation_type
+                not in thought.metadata["constitutional_memory"]["principle_violations"]
+            ):
+                thought.metadata["constitutional_memory"]["principle_violations"][
+                    violation_type
+                ] = 0
+            thought.metadata["constitutional_memory"]["principle_violations"][violation_type] += 1
+
+        # Update principle weights based on violations and task type
+        if task_type not in thought.metadata["constitutional_memory"]["principle_weights"]:
+            thought.metadata["constitutional_memory"]["principle_weights"][task_type] = {}
+
+        weights = thought.metadata["constitutional_memory"]["principle_weights"][task_type]
+
+        # Increase weight for principles that were violated (need more attention)
+        for i, principle in enumerate(self.principles):
+            principle_key = f"principle_{i}"
+            if principle_key not in weights:
+                weights[principle_key] = 1.0
+
+            # Check if this principle was violated
+            principle_violated = any(
+                principle.lower() in violation.get("description", "").lower()
+                for violation in violations
+            )
+
+            if principle_violated:
+                weights[principle_key] = min(2.0, weights[principle_key] + 0.2)  # Increase weight
+            elif confidence > 0.9:  # High confidence, no violations
+                weights[principle_key] = max(
+                    0.5, weights[principle_key] - 0.05
+                )  # Slightly decrease weight
+
+        # Store violation patterns for learning
+        if violations:
+            for violation in violations:
+                pattern = f"{task_type}: {violation.get('type', 'unknown')} - {violation.get('description', '')[:100]}"
+                thought.metadata["constitutional_memory"]["violation_patterns"].append(pattern)
+
+        # Store this session
+        thought.metadata["constitutional_memory"]["sessions"].append(session_data)
+
+        # Keep only last 20 sessions
+        if len(thought.metadata["constitutional_memory"]["sessions"]) > 20:
+            thought.metadata["constitutional_memory"]["sessions"] = thought.metadata[
+                "constitutional_memory"
+            ]["sessions"][-20:]
+
+        # Keep only last 30 violation patterns
+        if len(thought.metadata["constitutional_memory"]["violation_patterns"]) > 30:
+            thought.metadata["constitutional_memory"]["violation_patterns"] = thought.metadata[
+                "constitutional_memory"
+            ]["violation_patterns"][-30:]

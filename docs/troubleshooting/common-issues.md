@@ -231,6 +231,8 @@ models = [
     "openai:gpt-3.5-turbo",
     "anthropic:claude-3-sonnet",
     "anthropic:claude-3-haiku",
+    "gemini:gemini-1.5-flash",
+    "gemini:gemini-1.5-pro",
     "mock:test-model"  # For testing
 ]
 

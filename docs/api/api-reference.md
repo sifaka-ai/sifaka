@@ -295,6 +295,10 @@ model = create_model("openai:gpt-3.5-turbo")
 # Anthropic models
 model = create_model("anthropic:claude-3-sonnet", api_key="your-key")
 
+# Google Gemini models
+model = create_model("gemini:gemini-1.5-flash", api_key="your-key")
+model = create_model("gemini:gemini-1.5-pro")
+
 # HuggingFace models
 model = create_model("huggingface:microsoft/DialoGPT-medium")
 
@@ -330,6 +334,20 @@ from sifaka.models.anthropic import AnthropicModel
 model = AnthropicModel(
     model_name: str = "claude-3-sonnet-20240229",
     api_key: Optional[str] = None,  # Uses ANTHROPIC_API_KEY env var if not provided
+    temperature: float = 0.7,
+    max_tokens: Optional[int] = None,
+    **kwargs: Any
+)
+```
+
+#### GeminiModel
+
+```python
+from sifaka.models.gemini import GeminiModel
+
+model = GeminiModel(
+    model_name: str = "gemini-1.5-flash",
+    api_key: Optional[str] = None,  # Uses GOOGLE_API_KEY env var if not provided
     temperature: float = 0.7,
     max_tokens: Optional[int] = None,
     **kwargs: Any
@@ -638,6 +656,102 @@ principles = [
 ]
 critic = ConstitutionalCritic(model=model, principles=principles)
 ```
+
+### MetaRewardingCritic
+
+Implements Meta-Rewarding approach with two-stage judgment process.
+
+```python
+from sifaka.critics.meta_rewarding import MetaRewardingCritic
+
+critic = MetaRewardingCritic(
+    model: Model,
+    base_critic: Optional[BaseCritic] = None,
+    meta_judge_model: Optional[Model] = None,
+    meta_judge_model_name: Optional[str] = None,
+    judgment_criteria: Optional[List[str]] = None,
+    meta_judgment_criteria: Optional[List[str]] = None,
+    use_scoring: bool = True,
+    score_range: tuple[int, int] = (1, 10)
+)
+```
+
+**Example:**
+```python
+# Basic usage
+critic = MetaRewardingCritic(model=model)
+
+# With base critic for initial judgment
+base_critic = ConstitutionalCritic(model=model)
+meta_critic = MetaRewardingCritic(
+    model=model,
+    base_critic=base_critic,
+    meta_judge_model_name="openai:gpt-4"
+)
+
+# Custom judgment criteria
+judgment_criteria = [
+    "Accuracy and factual correctness",
+    "Helpfulness and relevance",
+    "Clarity and coherence"
+]
+meta_judgment_criteria = [
+    "Quality of evaluation",
+    "Thoroughness of feedback",
+    "Constructiveness of suggestions"
+]
+critic = MetaRewardingCritic(
+    model=model,
+    judgment_criteria=judgment_criteria,
+    meta_judgment_criteria=meta_judgment_criteria
+)
+```
+
+**Note:** This is a simplified implementation of the Meta-Rewarding approach from the paper "Meta-Rewarding Language Models: Self-Improving Alignment with LLM-as-a-Meta-Judge" (https://arxiv.org/abs/2407.19594). The implementation uses prompt-based meta-judgment rather than the specialized training procedures described in the original paper.
+
+### SelfConsistencyCritic
+
+Implements Self-Consistency approach with multiple critique generation and consensus.
+
+```python
+from sifaka.critics.self_consistency import SelfConsistencyCritic
+
+critic = SelfConsistencyCritic(
+    model: Model,
+    base_critic: Optional[BaseCritic] = None,
+    num_iterations: int = 5,
+    consensus_threshold: float = 0.6,
+    aggregation_method: str = "majority_vote",
+    use_chain_of_thought: bool = True,
+    similarity_threshold: float = 0.7
+)
+```
+
+**Example:**
+```python
+# Basic usage
+critic = SelfConsistencyCritic(model=model, num_iterations=5)
+
+# With base critic for individual critiques
+base_critic = ConstitutionalCritic(model=model)
+consistency_critic = SelfConsistencyCritic(
+    model=model,
+    base_critic=base_critic,
+    num_iterations=7,
+    consensus_threshold=0.7
+)
+
+# Custom configuration
+critic = SelfConsistencyCritic(
+    model=model,
+    num_iterations=3,
+    consensus_threshold=0.5,
+    use_chain_of_thought=True,
+    aggregation_method="majority_vote"
+)
+```
+
+**Note:** This is an adaptation of the Self-Consistency approach from the paper "Self-Consistency Improves Chain of Thought Reasoning in Language Models" (https://arxiv.org/abs/2203.11171). The original paper focuses on improving reasoning accuracy through multiple generations and majority voting of final answers. This implementation applies the same principle to text critique, generating multiple critiques and using consensus to determine the most reliable feedback.
 
 ### PromptCritic
 
@@ -1024,6 +1138,7 @@ from sifaka.core.thought import Thought
 from sifaka.models.base import create_model
 from sifaka.models.openai import OpenAIModel
 from sifaka.models.anthropic import AnthropicModel
+from sifaka.models.gemini import GeminiModel
 
 # Validators
 from sifaka.validators.base import LengthValidator, RegexValidator
@@ -1032,6 +1147,8 @@ from sifaka.validators.classifier import create_classifier_validator
 # Critics
 from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.critics.constitutional import ConstitutionalCritic
+from sifaka.critics.meta_rewarding import MetaRewardingCritic
+from sifaka.critics.self_consistency import SelfConsistencyCritic
 
 # Classifiers
 from sifaka.classifiers.toxicity import ToxicityClassifier

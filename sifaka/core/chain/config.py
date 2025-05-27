@@ -82,6 +82,17 @@ class ChainConfig:
 
         self.chain_id = str(uuid.uuid4())
 
+    # Properties for backward compatibility
+    @property
+    def max_iterations(self) -> int:
+        """Get max_improvement_iterations for backward compatibility."""
+        return self.options.get("max_improvement_iterations", 3)
+
+    @max_iterations.setter
+    def max_iterations(self, value: int) -> None:
+        """Set max_improvement_iterations for backward compatibility."""
+        self.options["max_improvement_iterations"] = value
+
     def set_model(self, model: Model) -> None:
         """Set the model for the chain.
 
@@ -136,6 +147,10 @@ class ChainConfig:
         Args:
             **options: Options to update for the chain.
         """
+        # Handle backward compatibility for max_iterations
+        if "max_iterations" in options:
+            options["max_improvement_iterations"] = options.pop("max_iterations")
+
         self.options.update(options)
 
     def validate(self) -> None:
@@ -240,6 +255,19 @@ class ChainConfig:
         Returns:
             A new ChainConfig instance with the same configuration.
         """
+        # Extract constructor-compatible options
+        constructor_options = {}
+        if "max_improvement_iterations" in self.options:
+            constructor_options["max_improvement_iterations"] = self.options[
+                "max_improvement_iterations"
+            ]
+        if "apply_improvers_on_validation_failure" in self.options:
+            constructor_options["apply_improvers_on_validation_failure"] = self.options[
+                "apply_improvers_on_validation_failure"
+            ]
+        if "always_apply_critics" in self.options:
+            constructor_options["always_apply_critics"] = self.options["always_apply_critics"]
+
         new_config = ChainConfig(
             model=self.model,
             prompt=self.prompt,
@@ -247,11 +275,14 @@ class ChainConfig:
             critic_retrievers=self.critic_retrievers.copy(),
             storage=self.storage,
             checkpoint_storage=self.checkpoint_storage,
-            **self.options,
+            **constructor_options,
         )
 
         # Copy validators and critics
         new_config.validators = self.validators.copy()
         new_config.critics = self.critics.copy()
+
+        # Copy all options (including non-constructor ones)
+        new_config.options = self.options.copy()
 
         return new_config

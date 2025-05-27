@@ -76,7 +76,7 @@ chain = QuickStart.with_validation(
 ```python
 chain = QuickStart.with_critics(
     "openai:gpt-4",
-    critics=["reflexion", "constitutional"],
+    critics=["reflexion", "constitutional", "self_consistency"],
     prompt="Write an essay"
 )
 ```

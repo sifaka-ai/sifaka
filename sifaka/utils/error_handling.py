@@ -74,6 +74,41 @@ class SifakaError(Exception):
 class ModelError(SifakaError):
     """Error raised by model components."""
 
+    def __init__(
+        self,
+        message: str,
+        model_name: Optional[str] = None,
+        component: Optional[str] = None,
+        operation: Optional[str] = None,
+        suggestions: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+        """Initialize the error.
+
+        Args:
+            message: The error message
+            model_name: The name of the model
+            component: Optional component name
+            operation: Optional operation name
+            suggestions: Optional list of suggestions
+            metadata: Optional metadata to include
+        """
+        # Add model_name to metadata
+        metadata = metadata or {}
+        if model_name:
+            metadata["model_name"] = model_name
+
+        super().__init__(
+            message=message,
+            component=component,
+            operation=operation,
+            suggestions=suggestions,
+            metadata=metadata,
+        )
+
+        # Store as attribute for backward compatibility
+        self.model_name = model_name
+
 
 class ModelAPIError(ModelError):
     """Error raised by model API calls."""
@@ -114,6 +149,41 @@ class ModelAPIError(ModelError):
 class ValidationError(SifakaError):
     """Error raised by validator components."""
 
+    def __init__(
+        self,
+        message: str,
+        validator_name: Optional[str] = None,
+        component: Optional[str] = None,
+        operation: Optional[str] = None,
+        suggestions: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+        """Initialize the error.
+
+        Args:
+            message: The error message
+            validator_name: The name of the validator
+            component: Optional component name
+            operation: Optional operation name
+            suggestions: Optional list of suggestions
+            metadata: Optional metadata to include
+        """
+        # Add validator_name to metadata
+        metadata = metadata or {}
+        if validator_name:
+            metadata["validator_name"] = validator_name
+
+        super().__init__(
+            message=message,
+            component=component,
+            operation=operation,
+            suggestions=suggestions,
+            metadata=metadata,
+        )
+
+        # Store as attribute for backward compatibility
+        self.validator_name = validator_name
+
 
 class ImproverError(SifakaError):
     """Error raised by improver components."""
@@ -129,6 +199,45 @@ class ChainError(SifakaError):
 
 class ConfigurationError(SifakaError):
     """Error raised for configuration issues."""
+
+
+class StorageError(SifakaError):
+    """Error raised by storage components."""
+
+    def __init__(
+        self,
+        message: str,
+        storage_type: Optional[str] = None,
+        component: Optional[str] = None,
+        operation: Optional[str] = None,
+        suggestions: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
+        """Initialize the error.
+
+        Args:
+            message: The error message
+            storage_type: The type of storage
+            component: Optional component name
+            operation: Optional operation name
+            suggestions: Optional list of suggestions
+            metadata: Optional metadata to include
+        """
+        # Add storage_type to metadata
+        metadata = metadata or {}
+        if storage_type:
+            metadata["storage_type"] = storage_type
+
+        super().__init__(
+            message=message,
+            component=component,
+            operation=operation,
+            suggestions=suggestions,
+            metadata=metadata,
+        )
+
+        # Store as attribute for backward compatibility
+        self.storage_type = storage_type
 
 
 def format_error_message(
@@ -429,6 +538,44 @@ def chain_context(
         metadata=metadata,
     ) as context:
         yield context
+
+
+@contextmanager
+def storage_context(
+    storage_type: Optional[str] = None,
+    operation: Optional[str] = "storage",
+    message_prefix: Optional[str] = None,
+    suggestions: Optional[List[str]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """
+    Context manager for storage operations.
+
+    Args:
+        storage_type: Optional storage type name
+        operation: Optional operation name
+        message_prefix: Optional prefix for the error message
+        suggestions: Optional list of suggestions
+        metadata: Optional metadata to include
+
+    Yields:
+        None
+
+    Raises:
+        StorageError with additional context
+    """
+    with error_context(
+        component="Storage",
+        operation=operation,
+        error_class=StorageError,
+        message_prefix=message_prefix,
+        suggestions=suggestions,
+        metadata=metadata,
+    ) as context:
+        # Add storage type to the context if provided
+        if storage_type:
+            context.metadata["storage_type"] = storage_type
+        yield
 
 
 # Utility functions for enhanced error messages

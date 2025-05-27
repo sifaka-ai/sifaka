@@ -17,6 +17,7 @@ Learn how to customize and extend Sifaka:
 - **[Configuration Guide](guides/configuration.md)** - Configure Sifaka for your needs
 - **[Custom Models](guides/custom-models.md)** - Create custom model integrations
 - **[Custom Validators](guides/custom-validators.md)** - Build domain-specific validation
+- **[Classifiers](guides/classifiers.md)** - Using built-in text classifiers for content analysis
 - **[Storage Setup](guides/storage-setup.md)** - Configure Redis, Milvus, and other storage backends
 - **[Performance Tuning](guides/performance-tuning.md)** - Optimize your Sifaka applications
 
@@ -56,6 +57,7 @@ docs/
 │   ├── configuration.md
 │   ├── custom-models.md
 │   ├── custom-validators.md
+│   ├── classifiers.md
 │   ├── storage-setup.md
 │   └── performance-tuning.md
 ├── troubleshooting/          # Problem-solving guides
@@ -82,6 +84,8 @@ docs/
 
 **Customize Sifaka** → [Custom Models](guides/custom-models.md) or [Custom Validators](guides/custom-validators.md)
 
+**Use text classifiers** → [Classifiers Guide](guides/classifiers.md)
+
 **Set up storage** → [Storage Setup](guides/storage-setup.md)
 
 **Optimize performance** → [Performance Tuning](guides/performance-tuning.md)
@@ -98,6 +102,7 @@ Looking for working examples? Check out the [examples directory](../examples/) i
 
 - **[OpenAI Examples](../examples/openai/)** - Using OpenAI models
 - **[Anthropic Examples](../examples/anthropic/)** - Using Claude models
+- **[Google Gemini Examples](../examples/gemini/)** - Using Gemini models
 - **[HuggingFace Examples](../examples/huggingface/)** - Using open-source models
 - **[Storage Examples](../examples/thought_caching/)** - Redis and Milvus integration
 - **[Validation Examples](../examples/guardrails/)** - Advanced validation patterns

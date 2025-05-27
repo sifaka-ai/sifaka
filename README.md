@@ -4,16 +4,18 @@
 [![Python](https://img.shields.io/badge/python-3.11+-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-A framework for reliable AI text generation with validation, critique, and iterative improvement.
+An open-source framework that adds reflection and reliability to large language model (LLM) applications.
 
 ## What is Sifaka?
 
-Sifaka implements a **Thought-centric architecture** where a central state container flows through a chain of AI components. Unlike traditional pipeline approaches, every step of the generation process is tracked, validated, and can be iteratively improved.
+Sifaka is a tool for adding reflection and reliability to large language model (LLM) applications. It implements research-backed techniques for validating, critiquing, and iteratively improving AI-generated text through a transparent, observable process.
 
 **Core Architecture:**
 ```
 Thought → Model → Validators → Critics → Improved Thought
 ```
+
+Sifaka implements a **Thought-centric architecture** where a central state container flows through a chain of AI components. Unlike traditional pipeline approaches, every step of the generation process is tracked, validated, and can be iteratively improved.
 
 The **Thought** container maintains complete state including:
 - Original prompt and generated text
@@ -29,6 +31,8 @@ The **Thought** container maintains complete state including:
 - **Self-Refine** (Madaan et al. 2023) - Iterative self-improvement through critique and revision
 - **Self-RAG** (Asai et al. 2023) - Retrieval-augmented self-critique
 - **Constitutional AI** (Anthropic) - Principle-based text evaluation
+- **Meta-Rewarding** (Wu et al. 2024) - Two-stage judgment with meta-evaluation
+- **Self-Consistency** (Wang et al. 2022) - Multiple critique generation with consensus
 - **N-Critics** (Mousavi et al. 2023) - Ensemble of specialized critics
 
 **Validation-First Design**: Built-in validation and iterative improvement as core concepts, not afterthoughts.
@@ -81,9 +85,10 @@ print(f"History: {len(thought.history)} previous iterations")
 
 ### Components
 
-**Models**: Support for OpenAI, Anthropic, HuggingFace, Ollama, and Mock providers
+**Models**: Support for OpenAI, Anthropic, Google Gemini, HuggingFace, Ollama, and Mock providers
 **Validators**: Length, regex, content, format, ML classifiers, GuardrailsAI integration
-**Critics**: Reflexion, Self-Refine, Self-RAG, Constitutional AI, N-Critics, custom prompt-based
+**Classifiers**: Bias, Language, Profanity, Sentiment, Spam, Toxicity detection with ML and rule-based fallbacks
+**Critics**: Reflexion, Self-Refine, Self-RAG, Constitutional AI, Meta-Rewarding, Self-Consistency, N-Critics, custom prompt-based
 **Retrievers**: In-memory, Redis-cached, MCP-based with 3-tier storage
 **Storage**: Memory, File, Redis, Milvus with unified protocol
 
@@ -116,9 +121,10 @@ from sifaka.quickstart import QuickStart
 # One-liner setup for common use cases
 chain = QuickStart.for_production(
     "openai:gpt-4",  # Requires OPENAI_API_KEY
+    # "gemini:gemini-1.5-flash",  # Or use Gemini (requires GOOGLE_API_KEY)
     "Write a short story about a robot learning to help humans.",
     validators=["length"],
-    critics=["reflexion"]
+    critics=["reflexion", "self_consistency"]
 )
 
 # Run the chain
@@ -184,6 +190,8 @@ print(f"Validation results: {thought.validation_results}")
 ```python
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.self_rag import SelfRAGCritic
+from sifaka.critics.meta_rewarding import MetaRewardingCritic
+from sifaka.critics.self_consistency import SelfConsistencyCritic
 
 # Constitutional AI with custom principles
 constitutional_critic = ConstitutionalCritic(
@@ -201,7 +209,54 @@ self_rag_critic = SelfRAGCritic(
     retriever=retriever
 )
 
-chain.improve_with(constitutional_critic).improve_with(self_rag_critic)
+# Meta-Rewarding with two-stage judgment
+meta_rewarding_critic = MetaRewardingCritic(
+    model=model,
+    base_critic=constitutional_critic,  # Use Constitutional AI for initial judgment
+    meta_judge_model_name="openai:gpt-4"  # Separate model for meta-judgment
+)
+
+# Self-Consistency with multiple critique generation
+self_consistency_critic = SelfConsistencyCritic(
+    model=model,
+    base_critic=constitutional_critic,  # Use Constitutional AI for individual critiques
+    num_iterations=5,  # Generate 5 critiques for consensus
+    consensus_threshold=0.6  # 60% agreement threshold
+)
+
+chain.improve_with(constitutional_critic).improve_with(self_rag_critic).improve_with(self_consistency_critic)
+```
+
+### Working with Classifiers
+
+```python
+from sifaka.classifiers import (
+    ToxicityClassifier, SentimentClassifier, BiasClassifier,
+    create_toxicity_validator, create_sentiment_validator
+)
+from sifaka.validators.classifier import create_classifier_validator
+
+# Use classifiers standalone for analysis
+toxicity_classifier = ToxicityClassifier()
+result = toxicity_classifier.classify("This is a sample text.")
+print(f"Toxicity: {result.label} (confidence: {result.confidence:.2f})")
+
+sentiment_classifier = SentimentClassifier()
+result = sentiment_classifier.classify("I love this framework!")
+print(f"Sentiment: {result.label} (confidence: {result.confidence:.2f})")
+
+# Create validators from classifiers
+toxicity_validator = create_toxicity_validator(threshold=0.8)
+sentiment_validator = create_sentiment_validator(target_sentiment="positive", threshold=0.7)
+
+# Use with chains for content filtering
+chain = Chain(model=model, prompt="Write a positive review")
+chain.validate_with(toxicity_validator).validate_with(sentiment_validator)
+
+# Custom classifier integration
+bias_classifier = BiasClassifier()
+custom_validator = create_classifier_validator(bias_classifier, threshold=0.6)
+chain.validate_with(custom_validator)
 ```
 
 ### Storage and Persistence
@@ -291,6 +346,7 @@ Set API keys as environment variables or in a `.env` file:
 # .env file
 OPENAI_API_KEY=your_openai_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
+GOOGLE_API_KEY=your_google_api_key
 HUGGINGFACE_API_TOKEN=your_hf_token
 ```
 
@@ -315,6 +371,7 @@ For detailed installation and configuration instructions, see **[Storage Setup G
 ### User Guides
 - **[Custom Models](docs/guides/custom-models.md)** - Creating and using custom models
 - **[Custom Validators](docs/guides/custom-validators.md)** - Building custom validation logic
+- **[Classifiers](docs/guides/classifiers.md)** - Using built-in text classifiers for content analysis
 - **[Storage Setup](docs/guides/storage-setup.md)** - Storage backends and configuration
 - **[Configuration](docs/guides/configuration.md)** - Advanced configuration options
 - **[Performance Tuning](docs/guides/performance-tuning.md)** - Optimization and performance tips

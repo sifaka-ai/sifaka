@@ -461,9 +461,11 @@ class TestValidatorIntegration:
         chain = Chain(model=model, prompt="Write about AI.")
 
         # Add multiple validators
-        chain.validate_with(LengthValidator(min_length=20, max_length=200))
-        chain.validate_with(RegexValidator(required_patterns=[r"artificial", r"intelligence"]))
-        chain.validate_with(ContentValidator(prohibited=["bad"], name="Safety"))
+        chain = chain.validate_with(LengthValidator(min_length=20, max_length=200))
+        chain = chain.validate_with(
+            RegexValidator(required_patterns=[r"artificial", r"intelligence"])
+        )
+        chain = chain.validate_with(ContentValidator(prohibited=["bad"], name="Safety"))
 
         result = chain.run()
 
@@ -484,7 +486,7 @@ class TestValidatorIntegration:
         )
 
         chain = Chain(model=model, prompt="Write a long response.")
-        chain.validate_with(LengthValidator(min_length=50, max_length=200))
+        chain = chain.validate_with(LengthValidator(min_length=50, max_length=200))
 
         result = chain.run()
 

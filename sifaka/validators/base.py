@@ -42,6 +42,7 @@ class LengthValidator(LengthValidatorBase):
         min_words: Optional[int] = None,
         max_words: Optional[int] = None,
         unit: str = "characters",
+        name: Optional[str] = None,
     ):
         """Initialize the validator.
 
@@ -62,7 +63,7 @@ class LengthValidator(LengthValidatorBase):
             min_length=min_length if min_length > 0 else None,
             max_length=max_length if max_length < 10000 else None,
             unit=unit,
-            name="LengthValidator",
+            name=name or "length",
         )
 
     async def _validate_async(self, thought: Thought) -> ValidationResult:
@@ -100,7 +101,8 @@ class RegexValidator(RegexValidatorBase):
         required_patterns: Optional[List[str]] = None,
         forbidden_patterns: Optional[List[str]] = None,
         prohibited_patterns: Optional[List[str]] = None,
-        case_sensitive: bool = True,
+        case_sensitive: bool = False,
+        name: Optional[str] = None,
     ):
         """Initialize the validator.
 
@@ -139,7 +141,7 @@ class RegexValidator(RegexValidatorBase):
         else:
             mode = "require_all"  # Default, though no patterns means always pass
 
-        super().__init__(patterns=patterns, mode=mode, name="RegexValidator")
+        super().__init__(patterns=patterns, mode=mode, name=name or "regex")
 
         # Store original patterns for backward compatibility
         self.required_patterns = required_patterns or []
@@ -177,10 +179,14 @@ class RegexValidator(RegexValidatorBase):
             import re
 
             flags = 0 if self.case_sensitive else re.IGNORECASE
-            pattern = re.compile(pattern_str, flags)
-            if pattern.search(text):
-                issues.append(f"Text matches forbidden pattern: {pattern_str}")
-                suggestions.append(f"Remove content matching: {pattern_str}")
+            try:
+                pattern = re.compile(pattern_str, flags)
+                if pattern.search(text):
+                    issues.append(f"Text matches forbidden pattern: {pattern_str}")
+                    suggestions.append(f"Remove content matching: {pattern_str}")
+            except re.error as e:
+                issues.append(f"Invalid forbidden pattern '{pattern_str}': {e}")
+                suggestions.append(f"Fix the regex pattern: {pattern_str}")
 
         # Determine if validation passed
         passed = len(issues) == 0
@@ -196,6 +202,7 @@ class RegexValidator(RegexValidatorBase):
             score=1.0 if passed else 0.0,
             issues=issues,
             suggestions=suggestions,
+            validator_name=self.name,
         )
 
     async def _validate_async(self, thought: Thought) -> ValidationResult:

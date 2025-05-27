@@ -145,6 +145,23 @@ class MemoryStorage:
         """
         return list(self.data.keys())
 
+    def list_keys(self, prefix: Optional[str] = None) -> List[str]:
+        """List all keys in storage, optionally filtered by prefix.
+
+        Args:
+            prefix: Optional prefix to filter keys.
+
+        Returns:
+            List of keys matching the prefix (or all keys if no prefix).
+        """
+        if prefix is None:
+            keys = list(self.data.keys())
+        else:
+            keys = [key for key in self.data.keys() if key.startswith(prefix)]
+
+        logger.debug(f"Memory list_keys: {len(keys)} keys found (prefix: {prefix})")
+        return keys
+
     def __len__(self) -> int:
         """Return number of stored items."""
         return len(self.data)

@@ -241,7 +241,7 @@ class TestModelIntegration:
         )
 
         chain = Chain(model=model, prompt="Write a response.")
-        chain.validate_with(LengthValidator(min_length=10, max_length=100))
+        chain = chain.validate_with(LengthValidator(min_length=10, max_length=100))
 
         result = chain.run()
 
@@ -260,7 +260,7 @@ class TestModelIntegration:
         )
 
         chain = Chain(model=main_model, prompt="Write something.", always_apply_critics=True)
-        chain.improve_with(ReflexionCritic(model=critic_model))
+        chain = chain.improve_with(ReflexionCritic(model=critic_model))
 
         result = chain.run()
 

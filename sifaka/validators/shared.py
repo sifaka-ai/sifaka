@@ -220,6 +220,7 @@ class LengthValidatorBase(BaseValidator):
             score=1.0 if passed else 0.0,
             issues=issues,
             suggestions=suggestions,
+            validator_name=self.name,
         )
 
 
@@ -320,6 +321,7 @@ class RegexValidatorBase(BaseValidator):
             score=1.0 if passed else 0.0,
             issues=issues,
             suggestions=suggestions,
+            validator_name=self.name,
         )
 
 

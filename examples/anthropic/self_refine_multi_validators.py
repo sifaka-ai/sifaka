@@ -9,6 +9,9 @@ This example demonstrates:
 
 The chain will generate content about software engineering best practices
 and use multiple validators to ensure high-quality, comprehensive output.
+
+Prerequisites:
+- Install GuardrailsAI PII detector: guardrails hub install hub://guardrails/detect_pii
 """
 
 import os
@@ -107,8 +110,8 @@ def create_comprehensive_validators():
 
     # 7. Guardrails Validator - Professional content safety
     guardrails_validator = GuardrailsValidator(
-        validators=["GuardrailsPII"],
-        validator_args={"GuardrailsPII": {"entities": ["PERSON", "EMAIL", "PHONE_NUMBER"]}},
+        validators=["DetectPII"],
+        validator_args={"DetectPII": {"entities": ["PERSON", "EMAIL", "PHONE_NUMBER"]}},
         name="Professional Content Safety Validator",
     )
     validators.append(guardrails_validator)

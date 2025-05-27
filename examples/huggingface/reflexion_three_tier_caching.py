@@ -3,12 +3,15 @@
 
 This example demonstrates:
 - HuggingFace model with retrievers and three-tiered caching
-- Reflexion critic for iterative improvement through reflection
+- Enhanced Reflexion critic with trial-based learning and task feedback
 - Memory → Redis → Milvus caching architecture
+- Episodic memory for learning from past reflections
 - Default retry behavior
 
 The chain will generate content about sustainable energy with full three-tier
-caching providing comprehensive context management and storage.
+caching providing comprehensive context management and storage. The Reflexion
+critic tracks trial numbers and can incorporate external task feedback
+for more authentic trial-and-error learning.
 """
 
 import os
@@ -203,6 +206,18 @@ def main():
                 print(f"     Reflection Analysis: {feedback.suggestions[:300]}...")
 
             # Show Reflexion specific metrics if available
+            if feedback.metadata:
+                if "trial_number" in feedback.metadata:
+                    print(f"     Trial Number: {feedback.metadata['trial_number']}")
+                if "memory_size" in feedback.metadata:
+                    print(f"     Memory Size: {feedback.metadata['memory_size']}")
+                if "task_feedback" in feedback.metadata and feedback.metadata["task_feedback"]:
+                    task_fb = feedback.metadata["task_feedback"]
+                    print(f"     Task Success: {task_fb.get('success', 'N/A')}")
+                    if task_fb.get("score"):
+                        print(f"     Task Score: {task_fb['score']:.2f}")
+
+            # Legacy compatibility
             if hasattr(feedback, "reflection_depth"):
                 print(f"     Reflection Depth: {feedback.reflection_depth}")
             if hasattr(feedback, "improvement_score"):

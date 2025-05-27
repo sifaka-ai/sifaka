@@ -49,14 +49,18 @@ class TestContentGenerationScenarios:
         )
 
         # Add content validators
-        chain.validate_with(LengthValidator(min_length=100, max_length=2000))
-        chain.validate_with(RegexValidator(required_patterns=[r"[Aa]rtificial [Ii]ntelligence"]))
-        chain.validate_with(ContentValidator(prohibited=["hate", "violence"], name="Safety Filter"))
+        chain = chain.validate_with(LengthValidator(min_length=100, max_length=2000))
+        chain = chain.validate_with(
+            RegexValidator(required_patterns=[r"[Aa]rtificial [Ii]ntelligence"])
+        )
+        chain = chain.validate_with(
+            ContentValidator(prohibited=["hate", "violence"], name="Safety Filter")
+        )
 
         # Add quality critics
         critic_model = MockModel(model_name="critic")
-        chain.improve_with(ReflexionCritic(model=critic_model))
-        chain.improve_with(SelfRefineCritic(model=critic_model))
+        chain = chain.improve_with(ReflexionCritic(model=critic_model))
+        chain = chain.improve_with(SelfRefineCritic(model=critic_model))
 
         start_time = time.time()
         result = chain.run()
@@ -87,17 +91,17 @@ class TestContentGenerationScenarios:
         )
 
         # Technical documentation requirements
-        chain.validate_with(LengthValidator(min_length=50, max_length=1000))
-        chain.validate_with(
+        chain = chain.validate_with(LengthValidator(min_length=50, max_length=1000))
+        chain = chain.validate_with(
             RegexValidator(required_patterns=[r"API", r"GET|POST|PUT|DELETE", r"Response"])
         )
-        chain.validate_with(
+        chain = chain.validate_with(
             ContentValidator(prohibited=["TODO", "FIXME"], name="Completeness Check")
         )
 
         # Technical review
         critic_model = MockModel(model_name="tech-critic")
-        chain.improve_with(ReflexionCritic(model=critic_model))
+        chain = chain.improve_with(ReflexionCritic(model=critic_model))
 
         result = chain.run()
 
@@ -122,15 +126,15 @@ class TestContentGenerationScenarios:
         )
 
         # Creative writing validation
-        chain.validate_with(LengthValidator(min_length=80, max_length=500))
-        chain.validate_with(
+        chain = chain.validate_with(LengthValidator(min_length=80, max_length=500))
+        chain = chain.validate_with(
             RegexValidator(required_patterns=[r"technology|tech", r"magic|fantasy"])
         )
 
         # Creative enhancement
         critic_model = MockModel(model_name="creative-critic")
-        chain.improve_with(SelfRefineCritic(model=critic_model))
-        chain.improve_with(PromptCritic(model=critic_model))
+        chain = chain.improve_with(SelfRefineCritic(model=critic_model))
+        chain = chain.improve_with(PromptCritic(model=critic_model))
 
         result = chain.run()
 
@@ -157,7 +161,9 @@ class TestMultiStepWorkflows:
             model=research_model,
             prompt="Research the current state of climate change and its causes.",
         )
-        research_chain.validate_with(LengthValidator(min_length=100, max_length=800))
+        research_chain = research_chain.validate_with(
+            LengthValidator(min_length=100, max_length=800)
+        )
 
         research_result = research_chain.run()
 
@@ -172,8 +178,10 @@ class TestMultiStepWorkflows:
             prompt=f"Summarize this research in 2-3 sentences: {research_result.text}",
             always_apply_critics=True,
         )
-        summary_chain.validate_with(LengthValidator(min_length=50, max_length=200))
-        summary_chain.improve_with(SelfRefineCritic(model=MockModel(model_name="summary-critic")))
+        summary_chain = summary_chain.validate_with(LengthValidator(min_length=50, max_length=200))
+        summary_chain = summary_chain.improve_with(
+            SelfRefineCritic(model=MockModel(model_name="summary-critic"))
+        )
 
         summary_result = summary_chain.run()
 
@@ -197,13 +205,15 @@ class TestMultiStepWorkflows:
         )
 
         # Progressive validation requirements
-        chain.validate_with(LengthValidator(min_length=50, max_length=300))
-        chain.validate_with(ContentValidator(prohibited=["cheap", "basic"], name="Quality Filter"))
+        chain = chain.validate_with(LengthValidator(min_length=50, max_length=300))
+        chain = chain.validate_with(
+            ContentValidator(prohibited=["cheap", "basic"], name="Quality Filter")
+        )
 
         # Multiple critics for iterative improvement
         critic_model = MockModel(model_name="product-critic")
-        chain.improve_with(ReflexionCritic(model=critic_model))
-        chain.improve_with(
+        chain = chain.improve_with(ReflexionCritic(model=critic_model))
+        chain = chain.improve_with(
             ConstitutionalCritic(
                 model=critic_model, principles=["Be accurate", "Be persuasive", "Be clear"]
             )
@@ -242,11 +252,11 @@ class TestErrorRecoveryScenarios:
             max_improvement_iterations=3,
             apply_improvers_on_validation_failure=True,  # Enable retries on validation failure
         )
-        chain.validate_with(LengthValidator(min_length=50, max_length=500))
+        chain = chain.validate_with(LengthValidator(min_length=50, max_length=500))
 
         # Add a critic so there's something to apply during retries
         critic_model = MockModel(model_name="recovery-critic")
-        chain.improve_with(ReflexionCritic(model=critic_model))
+        chain = chain.improve_with(ReflexionCritic(model=critic_model))
 
         result = chain.run()
 
@@ -275,8 +285,8 @@ class TestErrorRecoveryScenarios:
         )
 
         # Add both failing and working critics
-        chain.improve_with(failing_critic)
-        chain.improve_with(working_critic)
+        chain = chain.improve_with(failing_critic)
+        chain = chain.improve_with(working_critic)
 
         # Should complete despite one critic failing
         result = chain.run()
@@ -313,7 +323,7 @@ class TestPerformanceScenarios:
 
         for i in range(5):
             chain = Chain(model=model, prompt=f"Write a brief summary about topic {i}.")
-            chain.validate_with(LengthValidator(min_length=20, max_length=200))
+            chain = chain.validate_with(LengthValidator(min_length=20, max_length=200))
 
             result = chain.run()
             results.append(result)
@@ -346,16 +356,18 @@ class TestPerformanceScenarios:
         )
 
         # Multiple validators
-        chain.validate_with(LengthValidator(min_length=100, max_length=1000))
-        chain.validate_with(
+        chain = chain.validate_with(LengthValidator(min_length=100, max_length=1000))
+        chain = chain.validate_with(
             RegexValidator(required_patterns=[r"artificial", r"learning", r"neural"])
         )
-        chain.validate_with(ContentValidator(prohibited=["error", "fail"], name="Error Filter"))
+        chain = chain.validate_with(
+            ContentValidator(prohibited=["error", "fail"], name="Error Filter")
+        )
 
         # Multiple critics
         critic_model = MockModel(model_name="complex-critic")
-        chain.improve_with(ReflexionCritic(model=critic_model))
-        chain.improve_with(NCriticsCritic(model=critic_model, num_critics=3))
+        chain = chain.improve_with(ReflexionCritic(model=critic_model))
+        chain = chain.improve_with(NCriticsCritic(model=critic_model, num_critics=3))
 
         start_time = time.time()
         result = chain.run()
@@ -388,15 +400,15 @@ class TestRealWorldUseCases:
         )
 
         # Support response requirements
-        chain.validate_with(LengthValidator(min_length=50, max_length=400))
-        chain.validate_with(RegexValidator(required_patterns=[r"[Tt]hank", r"help"]))
-        chain.validate_with(
+        chain = chain.validate_with(LengthValidator(min_length=50, max_length=400))
+        chain = chain.validate_with(RegexValidator(required_patterns=[r"[Tt]hank", r"help"]))
+        chain = chain.validate_with(
             ContentValidator(prohibited=["sorry", "unfortunately"], name="Positive Tone")
         )
 
         # Ensure helpful and professional tone
         critic_model = MockModel(model_name="support-critic")
-        chain.improve_with(
+        chain = chain.improve_with(
             ConstitutionalCritic(
                 model=critic_model,
                 principles=["Be helpful", "Be professional", "Be solution-focused"],
@@ -426,15 +438,15 @@ class TestRealWorldUseCases:
         )
 
         # Educational content requirements
-        chain.validate_with(LengthValidator(min_length=100, max_length=800))
-        chain.validate_with(
+        chain = chain.validate_with(LengthValidator(min_length=100, max_length=800))
+        chain = chain.validate_with(
             RegexValidator(required_patterns=[r"Python", r"programming", r"example"])
         )
 
         # Educational quality review
         critic_model = MockModel(model_name="education-critic")
-        chain.improve_with(ReflexionCritic(model=critic_model))
-        chain.improve_with(
+        chain = chain.improve_with(ReflexionCritic(model=critic_model))
+        chain = chain.improve_with(
             ConstitutionalCritic(
                 model=critic_model, principles=["Be clear", "Be educational", "Include examples"]
             )

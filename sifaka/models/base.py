@@ -72,6 +72,8 @@ def create_model(
             provider = "openai"
         elif model_name.startswith("claude-"):
             provider = "anthropic"
+        elif model_name.startswith("gemini-"):
+            provider = "gemini"
         else:
             provider = "mock"  # Default to mock for testing
 
@@ -97,6 +99,11 @@ def create_model(
             from sifaka.models.ollama import create_ollama_model
 
             return create_ollama_model(model_name=model_name, **kwargs)
+        elif provider == "gemini":
+            # Import the Gemini model implementation
+            from sifaka.models.gemini import create_gemini_model
+
+            return create_gemini_model(model_name=model_name, **kwargs)
         elif provider == "mock":
             # Create a mock model for testing
             return MockModel(model_name=model_name, **kwargs)
@@ -108,6 +115,7 @@ def create_model(
                     "Use 'anthropic' for Anthropic models",
                     "Use 'huggingface' for HuggingFace models",
                     "Use 'ollama' for Ollama models",
+                    "Use 'gemini' for Google Gemini models",
                     "Use 'mock' for mock models",
                 ],
             )
@@ -151,6 +159,9 @@ class MockModel(ContextAwareMixin):
         self.kwargs = kwargs
         # Support custom response text for testing
         self.response_text = kwargs.get("response_text", None)
+        # Support multiple responses for testing (cycles through them)
+        self.responses = kwargs.get("responses", None)
+        self._call_count = 0
         logger.debug(f"Created mock model with name: {model_name}")
 
     def generate(self, prompt: str, **options: Any) -> str:
@@ -164,8 +175,18 @@ class MockModel(ContextAwareMixin):
             A mock response.
         """
         logger.debug(f"Generating text with mock model: {self.model_name}")
+
+        # If responses list is available, cycle through them
+        if self.responses is not None and len(self.responses) > 0:
+            response = self.responses[self._call_count % len(self.responses)]
+            self._call_count += 1
+            return str(response)
+
+        # Fall back to single response_text
         if self.response_text is not None:
             return str(self.response_text)
+
+        # Default response
         return f"Mock response from {self.model_name} for: {prompt[:50]}..."
 
     def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:
@@ -195,11 +216,15 @@ class MockModel(ContextAwareMixin):
             context_summary = self._get_context_summary(thought)
             logger.debug(f"MockModel using context: {context_summary}")
 
-        if self.response_text is not None:
+        # If responses list is available, cycle through them
+        if self.responses is not None and len(self.responses) > 0:
+            generated_text = self.responses[self._call_count % len(self.responses)]
+            self._call_count += 1
+        elif self.response_text is not None:
             generated_text = self.response_text
         else:
             generated_text = f"Mock response from {self.model_name} for: {full_prompt[:50]}..."
-        return generated_text, full_prompt
+        return str(generated_text), full_prompt
 
     def count_tokens(self, text: str) -> int:
         """Count tokens in text.

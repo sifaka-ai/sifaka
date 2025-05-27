@@ -9,6 +9,11 @@ This example demonstrates:
 
 The chain will generate text about AI ethics and use constitutional principles
 to ensure the content is helpful, harmless, and honest.
+
+Prerequisites:
+- Install GuardrailsAI validators:
+  $ guardrails hub install hub://guardrails/detect_pii
+  $ guardrails hub install hub://guardrails/toxic_language
 """
 
 # Standard library imports

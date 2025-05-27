@@ -46,7 +46,7 @@ class TestBasicIntegration:
         validator = LengthValidator(min_length=10, max_length=100)
 
         chain = Chain(model=model, prompt="Write about technology.")
-        chain.validate_with(validator)
+        chain = chain.validate_with(validator)
 
         result = chain.run()
 
@@ -60,7 +60,7 @@ class TestBasicIntegration:
         critic = ReflexionCritic(model=MockModel(model_name="critic-model"))
 
         chain = Chain(model=model, prompt="Write about AI ethics.", always_apply_critics=True)
-        chain.improve_with(critic)
+        chain = chain.improve_with(critic)
 
         result = chain.run()
 
@@ -107,7 +107,7 @@ class TestValidatorIntegration:
 
         chain = Chain(model=model, prompt="Write about AI.")
         for validator in validators:
-            chain.validate_with(validator)
+            chain = chain.validate_with(validator)
 
         result = chain.run()
 
@@ -128,7 +128,7 @@ class TestValidatorIntegration:
 
         chain = Chain(model=model, prompt="Write a detailed explanation.")
         for validator in validators:
-            chain.validate_with(validator)
+            chain = chain.validate_with(validator)
 
         result = chain.run()
 
@@ -154,7 +154,7 @@ class TestValidatorIntegration:
 
         chain = Chain(model=model, prompt="Generate a JSON example.")
         for validator in validators:
-            chain.validate_with(validator)
+            chain = chain.validate_with(validator)
 
         result = chain.run()
 
@@ -181,7 +181,7 @@ class TestCriticIntegration:
             model=model, prompt="Write about the future of AI.", always_apply_critics=True
         )
         for critic in critics:
-            chain.improve_with(critic)
+            chain = chain.improve_with(critic)
 
         result = chain.run()
 
@@ -204,12 +204,12 @@ class TestCriticIntegration:
         )
 
         # Add validators
-        chain.validate_with(LengthValidator(min_length=30, max_length=300))
-        chain.validate_with(ContentValidator(prohibited=["bad"], name="Safety"))
+        chain = chain.validate_with(LengthValidator(min_length=30, max_length=300))
+        chain = chain.validate_with(ContentValidator(prohibited=["bad"], name="Safety"))
 
         # Add critics
-        chain.improve_with(ReflexionCritic(model=critic_model))
-        chain.improve_with(SelfRefineCritic(model=critic_model))
+        chain = chain.improve_with(ReflexionCritic(model=critic_model))
+        chain = chain.improve_with(SelfRefineCritic(model=critic_model))
 
         result = chain.run()
 
@@ -230,7 +230,7 @@ class TestStorageIntegration:
         storage = MemoryStorage()
 
         chain = Chain(model=model, prompt="Write about data storage.", storage=storage)
-        chain.validate_with(LengthValidator(min_length=10, max_length=200))
+        chain = chain.validate_with(LengthValidator(min_length=10, max_length=200))
 
         result = chain.run()
 
@@ -283,7 +283,7 @@ class TestPerformanceIntegration:
 
         chain = Chain(model=model, prompt="Write about concurrent processing.")
         for validator in validators:
-            chain.validate_with(validator)
+            chain = chain.validate_with(validator)
 
         start_time = time.time()
         result = chain.run()
@@ -309,7 +309,7 @@ class TestPerformanceIntegration:
         # Run multiple chains to test memory usage
         for i in range(10):
             chain = Chain(model=model, prompt=f"Write about memory test {i}.")
-            chain.validate_with(LengthValidator(min_length=10, max_length=100))
+            chain = chain.validate_with(LengthValidator(min_length=10, max_length=100))
             result = chain.run()
             assert_thought_valid(result)
 
