@@ -17,6 +17,7 @@ Learn how to customize and extend Sifaka:
 - **[Configuration Guide](guides/configuration.md)** - Configure Sifaka for your needs
 - **[Custom Models](guides/custom-models.md)** - Create custom model integrations
 - **[Custom Validators](guides/custom-validators.md)** - Build domain-specific validation
+- **[Classifiers](guides/classifiers.md)** - Using built-in text classifiers for content analysis
 - **[Storage Setup](guides/storage-setup.md)** - Configure Redis, Milvus, and other storage backends
 - **[Performance Tuning](guides/performance-tuning.md)** - Optimize your Sifaka applications
 
@@ -56,6 +57,7 @@ docs/
 │   ├── configuration.md
 │   ├── custom-models.md
 │   ├── custom-validators.md
+│   ├── classifiers.md
 │   ├── storage-setup.md
 │   └── performance-tuning.md
 ├── troubleshooting/          # Problem-solving guides
@@ -81,6 +83,8 @@ docs/
 **Understand the concepts** → [Basic Concepts](getting-started/basic-concepts.md) → [Architecture](architecture.md)
 
 **Customize Sifaka** → [Custom Models](guides/custom-models.md) or [Custom Validators](guides/custom-validators.md)
+
+**Use text classifiers** → [Classifiers Guide](guides/classifiers.md)
 
 **Set up storage** → [Storage Setup](guides/storage-setup.md)
 

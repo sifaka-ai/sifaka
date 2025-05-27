@@ -22,10 +22,12 @@ The SelfRAGCritic implements key Self-RAG concepts:
 2. Self-reflection tokens for quality assessment
 3. Retrieval relevance and support evaluation
 4. Utility-based scoring for text quality
+5. Learning from retrieval effectiveness patterns (enhanced)
+6. Adaptive retrieval decisions based on past success/failure (enhanced)
 
-Note: This is a simplified implementation that captures core Self-RAG principles
-without the specialized training on reflection tokens or the fine-tuned generator
-and critic models from the original paper.
+Note: This implementation captures core Self-RAG principles with enhanced
+learning capabilities through integration with the Sifaka thoughts system.
+The critic learns when retrieval helps vs. hurts to make smarter decisions.
 """
 
 import time
@@ -145,23 +147,34 @@ class SelfRAGCritic(BaseCritic):
         Returns:
             A dictionary with critique results (without processing_time_ms).
         """
-        # Step 1: Assess if retrieval is needed
-        retrieval_needed = self._assess_retrieval_need(thought)
+        # Extract learning context from thought for enhanced retrieval decisions
+        learning_context = self._extract_retrieval_learning_context(thought)
+
+        # Step 1: Assess if retrieval is needed (enhanced with learning)
+        retrieval_needed = self._assess_retrieval_need_with_learning(thought, learning_context)
 
         # Step 2: Get or use existing retrieved context
         context = self._prepare_context(thought)
         retrieved_docs = []
 
         # If we have a retriever and retrieval is needed, get additional context
+        retrieval_attempted = False
+        retrieval_success = False
         if self.retriever and retrieval_needed and not context.strip():
             try:
+                retrieval_attempted = True
                 retrieved_docs = await self._retrieve_documents_async(
                     thought.prompt + " " + (thought.text or "")
                 )
                 if retrieved_docs:
                     context = "\n\n".join(retrieved_docs[: self.max_retrieved_docs])
+                    retrieval_success = True
+                    logger.debug(
+                        f"SelfRAGCritic: Successfully retrieved {len(retrieved_docs)} documents"
+                    )
             except Exception as e:
                 logger.warning(f"SelfRAGCritic: Retrieval failed: {e}")
+                retrieval_success = False
 
         # Step 3: Generate detailed critique (assessments will be extracted from response)
         critique_prompt = self.critique_prompt_template.format(
@@ -185,7 +198,20 @@ class SelfRAGCritic(BaseCritic):
         utility_score = self._extract_utility_score(rag_assessments.get("utility", "[Utility:3]"))
         needs_improvement = utility_score < 4
 
-        logger.debug(f"SelfRAGCritic: Completed with utility score {utility_score}")
+        # Store retrieval learning outcomes for future decisions
+        self._store_retrieval_outcomes(
+            thought,
+            learning_context,
+            retrieval_needed,
+            retrieval_attempted,
+            retrieval_success,
+            utility_score,
+            rag_assessments,
+        )
+
+        logger.debug(
+            f"SelfRAGCritic: Completed with utility score {utility_score} and learning integration"
+        )
 
         return {
             "needs_improvement": needs_improvement,
@@ -199,6 +225,9 @@ class SelfRAGCritic(BaseCritic):
                 "rag_assessments": rag_assessments,
                 "utility_score": utility_score,
                 "context_length": len(context) if context else 0,
+                "learning_applied": bool(learning_context.get("patterns")),
+                "retrieval_attempted": retrieval_attempted,
+                "retrieval_success": retrieval_success,
             },
         }
 
@@ -594,3 +623,280 @@ class SelfRAGCritic(BaseCritic):
 
         # Default to middle score
         return 3
+
+    def _extract_retrieval_learning_context(self, thought: Thought) -> Dict[str, Any]:
+        """Extract learning context from thought for enhanced retrieval decisions.
+
+        Args:
+            thought: The Thought to extract learning context from.
+
+        Returns:
+            Dictionary with retrieval learning context.
+        """
+        learning_context = {
+            "retrieval_sessions": 0,
+            "effective_retrievals": [],
+            "ineffective_retrievals": [],
+            "task_retrieval_patterns": {},
+            "task_type": self._classify_retrieval_task_type(thought.prompt),
+        }
+
+        # Extract from thought metadata
+        if thought.metadata:
+            self_rag_data = thought.metadata.get("self_rag_memory", {})
+            if self_rag_data:
+                learning_context["retrieval_sessions"] = len(self_rag_data.get("sessions", []))
+                learning_context["effective_retrievals"] = self_rag_data.get(
+                    "effective_retrievals", []
+                )[
+                    -10:
+                ]  # Last 10
+                learning_context["ineffective_retrievals"] = self_rag_data.get(
+                    "ineffective_retrievals", []
+                )[
+                    -10:
+                ]  # Last 10
+                learning_context["task_retrieval_patterns"] = self_rag_data.get(
+                    "task_retrieval_patterns", {}
+                )
+
+        # Extract from thought history
+        if thought.history:
+            learning_context["previous_attempts"] = len(thought.history)
+
+        # Extract from critic feedback history
+        if thought.critic_feedback:
+            self_rag_feedback = [
+                f for f in thought.critic_feedback if f.critic_name == "SelfRAGCritic"
+            ]
+            if self_rag_feedback:
+                learning_context["previous_feedback_count"] = len(self_rag_feedback)
+                # Analyze retrieval effectiveness from previous feedback
+                for feedback in self_rag_feedback[-3:]:  # Last 3 feedback instances
+                    if feedback.metadata:
+                        retrieval_needed = feedback.metadata.get("retrieval_needed", False)
+                        utility_score = feedback.metadata.get("utility_score", 3)
+                        retrieval_success = feedback.metadata.get("retrieval_success", False)
+
+                        if retrieval_needed and retrieval_success and utility_score >= 4:
+                            learning_context["effective_retrievals"].append(
+                                {
+                                    "task_type": learning_context["task_type"],
+                                    "utility_score": utility_score,
+                                }
+                            )
+                        elif retrieval_needed and not retrieval_success:
+                            learning_context["ineffective_retrievals"].append(
+                                {
+                                    "task_type": learning_context["task_type"],
+                                    "reason": "retrieval_failed",
+                                }
+                            )
+
+        return learning_context
+
+    def _classify_retrieval_task_type(self, prompt: str) -> str:
+        """Classify the task type for retrieval learning purposes.
+
+        Args:
+            prompt: The task prompt to classify.
+
+        Returns:
+            String representing the retrieval task type.
+        """
+        prompt_lower = prompt.lower()
+
+        # Fact-heavy tasks that typically benefit from retrieval
+        if any(
+            word in prompt_lower
+            for word in ["fact", "data", "statistic", "research", "study", "evidence"]
+        ):
+            return "factual"
+        elif any(
+            word in prompt_lower for word in ["current", "recent", "latest", "news", "update"]
+        ):
+            return "current_events"
+        elif any(
+            word in prompt_lower
+            for word in ["technical", "specification", "documentation", "manual"]
+        ):
+            return "technical"
+        elif any(word in prompt_lower for word in ["history", "historical", "past", "timeline"]):
+            return "historical"
+        elif any(
+            word in prompt_lower for word in ["compare", "contrast", "versus", "vs", "difference"]
+        ):
+            return "comparative"
+        elif any(
+            word in prompt_lower for word in ["opinion", "creative", "imagine", "story", "poem"]
+        ):
+            return "creative"
+        else:
+            return "general"
+
+    def _assess_retrieval_need_with_learning(
+        self, thought: Thought, learning_context: Dict[str, Any]
+    ) -> bool:
+        """Assess if retrieval is needed using learning from past patterns.
+
+        Args:
+            thought: The Thought to assess.
+            learning_context: Learning context from past retrieval attempts.
+
+        Returns:
+            Boolean indicating if retrieval is needed.
+        """
+        # Start with base assessment
+        base_assessment = self._assess_retrieval_need(thought)
+
+        # Apply learning adjustments
+        task_type = learning_context.get("task_type", "general")
+
+        # Check task-specific patterns
+        task_patterns = learning_context.get("task_retrieval_patterns", {}).get(task_type, {})
+        if task_patterns:
+            success_rate = task_patterns.get("success_rate", 0.5)
+            avg_utility_improvement = task_patterns.get("avg_utility_improvement", 0.0)
+
+            # If retrieval historically helps for this task type, be more likely to retrieve
+            if success_rate > 0.7 and avg_utility_improvement > 0.5:
+                logger.debug(
+                    f"SelfRAGCritic: Learning suggests retrieval beneficial for {task_type} tasks"
+                )
+                return True
+            # If retrieval historically doesn't help, be less likely to retrieve
+            elif success_rate < 0.3 or avg_utility_improvement < -0.2:
+                logger.debug(
+                    f"SelfRAGCritic: Learning suggests retrieval not beneficial for {task_type} tasks"
+                )
+                return False
+
+        # Check recent effectiveness patterns
+        effective_count = len(learning_context.get("effective_retrievals", []))
+        ineffective_count = len(learning_context.get("ineffective_retrievals", []))
+
+        if effective_count + ineffective_count > 5:  # Enough data to make decisions
+            effectiveness_ratio = effective_count / (effective_count + ineffective_count)
+            if effectiveness_ratio > 0.8:
+                logger.debug(
+                    "SelfRAGCritic: Recent retrieval history very positive, favoring retrieval"
+                )
+                return True
+            elif effectiveness_ratio < 0.2:
+                logger.debug("SelfRAGCritic: Recent retrieval history poor, avoiding retrieval")
+                return False
+
+        # Fall back to base assessment
+        return base_assessment
+
+    def _store_retrieval_outcomes(
+        self,
+        thought: Thought,
+        learning_context: Dict[str, Any],
+        retrieval_needed: bool,
+        retrieval_attempted: bool,
+        retrieval_success: bool,
+        utility_score: int,
+        rag_assessments: Dict[str, str],
+    ) -> None:
+        """Store retrieval outcomes in thought metadata for future learning.
+
+        Args:
+            thought: The Thought to store outcomes in.
+            learning_context: The learning context used.
+            retrieval_needed: Whether retrieval was deemed needed.
+            retrieval_attempted: Whether retrieval was actually attempted.
+            retrieval_success: Whether retrieval was successful.
+            utility_score: The utility score achieved.
+            rag_assessments: The RAG assessments made.
+        """
+        if not thought.metadata:
+            thought.metadata = {}
+
+        # Initialize self-rag memory if not exists
+        if "self_rag_memory" not in thought.metadata:
+            thought.metadata["self_rag_memory"] = {
+                "sessions": [],
+                "effective_retrievals": [],
+                "ineffective_retrievals": [],
+                "task_retrieval_patterns": {},
+            }
+
+        # Analyze this retrieval session
+        task_type = learning_context.get("task_type", "general")
+        session_data = {
+            "session_id": f"rag_session_{int(time.time())}",
+            "task_type": task_type,
+            "retrieval_needed": retrieval_needed,
+            "retrieval_attempted": retrieval_attempted,
+            "retrieval_success": retrieval_success,
+            "utility_score": utility_score,
+            "rag_assessments": rag_assessments,
+            "timestamp": time.time(),
+        }
+
+        # Update effective/ineffective retrieval lists
+        if retrieval_attempted:
+            if retrieval_success and utility_score >= 4:
+                # Successful retrieval
+                thought.metadata["self_rag_memory"]["effective_retrievals"].append(
+                    {
+                        "task_type": task_type,
+                        "utility_score": utility_score,
+                        "relevance": rag_assessments.get("relevance", "[Partially Relevant]"),
+                        "support": rag_assessments.get("support", "[Partially Supported]"),
+                    }
+                )
+            elif not retrieval_success or utility_score < 3:
+                # Unsuccessful retrieval
+                thought.metadata["self_rag_memory"]["ineffective_retrievals"].append(
+                    {
+                        "task_type": task_type,
+                        "utility_score": utility_score,
+                        "reason": "low_utility" if retrieval_success else "retrieval_failed",
+                    }
+                )
+
+        # Update task-specific retrieval patterns
+        if task_type not in thought.metadata["self_rag_memory"]["task_retrieval_patterns"]:
+            thought.metadata["self_rag_memory"]["task_retrieval_patterns"][task_type] = {
+                "attempts": 0,
+                "successes": 0,
+                "total_utility": 0,
+                "baseline_utility": 0,
+            }
+
+        patterns = thought.metadata["self_rag_memory"]["task_retrieval_patterns"][task_type]
+        patterns["attempts"] += 1
+        patterns["total_utility"] += utility_score
+
+        if retrieval_attempted and retrieval_success:
+            patterns["successes"] += 1
+
+        # Calculate success rate and average utility improvement
+        patterns["success_rate"] = patterns["successes"] / patterns["attempts"]
+        patterns["avg_utility"] = patterns["total_utility"] / patterns["attempts"]
+
+        # Estimate utility improvement (simplified heuristic)
+        baseline_utility = 3  # Assume baseline utility without retrieval
+        patterns["avg_utility_improvement"] = patterns["avg_utility"] - baseline_utility
+
+        # Store this session
+        thought.metadata["self_rag_memory"]["sessions"].append(session_data)
+
+        # Keep only last 15 sessions
+        if len(thought.metadata["self_rag_memory"]["sessions"]) > 15:
+            thought.metadata["self_rag_memory"]["sessions"] = thought.metadata["self_rag_memory"][
+                "sessions"
+            ][-15:]
+
+        # Keep only last 20 effective/ineffective retrievals
+        if len(thought.metadata["self_rag_memory"]["effective_retrievals"]) > 20:
+            thought.metadata["self_rag_memory"]["effective_retrievals"] = thought.metadata[
+                "self_rag_memory"
+            ]["effective_retrievals"][-20:]
+
+        if len(thought.metadata["self_rag_memory"]["ineffective_retrievals"]) > 20:
+            thought.metadata["self_rag_memory"]["ineffective_retrievals"] = thought.metadata[
+                "self_rag_memory"
+            ]["ineffective_retrievals"][-20:]

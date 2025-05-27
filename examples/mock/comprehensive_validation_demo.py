@@ -12,7 +12,8 @@ output that meets various criteria simultaneously.
 """
 
 from sifaka import Chain
-from sifaka.classifiers import LanguageClassifier, SentimentClassifier
+from sifaka.classifiers.language import LanguageClassifier
+from sifaka.classifiers.sentiment import SentimentClassifier
 from sifaka.critics import SelfRefineCritic
 from sifaka.models import create_model
 from sifaka.utils.logging import get_logger

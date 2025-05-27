@@ -79,9 +79,13 @@ class ReflexionCritic(BaseCritic):
         """
         super().__init__(model=model, model_name=model_name, **model_kwargs)
 
-        # Memory buffer for past reflections
-        self.memory_buffer: List[Dict[str, str]] = []
+        # Enhanced memory system using thoughts infrastructure
         self.max_memory_size = max_memory_size
+
+        # Trial tracking for episodic learning
+        self._trial_patterns: Dict[str, List[Dict[str, Any]]] = {}
+        self._success_patterns: List[Dict[str, Any]] = []
+        self._failure_patterns: List[Dict[str, Any]] = []
 
         # Set up prompt templates
         self.critique_prompt_template = critique_prompt_template or (
@@ -98,17 +102,35 @@ class ReflexionCritic(BaseCritic):
         )
 
         self.reflection_prompt_template = reflection_prompt_template or (
-            "Based on the critique below, reflect on what specific improvements should be made. "
-            "Think step-by-step about how to address each issue.\n\n"
+            "Based on the critique below, reflect deeply on what specific improvements should be made. "
+            "Use your episodic memory of past trials to inform your reflection.\n\n"
             "Original prompt: {prompt}\n\n"
             "Original text:\n{text}\n\n"
             "Critique:\n{critique}\n\n"
-            "Past reflections (for learning):\n{memory_context}\n\n"
-            "Please provide a reflection in the following format:\n"
-            "Key Issues to Address:\n- [List key issues]\n\n"
-            "Improvement Strategy:\n- [List specific improvement steps]\n\n"
-            "Expected Outcome: [What the improved text should achieve]\n\n"
-            "Reflection: [Your meta-cognitive reflection on the improvement process]"
+            "Trial Context:\n"
+            "- Current trial: {trial_number}\n"
+            "- Previous attempts: {previous_attempts}\n"
+            "- Success patterns: {success_patterns}\n"
+            "- Failure patterns: {failure_patterns}\n"
+            "- External feedback: {external_feedback}\n\n"
+            "Episodic Memory:\n{episodic_memory}\n\n"
+            "Please provide a multi-layered reflection:\n\n"
+            "1. CRITIQUE QUALITY ASSESSMENT:\n"
+            "- How accurate and useful was this critique?\n"
+            "- What did the critique miss or get wrong?\n\n"
+            "2. TASK PERFORMANCE REFLECTION:\n"
+            "- Why might this text have these issues?\n"
+            "- What patterns do I see from past similar tasks?\n"
+            "- What worked well in previous successful attempts?\n\n"
+            "3. IMPROVEMENT STRATEGY:\n"
+            "- Specific steps to address each issue\n"
+            "- How to avoid repeating past failures\n"
+            "- How to leverage successful patterns\n\n"
+            "4. META-REFLECTION:\n"
+            "- What am I learning about this type of task?\n"
+            "- How can I improve my critique process?\n"
+            "- What should I remember for future attempts?\n\n"
+            "Expected Outcome: [What the improved text should achieve based on learning]"
         )
 
         self.improve_prompt_template = improve_prompt_template or (
@@ -146,10 +168,13 @@ class ReflexionCritic(BaseCritic):
             thought, critique_result["critique"], task_feedback
         )
 
-        # Step 3: Store reflection in memory for future learning
+        # Step 3: Store reflection in memory for future learning (legacy)
         self._add_to_memory(
             thought.text or "", critique_result["critique"], reflection_result["reflection"]
         )
+
+        # Store trial outcome in thought metadata for enhanced episodic learning
+        self._store_trial_outcome(thought, reflection_result)
 
         logger.debug("ReflexionCritic: Critique and reflection completed")
 
@@ -353,19 +378,35 @@ class ReflexionCritic(BaseCritic):
         Args:
             thought: The Thought container with the text to reflect on.
             critique: The critique text to reflect on.
+            task_feedback: Optional external task feedback.
 
         Returns:
             A dictionary with reflection results.
         """
-        # Prepare memory context from past reflections
-        memory_context = self._get_memory_context()
+        # Extract trial context from thought
+        trial_context = self._extract_trial_context(thought)
 
-        # Format the reflection prompt
+        # Get episodic memory from thought history and metadata
+        episodic_memory = self._build_episodic_memory(thought)
+
+        # Extract patterns from past experiences
+        success_patterns = self._extract_success_patterns(thought)
+        failure_patterns = self._extract_failure_patterns(thought)
+
+        # Get external feedback
+        external_feedback = task_feedback or self._extract_task_feedback(thought)
+
+        # Format the enhanced reflection prompt
         reflection_prompt = self.reflection_prompt_template.format(
             prompt=thought.prompt,
             text=thought.text,
             critique=critique,
-            memory_context=memory_context,
+            trial_number=trial_context.get("trial_number", 1),
+            previous_attempts=trial_context.get("previous_attempts", "None"),
+            success_patterns=success_patterns,
+            failure_patterns=failure_patterns,
+            external_feedback=external_feedback or "None available",
+            episodic_memory=episodic_memory,
         )
 
         # Generate the reflection (async)
@@ -512,3 +553,153 @@ class ReflexionCritic(BaseCritic):
         updated_metadata["task_feedback"] = task_feedback
 
         return thought.model_copy(update={"metadata": updated_metadata})
+
+    def _extract_trial_context(self, thought: Thought) -> Dict[str, Any]:
+        """Extract trial context from thought for episodic learning.
+
+        Args:
+            thought: The Thought to extract context from.
+
+        Returns:
+            Dictionary with trial context information.
+        """
+        trial_context = {
+            "trial_number": thought.iteration,
+            "chain_id": thought.chain_id,
+            "previous_attempts": len(thought.history) if thought.history else 0,
+        }
+
+        # Extract previous attempt summaries from history
+        if thought.history:
+            attempts = []
+            for i, ref in enumerate(thought.history[-3:]):  # Last 3 attempts
+                attempts.append(f"Attempt {i+1}: iteration {ref.iteration}")
+            trial_context["previous_attempts"] = "; ".join(attempts)
+
+        return trial_context
+
+    def _build_episodic_memory(self, thought: Thought) -> str:
+        """Build episodic memory from thought history and metadata.
+
+        Args:
+            thought: The Thought to build memory from.
+
+        Returns:
+            Formatted episodic memory string.
+        """
+        memory_parts = []
+
+        # Extract from thought metadata
+        if thought.metadata:
+            reflexion_data = thought.metadata.get("reflexion_memory", {})
+            if reflexion_data:
+                memory_parts.append("Previous Reflexion Sessions:")
+                for session in reflexion_data.get("sessions", [])[-3:]:  # Last 3 sessions
+                    memory_parts.append(f"- {session.get('summary', 'No summary')}")
+
+        # Extract from thought history
+        if thought.history:
+            memory_parts.append("\nRecent Trial History:")
+            for ref in thought.history[-3:]:  # Last 3 trials
+                memory_parts.append(f"- Trial {ref.iteration}: {ref.chain_id}")
+
+        # Extract from critic feedback history
+        if thought.critic_feedback:
+            reflexion_feedback = [
+                f for f in thought.critic_feedback if f.critic_name == "ReflexionCritic"
+            ]
+            if reflexion_feedback:
+                memory_parts.append("\nPrevious Reflexion Feedback:")
+                for feedback in reflexion_feedback[-2:]:  # Last 2 feedback instances
+                    reflection = feedback.metadata.get("reflection", "")
+                    if reflection:
+                        memory_parts.append(f"- {reflection[:150]}...")
+
+        return "\n".join(memory_parts) if memory_parts else "No episodic memory available."
+
+    def _extract_success_patterns(self, thought: Thought) -> str:
+        """Extract success patterns from thought history.
+
+        Args:
+            thought: The Thought to extract patterns from.
+
+        Returns:
+            Formatted success patterns string.
+        """
+        patterns = []
+
+        # Look for successful patterns in metadata
+        if thought.metadata:
+            success_data = thought.metadata.get("reflexion_success_patterns", [])
+            patterns.extend(success_data[-3:])  # Last 3 success patterns
+
+        # Analyze critic feedback for successful outcomes
+        if thought.critic_feedback:
+            for feedback in thought.critic_feedback:
+                if feedback.critic_name == "ReflexionCritic":
+                    if not feedback.metadata.get("needs_improvement", True):
+                        patterns.append("Previous attempt was successful - no improvement needed")
+
+        return "; ".join(patterns) if patterns else "No clear success patterns identified yet."
+
+    def _extract_failure_patterns(self, thought: Thought) -> str:
+        """Extract failure patterns from thought history.
+
+        Args:
+            thought: The Thought to extract patterns from.
+
+        Returns:
+            Formatted failure patterns string.
+        """
+        patterns = []
+
+        # Look for failure patterns in metadata
+        if thought.metadata:
+            failure_data = thought.metadata.get("reflexion_failure_patterns", [])
+            patterns.extend(failure_data[-3:])  # Last 3 failure patterns
+
+        # Analyze critic feedback for recurring issues
+        if thought.critic_feedback:
+            issue_counts = {}
+            for feedback in thought.critic_feedback:
+                if feedback.critic_name == "ReflexionCritic":
+                    for issue in feedback.issues:
+                        issue_counts[issue] = issue_counts.get(issue, 0) + 1
+
+            # Identify recurring issues (appeared more than once)
+            recurring = [issue for issue, count in issue_counts.items() if count > 1]
+            if recurring:
+                patterns.extend([f"Recurring issue: {issue}" for issue in recurring[:3]])
+
+        return "; ".join(patterns) if patterns else "No clear failure patterns identified yet."
+
+    def _store_trial_outcome(self, thought: Thought, reflection_result: Dict[str, Any]) -> None:
+        """Store trial outcome in thought metadata for future learning.
+
+        Args:
+            thought: The Thought to store outcome in.
+            reflection_result: The reflection result to store.
+        """
+        if not thought.metadata:
+            thought.metadata = {}
+
+        # Initialize reflexion memory if not exists
+        if "reflexion_memory" not in thought.metadata:
+            thought.metadata["reflexion_memory"] = {"sessions": []}
+
+        # Store this session
+        session_data = {
+            "trial_number": thought.iteration,
+            "timestamp": time.time(),
+            "reflection": reflection_result.get("reflection", ""),
+            "improvement_strategy": reflection_result.get("improvement_strategy", []),
+            "summary": f"Trial {thought.iteration}: {len(reflection_result.get('improvement_strategy', []))} strategies identified",
+        }
+
+        thought.metadata["reflexion_memory"]["sessions"].append(session_data)
+
+        # Keep only last 10 sessions
+        if len(thought.metadata["reflexion_memory"]["sessions"]) > 10:
+            thought.metadata["reflexion_memory"]["sessions"] = thought.metadata["reflexion_memory"][
+                "sessions"
+            ][-10:]

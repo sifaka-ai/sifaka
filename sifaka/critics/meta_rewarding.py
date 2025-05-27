@@ -22,13 +22,13 @@ The MetaRewardingCritic implements key Meta-Rewarding concepts:
 2. Self-improving alignment through meta-evaluation
 3. Feedback loop for improving both responses and judgment capabilities
 4. Unsupervised self-improvement without human supervision
+5. Learning from meta-judgment accuracy patterns and effectiveness (enhanced)
+6. Adaptive meta-judgment strategies based on past performance (enhanced)
 
-Note: This is a simplified implementation that captures core Meta-Rewarding principles
-without the full training-based approach from the original paper. The original paper
-involves specialized training procedures, iterative self-improvement training loops,
-and fine-tuned models specifically trained on judgment tasks. This implementation
-uses prompt-based meta-judgment with existing language models rather than the
-specialized training regime described in the paper.
+Note: This implementation captures core Meta-Rewarding principles with enhanced
+learning capabilities through integration with the Sifaka thoughts system.
+The critic learns when meta-judgments improve vs. worsen initial judgments and
+adapts its meta-evaluation strategies accordingly.
 """
 
 import time
@@ -197,22 +197,38 @@ class MetaRewardingCritic(BaseCritic):
         Returns:
             A dictionary with critique results (without processing_time_ms).
         """
+        # Extract learning context from thought for enhanced meta-judgment
+        learning_context = self._extract_meta_learning_context(thought)
+
         # Stage 1: Initial judgment (either using base critic or self-judgment)
         if self.base_critic:
             # Use provided base critic for initial judgment
             initial_judgment_result = await self.base_critic._critique_async(thought)
             initial_judgment = initial_judgment_result["message"]
         else:
-            # Generate initial judgment using our own model
-            initial_judgment = await self._generate_initial_judgment_async(thought)
+            # Generate initial judgment using our own model with learning context
+            initial_judgment = await self._generate_initial_judgment_with_learning_async(
+                thought, learning_context
+            )
 
-        # Stage 2: Meta-judgment (judge the judgment)
-        meta_judgment = await self._generate_meta_judgment_async(thought, initial_judgment)
+        # Stage 2: Enhanced meta-judgment with learning from past patterns
+        meta_judgment = await self._generate_meta_judgment_with_learning_async(
+            thought, initial_judgment, learning_context
+        )
 
-        # Stage 3: Combine judgments and determine final assessment
-        combined_result = self._combine_judgments(thought, initial_judgment, meta_judgment)
+        # Stage 3: Combine judgments with learning-enhanced assessment
+        combined_result = self._combine_judgments_with_learning(
+            thought, initial_judgment, meta_judgment, learning_context
+        )
 
-        logger.debug("MetaRewardingCritic: Completed two-stage judgment process")
+        # Store meta-learning outcomes for future improvements
+        self._store_meta_learning_outcomes(
+            thought, learning_context, initial_judgment, meta_judgment, combined_result
+        )
+
+        logger.debug(
+            "MetaRewardingCritic: Completed two-stage judgment process with learning integration"
+        )
 
         return combined_result
 
@@ -616,3 +632,412 @@ class MetaRewardingCritic(BaseCritic):
             f"{meta_judgment}\n\n"
             "=== End Meta-Rewarding Evaluation ==="
         )
+
+    def _extract_meta_learning_context(self, thought: Thought) -> Dict[str, Any]:
+        """Extract learning context from thought for enhanced meta-judgment.
+
+        Args:
+            thought: The Thought to extract learning context from.
+
+        Returns:
+            Dictionary with meta-learning context.
+        """
+        learning_context = {
+            "meta_sessions": 0,
+            "effective_meta_judgments": [],
+            "ineffective_meta_judgments": [],
+            "meta_patterns": {},
+            "task_type": self._classify_meta_task_type(thought.prompt),
+            "predicted_meta_effectiveness": 0.5,
+        }
+
+        # Extract from thought metadata
+        if thought.metadata:
+            meta_data = thought.metadata.get("meta_rewarding_memory", {})
+            if meta_data:
+                learning_context["meta_sessions"] = len(meta_data.get("sessions", []))
+                learning_context["effective_meta_judgments"] = meta_data.get(
+                    "effective_meta_judgments", []
+                )[
+                    -10:
+                ]  # Last 10
+                learning_context["ineffective_meta_judgments"] = meta_data.get(
+                    "ineffective_meta_judgments", []
+                )[
+                    -10:
+                ]  # Last 10
+                learning_context["meta_patterns"] = meta_data.get("meta_patterns", {})
+
+        # Extract from thought history
+        if thought.history:
+            learning_context["previous_attempts"] = len(thought.history)
+
+        # Extract from critic feedback history
+        if thought.critic_feedback:
+            meta_feedback = [
+                f for f in thought.critic_feedback if f.critic_name == "MetaRewardingCritic"
+            ]
+            if meta_feedback:
+                learning_context["previous_feedback_count"] = len(meta_feedback)
+                # Analyze meta-judgment effectiveness from previous feedback
+                effective_count = 0
+                total_count = 0
+                for feedback in meta_feedback[-5:]:  # Last 5 feedback instances
+                    if feedback.metadata:
+                        confidence = feedback.metadata.get("confidence", 0.5)
+                        initial_score = feedback.metadata.get("initial_score")
+
+                        total_count += 1
+                        # Consider meta-judgment effective if it resulted in high confidence
+                        if confidence > 0.7:
+                            effective_count += 1
+                            learning_context["effective_meta_judgments"].append(
+                                {
+                                    "task_type": learning_context["task_type"],
+                                    "confidence": confidence,
+                                    "initial_score": initial_score,
+                                }
+                            )
+                        elif confidence < 0.4:
+                            learning_context["ineffective_meta_judgments"].append(
+                                {
+                                    "task_type": learning_context["task_type"],
+                                    "confidence": confidence,
+                                    "initial_score": initial_score,
+                                }
+                            )
+
+                # Predict meta-judgment effectiveness for this task type
+                if total_count > 0:
+                    learning_context["predicted_meta_effectiveness"] = effective_count / total_count
+
+        return learning_context
+
+    def _classify_meta_task_type(self, prompt: str) -> str:
+        """Classify the task type for meta-judgment learning purposes.
+
+        Args:
+            prompt: The task prompt to classify.
+
+        Returns:
+            String representing the meta-judgment task type.
+        """
+        prompt_lower = prompt.lower()
+
+        # Tasks where meta-judgment is typically more/less effective
+        if any(
+            word in prompt_lower for word in ["complex", "nuanced", "sophisticated", "advanced"]
+        ):
+            return "complex"
+        elif any(word in prompt_lower for word in ["simple", "basic", "straightforward", "clear"]):
+            return "simple"
+        elif any(
+            word in prompt_lower for word in ["creative", "artistic", "imaginative", "original"]
+        ):
+            return "creative"
+        elif any(word in prompt_lower for word in ["analytical", "critical", "evaluate", "assess"]):
+            return "analytical"
+        elif any(
+            word in prompt_lower for word in ["technical", "code", "programming", "specification"]
+        ):
+            return "technical"
+        elif any(
+            word in prompt_lower for word in ["subjective", "opinion", "personal", "preference"]
+        ):
+            return "subjective"
+        elif any(word in prompt_lower for word in ["objective", "fact", "data", "evidence"]):
+            return "objective"
+        else:
+            return "general"
+
+    async def _generate_initial_judgment_with_learning_async(
+        self, thought: Thought, learning_context: Dict[str, Any]
+    ) -> str:
+        """Generate initial judgment with learning-informed approach.
+
+        Args:
+            thought: The Thought container with the text to judge.
+            learning_context: Learning context from past meta-judgments.
+
+        Returns:
+            The enhanced initial judgment text.
+        """
+        # Use the original method but with enhanced criteria based on learning
+        task_type = learning_context.get("task_type", "general")
+        predicted_effectiveness = learning_context.get("predicted_meta_effectiveness", 0.5)
+
+        # Adjust judgment criteria based on what works for this task type
+        enhanced_criteria = self.judgment_criteria.copy()
+
+        # Add task-specific criteria based on learning
+        if task_type == "complex" and predicted_effectiveness > 0.7:
+            enhanced_criteria.append("Depth and sophistication of analysis")
+        elif task_type == "creative" and predicted_effectiveness > 0.6:
+            enhanced_criteria.append("Originality and creative expression")
+        elif task_type == "technical" and predicted_effectiveness > 0.6:
+            enhanced_criteria.append("Technical accuracy and precision")
+
+        # Format enhanced criteria for the prompt
+        criteria_text = "\n".join(
+            f"{i+1}. {criterion}" for i, criterion in enumerate(enhanced_criteria)
+        )
+
+        # Prepare context from retrieved documents (using mixin)
+        context = self._prepare_context(thought)
+
+        # Create enhanced judgment prompt
+        judgment_prompt = self.critique_prompt_template.format(
+            prompt=thought.prompt,
+            text=thought.text,
+            context=context,
+            criteria=criteria_text,
+        )
+
+        # Add learning context to the prompt if available
+        if learning_context.get("meta_sessions", 0) > 3:
+            learning_note = f"\n\nNote: This is a {task_type} task. Based on past experience, focus on criteria that typically benefit from meta-evaluation."
+            judgment_prompt += learning_note
+
+        # Generate initial judgment
+        judgment_response = await self.model._generate_async(
+            prompt=judgment_prompt,
+            system_message="You are an expert evaluator providing detailed, fair assessment with awareness of meta-evaluation patterns.",
+        )
+
+        return judgment_response
+
+    async def _generate_meta_judgment_with_learning_async(
+        self, thought: Thought, initial_judgment: str, learning_context: Dict[str, Any]
+    ) -> str:
+        """Generate meta-judgment with learning from past patterns.
+
+        Args:
+            thought: The Thought container with the original text.
+            initial_judgment: The initial judgment to evaluate.
+            learning_context: Learning context from past meta-judgments.
+
+        Returns:
+            The enhanced meta-judgment text.
+        """
+        task_type = learning_context.get("task_type", "general")
+        predicted_effectiveness = learning_context.get("predicted_meta_effectiveness", 0.5)
+
+        # Adjust meta-judgment approach based on predicted effectiveness
+        enhanced_meta_criteria = self.meta_judgment_criteria.copy()
+
+        if predicted_effectiveness < 0.3:
+            # Meta-judgment typically not effective for this task type, be more conservative
+            enhanced_meta_criteria = [
+                "Basic accuracy of the evaluation",
+                "Presence of major evaluation errors",
+                "Overall reasonableness of the judgment",
+            ]
+            logger.debug(
+                f"Using conservative meta-judgment for {task_type} (low predicted effectiveness)"
+            )
+        elif predicted_effectiveness > 0.7:
+            # Meta-judgment typically very effective, be more thorough
+            enhanced_meta_criteria.extend(
+                [
+                    "Nuanced understanding of evaluation quality",
+                    "Identification of subtle judgment biases",
+                    "Sophisticated meta-cognitive assessment",
+                ]
+            )
+            logger.debug(
+                f"Using thorough meta-judgment for {task_type} (high predicted effectiveness)"
+            )
+
+        # Format enhanced meta-criteria for the prompt
+        meta_criteria_text = "\n".join(
+            f"{i+1}. {criterion}" for i, criterion in enumerate(enhanced_meta_criteria)
+        )
+
+        # Create enhanced meta-judgment prompt
+        meta_judgment_prompt = self.meta_critique_prompt_template.format(
+            prompt=thought.prompt,
+            text=thought.text,
+            initial_judgment=initial_judgment,
+            meta_criteria=meta_criteria_text,
+        )
+
+        # Add learning context to the prompt
+        if learning_context.get("meta_sessions", 0) > 2:
+            effectiveness_note = f"\n\nLearning Context: Meta-judgment for {task_type} tasks has {predicted_effectiveness:.1%} effectiveness rate. "
+            if predicted_effectiveness > 0.6:
+                effectiveness_note += (
+                    "Focus on detailed meta-evaluation as it typically improves judgment quality."
+                )
+            else:
+                effectiveness_note += "Be conservative as meta-judgment may not significantly improve initial judgment."
+            meta_judgment_prompt += effectiveness_note
+
+        # Generate meta-judgment using meta-judge model
+        meta_judgment_response = await self.meta_judge_model._generate_async(
+            prompt=meta_judgment_prompt,
+            system_message="You are a meta-judge with learning from past meta-evaluation patterns. Adapt your approach based on task effectiveness.",
+        )
+
+        return meta_judgment_response
+
+    def _combine_judgments_with_learning(
+        self,
+        thought: Thought,
+        initial_judgment: str,
+        meta_judgment: str,
+        learning_context: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Combine judgments with learning-enhanced assessment.
+
+        Args:
+            thought: The original thought.
+            initial_judgment: The initial judgment text.
+            meta_judgment: The meta-judgment text.
+            learning_context: Learning context from past meta-judgments.
+
+        Returns:
+            Enhanced combined critique result dictionary.
+        """
+        # Start with base combination
+        base_result = self._combine_judgments(thought, initial_judgment, meta_judgment)
+
+        # Enhance with learning-based adjustments
+        task_type = learning_context.get("task_type", "general")
+        predicted_effectiveness = learning_context.get("predicted_meta_effectiveness", 0.5)
+
+        # Adjust confidence based on predicted meta-judgment effectiveness
+        base_confidence = base_result["confidence"]
+        if predicted_effectiveness > 0.7:
+            # Meta-judgment typically effective, boost confidence
+            enhanced_confidence = min(1.0, base_confidence * 1.1)
+        elif predicted_effectiveness < 0.3:
+            # Meta-judgment typically not effective, reduce confidence boost
+            enhanced_confidence = max(0.1, base_confidence * 0.9)
+        else:
+            enhanced_confidence = base_confidence
+
+        # Add learning metadata
+        base_result["confidence"] = enhanced_confidence
+        base_result["metadata"]["learning_applied"] = bool(learning_context.get("meta_patterns"))
+        base_result["metadata"]["task_type"] = task_type
+        base_result["metadata"]["predicted_meta_effectiveness"] = predicted_effectiveness
+
+        logger.debug(
+            f"Enhanced meta-rewarding confidence for {task_type}: {enhanced_confidence:.3f} (base: {base_confidence:.3f})"
+        )
+
+        return base_result
+
+    def _store_meta_learning_outcomes(
+        self,
+        thought: Thought,
+        learning_context: Dict[str, Any],
+        initial_judgment: str,
+        meta_judgment: str,
+        combined_result: Dict[str, Any],
+    ) -> None:
+        """Store meta-learning outcomes in thought metadata for future improvements.
+
+        Args:
+            thought: The Thought to store outcomes in.
+            learning_context: The learning context used.
+            initial_judgment: The initial judgment generated.
+            meta_judgment: The meta-judgment generated.
+            combined_result: The combined result.
+        """
+        if not thought.metadata:
+            thought.metadata = {}
+
+        # Initialize meta-rewarding memory if not exists
+        if "meta_rewarding_memory" not in thought.metadata:
+            thought.metadata["meta_rewarding_memory"] = {
+                "sessions": [],
+                "effective_meta_judgments": [],
+                "ineffective_meta_judgments": [],
+                "meta_patterns": {},
+            }
+
+        # Analyze this meta-rewarding session
+        task_type = learning_context.get("task_type", "general")
+        confidence = combined_result["confidence"]
+        initial_score = combined_result["metadata"].get("initial_score")
+
+        session_data = {
+            "session_id": f"meta_session_{int(time.time())}",
+            "task_type": task_type,
+            "confidence": confidence,
+            "initial_score": initial_score,
+            "predicted_effectiveness": learning_context.get("predicted_meta_effectiveness", 0.5),
+            "timestamp": time.time(),
+        }
+
+        # Determine if meta-judgment was effective
+        # Consider effective if confidence is high and meta-judgment added value
+        meta_added_value = (
+            len(meta_judgment) > len(initial_judgment) * 0.3
+        )  # Meta-judgment is substantial
+        is_effective = confidence > 0.7 and meta_added_value
+
+        if is_effective:
+            thought.metadata["meta_rewarding_memory"]["effective_meta_judgments"].append(
+                {
+                    "task_type": task_type,
+                    "confidence": confidence,
+                    "initial_score": initial_score,
+                    "meta_length_ratio": len(meta_judgment) / max(len(initial_judgment), 1),
+                }
+            )
+        else:
+            thought.metadata["meta_rewarding_memory"]["ineffective_meta_judgments"].append(
+                {
+                    "task_type": task_type,
+                    "confidence": confidence,
+                    "initial_score": initial_score,
+                    "reason": "low_confidence" if confidence < 0.5 else "minimal_meta_value",
+                }
+            )
+
+        # Update meta-patterns for this task type
+        if task_type not in thought.metadata["meta_rewarding_memory"]["meta_patterns"]:
+            thought.metadata["meta_rewarding_memory"]["meta_patterns"][task_type] = {
+                "sessions": 0,
+                "effective_sessions": 0,
+                "total_confidence": 0.0,
+                "total_meta_value": 0.0,
+            }
+
+        patterns = thought.metadata["meta_rewarding_memory"]["meta_patterns"][task_type]
+        patterns["sessions"] += 1
+        patterns["total_confidence"] += confidence
+
+        if is_effective:
+            patterns["effective_sessions"] += 1
+
+        # Calculate meta-value (how much meta-judgment added)
+        meta_value = len(meta_judgment) / max(len(initial_judgment), 1)
+        patterns["total_meta_value"] += meta_value
+
+        # Calculate averages
+        patterns["avg_effectiveness"] = patterns["effective_sessions"] / patterns["sessions"]
+        patterns["avg_confidence"] = patterns["total_confidence"] / patterns["sessions"]
+        patterns["avg_meta_value"] = patterns["total_meta_value"] / patterns["sessions"]
+
+        # Store this session
+        thought.metadata["meta_rewarding_memory"]["sessions"].append(session_data)
+
+        # Keep only last 20 sessions
+        if len(thought.metadata["meta_rewarding_memory"]["sessions"]) > 20:
+            thought.metadata["meta_rewarding_memory"]["sessions"] = thought.metadata[
+                "meta_rewarding_memory"
+            ]["sessions"][-20:]
+
+        # Keep only last 30 effective/ineffective meta-judgments
+        if len(thought.metadata["meta_rewarding_memory"]["effective_meta_judgments"]) > 30:
+            thought.metadata["meta_rewarding_memory"]["effective_meta_judgments"] = (
+                thought.metadata["meta_rewarding_memory"]["effective_meta_judgments"][-30:]
+            )
+
+        if len(thought.metadata["meta_rewarding_memory"]["ineffective_meta_judgments"]) > 30:
+            thought.metadata["meta_rewarding_memory"]["ineffective_meta_judgments"] = (
+                thought.metadata["meta_rewarding_memory"]["ineffective_meta_judgments"][-30:]
+            )

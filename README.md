@@ -4,16 +4,18 @@
 [![Python](https://img.shields.io/badge/python-3.11+-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-A framework for reliable AI text generation with validation, critique, and iterative improvement.
+An open-source framework that adds reflection and reliability to large language model (LLM) applications.
 
 ## What is Sifaka?
 
-Sifaka implements a **Thought-centric architecture** where a central state container flows through a chain of AI components. Unlike traditional pipeline approaches, every step of the generation process is tracked, validated, and can be iteratively improved.
+Sifaka is a tool for adding reflection and reliability to large language model (LLM) applications. It implements research-backed techniques for validating, critiquing, and iteratively improving AI-generated text through a transparent, observable process.
 
 **Core Architecture:**
 ```
 Thought → Model → Validators → Critics → Improved Thought
 ```
+
+Sifaka implements a **Thought-centric architecture** where a central state container flows through a chain of AI components. Unlike traditional pipeline approaches, every step of the generation process is tracked, validated, and can be iteratively improved.
 
 The **Thought** container maintains complete state including:
 - Original prompt and generated text
@@ -85,6 +87,7 @@ print(f"History: {len(thought.history)} previous iterations")
 
 **Models**: Support for OpenAI, Anthropic, Google Gemini, HuggingFace, Ollama, and Mock providers
 **Validators**: Length, regex, content, format, ML classifiers, GuardrailsAI integration
+**Classifiers**: Bias, Language, Profanity, Sentiment, Spam, Toxicity detection with ML and rule-based fallbacks
 **Critics**: Reflexion, Self-Refine, Self-RAG, Constitutional AI, Meta-Rewarding, Self-Consistency, N-Critics, custom prompt-based
 **Retrievers**: In-memory, Redis-cached, MCP-based with 3-tier storage
 **Storage**: Memory, File, Redis, Milvus with unified protocol
@@ -224,6 +227,38 @@ self_consistency_critic = SelfConsistencyCritic(
 chain.improve_with(constitutional_critic).improve_with(self_rag_critic).improve_with(self_consistency_critic)
 ```
 
+### Working with Classifiers
+
+```python
+from sifaka.classifiers import (
+    ToxicityClassifier, SentimentClassifier, BiasClassifier,
+    create_toxicity_validator, create_sentiment_validator
+)
+from sifaka.validators.classifier import create_classifier_validator
+
+# Use classifiers standalone for analysis
+toxicity_classifier = ToxicityClassifier()
+result = toxicity_classifier.classify("This is a sample text.")
+print(f"Toxicity: {result.label} (confidence: {result.confidence:.2f})")
+
+sentiment_classifier = SentimentClassifier()
+result = sentiment_classifier.classify("I love this framework!")
+print(f"Sentiment: {result.label} (confidence: {result.confidence:.2f})")
+
+# Create validators from classifiers
+toxicity_validator = create_toxicity_validator(threshold=0.8)
+sentiment_validator = create_sentiment_validator(target_sentiment="positive", threshold=0.7)
+
+# Use with chains for content filtering
+chain = Chain(model=model, prompt="Write a positive review")
+chain.validate_with(toxicity_validator).validate_with(sentiment_validator)
+
+# Custom classifier integration
+bias_classifier = BiasClassifier()
+custom_validator = create_classifier_validator(bias_classifier, threshold=0.6)
+chain.validate_with(custom_validator)
+```
+
 ### Storage and Persistence
 
 ```python
@@ -336,6 +371,7 @@ For detailed installation and configuration instructions, see **[Storage Setup G
 ### User Guides
 - **[Custom Models](docs/guides/custom-models.md)** - Creating and using custom models
 - **[Custom Validators](docs/guides/custom-validators.md)** - Building custom validation logic
+- **[Classifiers](docs/guides/classifiers.md)** - Using built-in text classifiers for content analysis
 - **[Storage Setup](docs/guides/storage-setup.md)** - Storage backends and configuration
 - **[Configuration](docs/guides/configuration.md)** - Advanced configuration options
 - **[Performance Tuning](docs/guides/performance-tuning.md)** - Optimization and performance tips
