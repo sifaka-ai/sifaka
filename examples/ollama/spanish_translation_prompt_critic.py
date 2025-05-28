@@ -18,6 +18,7 @@ from sifaka.classifiers.language import LanguageClassifier
 from sifaka.core.chain import Chain
 from sifaka.critics.prompt import PromptCritic
 from sifaka.models.ollama import OllamaModel
+from sifaka.storage import FileStorage
 from sifaka.utils.logging import get_logger
 from sifaka.validators.classifier import ClassifierValidator
 
@@ -31,36 +32,51 @@ logger = get_logger(__name__)
 def create_translation_prompt_critic(model):
     """Create a specialized prompt critic for Spanish-English translation."""
 
+    # This critique prompt will detect that the text is in Spanish when English is required
     translation_critique_prompt = """
-You are an expert translation critic specializing in Spanish to English translation.
-Evaluate the following English translation of Spanish text based on these criteria:
+You are a language validation critic. Your job is to check if the provided text meets the language requirements.
 
-1. ACCURACY: Does the translation correctly convey the meaning of the original Spanish?
-2. FLUENCY: Does the English text read naturally and fluently?
-3. COMPLETENESS: Are all parts of the original text translated?
-4. CULTURAL APPROPRIATENESS: Are cultural references and idioms properly adapted?
-5. GRAMMAR: Is the English grammar correct and proper?
+REQUIREMENT: The text must be in English.
 
-Original Spanish Text: {original_spanish}
-English Translation: {translation}
+Analyze the provided text and determine what language it is written in.
 
-Provide specific feedback on:
-- Any inaccuracies or mistranslations
-- Awkward phrasing that could be improved
-- Missing or added content
-- Cultural nuances that need attention
-- Grammar or style improvements
+Text to analyze: {text}
 
-If the translation needs improvement, provide specific suggestions.
-If the translation is excellent, acknowledge its quality.
+If the text contains Spanish words, phrases, or is written in Spanish, respond with:
+Issues:
+- Text is written in Spanish but English is required
+- Spanish language detected in content
 
-Rate the translation quality: EXCELLENT / GOOD / NEEDS_IMPROVEMENT / POOR
+Suggestions:
+- Translate the entire text from Spanish to English
+- Ensure all content is in English language
+
+If the text is properly written in English, respond with:
+Assessment: Text is properly written in English and meets requirements
+"""
+
+    # This improvement prompt will actually do the translation
+    improvement_prompt = """
+The text you received is in Spanish, but the system requires English output.
+
+Please translate the following Spanish text to English:
+
+{text}
+
+Requirements for translation:
+1. ACCURACY: Correctly convey the meaning of the original Spanish
+2. FLUENCY: Natural and fluent English text
+3. COMPLETENESS: Translate all parts of the original text
+4. CULTURAL APPROPRIATENESS: Adapt cultural references for English speakers
+5. GRAMMAR: Correct English grammar and style
+
+Provide ONLY the English translation. Do not include any Spanish text, explanations, or commentary.
 """
 
     return PromptCritic(
         model=model,
-        critique_prompt=translation_critique_prompt,
-        improvement_prompt="Based on the critique feedback, provide an improved English translation that addresses all identified issues while maintaining accuracy and fluency.",
+        critique_prompt_template=translation_critique_prompt,
+        improve_prompt_template=improvement_prompt,
         name="Spanish-English Translation Critic",
     )
 
@@ -100,43 +116,33 @@ def main():
         name="English Output Validator",
     )
 
-    # Spanish text to translate
-    spanish_text = """
-    La inteligencia artificial está transformando rápidamente nuestra sociedad.
-    Desde los asistentes virtuales en nuestros teléfonos hasta los algoritmos
-    que recomiendan películas, la IA se ha vuelto parte integral de nuestra
-    vida cotidiana. Sin embargo, también plantea importantes desafíos éticos
-    y sociales que debemos abordar cuidadosamente. Es fundamental que
-    desarrollemos esta tecnología de manera responsable, considerando su
-    impacto en el empleo, la privacidad y la equidad social.
-    """
+    # Create a prompt that will initially generate Spanish text (to trigger validation failure)
+    # This makes the example more interesting by demonstrating the full validation → criticism → improvement cycle
+    spanish_generation_prompt = """
+    Escribe un ensayo detallado en español sobre los beneficios y desafíos de la inteligencia artificial en la educación moderna.
+    Incluye ejemplos específicos de cómo la IA puede personalizar el aprendizaje, automatizar tareas administrativas,
+    y mejorar la accesibilidad educativa. También discute las preocupaciones sobre la privacidad de datos estudiantiles
+    y la necesidad de mantener la interacción humana en el proceso educativo.
 
-    # Create translation prompt
-    translation_prompt = f"""
-    Translate the following Spanish text to English. Ensure the translation is:
-    - Accurate and faithful to the original meaning
-    - Fluent and natural in English
-    - Culturally appropriate for English speakers
-    - Complete (no missing parts)
-
-    Spanish text to translate:
-    {spanish_text.strip()}
-
-    Provide only the English translation:
+    Responde completamente en español con al menos 200 palabras.
     """
 
     # Create the chain with exactly 2 retries
     chain = Chain(
         model=model,
-        prompt=translation_prompt,
+        prompt=spanish_generation_prompt,
         max_improvement_iterations=2,  # Exactly 2 retries as specified
-        apply_improvers_on_validation_failure=True,
-        always_apply_critics=True,
+        apply_improvers_on_validation_failure=True,  # Apply critic when validation fails
+        always_apply_critics=False,  # Only apply critics when validation fails
+        storage=FileStorage(
+            "./thoughts/spanish_translation_prompt_critic_thoughts.json",
+            overwrite=True,  # Overwrite existing file instead of appending
+        ),  # Save thoughts to single JSON file for debugging
     )
 
     # Add validator and critic (no retrievers as specified)
-    chain.validate_with(language_validator)
-    chain.improve_with(critic)
+    chain = chain.validate_with(language_validator)
+    chain = chain.improve_with(critic)
 
     # Run the chain
     logger.info("Running Spanish to English translation with prompt critic...")
@@ -144,11 +150,27 @@ def main():
 
     # Display results
     print("\n" + "=" * 80)
-    print("OLLAMA SPANISH TO ENGLISH TRANSLATION WITH PROMPT CRITIC")
+    print("OLLAMA SPANISH GENERATION → VALIDATION FAILURE → TRANSLATION EXAMPLE")
     print("=" * 80)
-    print(f"\nOriginal Spanish Text:")
-    print("-" * 30)
-    print(spanish_text.strip())
+
+    # Show the initial Spanish generation (from iteration 0 if available)
+    initial_spanish = None
+    if hasattr(result, "history") and result.history:
+        # Try to get the first iteration's text from storage
+        try:
+            first_iteration_id = result.history[-1].thought_id  # Last in history is first iteration
+            first_thought = chain._config.storage.get(first_iteration_id)
+            if first_thought and hasattr(first_thought, "text") and first_thought.text:
+                initial_spanish = first_thought.text
+        except:
+            pass
+
+    if initial_spanish:
+        print(f"\nInitial Spanish Generation ({len(initial_spanish)} characters):")
+        print("-" * 30)
+        print(initial_spanish[:500] + "..." if len(initial_spanish) > 500 else initial_spanish)
+    else:
+        print(f"\nNote: Initial Spanish generation not available in display")
 
     print(f"\nFinal English Translation ({len(result.text)} characters):")
     print("-" * 30)

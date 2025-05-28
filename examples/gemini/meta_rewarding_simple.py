@@ -18,6 +18,7 @@ import os
 from sifaka import Chain
 from sifaka.models import create_model
 from sifaka.critics.meta_rewarding import MetaRewardingCritic
+from sifaka.storage import FileStorage
 
 
 def main():
@@ -56,12 +57,16 @@ def main():
         chain = Chain(
             model=model,
             prompt="Write a brief explanation of how artificial intelligence works, suitable for a general audience.",
-            max_improvement_iterations=1,  # Only one retry
+            max_improvement_iterations=2,  # Only two retries
             always_apply_critics=True,  # Always apply the critic
+            storage=FileStorage(
+                "./thoughts/meta_rewarding_simple_thoughts.json",
+                overwrite=True,  # Overwrite existing file instead of appending
+            ),  # Save thoughts to single JSON file for debugging
         )
 
         # Add the critic to the chain
-        chain.improve_with(critic)
+        chain = chain.improve_with(critic)
         print("✅ Chain configured successfully")
 
         # Run the chain
@@ -89,7 +94,7 @@ def main():
                 print(f"\nFeedback {i}:")
                 print(f"  Critic: {feedback.critic_name}")
                 print(f"  Needs improvement: {feedback.needs_improvement}")
-                print(f"  Message: {feedback.message[:200]}...")  # Truncate for readability
+                print(f"  Message: {feedback.feedback[:200]}...")  # Truncate for readability
 
         # Show improvement history if available
         if hasattr(result, "improvement_history") and result.improvement_history:

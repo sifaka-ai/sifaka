@@ -99,6 +99,11 @@ class Thought(BaseModel):
                 "timestamp": datetime.now(),
                 "parent_id": self.id,
                 "history": new_history,
+                # Preserve critic feedback from current iteration for next iteration's context
+                "critic_feedback": self.critic_feedback,
+                # Reset text and model_prompt for new iteration
+                "text": None,
+                "model_prompt": None,
             }
         )
 
@@ -151,9 +156,17 @@ class Thought(BaseModel):
         """Set the actual prompt sent to the model for this thought."""
         return self.model_copy(update={"model_prompt": model_prompt})
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert the Thought to a dictionary."""
+    def to_dict(self, exclude_prompt: bool = False) -> Dict[str, Any]:
+        """Convert the Thought to a dictionary.
+
+        Args:
+            exclude_prompt: If True, exclude the original prompt field and only keep model_prompt.
+        """
         data = self.model_dump()
+
+        # Exclude original prompt if requested (keep only model_prompt)
+        if exclude_prompt and "prompt" in data:
+            del data["prompt"]
 
         # Convert datetime to string for JSON serialization
         if data.get("timestamp") and hasattr(data["timestamp"], "isoformat"):

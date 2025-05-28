@@ -10,6 +10,23 @@ This example demonstrates:
 The chain will generate text about AI ethics and use constitutional principles
 to ensure the content is helpful, harmless, and honest.
 
+INTERESTING BEHAVIOR NOTE:
+This example demonstrates an important aspect of how critics and validators interact.
+You may observe that the ConstitutionalCritic reports "no violations found" and
+"text adheres to all principles" while still marking needs_improvement=True, and
+the system continues iterating for multiple rounds.
+
+This happens because:
+1. The Guardrails PII Detection validator fails (healthcare content triggers PII detection)
+2. The system applies the ConstitutionalCritic to try to fix the validation failure
+3. The ConstitutionalCritic correctly identifies no constitutional violations
+4. But it cannot fix PII detection issues (different problem domain)
+5. The system retries with the same critic, creating an interesting loop
+
+This demonstrates that different types of validation failures may require different
+types of critics/improvers. The ConstitutionalCritic is designed for ethical
+principle violations, not for PII removal or content sanitization.
+
 Prerequisites:
 - Install GuardrailsAI validators:
   $ guardrails hub install hub://guardrails/detect_pii
@@ -26,6 +43,7 @@ from dotenv import load_dotenv
 from sifaka import Chain
 from sifaka.critics import ConstitutionalCritic
 from sifaka.models import create_model
+from sifaka.storage import FileStorage
 from sifaka.utils.logging import get_logger
 from sifaka.validators import GuardrailsValidator
 
@@ -81,13 +99,17 @@ def main():
         max_improvement_iterations=3,  # Default retry behavior
         apply_improvers_on_validation_failure=True,
         always_apply_critics=True,
+        storage=FileStorage(
+            "./thoughts/constitutional_critic_guardrails_thoughts.json",
+            overwrite=True,  # Overwrite existing file instead of appending
+        ),  # Save thoughts to single JSON file for debugging
     )
 
     # Add validators and critics to the chain
     for validator in validators:
-        chain.validate_with(validator)
+        chain = chain.validate_with(validator)
 
-    chain.improve_with(critic)
+    chain = chain.improve_with(critic)
 
     # Run the chain
     logger.info("Running chain with constitutional critic and guardrails...")

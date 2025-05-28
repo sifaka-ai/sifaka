@@ -58,6 +58,7 @@ class ChainExecutor:
                 logger.debug("Generating text using model...")
                 text, model_prompt = self.config.model.generate_with_thought(thought)
                 thought = thought.set_text(text).set_model_prompt(model_prompt)
+                thought = thought.model_copy(update={"model_name": self.config.model.model_name})
                 logger.debug(f"Generated text: {len(text)} characters")
 
                 return thought
@@ -87,9 +88,8 @@ class ChainExecutor:
                         metadata={"validator_name": validator.__class__.__name__},
                     ):
                         result = validator.validate(thought)
-                        thought = thought.add_validation_result(
-                            validator.__class__.__name__, result
-                        )
+                        validator_name = getattr(validator, "name", validator.__class__.__name__)
+                        thought = thought.add_validation_result(validator_name, result)
 
                         if not result.passed:
                             all_passed = False
@@ -105,9 +105,8 @@ class ChainExecutor:
                     error_result = ValidationResult(
                         passed=False, message=f"Validation error: {str(e)}", score=0.0
                     )
-                    thought = thought.add_validation_result(
-                        validator.__class__.__name__, error_result
-                    )
+                    validator_name = getattr(validator, "name", validator.__class__.__name__)
+                    thought = thought.add_validation_result(validator_name, error_result)
                     all_passed = False
 
             logger.debug(f"Overall validation result: {'PASSED' if all_passed else 'FAILED'}")
@@ -141,7 +140,7 @@ class ChainExecutor:
             all_passed = True
             for i, result in enumerate(validation_results):
                 validator = self.config.validators[i]
-                validator_name = validator.__class__.__name__
+                validator_name = getattr(validator, "name", validator.__class__.__name__)
 
                 if isinstance(result, Exception):
                     logger.error(f"Validation error for {validator_name}: {result}")
@@ -210,6 +209,11 @@ class ChainExecutor:
                             or feedback_dict.get("feedback", "")
                         )
 
+                        # Add critic model information to metadata
+                        enhanced_metadata = dict(feedback_dict)
+                        if hasattr(critic, "model") and hasattr(critic.model, "model_name"):
+                            enhanced_metadata["critic_model_name"] = critic.model.model_name
+
                         feedback = CriticFeedback(
                             critic_name=critic.__class__.__name__,
                             feedback=main_feedback,  # Store main feedback as string
@@ -217,7 +221,7 @@ class ChainExecutor:
                             confidence=feedback_dict.get("confidence", 0.8),
                             violations=feedback_dict.get("issues", []),
                             suggestions=feedback_dict.get("suggestions", []),
-                            metadata=feedback_dict,  # Store the full feedback dict in metadata
+                            metadata=enhanced_metadata,  # Store the full feedback dict with model info in metadata
                         )
 
                         thought = thought.add_critic_feedback(feedback)
@@ -289,6 +293,11 @@ class ChainExecutor:
                         or result.get("feedback", "")
                     )
 
+                    # Add critic model information to metadata
+                    enhanced_metadata = dict(result)
+                    if hasattr(critic, "model") and hasattr(critic.model, "model_name"):
+                        enhanced_metadata["critic_model_name"] = critic.model.model_name
+
                     feedback = CriticFeedback(
                         critic_name=critic_name,
                         feedback=main_feedback,  # Store main feedback as string
@@ -296,7 +305,7 @@ class ChainExecutor:
                         confidence=result.get("confidence", 0.8),
                         violations=result.get("issues", []),
                         suggestions=result.get("suggestions", []),
-                        metadata=result,  # Store the full feedback dict in metadata
+                        metadata=enhanced_metadata,  # Store the full feedback dict with model info in metadata
                     )
                     thought = thought.add_critic_feedback(feedback)
                     logger.debug(f"Added async feedback from {critic_name}")
@@ -342,8 +351,8 @@ class ChainExecutor:
         # Apply pre-generation retrieval for the new iteration
         thought = self.orchestrator.orchestrate_retrieval(thought, "pre_generation")
 
-        # Generate improved text
-        thought = self.execute_generation(thought)
+        # Generate improved text using critics if feedback is available
+        thought = self._execute_improvement_generation(thought)
 
         # Apply post-generation retrieval
         thought = self.orchestrator.orchestrate_retrieval(thought, "post_generation")
@@ -353,6 +362,104 @@ class ChainExecutor:
 
         logger.debug(f"Completed improvement iteration {thought.iteration}")
         return thought
+
+    def _execute_improvement_generation(self, thought: Thought) -> Thought:
+        """Execute text generation using critics' improve methods when feedback is available.
+
+        Args:
+            thought: The current thought state with potential critic feedback.
+
+        Returns:
+            Updated thought with improved text.
+        """
+        # Check if we have critic feedback from the previous iteration
+        if thought.critic_feedback and len(thought.critic_feedback) > 0:
+            logger.debug(
+                f"Using critic improvement methods for {len(thought.critic_feedback)} critics"
+            )
+
+            # Use the first critic that has feedback and can improve
+            for feedback in thought.critic_feedback:
+                if feedback.needs_improvement:
+                    # Find the corresponding critic
+                    for critic in self.config.critics:
+                        if critic.__class__.__name__ == feedback.critic_name:
+                            try:
+                                logger.debug(f"Using {feedback.critic_name} to improve text")
+
+                                # Get the original text from the previous iteration (from history)
+                                original_text = None
+                                if thought.history and len(thought.history) > 0:
+                                    # Try to get the original text from the most recent history entry
+                                    previous_thought_id = thought.history[0].thought_id
+                                    try:
+                                        # Try to get the previous thought from storage to get its text
+                                        previous_thought = self.config.storage.get(
+                                            previous_thought_id
+                                        )
+                                        if (
+                                            previous_thought
+                                            and hasattr(previous_thought, "text")
+                                            and previous_thought.text
+                                        ):
+                                            original_text = previous_thought.text
+                                            logger.debug(
+                                                f"Retrieved original text from previous iteration: {len(original_text)} characters"
+                                            )
+                                    except Exception as e:
+                                        logger.debug(
+                                            f"Could not retrieve previous thought text: {e}"
+                                        )
+
+                                # Create a temporary thought with the original text for the critic to improve
+                                if original_text:
+                                    temp_thought = thought.model_copy(
+                                        update={"text": original_text}
+                                    )
+                                    improved_text = critic.improve(temp_thought)
+                                else:
+                                    # Fall back to regular generation if no original text available
+                                    logger.debug(
+                                        "No original text available for critic improvement, falling back to regular generation"
+                                    )
+                                    break
+
+                                # Get the actual improvement prompt that was sent to the model
+                                if (
+                                    hasattr(critic, "last_improvement_prompt")
+                                    and critic.last_improvement_prompt
+                                ):
+                                    model_prompt = critic.last_improvement_prompt
+                                else:
+                                    model_prompt = (
+                                        f"Improved by {feedback.critic_name} (prompt not available)"
+                                    )
+
+                                # Update thought with improved text
+                                thought = thought.set_text(improved_text).set_model_prompt(
+                                    model_prompt
+                                )
+                                thought = thought.model_copy(
+                                    update={"model_name": self.config.model.model_name}
+                                )
+
+                                logger.debug(
+                                    f"Generated improved text using {feedback.critic_name}: {len(improved_text)} characters"
+                                )
+                                return thought
+
+                            except Exception as e:
+                                logger.error(
+                                    f"Failed to improve text using {feedback.critic_name}: {e}"
+                                )
+                                # Fall back to regular generation
+                                break
+
+            # If no critic could improve or all failed, fall back to regular generation
+            logger.debug("No critic could improve text, falling back to regular generation")
+
+        # Fall back to regular generation when no critic feedback or improvement needed
+        return self.execute_generation(thought)
 
     def execute_improvement_loop(self, thought: Thought, validation_passed: bool) -> Thought:
         """Execute the complete improvement loop with multiple iterations.
@@ -404,11 +511,8 @@ class ChainExecutor:
             thought: The thought to save.
         """
         try:
-            # Save by thought ID for easy retrieval
+            # Save by thought ID only - let storage backends handle their own key strategies
             await self.config.storage._set_async(thought.id, thought)
-            # Also save by chain/iteration key for debugging
-            thought_key = f"thought_{self.config.chain_id}_{thought.iteration}"
-            await self.config.storage._set_async(thought_key, thought)
             logger.debug(f"Saved thought (iteration {thought.iteration}) to storage")
         except Exception as e:
             logger.warning(f"Failed to save thought to storage: {e}")
@@ -420,11 +524,8 @@ class ChainExecutor:
             thought: The thought to save.
         """
         try:
-            # Save by thought ID for easy retrieval
+            # Save by thought ID only - let storage backends handle their own key strategies
             self.config.storage.set(thought.id, thought)
-            # Also save by chain/iteration key for debugging
-            thought_key = f"thought_{self.config.chain_id}_{thought.iteration}"
-            self.config.storage.set(thought_key, thought)
             logger.debug(f"Saved thought (iteration {thought.iteration}) to storage")
         except Exception as e:
             logger.warning(f"Failed to save thought to storage: {e}")

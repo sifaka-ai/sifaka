@@ -291,13 +291,13 @@ class MetaRewardingCritic(BaseCritic):
         Returns:
             Combined critique result dictionary.
         """
-        # Extract issues and suggestions from both judgments
+        # Extract issues and suggestions primarily from initial judgment
+        # The meta judgment evaluates the judgment itself, not the original text
         initial_issues, initial_suggestions = self._parse_judgment(initial_judgment)
-        meta_issues, meta_suggestions = self._parse_judgment(meta_judgment)
 
-        # Combine issues and suggestions
-        all_issues = initial_issues + meta_issues
-        all_suggestions = initial_suggestions + meta_suggestions
+        # Use initial judgment issues/suggestions as the primary feedback
+        all_issues = initial_issues
+        all_suggestions = initial_suggestions
 
         # Extract scores if scoring is enabled
         initial_score = self._extract_score(initial_judgment) if self.use_scoring else None
@@ -441,7 +441,9 @@ class MetaRewardingCritic(BaseCritic):
                 in_weaknesses = True
                 in_missing = False
                 continue
-            elif line.lower().startswith("missing aspects:"):
+            elif line.lower().startswith(
+                ("missing aspects:", "to improve:", "recommendations:", "suggestions:")
+            ):
                 in_weaknesses = False
                 in_missing = True
                 continue
@@ -455,10 +457,28 @@ class MetaRewardingCritic(BaseCritic):
                 continue
 
             # Extract content from sections
-            if in_weaknesses and line.startswith("-"):
-                issues.append(line[1:].strip())
-            elif (in_weaknesses or in_missing) and line.startswith("-"):
-                suggestions.append(f"Address: {line[1:].strip()}")
+            if in_weaknesses and (line.startswith("-") or line.startswith("*")):
+                # Extract the issue text, handling both "- text" and "* **Title:** text" formats
+                if line.startswith("* **") and ":**" in line:
+                    # Format: "* **Title:** description"
+                    issue_text = line.split(":**", 1)[1].strip()
+                    if issue_text:
+                        issues.append(issue_text)
+                else:
+                    # Format: "- text" or "* text"
+                    issue_text = line[1:].strip()
+                    if issue_text:
+                        issues.append(issue_text)
+            elif (in_weaknesses or in_missing) and (line.startswith("-") or line.startswith("*")):
+                # Extract suggestions similarly
+                if line.startswith("* **") and ":**" in line:
+                    suggestion_text = line.split(":**", 1)[1].strip()
+                    if suggestion_text:
+                        suggestions.append(f"Address: {suggestion_text}")
+                else:
+                    suggestion_text = line[1:].strip()
+                    if suggestion_text:
+                        suggestions.append(f"Address: {suggestion_text}")
 
         # Fallback: extract from general content if no structured format found
         if not issues and not suggestions:

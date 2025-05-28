@@ -20,6 +20,7 @@ from sifaka.critics.n_critics import NCriticsCritic
 from sifaka.mcp import MCPServerConfig, MCPTransportType
 from sifaka.models.openai import OpenAIModel
 from sifaka.retrievers.simple import InMemoryRetriever
+from sifaka.storage import FileStorage
 from sifaka.storage.milvus import MilvusStorage
 from sifaka.storage.redis import RedisStorage
 from sifaka.utils.logging import get_logger
@@ -130,6 +131,10 @@ def main():
         max_improvement_iterations=1,  # Exactly 1 retry
         apply_improvers_on_validation_failure=False,  # No validators
         always_apply_critics=True,
+        storage=FileStorage(
+            "./thoughts/n_critics_redis_milvus_thoughts.json",
+            overwrite=True,  # Overwrite existing file instead of appending
+        ),  # Save thoughts to single JSON file for debugging
     )
 
     # Add critic (no validators as specified)

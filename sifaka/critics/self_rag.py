@@ -224,6 +224,13 @@ class SelfRAGCritic(BaseCritic):
         utility_score = self._extract_utility_score(rag_assessments.get("utility", "3"))
         needs_improvement = utility_score < 4
 
+        # Always provide feedback if we have issues or suggestions, even if utility score is high
+        if not needs_improvement and (issues or suggestions):
+            needs_improvement = True
+            logger.debug(
+                f"SelfRAGCritic: Forcing improvement due to issues/suggestions despite high utility score ({utility_score})"
+            )
+
         logger.debug(f"SelfRAGCritic: Completed with utility score {utility_score}")
 
         return {

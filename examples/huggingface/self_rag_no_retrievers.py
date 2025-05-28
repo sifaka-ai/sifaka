@@ -19,12 +19,19 @@ from sifaka.core.chain import Chain
 from sifaka.critics.self_rag import SelfRAGCritic
 from sifaka.models.huggingface import HuggingFaceModel
 from sifaka.utils.logging import get_logger
+import logging
+from sifaka.storage import FileStorage
 
 # Load environment variables
 load_dotenv()
 
 # Configure logging
 logger = get_logger(__name__)
+
+# Enable debug logging to see what's happening with the critic
+logging.getLogger("sifaka.critics.self_rag").setLevel(logging.DEBUG)
+logging.getLogger("sifaka.core.chain").setLevel(logging.DEBUG)
+logging.getLogger("sifaka.core.chain.executor").setLevel(logging.DEBUG)
 
 
 def main():
@@ -36,9 +43,9 @@ def main():
 
     logger.info("Creating HuggingFace Self-RAG without additional retrievers example")
 
-    # Create HuggingFace model using Microsoft Phi-4
+    # Create HuggingFace model using Meta Llama-3.3-70B-Instruct
     model = HuggingFaceModel(
-        model_name="microsoft/phi-4",  # Microsoft Phi-4 model
+        model_name="meta-llama/Llama-3.3-70B-Instruct",  # Meta Llama-3.3-70B-Instruct model
         api_token=os.getenv("HUGGINGFACE_API_KEY"),
         temperature=0.7,
         max_tokens=800,
@@ -62,6 +69,7 @@ def main():
         retriever=None,  # No additional retrievers as specified
         use_internal_knowledge=True,  # Rely on model's internal knowledge
         name="Internal Knowledge Self-RAG Critic",
+        use_reflection_tokens=True,  # Enable reflection tokens for better feedback
     )
 
     # Create the chain without any retrievers
@@ -72,15 +80,23 @@ def main():
         critic_retrievers=None,  # No additional retrievers for critic
         max_improvement_iterations=1,  # Retry once
         apply_improvers_on_validation_failure=True,
-        always_apply_critics=True,
+        always_apply_critics=True,  # Always apply the critic
+        storage=FileStorage(
+            "./thoughts/self_rag_no_retrievers_thoughts.json",
+            overwrite=True,  # Overwrite existing file instead of appending
+        ),  # Save thoughts to single JSON file for debugging
     )
 
     # Add Self-RAG critic (no validators specified)
-    chain.improve_with(critic)
+    print(f"DEBUG: Adding Self-RAG critic to chain...")
+    chain = chain.improve_with(critic)
+    print(f"DEBUG: Chain now has {len(chain._config.critics)} critics")
 
     # Run the chain
     logger.info("Running chain with Self-RAG critic using internal knowledge only...")
+    print("DEBUG: About to run chain with Self-RAG critic...")
     result = chain.run()
+    print("DEBUG: Chain completed, checking for critic feedback...")
 
     # Display results
     print("\n" + "=" * 80)
@@ -94,7 +110,7 @@ def main():
     print(f"\nProcessing Details:")
     print(f"  Iterations: {result.iteration}")
     print(f"  Chain ID: {result.chain_id}")
-    print(f"  Model: HuggingFace Phi-4 (remote)")
+    print(f"  Model: HuggingFace Llama-3.3-70B-Instruct (remote)")
     print(f"  Retrievers: None (internal knowledge only)")
 
     # Show Self-RAG critic feedback
@@ -132,7 +148,7 @@ def main():
 
     print(f"\nSystem Features:")
     print(f"  - HuggingFace Inference API")
-    print(f"  - Microsoft Phi-4 model")
+    print(f"  - Meta Llama-3.3-70B-Instruct model")
     print(f"  - Self-RAG internal knowledge only")
     print(f"  - No external retrievers")
     print(f"  - Pure model-based generation and critique")

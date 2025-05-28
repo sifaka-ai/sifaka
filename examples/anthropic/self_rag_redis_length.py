@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Anthropic Self-RAG with Redis Retrieval and Length Validator Example.
+"""Anthropic Self-RAG with Redis + File Dual Storage and Length Validator Example.
 
 This example demonstrates:
 - Anthropic Claude model with Redis retrieval for enhanced context
 - Self-RAG critic for retrieval-augmented generation feedback
 - Length validator to ensure appropriate response length
+- Dual storage: Redis (primary) + File storage (backup/fallback)
 - Default retry behavior
 
 The chain will generate content about climate science with Redis providing
 scientific context and Self-RAG ensuring factual accuracy through retrieval.
+Thoughts are stored in both Redis and local files for redundancy.
 """
 
 import os
@@ -21,6 +23,8 @@ from sifaka.mcp import MCPServerConfig, MCPTransportType
 from sifaka.models.anthropic import AnthropicModel
 from sifaka.retrievers.simple import InMemoryRetriever
 from sifaka.storage.redis import RedisStorage
+from sifaka.storage import FileStorage
+from sifaka.storage.cached import CachedStorage
 from sifaka.utils.logging import get_logger
 from sifaka.validators.base import LengthValidator
 
@@ -38,11 +42,26 @@ def setup_climate_redis_retriever():
     redis_config = MCPServerConfig(
         name="redis-server",
         transport_type=MCPTransportType.STDIO,
-        url="cd mcp/mcp-redis && python -m main.py",
+        url="uv run --directory mcp/mcp-redis src/main.py",
     )
 
-    # Create Redis storage for climate context
-    redis_storage = RedisStorage(mcp_config=redis_config, key_prefix="sifaka:climate")
+    # Create Redis storage for thoughts with timestamp-based key pattern
+    import datetime
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    redis_storage = RedisStorage(mcp_config=redis_config, key_prefix=f"{timestamp}_climate")
+
+    # Create file storage as backup/secondary storage
+    file_storage = FileStorage(
+        f"./thoughts/self_rag_redis_length_thoughts.json",
+        overwrite=True,  # Overwrite existing file instead of appending
+    )
+
+    # Create cached storage with file as cache and Redis as persistence
+    dual_storage = CachedStorage(
+        cache=file_storage,  # Fast local file cache
+        persistence=redis_storage,  # Redis for persistence and sharing
+    )
 
     # Create in-memory retriever and populate with climate science context
     retriever = InMemoryRetriever()
@@ -64,7 +83,7 @@ def setup_climate_redis_retriever():
     for i, doc in enumerate(climate_documents):
         retriever.add_document(f"climate_doc_{i}", doc)
 
-    return retriever
+    return retriever, dual_storage
 
 
 def main():
@@ -77,22 +96,36 @@ def main():
     logger.info("Creating Anthropic Self-RAG with Redis retrieval example")
 
     # Create Anthropic model
-    model = AnthropicModel(model_name="claude-3-sonnet-20240229", max_tokens=800, temperature=0.6)
+    model = AnthropicModel(
+        model_name="claude-sonnet-4-20250514",
+        max_tokens=1000,  # Increased to allow for longer responses
+        temperature=0.4,  # Lower temperature for more consistent length
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
+    )
 
-    # Set up Redis retriever with climate science context
-    redis_retriever = setup_climate_redis_retriever()
+    # Set up Redis retriever with climate science context and dual storage
+    redis_retriever, dual_storage = setup_climate_redis_retriever()
 
     # Create Self-RAG critic for fact-checking and retrieval-augmented feedback
+    # Use Haiku model for the critic as per preferences
+    critic_model = AnthropicModel(
+        model_name="claude-3-5-haiku-latest",
+        max_tokens=1000,  # Increased to allow for detailed feedback
+        temperature=0.4,  # Lower temperature for more consistent feedback
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
+    )
+
     critic = SelfRAGCritic(
-        model=model,
+        model=critic_model,
         retriever=redis_retriever,  # Self-RAG uses retrieval for fact-checking
         name="Climate Science Self-RAG Critic",
     )
 
     # Create length validator to ensure comprehensive but concise responses
+    # Set bounds to likely fail initially but succeed after critic feedback
     length_validator = LengthValidator(
-        min_length=300,  # Minimum 300 characters for comprehensive coverage
-        max_length=1200,  # Maximum 1200 characters to stay focused
+        min_length=1200,  # Minimum 1200 characters (higher to trigger initial failure)
+        max_length=1600,  # Maximum 1600 characters (tighter window to require refinement)
     )
 
     # Create the chain with Redis retrieval for the model
@@ -102,12 +135,13 @@ def main():
         model_retrievers=[redis_retriever],  # Redis context for model
         max_improvement_iterations=3,  # Default retry behavior
         apply_improvers_on_validation_failure=True,
-        always_apply_critics=True,
+        always_apply_critics=False,  # Set to False per user preferences
+        storage=dual_storage,  # Use Redis + File dual storage for thoughts
     )
 
     # Add validator and critic
-    chain.validate_with(length_validator)
-    chain.improve_with(critic)
+    chain = chain.validate_with(length_validator)
+    chain = chain.improve_with(critic)
 
     # Run the chain
     logger.info("Running chain with Self-RAG critic and Redis retrieval...")
@@ -115,7 +149,7 @@ def main():
 
     # Display results
     print("\n" + "=" * 80)
-    print("ANTHROPIC SELF-RAG WITH REDIS RETRIEVAL AND LENGTH VALIDATOR")
+    print("ANTHROPIC SELF-RAG WITH REDIS + FILE DUAL STORAGE AND LENGTH VALIDATOR")
     print("=" * 80)
     print(f"\nPrompt: {result.prompt}")
     print(f"\nFinal Text ({len(result.text)} characters):")
