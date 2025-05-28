@@ -659,7 +659,7 @@ class ReflexionCritic(BaseCritic):
             issue_counts = {}
             for feedback in thought.critic_feedback:
                 if feedback.critic_name == "ReflexionCritic":
-                    for issue in feedback.issues:
+                    for issue in feedback.violations:
                         issue_counts[issue] = issue_counts.get(issue, 0) + 1
 
             # Identify recurring issues (appeared more than once)

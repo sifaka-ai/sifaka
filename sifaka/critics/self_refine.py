@@ -112,6 +112,9 @@ class SelfRefineCritic(BaseCritic):
             "Improved text:"
         )
 
+        # Store the last improvement prompt used for debugging/logging
+        self.last_improvement_prompt = None
+
     async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
         """Perform the actual critique logic using Self-Refine approach.
 
@@ -222,6 +225,9 @@ class SelfRefineCritic(BaseCritic):
                     critique=critique,
                     context=context,
                 )
+
+                # Store the actual prompt for logging/debugging
+                self.last_improvement_prompt = improve_prompt
 
                 improved_text = self.model.generate(
                     prompt=improve_prompt,

@@ -6,6 +6,7 @@ Protocol. Perfect for storing and searching thoughts, documents, and other text 
 
 import asyncio
 import json
+from datetime import datetime
 from typing import Any, List, Optional
 
 from sifaka.mcp import MCPClient, MCPServerConfig
@@ -56,6 +57,75 @@ class MilvusStorage:
         logger.debug(
             f"Initialized MilvusStorage with collection '{collection_name}', dimension {dimension}"
         )
+
+    def _generate_timestamp_key(self, thought: Any) -> str:
+        """Generate a timestamp-based key for a thought.
+
+        Format: YYYYMMDD_thoughtid_iterN
+        Example: 20250527_8b69c3dc_iter0
+
+        Args:
+            thought: The thought object with id, iteration, and timestamp.
+
+        Returns:
+            Timestamp-based key for Milvus storage.
+        """
+        # Extract thought properties
+        thought_id = getattr(thought, "id", "unknown")
+        iteration = getattr(thought, "iteration", 0)
+        timestamp = getattr(thought, "timestamp", datetime.now())
+
+        # Parse timestamp if it's a string
+        if isinstance(timestamp, str):
+            try:
+                timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            except:
+                timestamp = datetime.now()
+
+        # Format: YYYYMMDD_shortid_iterN
+        date_str = timestamp.strftime("%Y%m%d")
+        short_id = thought_id[:8] if len(thought_id) >= 8 else thought_id
+
+        return f"{date_str}_{short_id}_iter{iteration}"
+
+    def _extract_essential_fields(self, data: dict) -> dict:
+        """Extract only essential fields for Milvus storage to avoid field length issues.
+
+        Only stores fields needed for semantic search and linking:
+        - id, parent_id, chain_id (for linking)
+        - text, model_prompt (for semantic search)
+        - timestamp, iteration (for ordering)
+        - prompt (for context)
+
+        Args:
+            data: Full data dictionary (e.g., from Thought.model_dump())
+
+        Returns:
+            Dictionary with only essential fields
+        """
+        essential_fields = {
+            # Critical linking fields (never truncate)
+            "id": data.get("id"),
+            "parent_id": data.get("parent_id"),
+            "chain_id": data.get("chain_id"),
+            # Search and context fields
+            "text": data.get("text", ""),
+            "model_prompt": data.get("model_prompt", ""),
+            "prompt": data.get("prompt", ""),
+            # Metadata for ordering and context
+            "timestamp": data.get("timestamp"),
+            "iteration": data.get("iteration", 0),
+            # Keep model info for debugging
+            "model_name": data.get("model_name"),
+        }
+
+        # Remove None values to keep the data clean
+        result = {k: v for k, v in essential_fields.items() if v is not None}
+
+        # Log what fields we're storing for debugging
+        logger.debug(f"Milvus essential fields: {list(result.keys())}")
+
+        return result
 
     def _truncate_field(self, field_value: str, field_name: str, max_length: int = 65536) -> str:
         """Truncate field value to fit Milvus field length limits.
@@ -125,10 +195,11 @@ class MilvusStorage:
             field_priorities = {
                 # Keep these (priority 0 - never truncate)
                 "id": 0,
+                "parent_id": 0,  # CRITICAL: Never truncate parent_id - needed for linking thoughts
+                "chain_id": 0,  # CRITICAL: Never truncate chain_id - needed for chain tracking
                 "prompt": 0,
                 "timestamp": 0,
                 "iteration": 0,
-                "chain_id": 0,
                 # Truncate moderately (priority 1)
                 "text": 1,
                 "metadata": 1,
@@ -140,8 +211,6 @@ class MilvusStorage:
                 "post_generation_context": 2,
                 "system_prompt": 2,
                 "model_prompt": 2,
-                # Truncate aggressively (priority 3)
-                "parent_id": 3,
             }
 
             # Start truncating from highest priority fields
@@ -287,12 +356,18 @@ class MilvusStorage:
         try:
             logger.debug(f"Milvus get: {key}")
 
+            # Check if we have a metadata mapping for this key (original -> timestamp)
+            search_key = key
+            if key in self._metadata_store:
+                search_key = self._metadata_store[key]
+                logger.debug(f"Using mapped key: {key} -> {search_key}")
+
             # Use Milvus query for exact key match via MCP
             result = await self.mcp_client.call_tool(
                 "milvus_query",
                 {
                     "collection_name": self.collection_name,
-                    "filter_expr": f"key == '{key}'",  # Key is stored as direct string
+                    "filter_expr": f"key == '{search_key}'",  # Key is stored as direct string
                     "output_fields": ["key", "content"],
                     "limit": 1,
                 },
@@ -364,36 +439,79 @@ class MilvusStorage:
         await self._ensure_connected()
 
         try:
-            logger.debug(f"Milvus set: {key}")
+            # Use timestamp-based key for thoughts, original key for other data
+            if hasattr(value, "id") and hasattr(value, "iteration") and hasattr(value, "timestamp"):
+                # This looks like a thought - use timestamp-based key
+                timestamp_key = self._generate_timestamp_key(value)
+                milvus_key = timestamp_key
+                logger.debug(f"Milvus set (thought): {milvus_key}")
 
-            # Handle different value types
+                # Also store metadata for original key lookup
+                original_key = key
+                logger.debug(f"Milvus set (original): {original_key}")
+            else:
+                # Regular data - use original key
+                milvus_key = key
+                original_key = None
+                logger.debug(f"Milvus set: {milvus_key}")
+
+            # Handle different value types - extract only essential fields for Milvus
             if hasattr(value, "model_dump"):
-                # Pydantic model - serialize to JSON
-                serialized_value = json.dumps(value.model_dump(), default=str)
+                # Pydantic model (likely a Thought) - extract only essential fields
+                full_data = value.model_dump()
+                essential_data = self._extract_essential_fields(full_data)
+                serialized_value = json.dumps(essential_data, default=str)
                 text_value = str(value.text) if hasattr(value, "text") else str(value)
             elif isinstance(value, (dict, list)):
-                # Dict or list - serialize to JSON
-                serialized_value = json.dumps(value, default=str)
-                text_value = str(value)
+                # Dict or list - extract essential fields if it looks like a thought
+                if isinstance(value, dict) and "id" in value and "text" in value:
+                    essential_data = self._extract_essential_fields(value)
+                    serialized_value = json.dumps(essential_data, default=str)
+                else:
+                    serialized_value = json.dumps(value, default=str)
+                text_value = (
+                    str(value.get("text", value)) if isinstance(value, dict) else str(value)
+                )
             else:
                 # Other types - convert to string
                 serialized_value = str(value)
                 text_value = str(value)
 
             # Apply smart field truncation for Milvus limits
-            serialized_value = self._smart_truncate_json(serialized_value)
-            text_value = self._truncate_field(text_value, "text")
-            key = self._truncate_field(key, "key", max_length=512)  # Keys should be shorter
+            serialized_value = self._smart_truncate_json(
+                serialized_value, max_length=self.max_text_length
+            )
+            text_value = self._truncate_field(text_value, "text", max_length=self.max_text_length)
+            milvus_key = self._truncate_field(
+                milvus_key, "key", max_length=512
+            )  # Keys should be shorter
 
             # First, delete any existing entry with this key
             try:
                 await self.mcp_client.call_tool(
                     "milvus_delete_entities",
-                    {"collection_name": self.collection_name, "filter_expr": f"key == '{key}'"},
+                    {
+                        "collection_name": self.collection_name,
+                        "filter_expr": f"key == '{milvus_key}'",
+                    },
                 )
             except Exception:
                 # Ignore errors if entity doesn't exist
                 pass
+
+            # Also delete by original key if this is a thought (for updates)
+            if original_key:
+                try:
+                    await self.mcp_client.call_tool(
+                        "milvus_delete_entities",
+                        {
+                            "collection_name": self.collection_name,
+                            "filter_expr": f"key == '{original_key}'",
+                        },
+                    )
+                except Exception:
+                    # Ignore errors if entity doesn't exist
+                    pass
 
             # Insert new data using Milvus insert_data via MCP
             # Generate a simple vector from the text content for search
@@ -403,17 +521,32 @@ class MilvusStorage:
             # Ensure all vector elements are proper floats
             dummy_vector = [float(x) for x in dummy_vector]
 
-            # Try the format that worked in our tests - single record insertion
-            # Based on our successful test, this should work
-            # Single record as batch operation: vector stays as list, other fields become single-element lists
-            # Single record insertion: ALL fields as direct values
-            # MCP requires field arrays format: vector as direct list, other fields as single-element lists
-            # Field arrays format (accepted by both MCP and pymilvus)
-            # Proper list-of-dicts format (now supported by fixed MCP server)
+            # Final safety check - ensure all fields are within Milvus limits
+            if len(serialized_value) > 65535:
+                logger.warning(
+                    f"Content still too large ({len(serialized_value)} chars), applying emergency truncation"
+                )
+                serialized_value = self._truncate_field(
+                    serialized_value, "content", max_length=65535
+                )
+
+            if len(text_value) > 65535:
+                logger.warning(
+                    f"Text still too large ({len(text_value)} chars), applying emergency truncation"
+                )
+                text_value = self._truncate_field(text_value, "text", max_length=65535)
+
+            if len(milvus_key) > 511:
+                logger.warning(
+                    f"Key still too large ({len(milvus_key)} chars), applying emergency truncation"
+                )
+                milvus_key = self._truncate_field(milvus_key, "key", max_length=511)
+
+            # Store with timestamp-based key
             data = [
                 {
                     "vector": dummy_vector,  # Vector as direct list
-                    "key": key,  # Direct string value
+                    "key": milvus_key,  # Timestamp-based key
                     "content": serialized_value,  # Direct string value
                     "text": text_value,  # Direct string value
                 }
@@ -429,6 +562,12 @@ class MilvusStorage:
                 if "content" in result and result["content"]:
                     error_msg = result["content"][0].get("text", error_msg)
                 raise Exception(f"Milvus INSERT failed: {error_msg}")
+
+            # For thoughts, also store a mapping from original key to timestamp key
+            if original_key:
+                # Store metadata mapping for backward compatibility
+                self._metadata_store[original_key] = milvus_key
+                logger.debug(f"Stored metadata mapping: {original_key} -> {milvus_key}")
 
         except Exception as e:
             logger.error(f"Milvus set failed for key {key}: {e}")

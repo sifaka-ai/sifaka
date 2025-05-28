@@ -15,9 +15,15 @@ from dotenv import load_dotenv
 
 from sifaka.core.chain import Chain
 from sifaka.critics.constitutional import ConstitutionalCritic
+from sifaka.mcp import MCPServerConfig, MCPTransportType
 from sifaka.models.ollama import OllamaModel
 from sifaka.retrievers.simple import InMemoryRetriever
+from sifaka.storage import FileStorage
+from sifaka.storage.redis import RedisStorage
+from sifaka.storage.cached import CachedStorage
 from sifaka.utils.logging import get_logger
+import logging
+
 
 # Load environment variables
 load_dotenv()
@@ -25,16 +31,40 @@ load_dotenv()
 # Configure logging
 logger = get_logger(__name__)
 
+# Enable debug logging to see what's happening with the critic
+logging.getLogger("sifaka.critics.constitutional").setLevel(logging.DEBUG)
+logging.getLogger("sifaka.core.chain.executor").setLevel(logging.DEBUG)
+
 
 def setup_privacy_redis_retriever():
-    """Set up retriever with digital privacy context documents.
+    """Set up Redis retriever with digital privacy context documents."""
 
-    This example demonstrates Redis integration concept. In production,
-    you would configure Redis MCP server and use RedisStorage.
-    For now, we use in-memory storage with Redis-like structure.
-    """
+    # Create Redis MCP configuration (using local server)
+    redis_config = MCPServerConfig(
+        name="redis-server",
+        transport_type=MCPTransportType.STDIO,
+        url="uv run --directory mcp/mcp-redis src/main.py",
+    )
 
-    # Create in-memory retriever (Redis fallback for this demo)
+    # Create Redis storage for thoughts with timestamp-based key pattern
+    import datetime
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    redis_storage = RedisStorage(mcp_config=redis_config, key_prefix=f"{timestamp}_privacy")
+
+    # Create file storage as backup/secondary storage
+    file_storage = FileStorage(
+        f"./thoughts/constitutional_critic_redis_thoughts.json",
+        overwrite=False,  # Append to preserve all iterations with critic feedback
+    )
+
+    # Create cached storage with file as cache and Redis as persistence
+    dual_storage = CachedStorage(
+        cache=file_storage,  # Fast local file cache
+        persistence=redis_storage,  # Redis for persistence and sharing
+    )
+
+    # Create in-memory retriever and populate with privacy context
     retriever = InMemoryRetriever()
 
     # Add digital privacy context documents
@@ -51,16 +81,15 @@ def setup_privacy_redis_retriever():
         "Privacy impact assessments help organizations identify and mitigate privacy risks before implementing new systems or processes.",
     ]
 
-    # Store documents in retriever (simulating Redis storage structure)
-    logger.info("Setting up privacy context documents...")
+    # Store documents in retriever
+    logger.info("Setting up privacy context documents in Redis...")
     for i, doc in enumerate(privacy_documents):
         doc_id = f"privacy_doc_{i}"
         retriever.add_document(doc_id, doc)
 
-    logger.info(f"Loaded {len(privacy_documents)} privacy documents into retriever")
+    logger.info(f"Loaded {len(privacy_documents)} privacy documents into Redis retriever")
 
-    # Return retriever and None for redis_storage (indicating fallback mode)
-    return retriever, None
+    return retriever, dual_storage
 
 
 def setup_constitutional_principles():
@@ -105,8 +134,8 @@ def main():
         print("Error: Ollama service is not running. Please start Ollama and try again.")
         return
 
-    # Set up retriever with privacy context (Redis demo mode)
-    privacy_retriever, _ = setup_privacy_redis_retriever()
+    # Set up Redis retriever with privacy context and dual storage
+    privacy_retriever, dual_storage = setup_privacy_redis_retriever()
 
     # Get constitutional principles
     constitutional_principles = setup_constitutional_principles()
@@ -128,10 +157,13 @@ def main():
         max_improvement_iterations=3,  # Default retry behavior
         apply_improvers_on_validation_failure=True,
         always_apply_critics=True,
+        storage=dual_storage,  # Use Redis + File dual storage for thoughts
     )
 
     # Add constitutional critic (no validators specified)
-    chain.improve_with(critic)
+    print(f"DEBUG: Adding Constitutional critic to chain...")
+    chain = chain.improve_with(critic)
+    print(f"DEBUG: Chain now has {len(chain._config.critics)} critics")
 
     # Run the chain
     logger.info("Running chain with constitutional critic and Redis retrieval...")
@@ -150,12 +182,12 @@ def main():
     print(f"  Iterations: {result.iteration}")
     print(f"  Chain ID: {result.chain_id}")
     print(f"  Model: Local Ollama")
-    storage_status = "In-Memory (Redis demo mode)"
+    storage_status = "Redis + File Dual Storage"
     print(f"  Storage: {storage_status}")
 
     # Show retrieval context
     if hasattr(result, "pre_generation_context") and result.pre_generation_context:
-        context_source = "In-Memory (Redis demo mode)"
+        context_source = "Redis"
         print(
             f"\nModel Context from {context_source} ({len(result.pre_generation_context)} documents):"
         )
@@ -185,7 +217,7 @@ def main():
 
     print(f"\nSystem Features:")
     print(f"  - Local Ollama processing")
-    storage_feature = "In-Memory retrieval (Redis demo mode)"
+    storage_feature = "Redis retrieval with dual storage"
     print(f"  - {storage_feature}")
     print(f"  - Constitutional principles evaluation")
     print(f"  - Privacy-focused content generation")

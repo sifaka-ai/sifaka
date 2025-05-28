@@ -27,7 +27,9 @@ from sifaka.storage.cached import CachedStorage
 from sifaka.storage.memory import MemoryStorage
 from sifaka.storage.milvus import MilvusStorage
 from sifaka.storage.redis import RedisStorage
+from sifaka.storage import FileStorage
 from sifaka.utils.logging import get_logger
+
 
 # Load environment variables
 load_dotenv()
@@ -36,8 +38,8 @@ load_dotenv()
 logger = get_logger(__name__)
 
 
-def setup_three_tier_storage():
-    """Set up three-tiered caching: Memory → Redis → Milvus."""
+def setup_four_tier_storage():
+    """Set up four-tiered caching: Memory → Redis → Milvus → FileSystem."""
 
     # Layer 1: Memory storage (fastest)
     memory_storage = MemoryStorage()
@@ -50,20 +52,33 @@ def setup_three_tier_storage():
     )
     redis_storage = RedisStorage(mcp_config=redis_config, key_prefix="sifaka:energy")
 
-    # Layer 3: Milvus storage (slowest, vector search)
+    # Layer 3: Milvus storage (vector search) with field length limits
     milvus_config = MCPServerConfig(
         name="milvus-server",
         transport_type=MCPTransportType.STDIO,
         url="uv run --directory mcp/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530",
     )
-    milvus_storage = MilvusStorage(mcp_config=milvus_config, collection_name="sustainable_energy")
+    milvus_storage = MilvusStorage(
+        mcp_config=milvus_config,
+        collection_name="sustainable_energy",
+        max_text_length=50000,  # Conservative limit to avoid Milvus field length errors (65536 limit)
+    )
 
-    # Create three-tier cached storage: Memory → Redis → Milvus
+    # Layer 4: FileSystem storage (slowest, most persistent)
+    file_storage = FileStorage(
+        "./thoughts/reflexion_four_tier_caching_thoughts.json",
+        overwrite=False,  # Append to preserve all iterations
+    )
+
+    # Create four-tier cached storage: Memory → Redis → Milvus → FileSystem
     cached_storage = CachedStorage(
         cache=memory_storage,  # L1: Memory (fastest)
         persistence=CachedStorage(
             cache=redis_storage,  # L2: Redis (persistent cache)
-            persistence=milvus_storage,  # L3: Milvus (vector search)
+            persistence=CachedStorage(
+                cache=milvus_storage,  # L3: Milvus (vector search)
+                persistence=file_storage,  # L4: FileSystem (most persistent)
+            ),
         ),
     )
 
@@ -111,17 +126,17 @@ def setup_energy_retrievers():
 
 
 def main():
-    """Run the HuggingFace Reflexion with Three-Tiered Caching example."""
+    """Run the HuggingFace Reflexion with Four-Tiered Caching example."""
 
     # Ensure API key is available
     if not os.getenv("HUGGINGFACE_API_KEY"):
         raise ValueError("HUGGINGFACE_API_KEY environment variable is required")
 
-    logger.info("Creating HuggingFace Reflexion with three-tiered caching example")
+    logger.info("Creating HuggingFace Reflexion with four-tiered caching example")
 
-    # Create HuggingFace model using Microsoft Phi-4
+    # Create HuggingFace model using Meta Llama-3.3-70B-Instruct
     model = HuggingFaceModel(
-        model_name="microsoft/phi-4",  # Microsoft Phi-4 model
+        model_name="meta-llama/Llama-3.3-70B-Instruct",  # Meta Llama-3.3-70B-Instruct model
         api_token=os.getenv("HUGGINGFACE_API_KEY"),
         temperature=0.7,
         max_tokens=900,
@@ -137,8 +152,8 @@ def main():
         print("Error: HuggingFace API is not accessible. Please check your API key and try again.")
         return
 
-    # Set up three-tiered caching storage
-    cached_storage = setup_three_tier_storage()
+    # Set up four-tiered caching storage
+    cached_storage = setup_four_tier_storage()
 
     # Set up retrievers with energy context
     model_retriever, critic_retriever = setup_energy_retrievers()
@@ -155,22 +170,22 @@ def main():
         prompt="Provide a comprehensive analysis of sustainable energy technologies, comparing solar, wind, hydroelectric, and geothermal power in terms of efficiency, environmental impact, cost-effectiveness, and scalability for meeting global energy needs.",
         model_retrievers=[model_retriever],  # Energy context for model
         critic_retrievers=[critic_retriever],  # Reflection guidance for critic
-        storage=cached_storage,  # Three-tiered caching
+        storage=cached_storage,  # Four-tiered caching
         max_improvement_iterations=2,  # Allow for improvement iterations
         apply_improvers_on_validation_failure=True,
         always_apply_critics=True,
     )
 
     # Add Reflexion critic (no validators specified)
-    chain.improve_with(critic)
+    chain = chain.improve_with(critic)
 
     # Run the chain
-    logger.info("Running chain with Reflexion critic and three-tiered caching...")
+    logger.info("Running chain with Reflexion critic and four-tiered caching...")
     result = chain.run()
 
     # Display results
     print("\n" + "=" * 80)
-    print("HUGGINGFACE REFLEXION WITH THREE-TIERED CACHING EXAMPLE")
+    print("HUGGINGFACE REFLEXION WITH FOUR-TIERED CACHING EXAMPLE")
     print("=" * 80)
     print(f"\nPrompt: {result.prompt}")
     print(f"\nFinal Text ({len(result.text)} characters):")
@@ -180,14 +195,15 @@ def main():
     print(f"\nProcessing Details:")
     print(f"  Iterations: {result.iteration}")
     print(f"  Chain ID: {result.chain_id}")
-    print(f"  Model: HuggingFace Phi-4 (remote)")
-    print(f"  Storage: Three-tiered caching")
+    print(f"  Model: HuggingFace Llama-3.3-70B-Instruct (remote)")
+    print(f"  Storage: Four-tiered caching")
 
     # Show caching information
-    print(f"\nThree-Tiered Caching Architecture:")
+    print(f"\nFour-Tiered Caching Architecture:")
     print(f"  Layer 1: Memory Storage (fastest)")
     print(f"  Layer 2: Redis Storage (persistent)")
     print(f"  Layer 3: Milvus Storage (vector search)")
+    print(f"  Layer 4: FileSystem Storage (most persistent)")
     print(f"  Cache TTL: 1 hour")
 
     # Show retrieval context
@@ -233,13 +249,13 @@ def main():
 
     print(f"\nSystem Features:")
     print(f"  - HuggingFace Inference API")
-    print(f"  - Microsoft Phi-4 model")
+    print(f"  - Meta Llama-3.3-70B-Instruct model")
     print(f"  - Reflexion-based improvement")
     print(f"  - Comprehensive energy analysis")
     print(f"  - Multi-layer storage optimization")
 
     print("\n" + "=" * 80)
-    logger.info("Reflexion with three-tiered caching example completed successfully")
+    logger.info("Reflexion with four-tiered caching example completed successfully")
 
 
 if __name__ == "__main__":

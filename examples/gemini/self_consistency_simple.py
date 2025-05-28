@@ -17,6 +17,7 @@ import os
 from sifaka import Chain
 from sifaka.models import create_model
 from sifaka.critics.self_consistency import SelfConsistencyCritic
+from sifaka.storage import FileStorage
 
 
 def main():
@@ -60,10 +61,14 @@ def main():
             prompt="Explain the concept of machine learning and provide a simple example that anyone can understand.",
             max_improvement_iterations=1,  # Only one retry
             always_apply_critics=True,  # Always apply the critic
+            storage=FileStorage(
+                "./thoughts/self_consistency_simple_thoughts.json",
+                overwrite=True,  # Overwrite existing file instead of appending
+            ),  # Save thoughts to single JSON file for debugging
         )
 
         # Add the critic to the chain
-        chain.improve_with(critic)
+        chain = chain.improve_with(critic)
         print("✅ Chain configured successfully")
 
         # Run the chain
@@ -91,7 +96,7 @@ def main():
                 print(f"\nFeedback {i}:")
                 print(f"  Critic: {feedback.critic_name}")
                 print(f"  Needs improvement: {feedback.needs_improvement}")
-                print(f"  Message: {feedback.message[:200]}...")  # Truncate for readability
+                print(f"  Message: {feedback.feedback[:200]}...")  # Truncate for readability
 
                 # Show confidence if available (SelfConsistency specific)
                 if hasattr(feedback, "confidence"):

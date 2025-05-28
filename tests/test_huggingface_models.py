@@ -21,51 +21,58 @@ from sifaka.utils.error_handling import ModelError
 class TestHuggingFaceModel:
     """Test HuggingFace model functionality."""
 
-    @patch("sifaka.models.huggingface.HuggingFaceModel._import_transformers")
-    def test_huggingface_model_basic(self, mock_import):
+    @patch("sifaka.models.huggingface.HUGGINGFACE_AVAILABLE", True)
+    @patch("sifaka.models.huggingface.HuggingFaceModelLoader.load_model")
+    def test_huggingface_model_basic(self, mock_load_model):
         """Test basic HuggingFace model functionality."""
-        # Mock transformers components
+        # Mock tensor-like object for tokenizer input
+        mock_input_tensor = Mock()
+        mock_input_tensor.to.return_value = mock_input_tensor
+        mock_input_tensor.__getitem__ = Mock(return_value=[1, 2, 3, 4, 5])
+        mock_input_tensor.__len__ = Mock(return_value=5)
+
+        # Mock tensor-like object for model output
+        mock_output_tensor = Mock()
+        mock_output_tensor.__getitem__ = Mock(return_value=[1, 2, 3, 4, 5, 6, 7])
+
+        # Mock tokenizer and model
         mock_tokenizer = Mock()
-        mock_tokenizer.encode.return_value = [1, 2, 3, 4, 5]
+        mock_tokenizer.encode.return_value = mock_input_tensor
         mock_tokenizer.decode.return_value = "Generated text response"
         mock_tokenizer.eos_token_id = 50256
 
         mock_model = Mock()
-        mock_model.generate.return_value = [[1, 2, 3, 4, 5, 6, 7]]
+        mock_model.generate.return_value = mock_output_tensor
         mock_model.device = "cpu"
 
-        mock_transformers = Mock()
-        mock_transformers.AutoTokenizer.from_pretrained.return_value = mock_tokenizer
-        mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
-        mock_import.return_value = mock_transformers
+        # Mock the loader to return our mocked model and tokenizer
+        mock_load_model.return_value = (mock_model, mock_tokenizer)
 
         model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
-
-        # Manually set the model and tokenizer to bypass the loader
-        model.model = mock_model
-        model.tokenizer = mock_tokenizer
-        model.model_type = "causal"
-
         response = model.generate("Test prompt")
 
         assert isinstance(response, str)
         assert len(response) > 0
         assert response == "Generated text response"
 
-    @patch("sifaka.models.huggingface.HuggingFaceModel._import_transformers")
-    def test_huggingface_model_with_options(self, mock_import):
+    @patch("sifaka.models.huggingface.HUGGINGFACE_AVAILABLE", True)
+    @patch("sifaka.models.huggingface.HuggingFaceModelLoader.load_model")
+    def test_huggingface_model_with_options(self, mock_load_model):
         """Test HuggingFace model with generation options."""
+        # Mock tensor-like object
+        mock_tensor = Mock()
+        mock_tensor.to.return_value = mock_tensor
+
         mock_tokenizer = Mock()
-        mock_tokenizer.encode.return_value = [1, 2, 3]
+        mock_tokenizer.encode.return_value = mock_tensor
         mock_tokenizer.decode.return_value = "Generated with options"
 
         mock_model = Mock()
-        mock_model.generate.return_value = [[1, 2, 3, 4, 5]]
+        mock_model.generate.return_value = mock_tensor
+        mock_model.device = "cpu"
 
-        mock_transformers = Mock()
-        mock_transformers.AutoTokenizer.from_pretrained.return_value = mock_tokenizer
-        mock_transformers.AutoModelForCausalLM.from_pretrained.return_value = mock_model
-        mock_import.return_value = mock_transformers
+        # Mock the loader to return our mocked model and tokenizer
+        mock_load_model.return_value = (mock_model, mock_tokenizer)
 
         model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
         response = model.generate(
@@ -83,15 +90,15 @@ class TestHuggingFaceModel:
         assert call_kwargs["top_p"] == 0.9
         assert call_kwargs["do_sample"] is True
 
-    @patch("sifaka.models.huggingface.HuggingFaceModel._import_transformers")
-    def test_huggingface_model_token_counting(self, mock_import):
+    @patch("sifaka.models.huggingface.HUGGINGFACE_AVAILABLE", True)
+    @patch("sifaka.models.huggingface.HuggingFaceModelLoader.load_model")
+    def test_huggingface_model_token_counting(self, mock_load_model):
         """Test HuggingFace model token counting."""
         mock_tokenizer = Mock()
         mock_tokenizer.encode.return_value = [1, 2, 3, 4, 5]
 
-        mock_transformers = Mock()
-        mock_transformers.AutoTokenizer.from_pretrained.return_value = mock_tokenizer
-        mock_import.return_value = mock_transformers
+        mock_model = Mock()
+        mock_load_model.return_value = (mock_model, mock_tokenizer)
 
         model = HuggingFaceModel(model_name="gpt2", use_inference_api=False)
         count = model.count_tokens("This is a test sentence")

@@ -6,6 +6,7 @@ Protocol to communicate with a Redis MCP server.
 
 import asyncio
 import json
+from datetime import datetime
 from typing import Any, List, Optional
 
 from sifaka.mcp import MCPClient, MCPServerConfig
@@ -56,6 +57,36 @@ class RedisStorage:
     def _make_key(self, key: str) -> str:
         """Create a prefixed Redis key."""
         return f"{self.key_prefix}:{key}"
+
+    def _generate_timestamp_key(self, thought: Any) -> str:
+        """Generate a timestamp-based key for a thought.
+
+        Format: YYYYMMDD_thoughtid_iterN
+        Example: 20250527_8b69c3dc_iter0
+
+        Args:
+            thought: The thought object with id, iteration, and timestamp.
+
+        Returns:
+            Timestamp-based key for Redis storage.
+        """
+        # Extract thought properties
+        thought_id = getattr(thought, "id", "unknown")
+        iteration = getattr(thought, "iteration", 0)
+        timestamp = getattr(thought, "timestamp", datetime.now())
+
+        # Parse timestamp if it's a string
+        if isinstance(timestamp, str):
+            try:
+                timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            except:
+                timestamp = datetime.now()
+
+        # Format: YYYYMMDD_shortid_iterN
+        date_str = timestamp.strftime("%Y%m%d")
+        short_id = thought_id[:8] if len(thought_id) >= 8 else thought_id
+
+        return f"{date_str}_{short_id}_iter{iteration}"
 
     # Internal async methods (required by Storage protocol)
     async def _get_async(self, key: str) -> Optional[Any]:
@@ -137,8 +168,21 @@ class RedisStorage:
         await self._ensure_connected()
 
         try:
-            redis_key = self._make_key(key)
-            logger.debug(f"Redis set: {redis_key}")
+            # Use timestamp-based key for thoughts, original key for other data
+            if hasattr(value, "id") and hasattr(value, "iteration") and hasattr(value, "timestamp"):
+                # This looks like a thought - use timestamp-based key
+                timestamp_key = self._generate_timestamp_key(value)
+                redis_key = self._make_key(timestamp_key)
+                logger.debug(f"Redis set (thought): {redis_key}")
+
+                # Also store with original key for backward compatibility
+                original_redis_key = self._make_key(key)
+                logger.debug(f"Redis set (original): {original_redis_key}")
+            else:
+                # Regular data - use original key
+                redis_key = self._make_key(key)
+                original_redis_key = None
+                logger.debug(f"Redis set: {redis_key}")
 
             # Handle different value types and escape JSON for MCP
             if hasattr(value, "model_dump"):
@@ -163,7 +207,7 @@ class RedisStorage:
                     # Not JSON, use as-is
                     serialized_value = str_value
 
-            # Call Redis SET via MCP (correct tool name)
+            # Store with timestamp-based key
             result = await self.mcp_client.call_tool(
                 "set", {"key": redis_key, "value": serialized_value}
             )
@@ -174,6 +218,17 @@ class RedisStorage:
                 if "content" in result and result["content"]:
                     error_msg = result["content"][0].get("text", error_msg)
                 raise Exception(f"Redis SET failed: {error_msg}")
+
+            # Also store with original key for backward compatibility (thoughts only)
+            if original_redis_key:
+                result = await self.mcp_client.call_tool(
+                    "set", {"key": original_redis_key, "value": serialized_value}
+                )
+                # Don't fail if the second store fails, just log it
+                if result and result.get("isError", False):
+                    logger.warning(
+                        f"Failed to store thought with original key {original_redis_key}"
+                    )
 
         except Exception as e:
             logger.error(f"Redis set failed for key {key}: {e}")

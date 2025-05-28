@@ -33,12 +33,19 @@ class FileStorage:
         data: In-memory cache of the file contents.
     """
 
-    def __init__(self, file_path: Optional[str] = None, directory: Optional[str] = None):
+    def __init__(
+        self,
+        file_path: Optional[str] = None,
+        directory: Optional[str] = None,
+        overwrite: bool = False,
+    ):
         """Initialize file storage.
 
         Args:
             file_path: Path to the JSON file for storage.
             directory: Directory to store the default file (alternative to file_path).
+            overwrite: If True, start with empty storage (overwrite existing file).
+                      If False, load existing data and append to it (default behavior).
         """
         if file_path is not None:
             self.file_path = Path(file_path)
@@ -48,14 +55,21 @@ class FileStorage:
             self.file_path = Path("sifaka_storage.json")
 
         self.data: Dict[str, Any] = {}
+        self.overwrite = overwrite
 
         # Create directory if it doesn't exist
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Load existing data if file exists
-        self._load()
+        # Load existing data if file exists and overwrite is False
+        if not overwrite:
+            self._load()
+        else:
+            # If overwrite is True, start with empty storage and remove existing file
+            if self.file_path.exists():
+                self.file_path.unlink()
+                logger.debug(f"Removed existing file {self.file_path} due to overwrite=True")
 
-        logger.debug(f"Initialized FileStorage at {self.file_path}")
+        logger.debug(f"Initialized FileStorage at {self.file_path} (overwrite={overwrite})")
 
     def _load(self) -> None:
         """Load data from file into memory."""

@@ -177,7 +177,7 @@ chain = Chain(
 )
 
 # Add validation and improvement
-chain.validate_with(validator).improve_with(critic)
+chain = chain.validate_with(validator).improve_with(critic)
 
 # Run and get complete results
 thought = chain.run()
@@ -270,7 +270,7 @@ sentiment_validator = create_sentiment_validator(required_sentiment="positive", 
 
 # Use with chains for content filtering
 chain = Chain(model=model, prompt="Write a positive review of a new smartphone, highlighting its camera quality and battery life")
-chain.validate_with(toxicity_validator).validate_with(sentiment_validator)
+chain = chain.validate_with(toxicity_validator).validate_with(sentiment_validator)
 
 # Custom classifier integration
 bias_classifier = BiasClassifier()
@@ -279,7 +279,7 @@ custom_validator = create_classifier_validator(
     threshold=0.6,
     invalid_labels=["biased"]  # Reject text classified as biased
 )
-chain.validate_with(custom_validator)
+chain = chain.validate_with(custom_validator)
 ```
 
 ### Storage and Persistence

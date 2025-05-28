@@ -288,7 +288,10 @@ class TestRegexValidator:
 
     def test_multiple_forbidden_patterns(self):
         """Test multiple forbidden patterns."""
-        validator = RegexValidator(forbidden_patterns=[r"spam", r"scam", r"virus", r"malware"])
+        validator = RegexValidator(
+            forbidden_patterns=[r"spam", r"scam", r"virus", r"malware"],
+            case_sensitive=False,  # Use case-insensitive matching for this test
+        )
 
         # Clean text should pass
         thought_clean = Thought(prompt="Test", text="This is clean content")

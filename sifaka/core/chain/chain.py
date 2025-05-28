@@ -317,8 +317,7 @@ class Chain:
                 chain_id=self._config.chain_id,
             )
 
-            # Save initial thought
-            await self._executor._save_thought_to_storage_async(thought)
+            # Skip saving the initial empty thought - we'll save after generation
 
             # Pre-generation retrieval
             thought = self._orchestrator.orchestrate_retrieval(thought, "pre_generation")
@@ -326,8 +325,11 @@ class Chain:
             # Generate text (async)
             thought = await self._execute_generation_async(thought)
 
-            # Increment iteration after first generation
-            thought = thought.model_copy(update={"iteration": thought.iteration + 1})
+            # Set iteration to 0 for the first meaningful thought (with text and model_prompt)
+            thought = thought.model_copy(update={"iteration": 0})
+
+            # Save the first meaningful thought
+            await self._executor._save_thought_to_storage_async(thought)
 
             # Post-generation retrieval
             thought = self._orchestrator.orchestrate_retrieval(thought, "post_generation")
@@ -357,9 +359,10 @@ class Chain:
             thought
         )
 
-        # Update thought with generated text and prompt
+        # Update thought with generated text, prompt, and model name
         thought = thought.set_text(generated_text)
         thought = thought.set_model_prompt(actual_prompt)
+        thought = thought.model_copy(update={"model_name": self._config.model.model_name})
 
         logger.debug(f"Generated text (async): {len(generated_text)} characters")
         return thought
@@ -454,8 +457,8 @@ class Chain:
         # Apply pre-generation retrieval for the new iteration
         thought = self._orchestrator.orchestrate_retrieval(thought, "pre_generation")
 
-        # Generate improved text (async)
-        thought = await self._execute_generation_async(thought)
+        # Generate improved text using critics if feedback is available (async)
+        thought = await self._execute_improvement_generation_async(thought)
 
         # Apply post-generation retrieval
         thought = self._orchestrator.orchestrate_retrieval(thought, "post_generation")
@@ -562,6 +565,106 @@ class Chain:
             self._recovery_manager.save_checkpoint("complete", thought, thought.iteration)
 
         return thought
+
+    async def _execute_improvement_generation_async(self, thought: Thought) -> Thought:
+        """Execute text generation using critics' improve methods when feedback is available (async).
+
+        Args:
+            thought: The current thought state with potential critic feedback.
+
+        Returns:
+            Updated thought with improved text.
+        """
+        # Check if we have critic feedback from the previous iteration
+        if thought.critic_feedback and len(thought.critic_feedback) > 0:
+            logger.debug(
+                f"Using critic improvement methods for {len(thought.critic_feedback)} critics (async)"
+            )
+
+            # Use the first critic that has feedback and can improve
+            for feedback in thought.critic_feedback:
+                if feedback.needs_improvement:
+                    # Find the corresponding critic
+                    for critic in self._config.critics:
+                        if critic.__class__.__name__ == feedback.critic_name:
+                            try:
+                                logger.debug(
+                                    f"Using {feedback.critic_name} to improve text (async)"
+                                )
+
+                                # Get the original text from the previous iteration (from history)
+                                original_text = None
+                                if thought.history and len(thought.history) > 0:
+                                    # Try to get the original text from the most recent history entry
+                                    previous_thought_id = thought.history[0].thought_id
+                                    try:
+                                        # Try to get the previous thought from storage to get its text
+                                        previous_thought = await self._config.storage._get_async(
+                                            previous_thought_id
+                                        )
+                                        if (
+                                            previous_thought
+                                            and hasattr(previous_thought, "text")
+                                            and previous_thought.text
+                                        ):
+                                            original_text = previous_thought.text
+                                            logger.debug(
+                                                f"Retrieved original text from previous iteration (async): {len(original_text)} characters"
+                                            )
+                                    except Exception as e:
+                                        logger.debug(
+                                            f"Could not retrieve previous thought text (async): {e}"
+                                        )
+
+                                # Create a temporary thought with the original text for the critic to improve
+                                if original_text:
+                                    temp_thought = thought.model_copy(
+                                        update={"text": original_text}
+                                    )
+                                    improved_text = critic.improve(temp_thought)
+                                else:
+                                    # Fall back to regular generation if no original text available
+                                    logger.debug(
+                                        "No original text available for critic improvement (async), falling back to regular generation"
+                                    )
+                                    break
+
+                                # Get the actual improvement prompt that was sent to the model
+                                if (
+                                    hasattr(critic, "last_improvement_prompt")
+                                    and critic.last_improvement_prompt
+                                ):
+                                    model_prompt = critic.last_improvement_prompt
+                                else:
+                                    model_prompt = (
+                                        f"Improved by {feedback.critic_name} (prompt not available)"
+                                    )
+
+                                # Update thought with improved text
+                                thought = thought.set_text(improved_text).set_model_prompt(
+                                    model_prompt
+                                )
+                                thought = thought.model_copy(
+                                    update={"model_name": self._config.model.model_name}
+                                )
+
+                                logger.debug(
+                                    f"Generated improved text using {feedback.critic_name} (async): {len(improved_text)} characters"
+                                )
+                                return thought
+
+                            except Exception as e:
+                                logger.error(
+                                    f"Failed to improve text using {feedback.critic_name} (async): {e}"
+                                )
+                                # Fall back to regular generation
+                                break
+
+            # If no critic could improve or all failed, fall back to regular generation
+            logger.debug("No critic could improve text, falling back to regular generation (async)")
+
+        # Fall back to regular generation when no critic feedback or improvement needed
+        return await self._execute_generation_async(thought)
 
     def _resume_from_checkpoint(self, checkpoint: ChainCheckpoint) -> Thought:
         """Resume execution from a saved checkpoint."""
