@@ -28,6 +28,18 @@ class ValidationResult(BaseModel):
     validator_name: Optional[str] = None  # Add validator_name for backward compatibility
 
 
+class ToolCall(BaseModel):
+    """Record of a tool call made during generation."""
+
+    tool_name: str
+    arguments: Dict[str, Any] = {}
+    result: Optional[Any] = None
+    timestamp: Optional[datetime] = None
+    processing_time_ms: Optional[float] = None
+    success: bool = True
+    error_message: Optional[str] = None
+
+
 class CriticFeedback(BaseModel):
     """Feedback from a critic."""
 
@@ -62,6 +74,7 @@ class Thought(BaseModel):
     post_generation_context: Optional[List[Document]] = None
     validation_results: Optional[Dict[str, ValidationResult]] = None
     critic_feedback: Optional[List[CriticFeedback]] = None
+    tool_calls: Optional[List[ToolCall]] = None
     history: Optional[List[ThoughtReference]] = None
     parent_id: Optional[str] = None
     id: str = ""
@@ -145,6 +158,12 @@ class Thought(BaseModel):
         feedback_list = list(self.critic_feedback or [])
         feedback_list.append(feedback)
         return self.model_copy(update={"critic_feedback": feedback_list})
+
+    def add_tool_call(self, tool_call: ToolCall) -> "Thought":
+        """Add a tool call record to this thought."""
+        tool_calls_list = list(self.tool_calls or [])
+        tool_calls_list.append(tool_call)
+        return self.model_copy(update={"tool_calls": tool_calls_list})
 
     def set_text(self, text: str) -> "Thought":
         """Set the generated text for this thought."""

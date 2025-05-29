@@ -107,6 +107,24 @@ def create_model(
         elif provider == "mock":
             # Create a mock model for testing
             return MockModel(model_name=model_name, **kwargs)
+        elif provider == "pydantic-ai":
+            # Create a PydanticAI model adapter
+            try:
+                from pydantic_ai import Agent
+
+                from sifaka.models.pydantic_ai import create_pydantic_ai_model
+
+                # Create agent from model_name and kwargs
+                agent = Agent(model_name, **kwargs)
+                return create_pydantic_ai_model(agent)
+            except ImportError:
+                raise ConfigurationError(
+                    "PydanticAI is not available. Please install it with: pip install pydantic-ai",
+                    suggestions=[
+                        "Install PydanticAI: pip install pydantic-ai",
+                        "Or use uv: uv add pydantic-ai",
+                    ],
+                )
         else:
             raise ConfigurationError(
                 f"Unsupported model provider: {provider}",
@@ -116,6 +134,7 @@ def create_model(
                     "Use 'huggingface' for HuggingFace models",
                     "Use 'ollama' for Ollama models",
                     "Use 'gemini' for Google Gemini models",
+                    "Use 'pydantic-ai' for PydanticAI agents",
                     "Use 'mock' for mock models",
                 ],
             )

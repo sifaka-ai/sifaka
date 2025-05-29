@@ -59,6 +59,7 @@ from sifaka.core.thought.thought import (
     Document,
     Thought,
     ThoughtReference,
+    ToolCall,
     ValidationResult,
 )
 
@@ -68,6 +69,7 @@ __all__ = [
     "ValidationResult",
     "CriticFeedback",
     "ThoughtReference",
+    "ToolCall",
     "ThoughtHistory",
     "ThoughtStorage",
 ]

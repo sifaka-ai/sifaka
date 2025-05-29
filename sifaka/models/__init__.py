@@ -60,3 +60,12 @@ try:
         __all__.extend(["GeminiModel", "create_gemini_model"])
 except ImportError:
     pass
+
+# PydanticAI
+try:
+    from sifaka.models.pydantic_ai import PYDANTIC_AI_AVAILABLE
+
+    if PYDANTIC_AI_AVAILABLE:
+        __all__.extend(["PydanticAIModel", "create_pydantic_ai_model"])
+except ImportError:
+    pass

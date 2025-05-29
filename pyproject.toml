@@ -30,30 +30,21 @@ dependencies = [
     "httpx>=0.28.1",
     "aiofiles>=23.0.0",
     "tenacity>=8.2.3",
-    "transformers>=4.52.3",
-    "torch>=2.7.0",
-    "accelerate>=1.7.0",
-    "langdetect>=1.0.9",
-    "scikit-learn>=1.6.1",
-    "textblob>=0.19.0",
-    "better-profanity>=0.7.0",
-    "openai>=1.82.0",
-    "tiktoken>=0.9.0",
-    "google-generativeai>=0.8.5",
 ]
 
 [project.optional-dependencies]
 # Model providers
 openai = [
-    "openai>=1.76.0",
+    "openai>=1.82.0",
     "tiktoken>=0.9.0",
 ]
 anthropic = [
     "anthropic>=0.50.0",
 ]
 huggingface = [
-    "transformers>=4.30.0",
-    "torch>=2.0.0",
+    "transformers>=4.52.3",
+    "torch>=2.7.0",
+    "accelerate>=1.7.0",
     "sentence-transformers>=2.2.0",
     "huggingface-hub>=0.16.0",
 ]
@@ -61,7 +52,11 @@ ollama = [
     "ollama>=0.1.0",
 ]
 gemini = [
-    "google-generativeai>=0.8.0",
+    "google-generativeai>=0.8.5",
+]
+pydantic-ai = [
+    "pydantic-ai>=0.2.0",
+    "duckduckgo-search>=8.0.0",
 ]
 
 # Retrievers and vector databases
@@ -80,8 +75,8 @@ mcp = [
 
 # ML and classification (optional dependencies for classifiers)
 classifiers = [
-    "scikit-learn>=1.3.0",
-    "textblob>=0.17.1",
+    "scikit-learn>=1.6.1",
+    "textblob>=0.19.0",
     "langdetect>=1.0.9",
     "better-profanity>=0.7.0",
     "nltk>=3.8.1",  # Natural Language Toolkit for advanced text processing
@@ -125,7 +120,7 @@ dev = [
 
 # Convenience groups
 models = [
-    "sifaka[openai,anthropic,huggingface,ollama,gemini]",
+    "sifaka[openai,anthropic,huggingface,ollama,gemini,pydantic-ai]",
 ]
 retrievers = [
     "sifaka[redis,milvus]",
