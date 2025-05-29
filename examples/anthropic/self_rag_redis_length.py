@@ -22,9 +22,9 @@ from sifaka.critics.self_rag import SelfRAGCritic
 from sifaka.mcp import MCPServerConfig, MCPTransportType
 from sifaka.models.anthropic import AnthropicModel
 from sifaka.retrievers.simple import InMemoryRetriever
-from sifaka.storage.redis import RedisStorage
 from sifaka.storage import FileStorage
 from sifaka.storage.cached import CachedStorage
+from sifaka.storage.redis import RedisStorage
 from sifaka.utils.logging import get_logger
 from sifaka.validators.base import LengthValidator
 
@@ -95,9 +95,9 @@ def main():
 
     logger.info("Creating Anthropic Self-RAG with Redis retrieval example")
 
-    # Create Anthropic model
+    # Create Anthropic model (using smaller Haiku model)
     model = AnthropicModel(
-        model_name="claude-sonnet-4-20250514",
+        model_name="claude-3-5-haiku-latest",
         max_tokens=1000,  # Increased to allow for longer responses
         temperature=0.4,  # Lower temperature for more consistent length
         api_key=os.getenv("ANTHROPIC_API_KEY"),

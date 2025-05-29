@@ -7,7 +7,9 @@ and references, optimizing memory usage and providing efficient access patterns.
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from sifaka.core.thought.constants import DEFAULT_CHAIN_ID, DEFAULT_MAX_IN_MEMORY
 from sifaka.core.thought.thought import Thought, ThoughtReference
+from sifaka.core.thought.utils import create_thought_summary
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -21,7 +23,7 @@ class ThoughtHistory:
     maintaining access to the complete chain of thoughts.
     """
 
-    def __init__(self, max_in_memory: int = 10):
+    def __init__(self, max_in_memory: int = DEFAULT_MAX_IN_MEMORY):
         """Initialize the thought history manager.
 
         Args:
@@ -38,7 +40,7 @@ class ThoughtHistory:
         Args:
             thought: The thought to add.
         """
-        chain_id = thought.chain_id or "default"
+        chain_id = thought.chain_id or DEFAULT_CHAIN_ID
 
         # Add to thoughts cache
         self._thoughts[thought.id] = thought
@@ -56,7 +58,7 @@ class ThoughtHistory:
             thought_id=thought.id,
             iteration=thought.iteration,
             timestamp=thought.timestamp or datetime.now(),
-            summary=self._create_summary(thought),
+            summary=create_thought_summary(thought),
         )
         self._references[chain_id].append(reference)
 
@@ -166,7 +168,7 @@ class ThoughtHistory:
         if not thought:
             return False
 
-        chain_id = thought.chain_id or "default"
+        chain_id = thought.chain_id or DEFAULT_CHAIN_ID
 
         # Remove from thoughts cache
         del self._thoughts[thought_id]
@@ -233,24 +235,6 @@ class ThoughtHistory:
                 int(total_thoughts / total_chains) if total_chains > 0 else 0
             ),
         }
-
-    def _create_summary(self, thought: Thought) -> str:
-        """Create a summary for a thought reference.
-
-        Args:
-            thought: The thought to summarize.
-
-        Returns:
-            A brief summary string.
-        """
-        text_length = len(thought.text or "")
-        validation_count = len(thought.validation_results or {})
-        feedback_count = len(thought.critic_feedback or [])
-
-        return (
-            f"Iteration {thought.iteration}: {text_length} chars, "
-            f"{validation_count} validations, {feedback_count} feedback"
-        )
 
     def _cleanup_memory(self, chain_id: str) -> None:
         """Clean up old thoughts from memory if we exceed the limit.

@@ -49,6 +49,10 @@ Example:
     ```
 """
 
+# Import utility classes
+from sifaka.core.thought.history import ThoughtHistory
+from sifaka.core.thought.storage import ThoughtStorage
+
 # Import main classes for backward compatibility
 from sifaka.core.thought.thought import (
     CriticFeedback,
@@ -64,4 +68,6 @@ __all__ = [
     "ValidationResult",
     "CriticFeedback",
     "ThoughtReference",
+    "ThoughtHistory",
+    "ThoughtStorage",
 ]

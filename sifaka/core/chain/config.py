@@ -42,6 +42,10 @@ class ChainConfig:
         max_improvement_iterations: int = 3,
         apply_improvers_on_validation_failure: bool = False,
         always_apply_critics: bool = False,
+        summarize_feedback: bool = False,
+        summarizer_model: str = "t5-small",
+        summarizer_type: str = "auto",
+        summarizer_max_length: int = 150,
     ):
         """Initialize the chain configuration.
 
@@ -55,6 +59,10 @@ class ChainConfig:
             max_improvement_iterations: Maximum number of improvement iterations.
             apply_improvers_on_validation_failure: Whether to apply improvers when validation fails.
             always_apply_critics: Whether to always apply critics regardless of validation status.
+            summarize_feedback: Whether to enable automatic feedback summarization.
+            summarizer_model: Model name for feedback summarization.
+            summarizer_type: Type of summarization model.
+            summarizer_max_length: Maximum length of generated summaries.
         """
         self.model = model
         self.prompt = prompt
@@ -79,6 +87,10 @@ class ChainConfig:
             "apply_improvers_on_validation_failure": apply_improvers_on_validation_failure,
             "always_apply_critics": always_apply_critics,
             "max_retries": 3,  # Default max retries for validation failures
+            "summarize_feedback": summarize_feedback,
+            "summarizer_model": summarizer_model,
+            "summarizer_type": summarizer_type,
+            "summarizer_max_length": summarizer_max_length,
         }
 
         self.chain_id = str(uuid.uuid4())
@@ -273,6 +285,14 @@ class ChainConfig:
             ]
         if "always_apply_critics" in self.options:
             constructor_options["always_apply_critics"] = self.options["always_apply_critics"]
+        if "summarize_feedback" in self.options:
+            constructor_options["summarize_feedback"] = self.options["summarize_feedback"]
+        if "summarizer_model" in self.options:
+            constructor_options["summarizer_model"] = self.options["summarizer_model"]
+        if "summarizer_type" in self.options:
+            constructor_options["summarizer_type"] = self.options["summarizer_type"]
+        if "summarizer_max_length" in self.options:
+            constructor_options["summarizer_max_length"] = self.options["summarizer_max_length"]
 
         new_config = ChainConfig(
             model=self.model,

@@ -50,6 +50,7 @@ __all__ = [
     "get_logger",
     "ContextAwareMixin",
     "APIKeyMixin",
+    "SummarizationMixin",
     "ValidationMixin",
     "time_operation",
     "PerformanceMonitor",

@@ -189,6 +189,55 @@ print(f"Validation results: {thought.validation_results}")
 
 ## Advanced Usage
 
+### Feedback Summarization
+
+Sifaka supports automatic summarization of validation results and critic feedback to improve the quality and conciseness of improvement prompts. This feature uses configurable local or API-based models to create focused summaries.
+
+```python
+from sifaka.critics import FeedbackSummarizer, SelfRefineCritic
+from sifaka.models import create_model
+from sifaka import Chain
+
+# Create a model and critic
+model = create_model("openai:gpt-4")  # Requires OPENAI_API_KEY
+
+# Create a summarizer with T5 (default local model)
+summarizer = FeedbackSummarizer()
+
+# Or use API-based summarization
+api_summarizer = FeedbackSummarizer(
+    model_type="api",
+    api_model="openai:gpt-3.5-turbo",
+    max_length=100
+)
+
+# Integrate with critics for enhanced feedback processing
+class SummarizingSelfRefineCritic(SelfRefineCritic):
+    def __init__(self, model, **kwargs):
+        super().__init__(model=model, **kwargs)
+        self.feedback_summarizer = FeedbackSummarizer(
+            model_name="t5-small",
+            max_length=120
+        )
+
+    def improve(self, thought):
+        # Get summarized feedback for more focused improvements
+        summary = self.feedback_summarizer.summarize_thought_feedback(thought)
+        # Use summary in improvement prompt...
+
+# Use standalone for analysis
+summary = summarizer.summarize_thought_feedback(thought)
+print(f"Feedback Summary: {summary}")
+```
+
+**Key Features:**
+- **Multiple Models**: T5, BART, Pegasus, and API-based models (OpenAI, Anthropic)
+- **Configurable**: Custom prompts, length limits, and model parameters
+- **Selective**: Summarize validation results, critic feedback, or both
+- **Robust**: Fallback mechanisms and caching for reliability
+
+For detailed configuration and examples, see the **[Feedback Summarizer Guide](docs/feedback-summarizer.md)**.
+
 ### Working with Critics
 
 ```python
@@ -423,6 +472,7 @@ For detailed installation and configuration instructions, see **[Storage Setup G
 - **[Custom Models](docs/guides/custom-models.md)** - Creating and using custom models
 - **[Custom Validators](docs/guides/custom-validators.md)** - Building custom validation logic
 - **[Classifiers](docs/guides/classifiers.md)** - Using built-in text classifiers for content analysis
+- **[Feedback Summarizer](docs/feedback-summarizer.md)** - Automatic summarization of critic and validation feedback
 - **[Storage Setup](docs/guides/storage-setup.md)** - Storage backends and configuration
 - **[Configuration](docs/guides/configuration.md)** - Advanced configuration options
 - **[Performance Tuning](docs/guides/performance-tuning.md)** - Optimization and performance tips

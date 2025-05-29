@@ -195,7 +195,8 @@ Now that you've created your first chain:
 1. **[Learn basic concepts](basic-concepts.md)** - Understand Thoughts, Models, and the architecture
 2. **[Explore examples](../../examples/)** - See more complex use cases
 3. **[Add storage](../guides/storage-setup.md)** - Set up Redis or Milvus for persistence
-4. **[Custom models](../guides/custom-models.md)** - Create your own model integrations
+4. **[Feedback summarization](../feedback-summarizer.md)** - Enhance critics with automatic feedback summarization
+5. **[Custom models](../guides/custom-models.md)** - Create your own model integrations
 
 ## Troubleshooting
 
@@ -218,6 +219,7 @@ You've successfully created your first Sifaka chain! The framework provides much
 - **Multiple model providers** (OpenAI, Anthropic, Google Gemini, HuggingFace, Ollama)
 - **Rich validation** (length, content, format, ML classifiers)
 - **Advanced critics** (Reflexion, Constitutional AI, Self-RAG)
+- **Feedback summarization** (automatic summarization of critic and validation feedback)
 - **Persistent storage** (Redis, Milvus, file-based)
 - **Complete observability** with audit trails
 

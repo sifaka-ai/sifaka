@@ -165,6 +165,23 @@ if critique_result['needs_improvement']:
     print(f"Improved: {improved_text}")
 ```
 
+### Feedback Summarization
+
+Critics can be enhanced with automatic feedback summarization to create more focused improvement prompts:
+
+```python
+from sifaka.critics import FeedbackSummarizer
+
+# Create a summarizer
+summarizer = FeedbackSummarizer(model_name="t5-small")
+
+# Summarize feedback from validation and critics
+summary = summarizer.summarize_thought_feedback(thought)
+print(f"Feedback summary: {summary}")
+```
+
+This feature helps reduce prompt length and improve the quality of iterative improvements by condensing verbose feedback into actionable summaries.
+
 ## The Chain
 
 The **Chain** orchestrates the entire workflow, coordinating models, validators, and critics.
@@ -304,8 +321,9 @@ Now that you understand the core concepts:
 1. **[Explore examples](../../examples/)** - See real-world usage patterns
 2. **[Custom models guide](../guides/custom-models.md)** - Create your own model integrations
 3. **[Custom validators guide](../guides/custom-validators.md)** - Build domain-specific validation
-4. **[Storage setup guide](../guides/storage-setup.md)** - Configure persistent storage
-5. **[API reference](../api/API_REFERENCE.md)** - Complete technical documentation
+4. **[Feedback summarizer guide](../feedback-summarizer.md)** - Enhance critics with automatic feedback summarization
+5. **[Storage setup guide](../guides/storage-setup.md)** - Configure persistent storage
+6. **[API reference](../api/API_REFERENCE.md)** - Complete technical documentation
 
 ## Common Patterns
 

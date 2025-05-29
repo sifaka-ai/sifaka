@@ -6,6 +6,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
+from sifaka.core.thought.utils import create_thought_summary, parse_timestamp
+
 
 class Document(BaseModel):
     """A document retrieved from a retriever."""
@@ -81,11 +83,7 @@ class Thought(BaseModel):
             thought_id=self.id,
             iteration=self.iteration,
             timestamp=self.timestamp or datetime.now(),
-            summary=(
-                f"Iteration {self.iteration}: {len(self.text or '')} chars"
-                if self.text
-                else f"Iteration {self.iteration}"
-            ),
+            summary=create_thought_summary(self),
         )
 
         new_history = [current_ref]
@@ -189,25 +187,14 @@ class Thought(BaseModel):
             pass
 
         # Handle timestamp parsing
-        if "timestamp" in data and isinstance(data["timestamp"], str):
-            from datetime import datetime
-
-            try:
-                data["timestamp"] = datetime.fromisoformat(data["timestamp"])
-            except ValueError:
-                # If parsing fails, use current time
-                data["timestamp"] = datetime.now()
+        if "timestamp" in data:
+            data["timestamp"] = parse_timestamp(data["timestamp"])
 
         # Handle history timestamp parsing
         if "history" in data and data["history"]:
-            from datetime import datetime
-
             for ref in data["history"]:
-                if "timestamp" in ref and isinstance(ref["timestamp"], str):
-                    try:
-                        ref["timestamp"] = datetime.fromisoformat(ref["timestamp"])
-                    except ValueError:
-                        ref["timestamp"] = datetime.now()
+                if "timestamp" in ref:
+                    ref["timestamp"] = parse_timestamp(ref["timestamp"])
 
         # Handle validation_results format conversion
         if "validation_results" in data and isinstance(data["validation_results"], list):

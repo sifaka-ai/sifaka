@@ -2,21 +2,23 @@
 """Anthropic Self-Refine with Multiple Validators Example.
 
 This example demonstrates:
-- Anthropic Claude model for text generation
+- Anthropic Claude Haiku model for efficient text generation
 - Self-Refine critic for iterative improvement
 - Comprehensive set of validators for quality assurance
+- Automatic feedback summarization using T5 model
 - Default retry behavior
 
 The chain will generate content about software engineering best practices
 and use multiple validators to ensure high-quality, comprehensive output.
+Feedback from validators and critics is automatically summarized for more
+effective improvement iterations.
 
 Prerequisites:
 - Install GuardrailsAI PII detector: guardrails hub install hub://guardrails/detect_pii
+- Install transformers for feedback summarization: pip install transformers torch
 """
 
-import json
 import os
-from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -134,10 +136,10 @@ def main():
 
     logger.info("Creating Anthropic Self-Refine with multiple validators example")
 
-    # Create Anthropic model for main generation
+    # Create Anthropic model for main generation (using smaller Haiku for efficiency)
     model = AnthropicModel(
-        model_name="claude-sonnet-4-20250514",
-        max_tokens=5000,
+        model_name="claude-3-5-haiku-latest",
+        max_tokens=3000,
         temperature=0.7,
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
@@ -174,6 +176,8 @@ def main():
         max_improvement_iterations=3,  # Default retry behavior
         apply_improvers_on_validation_failure=True,
         always_apply_critics=False,
+        # Enable feedback summarization with default T5 model
+        summarize_feedback=True,
         storage=FileStorage(
             "./thoughts/self_refine_multi_validators_thoughts.json",
             overwrite=True,  # Overwrite existing file instead of appending
