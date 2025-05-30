@@ -166,15 +166,20 @@ def create_model(model_spec: str, **kwargs):
 Use your model directly without the factory:
 
 ```python
-from sifaka import Chain
+from sifaka.agents import create_pydantic_chain
+from pydantic_ai import Agent
 
 # Create your custom model
 model = MyProductionModel("my-model", api_key="your-key")
 
-# Use in a chain
-chain = Chain(
-    model=model,
-    prompt="Your prompt here"
+# Create PydanticAI agent with custom model
+agent = Agent(model, system_prompt="You are a helpful assistant.")
+
+# Use in modern PydanticAI chain
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[],
+    critics=[]
 )
 ```
 
@@ -325,13 +330,19 @@ def test_token_counting():
     assert count > 0
 
 def test_integration_with_chain():
-    """Test model works in a Chain."""
-    from sifaka import Chain
+    """Test model works in a PydanticAI Chain."""
+    from sifaka.agents import create_pydantic_chain
+    from pydantic_ai import Agent
 
     model = MyCustomModel("test-model")
-    chain = Chain(model=model, prompt="Test prompt")
+    agent = Agent(model, system_prompt="You are a test assistant.")
+    chain = create_pydantic_chain(
+        agent=agent,
+        validators=[],
+        critics=[]
+    )
 
-    result = chain.run()
+    result = chain.run("Test prompt")
     assert result.text is not None
     assert len(result.text) > 0
 ```

@@ -6,28 +6,49 @@
 
 An open-source framework that adds reflection and reliability to large language model (LLM) applications.
 
-## 🚨 **Version 0.2.0 Breaking Changes**
+## 🚨 **Version 0.2.1 Breaking Changes**
 
-**Sifaka 0.2.0** introduces significant architectural improvements:
+**Sifaka 0.2.1** introduces temporary compatibility changes due to dependency conflicts in the rapidly evolving AI ecosystem:
 
+### **Temporary Removals (Will Be Restored)**
+- **⚠️ HuggingFace Models**: Temporarily disabled due to PydanticAI dependency conflicts
+  - **Impact**: HuggingFace models not available in PydanticAI chains
+  - **Workaround**: Use Traditional chains for HuggingFace models
+  - **Timeline**: Will be restored when PydanticAI adds native HuggingFace support
+
+- **⚠️ Guardrails AI**: Temporarily disabled due to griffe version incompatibility with PydanticAI
+  - **Impact**: GuardrailsValidator not available
+  - **Workaround**: Use built-in validators (Length, Regex, Content, Classifiers)
+  - **Timeline**: Will be restored when dependency conflicts are resolved
+
+- **📚 Updated examples**: Focus on OpenAI, Anthropic, and Gemini models
+
+### **Previous 0.2.0 Changes (Still Active)**
 - **🚀 PydanticAI Chain is now the primary and recommended approach**
 - **⚠️ Traditional Chain is deprecated** (still available but in maintenance mode)
 - **✨ Full feature parity**: PydanticAI chains now support retrievers, making them equivalent to Traditional chains
-- **📚 Updated documentation** focuses on PydanticAI Chain patterns
+- **✅ Enhanced feedback summarization**: T5, BART, and API-based critic feedback summarization
+- **✅ Checkpoint recovery**: Robust chain execution with failure recovery capabilities
 
-**For new projects**: Use PydanticAI Chain
+**For new projects**: Use PydanticAI Chain with OpenAI, Anthropic, or Gemini models
 **For existing projects**: Consider migrating to PydanticAI Chain (see [Migration Guide](#migration-guide))
+**For HuggingFace/Guardrails users**: Use Traditional Chain temporarily or wait for restoration
 
 ## What is Sifaka?
 
 Sifaka is a tool for adding reflection and reliability to large language model (LLM) applications. It implements research-backed techniques for validating, critiquing, and iteratively improving AI-generated text through a transparent, observable process.
 
-**Core Architecture:**
+**Modern Architecture (PydanticAI Chain):**
+```
+Agent → Tools → Thought → Validators → Critics → Improved Agent
+```
+
+**Legacy Architecture (Traditional Chain):**
 ```
 Thought → Model → Validators → Critics → Improved Thought
 ```
 
-Sifaka implements a **Thought-centric architecture** where a central state container flows through a chain of AI components. Unlike traditional pipeline approaches, every step of the generation process is tracked, validated, and can be iteratively improved.
+Sifaka implements a **Thought-centric architecture** where a central state container flows through a chain of AI components. The modern PydanticAI approach uses agents with tool calling, while the legacy approach uses direct model generation. Both maintain complete audit trails and iterative improvement.
 
 The **Thought** container maintains complete state including:
 - Original prompt and generated text
@@ -51,9 +72,34 @@ The **Thought** container maintains complete state including:
 
 **Complete Observability**: Every iteration, validation, and critique is tracked with full audit trails for debugging and analysis.
 
-**MCP Integration**: Uses Model Context Protocol for standardized external service communication and 3-tier storage (Memory → Redis → Milvus).
+**MCP Integration**: Uses Model Context Protocol for standardized external service communication and 3-tier storage (Memory → Redis → Milvus). ⚠️ *MCP storage currently under repair*
 
 ## How It Works
+
+### 🚀 Modern PydanticAI Chain Architecture
+
+```mermaid
+graph TD
+    A[Prompt] --> B[PydanticAI Agent]
+    B --> C[Tool Calls]
+    C --> D[Generated Response]
+    D --> E[Thought Container]
+    E --> F[Sifaka Validators]
+    F --> G{Valid?}
+    G -->|No| H[Sifaka Critics]
+    H --> I[Improvement Feedback]
+    I --> B
+    G -->|Yes| J[Final Result]
+
+    K[Retrievers] --> B
+    K --> H
+
+    style B fill:#f0f8ff
+    style E fill:#e1f5fe
+    style J fill:#e8f5e8
+```
+
+### 🏗️ Legacy Traditional Chain Architecture
 
 ```mermaid
 graph TD
@@ -348,6 +394,8 @@ print(f"Validation results: {thought.validation_results}")
 
 ### Feedback Summarization
 
+> **✅ Available Now**: Enhanced feedback summarization using both local and API-based models is now available with support for T5, BART, Pegasus, and API-based models.
+
 Sifaka supports automatic summarization of validation results and critic feedback to improve the quality and conciseness of improvement prompts. This feature uses configurable local or API-based models to create focused summaries.
 
 ```python
@@ -613,8 +661,10 @@ Sifaka supports multiple storage backends for different use cases:
 
 - **Memory**: In-memory storage for development and testing
 - **File**: JSON file persistence for simple deployments
-- **Redis**: High-performance caching via MCP
-- **Milvus**: Vector storage for semantic search via MCP
+- **Redis**: High-performance caching via MCP ⚠️ **Currently broken - high priority fix in progress**
+- **Milvus**: Vector storage for semantic search via MCP ⚠️ **Currently broken - high priority fix in progress**
+
+> **⚠️ MCP Storage Status**: Redis and Milvus storage backends via MCP are currently experiencing issues and are being actively fixed. For production use, we recommend Memory or File storage until MCP integration is restored. This is our highest priority fix.
 
 For detailed installation and configuration instructions, see **[Storage Setup Guide](docs/guides/storage-setup.md)**.
 
@@ -646,6 +696,7 @@ For detailed installation and configuration instructions, see **[Storage Setup G
 ### Reference
 - **[API Reference](docs/api/api-reference.md)** - Complete API documentation
 - **[Architecture](docs/architecture.md)** - System design and interactions
+- **[Design Decisions](docs/DESIGN_DECISIONS.md)** - Key architectural decisions and trade-offs
 - **[Examples](examples/)** - Working examples for different providers
 - **[Critics](docs/critics.md)** - Critics and their use cases
 

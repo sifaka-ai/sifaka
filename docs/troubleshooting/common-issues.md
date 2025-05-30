@@ -283,6 +283,8 @@ test_connectivity()
 
 ## Storage Issues
 
+> **⚠️ MCP Storage Status**: Redis and Milvus storage backends via MCP are currently experiencing issues and are being actively fixed. For production use, we recommend Memory or File storage until MCP integration is restored.
+
 ### Problem: Redis connection failed
 
 **Symptoms:**

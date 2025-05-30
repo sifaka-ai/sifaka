@@ -1,9 +1,46 @@
 # Sifaka Architecture
 
-Sifaka is a framework for AI text generation with validation and iterative improvement. The core architecture uses a `Thought` container that flows through a modular `Chain` of components: Model → Validators → Critics.
+Sifaka is a framework for AI text generation with validation and iterative improvement. The framework supports two architectures: a modern PydanticAI-based approach for new projects and a legacy Traditional Chain for existing projects.
 
-## Execution Flow
+## Modern PydanticAI Chain Architecture
 
+The recommended approach uses PydanticAI agents with Sifaka's validation and criticism components:
+
+### Execution Flow
+1. Create a PydanticAI `Agent` with tools and system prompt
+2. Agent generates response using tools and context
+3. Response is captured in a `Thought` container
+4. Sifaka validators check the generated text
+5. If validation fails or critics are configured to always run, Sifaka critics provide feedback
+6. Feedback is used to improve the agent's next generation
+7. Process repeats until validation passes or max iterations reached
+
+```mermaid
+graph TD
+    A[Prompt] --> B[PydanticAI Agent]
+    B --> C[Tool Calls]
+    C --> D[Generated Response]
+    D --> E[Thought Container]
+    E --> F[Sifaka Validators]
+    F --> G{Valid?}
+    G -->|No| H[Sifaka Critics]
+    H --> I[Improvement Feedback]
+    I --> B
+    G -->|Yes| J[Final Result]
+
+    K[Retrievers] --> B
+    K --> H
+
+    style B fill:#f0f8ff
+    style E fill:#e1f5fe
+    style J fill:#e8f5e8
+```
+
+## Legacy Traditional Chain Architecture
+
+The original pipeline-based approach (maintenance mode):
+
+### Execution Flow
 1. Create a `Thought` from the input prompt
 2. Optional pre-generation retrieval adds context to the `Thought`
 3. Model generates text using the `Thought` (including any retrieved context)
@@ -25,19 +62,63 @@ graph LR
     G -->|Yes| I[Done]
 ```
 
+## Hybrid Architecture Overview
+
+The modern Sifaka architecture combines PydanticAI's agent capabilities with Sifaka's research-grade validation and criticism:
+
+```mermaid
+graph TB
+    subgraph "PydanticAI Layer"
+        A[Agent] --> B[Tools]
+        A --> C[Generation]
+        B --> C
+    end
+
+    subgraph "Sifaka Layer"
+        D[Validators] --> E[Critics]
+        E --> F[Thought Container]
+        F --> G[Storage]
+    end
+
+    C --> D
+    F --> A
+    H[Retrievers] --> A
+    H --> E
+
+    style A fill:#f0f8ff
+    style F fill:#e1f5fe
+    style G fill:#fff2e6
+```
+
+**Key Benefits:**
+- **PydanticAI**: Modern tool calling, type safety, async patterns
+- **Sifaka**: Research-grade validation, criticism, and observability
+- **Composition**: Clean separation allows independent evolution
+
 ## Core Components
 
 ### Thought Container
 Central state object that carries data between components. Contains the prompt, generated text, validation results, critic feedback, and iteration history. Provides immutable state management and complete audit trail.
 
-### Chain
-Orchestrates the execution flow using a modular architecture:
+**Works with both architectures**: PydanticAI chains capture agent responses in Thought containers, while Traditional chains flow Thoughts through the pipeline.
+
+### Chain Types
+
+**PydanticAI Chain** (`create_pydantic_chain()`):
+- **PydanticAIChain**: Orchestrates PydanticAI agents with Sifaka components
+- **Agent Integration**: Manages agent execution and tool calling
+- **Validation Orchestration**: Coordinates validators and critics with agent responses
+- **Thought Management**: Captures agent responses in Thought containers
+
+Entry point is `chain.run(prompt)` with runtime prompts.
+
+**Traditional Chain** (`Chain()` - Legacy):
 - **ChainConfig**: Manages configuration state and component references
 - **ChainOrchestrator**: Coordinates high-level workflow and iteration logic
 - **ChainExecutor**: Handles low-level execution of individual steps
 - **RecoveryManager**: Manages checkpointing and error recovery (optional)
 
-Entry point is `chain.run()` or `chain.run_with_recovery()`.
+Entry point is `chain.run()` or `chain.run_with_recovery()` with configured prompts.
 
 ### Models
 Generate text from prompts. Supported providers:
@@ -84,9 +165,36 @@ Interface: `retriever.retrieve_for_thought(thought, is_pre_generation=bool) → 
 
 ## How Chain Execution Actually Works
 
-### Basic Flow
+### PydanticAI Chain Flow
 ```python
-# This is what happens when you call chain.run()
+# This is what happens when you call pydantic_chain.run(prompt)
+from pydantic_ai import Agent
+
+# 1. Agent generates response (with tools)
+agent_response = agent.run_sync(prompt)
+thought = Thought(prompt=prompt, text=agent_response.data)
+
+# 2. Validators check quality
+for validator in validators:
+    result = validator.validate(thought)
+    thought.validation_results[validator.name] = result
+
+# 3. If validation fails OR always_apply_critics=True
+if not all_passed or always_apply_critics:
+    for critic in critics:
+        feedback = critic.critique(thought)
+        thought.critic_feedback.append(feedback)
+
+    # 4. Use feedback to improve agent's next generation
+    improvement_prompt = create_improvement_prompt(thought)
+    # Go back to step 1 with improved prompt (up to max_iterations)
+
+return thought  # Final result
+```
+
+### Traditional Chain Flow
+```python
+# This is what happens when you call traditional_chain.run()
 thought = Thought(prompt="Write a story")
 
 # 1. Model generates text
@@ -94,7 +202,7 @@ thought.text = model.generate_with_thought(thought)
 
 # 2. Validators check quality
 for validator in validators:
-    result = validator.validate(thought.text)
+    result = validator.validate(thought)
     thought.validation_results[validator.name] = result
 
 # 3. If validation fails OR always_apply_critics=True
@@ -178,6 +286,9 @@ json_data = thought.model_dump_json()
 Sifaka provides a flexible storage system supporting multiple backends (Memory, File, Redis, Milvus) that can be used individually or combined in layered configurations for optimal performance.
 
 ### Official MCP Servers
+
+> **⚠️ Currently Broken**: MCP integration with Redis and Milvus is experiencing issues and is being actively fixed.
+
 Sifaka integrates with the official MCP servers for Redis and Milvus:
 
 ```bash
@@ -332,13 +443,30 @@ with open("performance.json", "w") as f:
 
 The Sifaka architecture provides:
 
-1. **Modular Design**: Separated concerns with ChainConfig, ChainOrchestrator, ChainExecutor, and RecoveryManager
-2. **Simple API**: `Chain(model, validators, critics, retrievers).run()` or `.run_with_recovery()`
-3. **Immutable State**: All data flows through the central `Thought` container with complete audit trail
-4. **Flexible Storage**: Unified storage protocol supporting Memory, File, Redis, and Milvus backends
-5. **Composable Components**: Mix and match models, validators, critics, and retrievers
-6. **Optional Recovery**: Checkpointing and automatic error recovery when enabled
-7. **Performance Monitoring**: Built-in timing and bottleneck detection
-8. **Type Safety**: Protocol-based interfaces ensure component compatibility
+### Modern PydanticAI Chain
+1. **Agent-Based Design**: PydanticAI agents with tool calling and type safety
+2. **Simple API**: `create_pydantic_chain(agent, validators, critics).run(prompt)`
+3. **Hybrid Architecture**: Combines PydanticAI's modern patterns with Sifaka's research-grade components
+4. **Runtime Flexibility**: Dynamic prompts and tool-driven workflows
+5. **Type Safety**: Full type checking and structured outputs
 
-The architecture emphasizes simplicity for basic use cases while providing advanced features like recovery and multi-tier storage when needed. All components follow consistent interfaces and can be easily extended or replaced.
+### Traditional Chain (Legacy)
+1. **Pipeline Design**: Separated concerns with ChainConfig, ChainOrchestrator, ChainExecutor, and RecoveryManager
+2. **Configuration API**: `Chain(model, validators, critics, retrievers).run()`
+3. **Advanced Features**: Checkpointing, recovery, and complex retrieval patterns
+4. **Mature Ecosystem**: Extensive configuration options and pre-built features
+
+### Shared Features
+1. **Immutable State**: All data flows through the central `Thought` container with complete audit trail
+2. **Flexible Storage**: Unified storage protocol supporting Memory, File, Redis, and Milvus backends
+3. **Composable Components**: Mix and match validators, critics, and retrievers
+4. **Performance Monitoring**: Built-in timing and bottleneck detection
+5. **Research Integration**: Academic techniques as production-ready components
+
+The architecture emphasizes **modern patterns for new projects** (PydanticAI Chain) while maintaining **backward compatibility** (Traditional Chain). Both approaches provide complete observability and research-grade reliability.
+
+## References
+
+- **[Design Decisions](DESIGN_DECISIONS.md)** - Architectural decisions and trade-offs
+- **[Vision Document](../VISION.md)** - Strategic direction and philosophy
+- **[PydanticAI Integration Guide](guides/chain-selection.md)** - Implementation patterns

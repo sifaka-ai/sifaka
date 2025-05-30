@@ -151,27 +151,32 @@ chain = wizard.setup_for_use_case(
 ### Simple Storage Options
 
 ```python
-# Memory only (default)
+# Memory only (default) ✅ Working
 chain = QuickStart.basic_chain("openai:gpt-4", "prompt")
 
-# File persistence
+# File persistence ✅ Working
 chain = QuickStart.with_file_storage("openai:gpt-4", "./thoughts.json")
 
-# Redis caching
-chain = QuickStart.with_redis("openai:gpt-4", redis_url="redis://localhost:6379")
+# Redis caching ⚠️ Currently broken - MCP issues
+# chain = QuickStart.with_redis("openai:gpt-4", redis_url="redis://localhost:6379")
 
-# Milvus vector storage
-chain = QuickStart.with_milvus("openai:gpt-4", collection_name="my_thoughts")
+# Milvus vector storage ⚠️ Currently broken - MCP issues
+# chain = QuickStart.with_milvus("openai:gpt-4", collection_name="my_thoughts")
 ```
 
 ### Multi-Tier Storage
 
-```python
-# Two-tier: Memory + Redis
-chain = QuickStart.full_stack("openai:gpt-4", storage="memory+redis")
+> **⚠️ Limited Options**: Multi-tier storage with Redis and Milvus is not available until MCP storage is fixed.
 
-# Three-tier: Memory + Redis + Milvus
-chain = QuickStart.full_stack("openai:gpt-4", storage="memory+redis+milvus")
+```python
+# Two-tier: Memory + File (currently available)
+chain = QuickStart.full_stack("openai:gpt-4", storage="memory+file")
+
+# Two-tier: Memory + Redis ⚠️ Currently broken
+# chain = QuickStart.full_stack("openai:gpt-4", storage="memory+redis")
+
+# Three-tier: Memory + Redis + Milvus ⚠️ Currently broken
+# chain = QuickStart.full_stack("openai:gpt-4", storage="memory+redis+milvus")
 ```
 
 ## Error Handling and Validation

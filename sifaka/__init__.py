@@ -56,4 +56,4 @@ __all__: List[str] = [
 ]
 
 # Version info
-__version__ = "0.1.0"
+__version__ = "0.2.1"

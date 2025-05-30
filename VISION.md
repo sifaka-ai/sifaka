@@ -54,6 +54,8 @@ We're building for the future of AI infrastructure using the Model Context Proto
 - **Cross-process data sharing** for distributed applications
 - **Future-proof integration** with emerging AI infrastructure
 
+> **⚠️ Current Status**: MCP storage integration is currently experiencing issues and is our highest priority to fix. We're actively working on restoring Redis and Milvus backends via MCP. For production use, we recommend Memory or File storage until MCP integration is restored.
+
 ### Academic Rigor in Production
 Sifaka bridges the gap between research and production by:
 
@@ -70,6 +72,39 @@ Every aspect of the AI generation process should be observable and debuggable:
 - **Validation and critique history** for understanding failures
 - **Performance metrics** for optimization and monitoring
 
+## Current Status (v0.2.1)
+
+### Recent Achievements
+- **✅ PydanticAI Feature Parity**: PydanticAI chains now support all Traditional chain features including retrievers
+- **✅ Feedback Summarization**: Enhanced critic feedback with T5, BART, and API-based summarization
+- **✅ Checkpoint Recovery**: Robust chain execution with failure recovery capabilities
+- **✅ Comprehensive Examples**: Updated examples for all supported providers
+
+### Temporary Limitations
+Due to dependency conflicts in the rapidly evolving AI ecosystem:
+
+- **⚠️ HuggingFace Integration**: Temporarily disabled due to PydanticAI dependency conflicts
+  - **Impact**: HuggingFace models not available in PydanticAI chains
+  - **Workaround**: Use Traditional chains for HuggingFace models
+  - **Timeline**: Will be restored when PydanticAI adds native HuggingFace support
+
+- **⚠️ Guardrails AI**: Temporarily disabled due to griffe version incompatibility
+  - **Impact**: GuardrailsValidator not available
+  - **Workaround**: Use built-in validators (Length, Regex, Content, Classifiers)
+  - **Timeline**: Will be restored when dependency conflicts are resolved
+
+- **⚠️ MCP Storage**: Redis and Milvus backends experiencing issues
+  - **Impact**: MCP-based storage not reliable
+  - **Workaround**: Use Memory or File storage for production
+  - **Timeline**: High priority fix in progress
+
+### Strategic Direction
+**Version 0.2.1 represents a strategic pivot towards PydanticAI alignment** while maintaining backward compatibility. We're prioritizing:
+
+1. **PydanticAI ecosystem integration** over maintaining legacy dependencies
+2. **Production reliability** over feature completeness during transition
+3. **Clear migration paths** for users moving to modern architecture
+
 ## Future Developments
 
 ### PydanticAI Alignment and Evolution
@@ -82,10 +117,12 @@ Every aspect of the AI generation process should be observable and debuggable:
 - **New PydanticAI features** integrated into Sifaka as they become available
 
 ### Advanced Critics and Validators as Tools
+- **Enhanced feedback summarization** using both local and API-based models ✅ *Available now with T5, BART, and API models*
 - **Multi-modal critics** implemented as PydanticAI tools for text, code, and structured data
 - **Domain-specific validators** as specialized tools for legal, medical, and technical content
 - **Ensemble methods** that combine multiple validation tools
 - **Adaptive critics** that learn from validation patterns through tool composition
+- **Checkpoint recovery** for robust chain execution with failure recovery capabilities
 
 ### Enhanced Storage and Retrieval
 - **Semantic search** across thought histories for pattern recognition
@@ -161,3 +198,9 @@ Every aspect of the AI generation process should be observable and debuggable:
 - **Build the reliability layer** that makes PydanticAI agents production-ready
 
 By aligning our development with PydanticAI and focusing on the intersection of academic rigor and production reliability, Sifaka will enable the next generation of AI applications that are both innovative and trustworthy.
+
+## References
+
+- **[Design Decisions](docs/DESIGN_DECISIONS.md)** - Key architectural decisions and trade-offs
+- **[Architecture Document](docs/ARCHITECTURE.md)** - Technical implementation details
+- **[PydanticAI Integration Guide](docs/guides/chain-selection.md)** - Choosing between chain types

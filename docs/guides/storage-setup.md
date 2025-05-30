@@ -2,14 +2,16 @@
 
 Learn how to configure and use Sifaka's flexible storage system for persisting thoughts, caching, and semantic search.
 
+> **⚠️ MCP Storage Status**: Redis and Milvus storage backends via MCP are currently experiencing issues and are being actively fixed. For production use, we recommend Memory or File storage until MCP integration is restored.
+
 ## Overview
 
 Sifaka provides multiple storage backends that can be used individually or combined in a 3-tier architecture:
 
-- **Memory Storage**: Fast, temporary storage for development
-- **File Storage**: Simple JSON persistence for single-user applications
-- **Redis Storage**: High-performance caching via MCP
-- **Milvus Storage**: Vector storage for semantic search via MCP
+- **Memory Storage**: Fast, temporary storage for development ✅ **Working**
+- **File Storage**: Simple JSON persistence for single-user applications ✅ **Working**
+- **Redis Storage**: High-performance caching via MCP ⚠️ **Currently broken - high priority fix in progress**
+- **Milvus Storage**: Vector storage for semantic search via MCP ⚠️ **Currently broken - high priority fix in progress**
 
 ## Quick Start
 
@@ -19,13 +21,22 @@ Perfect for development and testing:
 
 ```python
 from sifaka.storage import MemoryStorage
-from sifaka import Chain
+from sifaka.agents import create_pydantic_chain
+from pydantic_ai import Agent
 
 # Create memory storage
 storage = MemoryStorage()
 
-# Use in chain
-chain = Chain(model=model, storage=storage)
+# Create PydanticAI agent
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant.")
+
+# Use in modern PydanticAI chain
+chain = create_pydantic_chain(
+    agent=agent,
+    storage=storage,
+    validators=[],
+    critics=[]
+)
 ```
 
 ### File Storage (Simple Persistence)
@@ -34,14 +45,27 @@ For simple applications that need persistence:
 
 ```python
 from sifaka.storage import FileStorage
+from sifaka.agents import create_pydantic_chain
+from pydantic_ai import Agent
 
 # Store thoughts in JSON file
 storage = FileStorage("./my_thoughts.json")
 
-chain = Chain(model=model, storage=storage)
+# Create PydanticAI agent
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant.")
+
+# Use in modern PydanticAI chain
+chain = create_pydantic_chain(
+    agent=agent,
+    storage=storage,
+    validators=[],
+    critics=[]
+)
 ```
 
 ## Redis Setup (Production Caching)
+
+> **⚠️ Currently Broken**: Redis storage via MCP is experiencing issues. This section is provided for reference and will be updated once the fix is complete.
 
 Redis provides fast, persistent caching for production use.
 
@@ -95,11 +119,19 @@ storage = RedisStorage(
     ttl=3600  # Optional TTL in seconds
 )
 
-# Use in chain
-chain = Chain(model=model, storage=storage)
+# Use in modern PydanticAI chain
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant.")
+chain = create_pydantic_chain(
+    agent=agent,
+    storage=storage,
+    validators=[],
+    critics=[]
+)
 ```
 
 ## Milvus Setup (Vector Search)
+
+> **⚠️ Currently Broken**: Milvus storage via MCP is experiencing issues. This section is provided for reference and will be updated once the fix is complete.
 
 Milvus provides vector storage for semantic search capabilities.
 
@@ -152,11 +184,19 @@ storage = MilvusStorage(
     dimension=768  # Vector dimension (depends on your embedding model)
 )
 
-# Use in chain
-chain = Chain(model=model, storage=storage)
+# Use in modern PydanticAI chain
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant.")
+chain = create_pydantic_chain(
+    agent=agent,
+    storage=storage,
+    validators=[],
+    critics=[]
+)
 ```
 
 ## 3-Tier Storage Architecture
+
+> **⚠️ Currently Limited**: 3-tier storage with Redis and Milvus is not available until MCP storage is fixed. You can currently use Memory + File storage as a 2-tier solution.
 
 Combine multiple storage backends for optimal performance:
 
@@ -189,8 +229,14 @@ storage = CachedStorage(
     )
 )
 
-# Use in chain
-chain = Chain(model=model, storage=storage)
+# Use in modern PydanticAI chain
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant.")
+chain = create_pydantic_chain(
+    agent=agent,
+    storage=storage,
+    validators=[],
+    critics=[]
+)
 ```
 
 ### How It Works

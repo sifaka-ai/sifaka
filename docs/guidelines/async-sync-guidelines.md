@@ -2,6 +2,14 @@
 
 This document establishes the design principles and implementation patterns for async/sync functionality in Sifaka. These guidelines ensure consistency across the codebase and provide clear direction for developers.
 
+## 🚨 **Current Status (v0.2.1)**
+
+**Important**: These guidelines reflect the current state of Sifaka 0.2.1:
+- **✅ PydanticAI Chain**: Primary approach with native async support
+- **⚠️ Traditional Chain**: Deprecated but still available with async internal implementation
+- **⚠️ Event Loop Issues**: Fixed "This event loop is already running" errors in PydanticAI chains
+- **✅ Async Patterns**: Stable and production-ready
+
 ## Design Philosophy
 
 ### Core Principles
@@ -18,9 +26,39 @@ This document establishes the design principles and implementation patterns for 
 
 ## Component-Specific Guidelines
 
-### Chain (Orchestrator)
+### PydanticAI Chain (Primary Approach)
+
+**Pattern**: Native async support with sync public API
+
+```python
+# ✅ Public API (Sync)
+from sifaka.agents import create_pydantic_chain
+from pydantic_ai import Agent
+
+agent = Agent("openai:gpt-4")
+chain = create_pydantic_chain(agent=agent, validators=[validator])
+result = chain.run("Your prompt")  # Internally uses PydanticAI's async
+
+# ❌ Not supported (No async public API)
+# result = await chain.run_async("Your prompt")
+```
+
+**Rationale**:
+- PydanticAI handles async internally with native async/await patterns
+- Sync public API maintains simplicity for users
+- No event loop conflicts due to proper async handling
+- Better performance through PydanticAI's optimized async implementation
+
+**Implementation Pattern**:
+- `run()` - Public sync method that leverages PydanticAI's async internally
+- PydanticAI agent handles async tool calls and model interactions
+- Sifaka validators and critics run concurrently when possible
+
+### Traditional Chain (Deprecated)
 
 **Pattern**: Sync public API with async internal implementation
+
+> **⚠️ Note**: Traditional Chain is deprecated as of v0.2.0. Use PydanticAI Chain for new projects.
 
 ```python
 # ✅ Public API (Sync)
@@ -118,25 +156,29 @@ improved_text = critic.improve(thought)
 
 **Pattern**: Sync public API with async internal implementation
 
-```python
-# ✅ Public API (Sync)
-storage.set("key", value)
-value = storage.get("key")
-results = storage.search("query")
+> **⚠️ Current Limitation**: Redis and Milvus storage backends are experiencing MCP integration issues. Use Memory or File storage for now.
 
-# ✅ Internal async methods
-# await storage._set_async("key", value)
-# value = await storage._get_async("key")
+```python
+# ✅ Working storage (Memory/File)
+memory_storage = MemoryStorage()
+file_storage = FileStorage(directory="./thoughts")
+
+memory_storage.set("key", value)
+value = file_storage.get("key")
+
+# ⚠️ Currently broken (MCP issues)
+# redis_storage = RedisStorage(redis_config)
+# milvus_storage = MilvusStorage(milvus_config)
 ```
 
 **Rationale**:
 - Storage operations are I/O heavy
 - Sync public API for simplicity
-- Async internal methods for performance
+- Async internal methods for performance (when backends are working)
 
 **Implementation Pattern**:
 - `get()`, `set()`, `search()`, `clear()` - Public sync methods
-- `_get_async()`, `_set_async()`, `_search_async()`, `_clear_async()` - Internal async methods
+- `_get_async()`, `_set_async()`, `_search_async()`, `_clear_async()` - Internal async methods (when available)
 
 ### Retrievers (I/O Heavy)
 
@@ -306,13 +348,40 @@ class ReflexionCritic:
 
 ### Basic Sync Usage (Recommended for Most Users)
 
+#### PydanticAI Chain (Primary Approach)
+
+```python
+from pydantic_ai import Agent
+from sifaka.agents import create_pydantic_chain
+from sifaka.models import create_model
+from sifaka.validators import LengthValidator
+from sifaka.critics import ReflexionCritic
+
+# ✅ Modern approach with PydanticAI
+agent = Agent("openai:gpt-4", system_prompt="You are a creative writer.")
+validator = LengthValidator(min_length=50, max_length=500)
+critic = ReflexionCritic(model=create_model("openai:gpt-4"))
+
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[validator],
+    critics=[critic],
+    always_apply_critics=True
+)
+
+# Sync execution with PydanticAI's native async handling
+result = chain.run("Write a story about AI")
+```
+
+#### Traditional Chain (Deprecated)
+
 ```python
 from sifaka import Chain
 from sifaka.models import create_model
 from sifaka.validators import LengthValidator
 from sifaka.critics import ReflexionCritic
 
-# All sync API - simple and straightforward
+# ⚠️ Deprecated approach (still works)
 model = create_model("openai:gpt-4")
 validator = LengthValidator(min_length=50, max_length=500)
 critic = ReflexionCritic(model=model)

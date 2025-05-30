@@ -17,7 +17,8 @@ def test_imports():
 
     # Core imports
     tests = [
-        ("Core", "from sifaka import Chain, Thought"),
+        ("Core", "from sifaka import Thought"),
+        ("PydanticAI Chain", "from sifaka.agents import create_pydantic_chain"),
         ("Models", "from sifaka.models import create_model"),
         ("Validators", "from sifaka.validators import LengthValidator"),
         ("Critics", "from sifaka.critics import ReflexionCritic"),
@@ -529,7 +530,8 @@ jobs:
     - name: Test imports
       run: |
         python -c "import sifaka; print('✅ Sifaka imported')"
-        python -c "from sifaka import Chain, Thought; print('✅ Core imports work')"
+        python -c "from sifaka import Thought; print('✅ Core imports work')"
+        python -c "from sifaka.agents import create_pydantic_chain; print('✅ PydanticAI Chain imports work')"
 ```
 
 ## Getting Help

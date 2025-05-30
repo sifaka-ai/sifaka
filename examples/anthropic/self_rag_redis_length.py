@@ -110,8 +110,7 @@ def main():
     # Set up Redis retriever with climate science context and dual storage
     redis_retriever, dual_storage = setup_climate_redis_retriever()
 
-    # Create Self-RAG critic for fact-checking and retrieval-augmented feedback
-    # Use Haiku model for the critic as per preferences
+    # Create Self-RAG critic using create_model for the critic model
     critic_model = create_model("anthropic:claude-3-5-haiku-latest")
 
     critic = SelfRAGCritic(
@@ -134,7 +133,7 @@ def main():
         validators=[length_validator],
         critics=[critic],
         max_improvement_iterations=3,  # Default retry behavior
-        always_apply_critics=False,  # Set to False per user preferences
+        always_apply_critics=True,  # Set to True per user preferences
         storage=dual_storage,  # Use Redis + File dual storage for thoughts
     )
 

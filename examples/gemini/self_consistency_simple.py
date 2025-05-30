@@ -41,7 +41,7 @@ def main():
         # Create PydanticAI agent with Gemini model
         print("📡 Creating PydanticAI Gemini agent...")
         agent = Agent(
-            "gemini-1.5-flash",
+            "google-gla:gemini-2.0-flash",
             system_prompt=(
                 "You are an AI education expert and science communicator. Provide clear, "
                 "accurate explanations of artificial intelligence concepts that are accessible "
@@ -53,7 +53,7 @@ def main():
 
         # Create Sifaka model for the critic (critics still need Sifaka models)
         print("📡 Creating Sifaka model for critic...")
-        critic_model = create_model("gemini:gemini-1.5-flash")
+        critic_model = create_model("pydantic-ai:google-gla:gemini-2.0-flash")
         print("✅ Critic model created successfully")
 
         # Create SelfConsistencyCritic with simple configuration

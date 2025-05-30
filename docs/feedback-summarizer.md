@@ -1,5 +1,7 @@
 # Feedback Summarizer
 
+> **🚧 Coming Soon**: Enhanced feedback summarization using both local and API-based models is currently in development and will be available in an upcoming release. The current implementation is being improved for better performance and reliability.
+
 The `FeedbackSummarizer` is a customizable utility that can summarize validation results and critic feedback using various local or API-based models. It supports multiple summarization models including T5, BART, Pegasus, and others, with T5 as the default.
 
 ## Features

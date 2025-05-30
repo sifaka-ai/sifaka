@@ -848,6 +848,8 @@ storage = FileStorage(
 
 ### Redis Storage
 
+> **⚠️ Currently Broken**: Redis storage via MCP is experiencing issues and is being actively fixed.
+
 Redis-based storage with MCP integration.
 
 ```python
@@ -868,6 +870,8 @@ storage = RedisStorage(
 ```
 
 ### Milvus Storage
+
+> **⚠️ Currently Broken**: Milvus storage via MCP is experiencing issues and is being actively fixed.
 
 Vector storage with Milvus and MCP integration.
 

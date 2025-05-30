@@ -22,8 +22,9 @@ chain = create_pydantic_chain(
 
 **Best for**: Tool calling, modern patterns, extensible workflows, type safety
 
-### 🏗️ Traditional Chain (Pipeline-Based)
+### 🏗️ Traditional Chain (Deprecated)
 ```python
+# ⚠️ Deprecated - Use PydanticAI Chain for new projects
 from sifaka import Chain
 
 chain = Chain(
@@ -116,17 +117,17 @@ NCriticsCritic(model=model, num_critics=3)
 from sifaka.storage import (
     MemoryStorage,
     FileStorage,
-    RedisStorage,
-    MilvusStorage
+    RedisStorage,    # ⚠️ Currently broken
+    MilvusStorage    # ⚠️ Currently broken
 )
 
-# Development
+# Development (Working)
 MemoryStorage()
 FileStorage("thoughts.json")
 
-# Production
-RedisStorage(host="localhost", port=6379)
-MilvusStorage(host="localhost", port=19530)
+# Production (Currently broken - use Memory/File for now)
+# RedisStorage(host="localhost", port=6379)    # MCP issues
+# MilvusStorage(host="localhost", port=19530)  # MCP issues
 ```
 
 ## Model Creation
@@ -179,11 +180,12 @@ chain = Chain(
 
 ### Hybrid Storage
 ```python
-from sifaka.storage import HybridStorage
+from sifaka.storage import CachedStorage
 
-storage = HybridStorage(
-    primary=RedisStorage(),    # Fast access
-    secondary=FileStorage()    # Persistence
+# Currently limited to Memory + File due to MCP issues
+storage = CachedStorage(
+    cache=MemoryStorage(),     # Fast access
+    persistence=FileStorage()  # Persistence
 )
 ```
 
@@ -253,3 +255,4 @@ chain = chain.improve_with(ReflexionCritic(model))
 - **Timeout issues**: Use smaller models or reduce iterations
 - **Memory issues**: Use file storage instead of memory storage
 - **Validation failures**: Check validator thresholds and requirements
+- **Storage issues**: Use Memory or File storage (Redis/Milvus MCP currently broken)

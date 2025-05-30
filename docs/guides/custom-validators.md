@@ -394,8 +394,9 @@ class SentimentValidator(BaseValidatorImplementation):
 Use your custom validators in Sifaka chains:
 
 ```python
-from sifaka import Chain
+from sifaka.agents import create_pydantic_chain
 from sifaka.models import create_model
+from pydantic_ai import Agent
 
 # Create model and validators
 model = create_model("openai:gpt-4")
@@ -406,19 +407,18 @@ quality_validator = create_content_quality_validator(
     required_keywords=["innovation", "technology"]
 )
 
-# Build chain with multiple validators
-chain = Chain(
-    model=model,
-    prompt="Write a professional email about our new technology innovation."
+# Create PydanticAI agent
+agent = Agent("openai:gpt-4", system_prompt="Write a professional email about our new technology innovation.")
+
+# Build modern PydanticAI chain with multiple validators
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[word_validator, email_validator, quality_validator],
+    critics=[]
 )
 
-# Add all validators
-chain.validate_with(word_validator)
-chain.validate_with(email_validator)
-chain.validate_with(quality_validator)
-
-# Run chain
-result = chain.run()
+# Run chain (validators are automatically applied)
+result = chain.run("Write a professional email about our new technology innovation.")
 
 # Check validation results
 for validator_name, validation_result in result.validation_results.items():

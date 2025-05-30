@@ -2,14 +2,21 @@
 
 Learn how to create and run your first Sifaka chain in just a few minutes.
 
+## 🚨 **Current Status (v0.2.1)**
+
+**Important**: This guide reflects current limitations in Sifaka 0.2.1:
+- **⚠️ HuggingFace Models**: Temporarily disabled due to PydanticAI dependency conflicts
+- **⚠️ Guardrails AI**: Temporarily disabled due to griffe version incompatibility
+- **✅ Supported Models**: OpenAI, Anthropic, Gemini, Ollama, Mock models work fully
+
 ## Chain Types
 
 Sifaka offers two chain implementations:
 
-- **🚀 PydanticAI Chain**: Modern, tool-focused, simple setup (recommended for new projects)
-- **🏗️ Traditional Chain**: Feature-rich, production-ready, maximum flexibility
+- **🚀 PydanticAI Chain**: Modern, tool-focused, simple setup (**recommended for new projects**)
+- **🏗️ Traditional Chain**: Feature-rich, production-ready (**deprecated but still available**)
 
-This guide covers the **Traditional Chain**. For PydanticAI chains with tool calling, see the [Chain Selection Guide](../guides/chain-selection.md).
+This guide covers **both approaches**, starting with the recommended **PydanticAI Chain**.
 
 ## What You'll Build
 
@@ -32,9 +39,11 @@ The fastest way to get started is with QuickStart:
 from sifaka.quickstart import QuickStart
 
 # Create a chain with one line
-chain = QuickStart.basic_chain(
+chain = QuickStart.for_production(
     "openai:gpt-4",  # Requires OPENAI_API_KEY in environment
-    "Write a short story about a robot learning to help humans."
+    "Write a short story about a robot learning to help humans.",
+    validators=["length"],
+    critics=["reflexion"]
 )
 
 # Run it
@@ -42,7 +51,57 @@ result = chain.run()
 print(f"Generated text: {result.text}")
 ```
 
-## Step-by-Step Tutorial
+## 🚀 PydanticAI Chain (Recommended)
+
+The modern approach using PydanticAI agents with tool calling:
+
+### Step 1: Create a PydanticAI Agent
+
+```python
+from pydantic_ai import Agent
+from sifaka.agents import create_pydantic_chain
+from sifaka.validators import LengthValidator
+from sifaka.critics import ReflexionCritic
+from sifaka.models import create_model
+
+# Create PydanticAI agent
+agent = Agent("openai:gpt-4", system_prompt="You are a creative writer.")
+
+# Add tools (optional)
+@agent.tool_plain
+def search_web(query: str) -> str:
+    """Search for information."""
+    return f"Search results for: {query}"
+```
+
+### Step 2: Create Sifaka Chain
+
+```python
+# Create Sifaka components
+validator = LengthValidator(min_length=50, max_length=500)
+critic = ReflexionCritic(model=create_model("openai:gpt-4"))
+
+# Create hybrid chain
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[validator],
+    critics=[critic],
+    always_apply_critics=True
+)
+```
+
+### Step 3: Run the Chain
+
+```python
+# Run with runtime prompt
+result = chain.run("Write a short story about a robot learning to help humans.")
+print(f"Generated text: {result.text}")
+print(f"Iterations: {result.iteration}")
+```
+
+## 🏗️ Traditional Chain (Deprecated)
+
+> **⚠️ Note**: Traditional Chain is deprecated as of v0.2.0. Use PydanticAI Chain for new projects. This section is maintained for existing users.
 
 ### Step 1: Import Sifaka
 

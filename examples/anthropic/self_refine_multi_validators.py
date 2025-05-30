@@ -149,10 +149,10 @@ def main():
         ),
     )
 
-    # Create smaller Haiku model for critic (faster and cheaper)
+    # Create Self-Refine critic using create_model for the critic model
     critic_model = create_model("anthropic:claude-3-5-haiku-latest")
 
-    # Create Self-Refine critic for iterative improvement using Haiku
+    # Create Self-Refine critic for iterative improvement using create_model
     critic = SelfRefineCritic(
         model=critic_model,
         max_refinements=2,  # Allow up to 2 refinement iterations
