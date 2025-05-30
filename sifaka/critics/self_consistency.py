@@ -27,7 +27,6 @@ using simple majority voting over multiple reasoning paths without additional
 learning mechanisms that were not part of the original research.
 """
 
-import asyncio
 import time
 from collections import Counter
 from typing import Any, Dict, List, Optional
@@ -100,13 +99,13 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
             "Text to evaluate:\n{text}\n\n"
             "Retrieved context:\n{context}\n\n"
             f"Please provide a thorough critique.{cot_instruction}\n\n"
-            "Structure your response as follows:\n\n"
-            "Reasoning: [Your step-by-step analysis]\n\n"
-            "Strengths:\n- [List specific strengths]\n\n"
-            "Issues:\n- [List specific issues or problems]\n\n"
-            "Suggestions:\n- [List specific improvement suggestions]\n\n"
+            "IMPORTANT: You MUST follow this exact format. Start each section with the exact header shown:\n\n"
+            "Reasoning: [Your step-by-step analysis of the text quality]\n\n"
+            "Strengths:\n- [List at least one specific strength, even if minor]\n- [Additional strengths if any]\n\n"
+            "Issues:\n- [List specific issues or problems, or write 'No significant issues found' if none]\n- [Additional issues if any]\n\n"
+            "Suggestions:\n- [List specific improvement suggestions, or write 'No improvements needed' if none]\n- [Additional suggestions if any]\n\n"
             "Overall Assessment: [Summary of your evaluation]\n\n"
-            "Needs Improvement: [Yes/No - whether the text needs improvement]"
+            "Needs Improvement: [Write exactly 'Yes' or 'No']"
         )
 
     def _default_improve_template(self) -> str:
@@ -127,7 +126,7 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
             "Improved text:"
         )
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
         """Perform the actual critique logic using Self-Consistency approach.
 
         Args:
@@ -137,7 +136,7 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
             A dictionary with critique results (without processing_time_ms).
         """
         # Generate multiple critiques following original Self-Consistency algorithm
-        critiques = await self._generate_multiple_critiques_async(thought)
+        critiques = self._generate_multiple_critiques(thought)
 
         # Aggregate critiques using majority voting
         aggregated_result = self._aggregate_critiques(critiques)
@@ -161,7 +160,8 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
 
         return {
             "needs_improvement": needs_improvement,
-            "message": combined_message,
+            "feedback": combined_message,  # Use "feedback" field to match CriticFeedback
+            "message": combined_message,  # Keep "message" for backward compatibility
             "issues": consensus_issues_strings,
             "suggestions": consensus_suggestions_strings,
             "confidence": confidence,
@@ -173,7 +173,7 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
             },
         }
 
-    async def _generate_multiple_critiques_async(self, thought: Thought) -> List[Dict[str, Any]]:
+    def _generate_multiple_critiques(self, thought: Thought) -> List[Dict[str, Any]]:
         """Generate multiple critiques of the same text.
 
         Args:
@@ -183,15 +183,14 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
             List of critique results from multiple iterations.
         """
         # Generate critiques using our own model (following original Self-Consistency)
-        tasks = [self._generate_single_critique_async(thought) for _ in range(self.num_iterations)]
-        critique_results = await asyncio.gather(*tasks, return_exceptions=True)
-
         critiques = []
-        for i, result in enumerate(critique_results):
-            if isinstance(result, Exception):
-                logger.warning(f"Critique iteration {i + 1} failed: {result}")
+        for i in range(self.num_iterations):
+            try:
+                result = self._generate_single_critique(thought)
+                critiques.append(result)
+            except Exception as e:
+                logger.warning(f"Critique iteration {i + 1} failed: {e}")
                 continue
-            critiques.append(result)
 
         if not critiques:
             raise ImproverError(
@@ -206,7 +205,7 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
         )
         return critiques
 
-    async def _generate_single_critique_async(self, thought: Thought) -> Dict[str, Any]:
+    def _generate_single_critique(self, thought: Thought) -> Dict[str, Any]:
         """Generate a single critique using our own model.
 
         Args:
@@ -226,9 +225,9 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
         )
 
         # Generate critique
-        critique_response = await self.model._generate_async(
+        critique_response = self.model.generate(
             prompt=critique_prompt,
-            system_message="You are an expert evaluator providing detailed, constructive feedback on text quality.",
+            system_prompt="You are an expert evaluator providing detailed, constructive feedback on text quality.",
         )
 
         # Parse the critique response
@@ -318,10 +317,49 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
         # Fallback: extract from general content if no structured format found
         if not issues and not suggestions:
             critique_lower = critique_text.lower()
-            if any(word in critique_lower for word in ["issue", "problem", "error", "incorrect"]):
-                issues.append("Issues identified in evaluation")
-            if any(word in critique_lower for word in ["suggest", "improve", "should", "could"]):
-                suggestions.append("See evaluation for improvement suggestions")
+
+            # Try to extract meaningful content from unstructured text
+            lines = critique_text.split("\n")
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Look for issue indicators
+                if any(
+                    word in line.lower()
+                    for word in ["issue", "problem", "error", "incorrect", "flaw", "weakness"]
+                ):
+                    if len(line) > 20:  # Only add if it's a substantial comment
+                        issues.append(line)
+
+                # Look for suggestion indicators
+                elif any(
+                    word in line.lower()
+                    for word in [
+                        "suggest",
+                        "recommend",
+                        "should",
+                        "could",
+                        "improve",
+                        "enhance",
+                        "consider",
+                    ]
+                ):
+                    if len(line) > 20:  # Only add if it's a substantial comment
+                        suggestions.append(line)
+
+            # Only use generic fallbacks if we still found nothing meaningful
+            if not issues and not suggestions:
+                if any(
+                    word in critique_lower for word in ["issue", "problem", "error", "incorrect"]
+                ):
+                    issues.append("Issues identified in evaluation")
+                if any(
+                    word in critique_lower for word in ["suggest", "improve", "should", "could"]
+                ):
+                    suggestions.append("See evaluation for improvement suggestions")
+
             if any(word in critique_lower for word in ["poor", "weak", "needs", "improve"]):
                 needs_improvement = True
 
@@ -590,18 +628,7 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
                 logger.debug(
                     "No self-consistency critique found in thought, generating new critique"
                 )
-                import asyncio
-
-                try:
-                    asyncio.get_running_loop()
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(asyncio.run, self._perform_critique_async(thought))
-                        critique_result = future.result()
-                except RuntimeError:
-                    critique_result = asyncio.run(self._perform_critique_async(thought))
-
+                critique_result = self._perform_critique(thought)
                 metadata = critique_result["metadata"]
                 consensus_issues = critique_result["issues"]
                 consensus_suggestions = critique_result["suggestions"]

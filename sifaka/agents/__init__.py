@@ -34,70 +34,80 @@ Example:
 
 from typing import TYPE_CHECKING, List, Optional
 
-from sifaka.utils.error_handling import ConfigurationError
-
 if TYPE_CHECKING:
     from sifaka.storage.protocol import Storage
 
-# Check if PydanticAI is available
-try:
-    from pydantic_ai import Agent
+# PydanticAI is a required dependency
+from pydantic_ai import Agent
 
-    PYDANTIC_AI_AVAILABLE = True
-except ImportError:
-    PYDANTIC_AI_AVAILABLE = False
-    Agent = None
+from sifaka.agents.chain import PydanticAIChain
+from sifaka.agents.tools import (
+    create_criticism_tool,
+    create_self_correcting_agent,
+    create_validation_tool,
+)
+from sifaka.models.pydantic_ai import PydanticAIModel
 
-# Import components with availability checks
-__all__ = []
-
-if PYDANTIC_AI_AVAILABLE:
-    from sifaka.agents.chain import PydanticAIChain
-    from sifaka.models.pydantic_ai import PydanticAIModel
-
-    __all__.extend(
-        ["PydanticAIChain", "PydanticAIModel", "create_pydantic_chain", "create_agent_model"]
-    )
+__all__ = [
+    "PydanticAIChain",
+    "PydanticAIModel",
+    "create_pydantic_chain",
+    "create_agent_model",
+    "create_validation_tool",
+    "create_criticism_tool",
+    "create_self_correcting_agent",
+]
 
 
 def create_pydantic_chain(
     agent: "Agent",
     validators: Optional[List] = None,
     critics: Optional[List] = None,
-    storage: Optional["Storage"] = None,
+    model_retrievers: Optional[List] = None,
+    critic_retrievers: Optional[List] = None,
+    max_improvement_iterations: int = 2,
+    retries: Optional[int] = None,  # Alias for max_improvement_iterations
+    always_apply_critics: bool = False,
+    analytics_storage: Optional["Storage"] = None,
+    storage: Optional["Storage"] = None,  # Alias for analytics_storage
     **kwargs,
 ) -> "PydanticAIChain":
     """Factory function to create a PydanticAI chain with Sifaka components.
 
     Args:
         agent: The PydanticAI agent to use for generation.
-        validators: Optional list of Sifaka validators.
-        critics: Optional list of Sifaka critics.
-        storage: Optional storage backend for thoughts.
+        validators: Optional list of Sifaka validators to always run if provided.
+        critics: Optional list of Sifaka critics to always run if provided.
+        model_retrievers: Optional list of retrievers for pre-generation context injection.
+        critic_retrievers: Optional list of retrievers for pre-critic context injection.
+        max_improvement_iterations: Maximum number of improvement iterations (default: 2).
+        always_apply_critics: Whether to always apply critics even on first success (default: False).
+        analytics_storage: Optional storage backend for analytics/debugging only.
+                          PydanticAI conversation history is the primary memory.
+        storage: Alias for analytics_storage (for backward compatibility).
         **kwargs: Additional arguments passed to PydanticAIChain.
 
     Returns:
         A PydanticAIChain instance.
 
-    Raises:
-        ConfigurationError: If PydanticAI is not available.
     """
-    if not PYDANTIC_AI_AVAILABLE:
-        raise ConfigurationError(
-            "PydanticAI is not available. Please install it with: pip install pydantic-ai",
-            suggestions=[
-                "Install PydanticAI: pip install pydantic-ai",
-                "Or use uv: uv add pydantic-ai",
-            ],
-        )
 
     from sifaka.agents.chain import PydanticAIChain
 
+    # Handle storage parameter alias - prefer analytics_storage if both are provided
+    # Use explicit None check instead of 'or' to avoid issues with empty storage objects
+    # that evaluate to False due to __len__ returning 0
+    final_storage = analytics_storage if analytics_storage is not None else storage
+
     return PydanticAIChain(
         agent=agent,
-        storage=storage,
         validators=validators or [],
         critics=critics or [],
+        model_retrievers=model_retrievers or [],
+        critic_retrievers=critic_retrievers or [],
+        max_improvement_iterations=max_improvement_iterations,
+        always_apply_critics=always_apply_critics,
+        analytics_storage=final_storage,
         **kwargs,
     )
 
@@ -112,17 +122,7 @@ def create_agent_model(agent: "Agent", **kwargs) -> "PydanticAIModel":
     Returns:
         A PydanticAIModel instance.
 
-    Raises:
-        ConfigurationError: If PydanticAI is not available.
     """
-    if not PYDANTIC_AI_AVAILABLE:
-        raise ConfigurationError(
-            "PydanticAI is not available. Please install it with: pip install pydantic-ai",
-            suggestions=[
-                "Install PydanticAI: pip install pydantic-ai",
-                "Or use uv: uv add pydantic-ai",
-            ],
-        )
 
     from sifaka.models.pydantic_ai import PydanticAIModel
 

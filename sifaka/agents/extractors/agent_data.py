@@ -74,7 +74,7 @@ class AgentDataExtractor:
         }
 
     def extract_rich_data(self, result: Any) -> Dict[str, Any]:
-        """Extract rich PydanticAI result data including usage, cost, and messages.
+        """Extract rich PydanticAI result data including usage and messages.
 
         Args:
             result: The PydanticAI AgentRunResult object.
@@ -82,61 +82,49 @@ class AgentDataExtractor:
         Returns:
             Dictionary containing rich result data.
         """
-        rich_data = {"usage": None, "cost": None, "messages": None, "metadata": {}}
+        rich_data = {"usage": None, "messages": None, "metadata": {}}
 
         try:
-            # Extract usage information (token counts)
-            if hasattr(result, "usage") and result.usage:
-                rich_data["usage"] = {
-                    "requests": getattr(result.usage, "requests", None),
-                    "request_tokens": getattr(result.usage, "request_tokens", None),
-                    "response_tokens": getattr(result.usage, "response_tokens", None),
-                    "total_tokens": getattr(result.usage, "total_tokens", None),
-                }
+            # Extract usage information (token counts) - usage() is a method
+            if hasattr(result, "usage"):
+                usage = result.usage()
+                if usage:
+                    rich_data["usage"] = {
+                        "requests": getattr(usage, "requests", None),
+                        "request_tokens": getattr(usage, "request_tokens", None),
+                        "response_tokens": getattr(usage, "response_tokens", None),
+                        "total_tokens": getattr(usage, "total_tokens", None),
+                    }
 
-            # Extract cost information
-            if hasattr(result, "cost") and result.cost:
-                rich_data["cost"] = {
-                    "request_cost": getattr(result.cost, "request_cost", None),
-                    "response_cost": getattr(result.cost, "response_cost", None),
-                    "total_cost": getattr(result.cost, "total_cost", None),
-                    "details": getattr(result.cost, "details", None),
-                }
-
-            # Extract message history
+            # Extract message history - all_messages() is a method
             if hasattr(result, "all_messages"):
                 rich_data["messages"] = []
                 try:
                     messages = result.all_messages()
                     for msg in messages:
                         msg_data = {
-                            "role": getattr(msg, "role", None),
-                            "content": getattr(msg, "content", None),
+                            "kind": getattr(msg, "kind", None),
+                            "model_name": getattr(msg, "model_name", None),
                             "timestamp": getattr(msg, "timestamp", None),
+                            "parts": [],
                         }
-                        # Add tool call information if present
-                        if hasattr(msg, "tool_calls") and msg.tool_calls:
-                            msg_data["tool_calls"] = []
-                            for tc in msg.tool_calls:
-                                tool_data = {
-                                    "name": getattr(tc, "name", None),
-                                    "args": getattr(tc, "arguments", None),
-                                    "result": getattr(tc, "result", None),
+
+                        # Extract message parts
+                        if hasattr(msg, "parts") and msg.parts:
+                            for part in msg.parts:
+                                part_data = {
+                                    "part_kind": getattr(part, "part_kind", None),
+                                    "content": getattr(part, "content", None),
+                                    "timestamp": getattr(part, "timestamp", None),
                                 }
-                                # Handle function-style tool calls
-                                if hasattr(tc, "function"):
-                                    func = tc.function
-                                    tool_data["name"] = getattr(func, "name", None)
-                                    tool_data["args"] = getattr(func, "arguments", None)
-                                msg_data["tool_calls"].append(tool_data)
+                                msg_data["parts"].append(part_data)
+
                         rich_data["messages"].append(msg_data)
                 except Exception as e:
                     logger.warning(f"Failed to extract messages: {e}")
 
-            # Extract any additional metadata
-            for attr in ["model", "timestamp", "run_id"]:
-                if hasattr(result, attr):
-                    rich_data["metadata"][attr] = getattr(result, attr)
+            # Note: PydanticAI AgentRunResult doesn't have model, timestamp, run_id attributes
+            # Only extract metadata that actually exists
 
         except Exception as e:
             logger.warning(f"Failed to extract rich data from PydanticAI result: {e}")

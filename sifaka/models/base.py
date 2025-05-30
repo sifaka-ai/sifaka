@@ -62,7 +62,7 @@ def create_model(
         **kwargs: Additional keyword arguments passed to the PydanticAI Agent constructor.
 
     Returns:
-        A PydanticAIModel instance (or MockModel/HuggingFaceModel for special cases).
+        A PydanticAIModel instance (or MockModel for testing).
 
     Raises:
         ConfigurationError: If the provider is not supported or the model cannot be created.
@@ -101,14 +101,17 @@ def create_model(
         if provider == "mock":
             # Keep mock model for testing
             return MockModel(model_name=model_name, **kwargs)
-        elif provider == "huggingface":
-            # Keep HuggingFace legacy implementation (PydanticAI doesn't support HF yet)
-            from sifaka.models.huggingface import create_huggingface_model
-
-            return create_huggingface_model(model_name=model_name, **kwargs)
 
         # All other providers use unified PydanticAI model
-        elif provider in ["openai", "anthropic", "gemini", "ollama", "pydantic-ai"]:
+        elif provider in [
+            "openai",
+            "anthropic",
+            "gemini",
+            "ollama",
+            "pydantic-ai",
+            "google-gla",
+            "google-vertex",
+        ]:
             try:
                 from pydantic_ai import Agent
 
@@ -118,6 +121,9 @@ def create_model(
                 # For other providers, reconstruct the full model spec
                 if provider == "pydantic-ai":
                     agent_model_spec = model_name
+                elif provider in ["google-gla", "google-vertex"]:
+                    # These are already in the correct PydanticAI format
+                    agent_model_spec = f"{provider}:{model_name}"
                 else:
                     agent_model_spec = f"{provider}:{model_name}"
 
@@ -141,7 +147,6 @@ def create_model(
                     "Use 'anthropic' for Anthropic models (via PydanticAI)",
                     "Use 'gemini' for Google Gemini models (via PydanticAI)",
                     "Use 'ollama' for Ollama models (via PydanticAI)",
-                    "Use 'huggingface' for HuggingFace models (legacy)",
                     "Use 'mock' for mock models",
                 ],
             )

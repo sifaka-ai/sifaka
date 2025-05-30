@@ -57,6 +57,8 @@ class ImprovementPromptBuilder:
                     critic_line = f"- {feedback.critic_name}"
                     if feedback.feedback and feedback.feedback.strip():
                         critic_line += f": {feedback.feedback}"
+                    elif feedback.suggestions and any(s.strip() for s in feedback.suggestions):
+                        critic_line += " provided suggestions:"
                     critic_suggestions.append(critic_line)
 
                     if feedback.suggestions:

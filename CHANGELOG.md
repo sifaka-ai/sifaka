@@ -5,7 +5,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.1] - 2025-05-30
+## [0.3.0] - 2025-05-30
+
+### 🚨 BREAKING CHANGES
+
+#### **Complete Removal of Traditional Chain Implementation**
+- **REMOVED**: Entire `sifaka.core.chain` module and traditional Chain class
+- **REMOVED**: `QuickStart` utility class (was based on traditional Chain)
+- **REMOVED**: All backward compatibility code and properties
+- **REMOVED**: Traditional chain examples, tests, and documentation
+- **IMPACT**: All existing code using `from sifaka import Chain` will break
+
+#### **PydanticAI-Only Architecture**
+- **NEW**: Sifaka is now exclusively PydanticAI-native
+- **SIMPLIFIED**: Single chain implementation via `sifaka.agents.create_pydantic_chain`
+- **MODERNIZED**: All workflows now use PydanticAI agents with tool calling
+- **STREAMLINED**: Removed dual-API confusion and maintenance burden
+
+### Migration Guide
+
+**Before (v0.2.x - Traditional Chain)**:
+```python
+from sifaka import Chain
+from sifaka.models import create_model
+
+chain = Chain(
+    model=create_model("openai:gpt-4"),
+    prompt="Your prompt here"
+)
+chain = chain.validate_with(validator).improve_with(critic)
+result = chain.run()
+```
+
+**After (v0.3.0 - PydanticAI Only)**:
+```python
+from pydantic_ai import Agent
+from sifaka.agents import create_pydantic_chain
+
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant")
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[validator],
+    critics=[critic]
+)
+result = chain.run("Your prompt here")
+```
+
+### Removed
+- **Traditional Chain**: Complete removal of `sifaka.core.chain` module
+- **QuickStart Class**: Removed `sifaka.quickstart.QuickStart`
+- **Backward Compatibility**: All compatibility properties and deprecated classes
+- **Legacy Tests**: Removed traditional chain integration and unit tests
+- **Legacy Documentation**: Removed all traditional chain examples and guides
+
+### Changed
+- **Version**: Bumped to 0.3.0 to reflect breaking changes
+- **Package Description**: Updated to "PydanticAI-native AI validation framework"
+- **Main Exports**: `sifaka.__init__.py` now only exports core interfaces and Thought objects
+- **Documentation**: All examples now use PydanticAI chains exclusively
+
+### Benefits
+- ✅ **Simplified Architecture**: Single, modern chain implementation
+- ✅ **No Backward Compatibility Burden**: Clean, focused codebase
+- ✅ **PydanticAI-Native**: Full integration with modern agent patterns
+- ✅ **Reduced Confusion**: No more dual-API decision paralysis
+- ✅ **Easier Maintenance**: Significantly reduced codebase complexity
+
+---
+
+## [0.2.1] - 2025-05-29
 
 ### 🚨 BREAKING CHANGES
 

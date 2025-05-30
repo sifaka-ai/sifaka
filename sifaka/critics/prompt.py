@@ -98,7 +98,7 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
         # Store the last improvement prompt used for debugging/logging
         self.last_improvement_prompt = None
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
         """Perform the actual critique logic using custom prompt.
 
         Args:
@@ -118,9 +118,9 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
         )
 
         # Generate critique
-        critique_response = await self.model._generate_async(
+        critique_response = self.model.generate(
             prompt=critique_prompt,
-            system_message=self.system_prompt,
+            system_prompt=self.system_prompt,
         )
 
         # Parse the critique
@@ -130,6 +130,58 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
         needs_improvement = self._needs_improvement(critique_response)
 
         logger.debug("PromptCritic: Critique completed")
+
+        return {
+            "needs_improvement": needs_improvement,
+            "message": critique_response,
+            "issues": issues,
+            "suggestions": suggestions,
+            "confidence": 0.7,  # Default confidence for prompt-based critic
+            "metadata": {
+                "criteria": self.criteria,
+                "system_prompt": self.system_prompt,
+            },
+        }
+
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic using custom prompt asynchronously.
+
+        Args:
+            thought: The Thought container with the text to critique.
+
+        Returns:
+            A dictionary with critique results (without processing_time_ms).
+        """
+        # Prepare context from retrieved documents (using mixin)
+        context = self._prepare_context(thought)
+
+        # Create critique prompt with context
+        critique_prompt = self.critique_prompt_template.format(
+            prompt=thought.prompt,
+            text=thought.text,
+            context=context,
+        )
+
+        # Generate critique asynchronously if the model supports it
+        if hasattr(self.model, "generate_async"):
+            critique_response = await self.model.generate_async(
+                prompt=critique_prompt,
+                system_prompt=self.system_prompt,
+            )
+        else:
+            # Fall back to sync method
+            critique_response = self.model.generate(
+                prompt=critique_prompt,
+                system_prompt=self.system_prompt,
+            )
+
+        # Parse the critique
+        issues, suggestions = self._parse_critique(critique_response)
+
+        # Determine if improvement is needed based on critique content
+        needs_improvement = self._needs_improvement(critique_response)
+
+        logger.debug("PromptCritic: Async critique completed")
 
         return {
             "needs_improvement": needs_improvement,
@@ -201,18 +253,7 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
             # If no critique available, generate one
             if not critique:
                 logger.debug("No critique found in thought, generating new critique")
-                import asyncio
-
-                try:
-                    asyncio.get_running_loop()
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(asyncio.run, self._perform_critique_async(thought))
-                        critique_result = future.result()
-                except RuntimeError:
-                    critique_result = asyncio.run(self._perform_critique_async(thought))
-
+                critique_result = self._perform_critique(thought)
                 critique = critique_result["message"]
 
             # Prepare context for improvement (using mixin)

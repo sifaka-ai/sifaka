@@ -28,7 +28,6 @@ without the specialized training or the extensive role-specific fine-tuning
 from the original paper.
 """
 
-import asyncio
 import time
 from typing import Any, Dict, List, Optional
 
@@ -124,7 +123,7 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
             "Improved text:"
         )
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
         """Perform the actual critique logic using N-Critics ensemble approach.
 
         Args:
@@ -133,32 +132,18 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
         Returns:
             A dictionary with critique results (without processing_time_ms).
         """
-        # Generate critiques from each specialized critic (async)
-        critic_tasks = []
+        # Generate critiques from each specialized critic
+        critic_results = []
         for role in self.critic_roles:
-            critic_tasks.append(self._generate_critic_critique_async(thought, role))
+            try:
+                result = self._generate_critic_critique(thought, role)
+                critic_results.append(result)
+            except Exception as e:
+                logger.warning(f"Critic role '{role}' failed: {e}")
+                continue
 
-        # Wait for all critiques to complete
-        critic_critiques = await asyncio.gather(*critic_tasks, return_exceptions=True)
-
-        # Process results and handle exceptions
-        valid_critiques = []
-        for i, result in enumerate(critic_critiques):
-            if isinstance(result, Exception):
-                logger.error(f"NCriticsCritic: Error in critic {i + 1}: {result}")
-                # Create error critique
-                error_critique = {
-                    "role": self.critic_roles[i],
-                    "score": 0.0,
-                    "needs_improvement": True,
-                    "issues": [f"Critic error: {str(result)}"],
-                    "suggestions": ["Please try again or check the critic configuration."],
-                    "critique": f"Error in critic: {str(result)}",
-                }
-                valid_critiques.append(error_critique)
-            else:
-                # result is guaranteed to be Dict[str, Any] here (not an exception)
-                valid_critiques.append(result)  # type: ignore
+        # Process results
+        valid_critiques = critic_results
 
         # Aggregate feedback from all critics
         aggregated_feedback = self._aggregate_critiques(valid_critiques)
@@ -252,20 +237,7 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
             # If no critique available, generate one
             if not aggregated_feedback:
                 logger.debug("No critique found in thought, generating new critique")
-                import asyncio
-
-                try:
-                    asyncio.get_running_loop()
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(
-                            lambda: asyncio.run(self._perform_critique_async(thought))
-                        )
-                        critique_result = future.result()
-                except RuntimeError:
-                    critique_result = asyncio.run(self._perform_critique_async(thought))
-
+                critique_result = self._perform_critique(thought)
                 critic_feedback = critique_result["metadata"]["critic_feedback"]
                 aggregated_feedback = self._format_feedback_for_improvement(critic_feedback)
 
@@ -310,8 +282,8 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
 
             return improved_text.strip()
 
-    async def _generate_critic_critique_async(self, thought: Thought, role: str) -> Dict[str, Any]:
-        """Generate critique from a single specialized critic asynchronously.
+    def _generate_critic_critique(self, thought: Thought, role: str) -> Dict[str, Any]:
+        """Generate critique from a single specialized critic.
 
         Args:
             thought: The Thought container with the text to critique.
@@ -331,14 +303,14 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
             context=context,
         )
 
-        # Generate critique (async) with error handling
+        # Generate critique with error handling
         try:
-            critique_response = await self.model._generate_async(
+            critique_response = self.model.generate(
                 prompt=critique_prompt,
-                system_message=f"You are a specialized critic with the role: {role}",
+                system_prompt=f"You are a specialized critic with the role: {role}",
             )
         except Exception as e:
-            logger.error(f"NCriticsCritic async generation failed for role '{role}': {e}")
+            logger.error(f"NCriticsCritic generation failed for role '{role}': {e}")
             # Return a fallback critique
             critique_response = (
                 f"Error generating critique for {role}: {str(e)}. Please review the text manually."

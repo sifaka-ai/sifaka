@@ -1,12 +1,11 @@
 """Async utilities for PydanticAI chain implementation.
 
-This module provides proper async utilities that replace the problematic
-sync/async patterns in the original implementation.
+This module provides simple async utilities for running sync functions
+in thread pools to avoid blocking the event loop.
 """
 
 import asyncio
 import concurrent.futures
-from functools import wraps
 from typing import Any, Callable, TypeVar
 
 from sifaka.utils.logging import get_logger
@@ -14,36 +13,6 @@ from sifaka.utils.logging import get_logger
 logger = get_logger(__name__)
 
 T = TypeVar("T")
-
-
-def ensure_async_compatibility(func: Callable[..., T]) -> Callable[..., T]:
-    """Ensure a function can be called in both sync and async contexts.
-
-    This is a cleaner replacement for the problematic async_to_sync decorator.
-    Instead of trying to bridge sync/async, we encourage pure async usage.
-
-    Args:
-        func: The async function to wrap.
-
-    Returns:
-        A function that can handle both sync and async contexts properly.
-    """
-    if not asyncio.iscoroutinefunction(func):
-        return func
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            # Check if we're in an async context
-            asyncio.get_running_loop()
-            # If we get here, we're in an async context
-            # Return the coroutine directly - let the caller await it
-            return func(*args, **kwargs)
-        except RuntimeError:
-            # No running event loop, we can safely use asyncio.run()
-            return asyncio.run(func(*args, **kwargs))
-
-    return wrapper
 
 
 async def run_in_thread_pool(func: Callable[..., T], *args, **kwargs) -> T:

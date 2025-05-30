@@ -90,13 +90,9 @@ class CriticismExecutor:
             The criticism result as a dictionary.
         """
         try:
-            # Check if critic has async method, otherwise use sync in thread pool
-            if hasattr(critic, "_critique_async"):
-                return await critic._critique_async(thought)  # type: ignore
-            else:
-                # Fall back to sync criticism in thread pool to avoid blocking
-                return await run_in_thread_pool(critic.critique, thought)
+            # Critics are now simple sync methods - run in thread pool to avoid blocking
+            return await run_in_thread_pool(critic.critique, thought)
         except Exception as e:
-            logger.error(f"Async criticism failed for {critic.__class__.__name__}: {e}")
+            logger.error(f"Criticism failed for {critic.__class__.__name__}: {e}")
             # Return error feedback dict
             return {"error": str(e), "confidence": 0.0, "issues": [str(e)], "suggestions": []}

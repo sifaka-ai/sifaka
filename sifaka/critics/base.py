@@ -4,7 +4,6 @@ This module provides the base class for all critics, implementing common
 functionality and defining the standard interface that all critics must follow.
 """
 
-import asyncio
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
@@ -53,57 +52,17 @@ class BaseCritic(ContextAwareMixin, ABC):
                 raise ValueError("Either model or model_name must be provided")
             self.model = create_model(model_name, **model_kwargs)
         else:
-            self.model = model
+            # Handle case where model is actually a string (model name)
+            if isinstance(model, str):
+                self.model = create_model(model, **model_kwargs)
+            else:
+                self.model = model
 
     def critique(self, thought: Thought) -> Dict[str, Any]:
         """Critique text and provide feedback.
 
-        This is the main public interface for criticism. It uses async
-        implementation internally for better performance while maintaining
-        a synchronous API for backward compatibility.
-
-        Args:
-            thought: The Thought container with the text to critique.
-
-        Returns:
-            A dictionary with critique results following the standard schema.
-        """
-        # Check if we're already in an async context
-        try:
-            asyncio.get_running_loop()
-            # We're in an async context, but this is a sync method
-            # We need to run the async version in a new thread
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, self._critique_async(thought))
-                return future.result()
-        except RuntimeError:
-            # No running event loop, we can use asyncio.run
-            return asyncio.run(self._critique_async(thought))
-
-    @abstractmethod
-    def improve(self, thought: Thought) -> str:
-        """Improve text based on critique.
-
-        Each critic must implement its own improvement strategy.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-
-        Returns:
-            The improved text.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-
-    async def _critique_async(self, thought: Thought) -> Dict[str, Any]:
-        """Internal async implementation of critique.
-
-        This method handles the actual critique logic and should be implemented
-        by subclasses. It provides the async foundation while the public
-        critique() method handles the sync/async coordination.
+        This is the main public interface for criticism. Critics should be
+        simple and synchronous - PydanticAI will handle async coordination.
 
         Args:
             thought: The Thought container with the text to critique.
@@ -129,7 +88,7 @@ class BaseCritic(ContextAwareMixin, ABC):
 
             # Delegate to subclass implementation
             try:
-                result = await self._perform_critique_async(thought)
+                result = self._perform_critique(thought)
 
                 # Ensure processing time is included
                 processing_time = (time.time() - start_time) * 1000
@@ -149,9 +108,82 @@ class BaseCritic(ContextAwareMixin, ABC):
                     start_time=start_time,
                 )
 
+    async def critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Critique text asynchronously.
+
+        Args:
+            thought: The Thought container with the text to critique.
+
+        Returns:
+            A dictionary containing critique results.
+        """
+        start_time = time.time()
+
+        with critic_context(
+            critic_name=self.__class__.__name__,
+            operation="critique_async",
+            message_prefix=f"Failed to critique text with {self.__class__.__name__}",
+        ):
+            # Check if text is available
+            if not thought.text:
+                return self._create_error_result(
+                    "No text available for critique",
+                    issues=["Text is empty or None"],
+                    suggestions=["Provide text to critique"],
+                    start_time=start_time,
+                )
+
+            # Delegate to subclass implementation
+            try:
+                # Check if the subclass has an async implementation
+                if hasattr(self, "_perform_critique_async"):
+                    result = await self._perform_critique_async(thought)
+                else:
+                    # Fall back to sync method in thread pool
+                    from sifaka.agents.core.async_utils import run_in_thread_pool
+
+                    result = await run_in_thread_pool(self._perform_critique, thought)
+
+                # Ensure processing time is included
+                processing_time = (time.time() - start_time) * 1000
+                result["processing_time_ms"] = processing_time
+
+                # Validate result schema
+                self._validate_result_schema(result)
+
+                return result
+
+            except Exception as e:
+                logger.error(f"{self.__class__.__name__} async critique failed: {e}")
+                return self._create_error_result(
+                    f"Async critique failed: {str(e)}",
+                    issues=[f"Internal error: {str(e)}"],
+                    suggestions=["Please try again or check the critic configuration"],
+                    start_time=start_time,
+                )
+
     @abstractmethod
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+    def improve(self, thought: Thought) -> str:
+        """Improve text based on critique.
+
+        Each critic must implement its own improvement strategy.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+
+        Returns:
+            The improved text.
+
+        Raises:
+            ImproverError: If the improvement fails.
+        """
+
+    @abstractmethod
+    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
         """Perform the actual critique logic (implemented by subclasses).
+
+        This should be a simple synchronous method. PydanticAI will handle
+        any async coordination needed.
 
         Args:
             thought: The Thought container with the text to critique.

@@ -47,12 +47,12 @@ class RedisStorage:
         try:
             # Try to get the current event loop
             asyncio.get_running_loop()
-            # If we're already in an event loop, we need to handle this differently
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, coro)
-                return future.result()
+            # We're in an async context - this is not supported for sync methods
+            # The caller should use the async version instead
+            raise RuntimeError(
+                "Cannot call sync Redis storage methods from within an async context. "
+                "Use the async methods (_get_async, _set_async, etc.) instead."
+            )
         except RuntimeError:
             # No event loop running, safe to use asyncio.run
             return asyncio.run(coro)
