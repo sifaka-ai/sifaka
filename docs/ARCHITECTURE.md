@@ -254,6 +254,9 @@ class Thought:
     # Critic feedback
     critic_feedback: list   # [CriticFeedback(suggestions=["Add more detail"]), ...]
 
+    # Tool calls (PydanticAI agent interactions)
+    tool_calls: list        # [ToolCall(tool_name="search", arguments={...}, result="...", success=True), ...]
+
     # Retrieved context (if using retrievers)
     pre_generation_context: list   # Documents retrieved before generation
     post_generation_context: list  # Documents retrieved after generation
@@ -273,6 +276,10 @@ thought = thought.add_validation_result("length", ValidationResult(passed=True))
 
 # Add critic feedback
 thought = thought.add_critic_feedback(CriticFeedback(suggestions=["Be more specific"]))
+
+# Add tool call records (PydanticAI agent interactions)
+tool_call = ToolCall(tool_name="search", arguments={"query": "AI research"}, result="Found 10 papers", success=True)
+thought = thought.add_tool_call(tool_call)
 
 # Create next iteration (preserves history)
 next_thought = thought.next_iteration()

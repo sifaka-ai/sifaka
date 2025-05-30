@@ -76,7 +76,7 @@ def main():
         chain = create_pydantic_chain(
             agent=agent,
             critics=[critic],
-            max_improvement_iterations=1,  # Only one retry
+            max_improvement_iterations=2,  # Only one retry
             always_apply_critics=True,  # Always apply the critic
             storage=FileStorage(
                 "./thoughts/self_consistency_simple_thoughts.json",

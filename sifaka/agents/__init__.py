@@ -32,9 +32,12 @@ Example:
     ```
 """
 
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from sifaka.utils.error_handling import ConfigurationError
+
+if TYPE_CHECKING:
+    from sifaka.storage.protocol import Storage
 
 # Check if PydanticAI is available
 try:
@@ -58,7 +61,11 @@ if PYDANTIC_AI_AVAILABLE:
 
 
 def create_pydantic_chain(
-    agent: "Agent", validators: Optional[List] = None, critics: Optional[List] = None, **kwargs
+    agent: "Agent",
+    validators: Optional[List] = None,
+    critics: Optional[List] = None,
+    storage: Optional["Storage"] = None,
+    **kwargs,
 ) -> "PydanticAIChain":
     """Factory function to create a PydanticAI chain with Sifaka components.
 
@@ -66,6 +73,7 @@ def create_pydantic_chain(
         agent: The PydanticAI agent to use for generation.
         validators: Optional list of Sifaka validators.
         critics: Optional list of Sifaka critics.
+        storage: Optional storage backend for thoughts.
         **kwargs: Additional arguments passed to PydanticAIChain.
 
     Returns:
@@ -87,10 +95,10 @@ def create_pydantic_chain(
 
     return PydanticAIChain(
         agent=agent,
-        storage=kwargs.get("storage"),
+        storage=storage,
         validators=validators or [],
         critics=critics or [],
-        **{k: v for k, v in kwargs.items() if k != "storage"},
+        **kwargs,
     )
 
 

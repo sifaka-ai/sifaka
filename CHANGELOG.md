@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.1] - 2024-12-19
+## [0.2.1] - 2025-05-30
 
 ### 🚨 BREAKING CHANGES
 
@@ -14,20 +14,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **DISABLED**: Guardrails AI integration due to griffe version incompatibility with PydanticAI
 - **IMPACT**: Affects users relying on HuggingFace models in PydanticAI chains or GuardrailsValidator
 
+### Added
+- **ToolCall Tracking**: Enhanced Thought containers now track tool calls made during PydanticAI agent execution
+  - **ToolCall Model**: Records tool name, arguments, results, timing, and success status
+  - **Thought Integration**: `add_tool_call()` method for tracking tool usage
+  - **Complete Observability**: Full audit trail of tool interactions within thought history
+- **Enhanced Documentation**: Comprehensive PydanticAI chain migration guides and architectural documentation
+- **Design Decisions Documentation**: Added `docs/DESIGN_DECISIONS.md` explaining architectural choices and trade-offs
+
+### Changed
+- **Thought Container**: Extended with `tool_calls` field for tracking PydanticAI agent tool usage
+- **PydanticAI Chain Documentation**: Updated all documentation to reflect PydanticAI chain as primary approach
+- **Architecture Documentation**: Enhanced with detailed flow diagrams and implementation patterns
+- **Examples**: Updated all examples to use PydanticAI chains consistently where possible
+- **GuardrailsValidator**: Marked as prerelease/disabled with clear documentation
+- **Documentation Structure**: Reorganized and updated for better clarity and current architecture
+
 ### Removed
 - **HuggingFace Examples**: Removed `examples/huggingface/` directory and all HuggingFace-specific examples
 - **HuggingFace PydanticAI Integration**: Disabled due to dependency conflicts
 - **Guardrails Dependency**: Removed from pyproject.toml due to griffe version conflicts
-
-### Changed
-- **GuardrailsValidator**: Marked as prerelease/disabled with clear documentation
-- **Documentation**: Added "Current Limitations" section explaining temporary removals
-- **Dependencies**: Cleaned up conflicting dependencies for better PydanticAI compatibility
+- **Deprecated Documentation**: Removed outdated AGENTS.md and examples/README.md files
 
 ### Fixed
 - **Async Event Loop Issues**: Fixed "This event loop is already running" errors in PydanticAI chains
 - **Dependency Conflicts**: Resolved installation issues by removing conflicting packages
 - **PydanticAI Chain Stability**: Improved async handling and error recovery
+- **Async Consistency**: Resolved mixed async/sync patterns in PydanticAI chain implementation
+
+### Enhanced
+- **Tool Call Observability**: Complete tracking of tool interactions with timing and success metrics
+- **Thought History**: Improved iteration tracking with tool call preservation across iterations
+- **Documentation Coverage**: Comprehensive guides for migration, architecture, and design decisions
 
 ### Workarounds
 - **HuggingFace Models**: Use Traditional chains for HuggingFace models, or use OpenAI/Anthropic/Gemini with PydanticAI chains
@@ -37,10 +55,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HuggingFace Support**: Will be restored when PydanticAI adds native HuggingFace support
 - **Guardrails Support**: Will be restored when dependency conflicts are resolved
 - **Enhanced Integration**: Planning improved integration patterns for both systems
+- **Tool Call Analytics**: Advanced analytics and visualization for tool usage patterns
 
 ---
 
-## [0.2.0] - 2024-12-19
+## [0.2.0] - 2025-05-28
 
 ### 🚨 BREAKING CHANGES
 
@@ -131,7 +150,7 @@ result = chain.run("Your prompt here")
 
 ---
 
-## [0.1.0] - 2024-12-18
+## [0.1.0] - 2025-05-27
 
 ### Added
 - Initial release of Sifaka framework

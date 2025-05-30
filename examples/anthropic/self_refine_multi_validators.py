@@ -174,8 +174,8 @@ def main():
         agent=agent,
         validators=validators,
         critics=[critic],
-        max_improvement_iterations=3,  # Default retry behavior
-        always_apply_critics=False,
+        max_improvement_iterations=2,  # Only two retries
+        always_apply_critics=True,  # Always apply the critic
         storage=FileStorage(
             "./thoughts/self_refine_multi_validators_thoughts.json",
             overwrite=True,  # Overwrite existing file instead of appending
