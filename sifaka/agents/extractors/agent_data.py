@@ -7,8 +7,6 @@ including output text, metadata, and tool calls.
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
-from pydantic_ai import Agent
-
 from sifaka.core.thought import Thought, ToolCall
 from sifaka.utils.logging import get_logger
 
@@ -18,7 +16,7 @@ logger = get_logger(__name__)
 class AgentDataExtractor:
     """Extracts data from PydanticAI agent results."""
 
-    def __init__(self, agent: Agent):
+    def __init__(self, agent: "Agent"):
         """Initialize the data extractor.
 
         Args:
@@ -74,6 +72,76 @@ class AgentDataExtractor:
             "model_prompt": self._extract_model_prompt(result, fallback_prompt),
             "system_prompt": self._extract_system_prompt(result),
         }
+
+    def extract_rich_data(self, result: Any) -> Dict[str, Any]:
+        """Extract rich PydanticAI result data including usage, cost, and messages.
+
+        Args:
+            result: The PydanticAI AgentRunResult object.
+
+        Returns:
+            Dictionary containing rich result data.
+        """
+        rich_data = {"usage": None, "cost": None, "messages": None, "metadata": {}}
+
+        try:
+            # Extract usage information (token counts)
+            if hasattr(result, "usage") and result.usage:
+                rich_data["usage"] = {
+                    "requests": getattr(result.usage, "requests", None),
+                    "request_tokens": getattr(result.usage, "request_tokens", None),
+                    "response_tokens": getattr(result.usage, "response_tokens", None),
+                    "total_tokens": getattr(result.usage, "total_tokens", None),
+                }
+
+            # Extract cost information
+            if hasattr(result, "cost") and result.cost:
+                rich_data["cost"] = {
+                    "request_cost": getattr(result.cost, "request_cost", None),
+                    "response_cost": getattr(result.cost, "response_cost", None),
+                    "total_cost": getattr(result.cost, "total_cost", None),
+                    "details": getattr(result.cost, "details", None),
+                }
+
+            # Extract message history
+            if hasattr(result, "all_messages"):
+                rich_data["messages"] = []
+                try:
+                    messages = result.all_messages()
+                    for msg in messages:
+                        msg_data = {
+                            "role": getattr(msg, "role", None),
+                            "content": getattr(msg, "content", None),
+                            "timestamp": getattr(msg, "timestamp", None),
+                        }
+                        # Add tool call information if present
+                        if hasattr(msg, "tool_calls") and msg.tool_calls:
+                            msg_data["tool_calls"] = []
+                            for tc in msg.tool_calls:
+                                tool_data = {
+                                    "name": getattr(tc, "name", None),
+                                    "args": getattr(tc, "arguments", None),
+                                    "result": getattr(tc, "result", None),
+                                }
+                                # Handle function-style tool calls
+                                if hasattr(tc, "function"):
+                                    func = tc.function
+                                    tool_data["name"] = getattr(func, "name", None)
+                                    tool_data["args"] = getattr(func, "arguments", None)
+                                msg_data["tool_calls"].append(tool_data)
+                        rich_data["messages"].append(msg_data)
+                except Exception as e:
+                    logger.warning(f"Failed to extract messages: {e}")
+
+            # Extract any additional metadata
+            for attr in ["model", "timestamp", "run_id"]:
+                if hasattr(result, attr):
+                    rich_data["metadata"][attr] = getattr(result, attr)
+
+        except Exception as e:
+            logger.warning(f"Failed to extract rich data from PydanticAI result: {e}")
+
+        return rich_data
 
     def _extract_model_name(self) -> str:
         """Extract model name from PydanticAI agent.

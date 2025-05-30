@@ -113,6 +113,33 @@ class PydanticAIModel(ContextAwareMixin):
             logger.error(f"PydanticAI generation failed: {e}")
             raise
 
+    def generate_with_rich_result(self, prompt: str, **options: Any) -> tuple[str, dict]:
+        """Generate text using PydanticAI agent and return rich result data.
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options passed to the agent.
+
+        Returns:
+            A tuple of (generated_text, rich_result_data).
+            The rich_result_data contains usage, cost, messages, tool_calls, and metadata.
+        """
+        logger.debug(f"Generating text with rich result capture: {self.model_name}")
+
+        try:
+            # Run the agent synchronously
+            result = self.agent.run_sync(prompt, **options)
+
+            # Extract rich result data
+            rich_data = self._extract_rich_result(result)
+
+            logger.debug(f"Generated text with rich data: {len(rich_data['output'])} characters")
+            return rich_data["output"], rich_data
+
+        except Exception as e:
+            logger.error(f"PydanticAI rich generation failed: {e}")
+            raise
+
     def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:
         """Generate text using Thought context.
 
@@ -190,6 +217,37 @@ class PydanticAIModel(ContextAwareMixin):
 
         except Exception as e:
             logger.error(f"PydanticAI async generation failed: {e}")
+            raise
+
+    async def generate_with_rich_result_async(
+        self, prompt: str, **options: Any
+    ) -> tuple[str, dict]:
+        """Generate text asynchronously with rich result data.
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options passed to the agent.
+
+        Returns:
+            A tuple of (generated_text, rich_result_data).
+            The rich_result_data contains usage, cost, messages, tool_calls, and metadata.
+        """
+        logger.debug(f"Generating text async with rich result capture: {self.model_name}")
+
+        try:
+            # Run the agent asynchronously
+            result = await self.agent.run(prompt, **options)
+
+            # Extract rich result data
+            rich_data = self._extract_rich_result(result)
+
+            logger.debug(
+                f"Generated text async with rich data: {len(rich_data['output'])} characters"
+            )
+            return rich_data["output"], rich_data
+
+        except Exception as e:
+            logger.error(f"PydanticAI async rich generation failed: {e}")
             raise
 
     async def _generate_with_thought_async(
@@ -303,6 +361,76 @@ class PydanticAIModel(ContextAwareMixin):
         except Exception as e:
             logger.warning(f"Failed to extract output from PydanticAI result: {e}")
             return str(result)
+
+    def _extract_rich_result(self, result) -> dict:
+        """Extract rich metadata from PydanticAI AgentRunResult.
+
+        Args:
+            result: The AgentRunResult object from PydanticAI agent.run_sync()
+
+        Returns:
+            Dictionary containing rich result data including usage, cost, messages, etc.
+        """
+        rich_data = {
+            "output": self._extract_output(result),
+            "usage": None,
+            "cost": None,
+            "messages": None,
+            "tool_calls": None,
+            "metadata": {},
+        }
+
+        try:
+            # Extract usage information (token counts)
+            if hasattr(result, "usage") and result.usage:
+                rich_data["usage"] = {
+                    "requests": getattr(result.usage, "requests", None),
+                    "request_tokens": getattr(result.usage, "request_tokens", None),
+                    "response_tokens": getattr(result.usage, "response_tokens", None),
+                    "total_tokens": getattr(result.usage, "total_tokens", None),
+                }
+
+            # Extract cost information
+            if hasattr(result, "cost") and result.cost:
+                rich_data["cost"] = {
+                    "request_cost": getattr(result.cost, "request_cost", None),
+                    "response_cost": getattr(result.cost, "response_cost", None),
+                    "total_cost": getattr(result.cost, "total_cost", None),
+                    "details": getattr(result.cost, "details", None),
+                }
+
+            # Extract message history
+            if hasattr(result, "messages") and result.messages:
+                rich_data["messages"] = []
+                for msg in result.messages:
+                    msg_data = {
+                        "role": getattr(msg, "role", None),
+                        "content": getattr(msg, "content", None),
+                        "timestamp": getattr(msg, "timestamp", None),
+                    }
+                    # Add tool call information if present
+                    if hasattr(msg, "tool_calls") and msg.tool_calls:
+                        msg_data["tool_calls"] = [
+                            {
+                                "name": getattr(tc, "name", None),
+                                "args": getattr(tc, "args", None),
+                                "result": getattr(tc, "result", None),
+                            }
+                            for tc in msg.tool_calls
+                        ]
+                    rich_data["messages"].append(msg_data)
+
+            # Extract any additional metadata
+            for attr in ["model", "timestamp", "run_id"]:
+                if hasattr(result, attr):
+                    rich_data["metadata"][attr] = getattr(result, attr)
+
+        except Exception as e:
+            logger.warning(f"Failed to extract rich data from PydanticAI result: {e}")
+            # Ensure we always have the basic output even if rich extraction fails
+            rich_data["output"] = self._extract_output(result)
+
+        return rich_data
 
 
 def create_pydantic_ai_model(agent: "Agent", **kwargs) -> PydanticAIModel:

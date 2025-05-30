@@ -167,6 +167,36 @@ The self-evaluation should be honest, professional, and demonstrate strong techn
     print(f"Max Iterations: 2 (as specified)")
     print(f"Chain ID: {result.chain_id}")
 
+    # Display PydanticAI rich data if available
+    if result.has_pydantic_data():
+        print(f"\n🚀 PydanticAI Rich Data:")
+
+        # Show usage information
+        total_tokens = result.get_total_tokens()
+        if total_tokens:
+            print(f"  📊 Token Usage: {total_tokens} total tokens")
+            if result.pydantic_usage:
+                print(f"    - Request tokens: {result.pydantic_usage.request_tokens}")
+                print(f"    - Response tokens: {result.pydantic_usage.response_tokens}")
+
+        # Show cost information
+        total_cost = result.get_total_cost()
+        if total_cost:
+            print(f"  💰 Cost: ${total_cost:.4f}")
+            if result.pydantic_cost:
+                print(f"    - Request cost: ${result.pydantic_cost.request_cost:.4f}")
+                print(f"    - Response cost: ${result.pydantic_cost.response_cost:.4f}")
+
+        # Show message count
+        if result.pydantic_messages:
+            print(f"  💬 Conversation: {len(result.pydantic_messages)} messages")
+
+        # Show metadata
+        if result.pydantic_metadata:
+            print(f"  🔧 Metadata: {list(result.pydantic_metadata.keys())}")
+    else:
+        print(f"\n⚠️  No PydanticAI rich data captured (this might indicate an issue)")
+
     # Show critic feedback and improvements
     if result.critic_feedback:
         print(f"\nReflexionCritic Feedback:")

@@ -62,6 +62,33 @@ class ThoughtReference(BaseModel):
     summary: Optional[str] = None
 
 
+class PydanticAIUsage(BaseModel):
+    """Usage information from PydanticAI AgentRunResult."""
+
+    requests: Optional[int] = None
+    request_tokens: Optional[int] = None
+    response_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+
+
+class PydanticAICost(BaseModel):
+    """Cost information from PydanticAI AgentRunResult."""
+
+    request_cost: Optional[float] = None
+    response_cost: Optional[float] = None
+    total_cost: Optional[float] = None
+    details: Optional[Dict[str, Any]] = None
+
+
+class PydanticAIMessage(BaseModel):
+    """Message from PydanticAI conversation history."""
+
+    role: Optional[str] = None
+    content: Optional[str] = None
+    timestamp: Optional[datetime] = None
+    tool_calls: Optional[List[Dict[str, Any]]] = None
+
+
 class Thought(BaseModel):
     """Central state container for Sifaka."""
 
@@ -82,6 +109,12 @@ class Thought(BaseModel):
     timestamp: Optional[datetime] = None
     chain_id: Optional[str] = None
     metadata: Dict[str, Any] = {}
+
+    # PydanticAI-specific fields for rich result capture
+    pydantic_usage: Optional[PydanticAIUsage] = None
+    pydantic_cost: Optional[PydanticAICost] = None
+    pydantic_messages: Optional[List[PydanticAIMessage]] = None
+    pydantic_metadata: Optional[Dict[str, Any]] = None
 
     def __init__(self, **data: Any) -> None:
         if "id" not in data or not data["id"]:
@@ -173,6 +206,67 @@ class Thought(BaseModel):
         """Set the actual prompt sent to the model for this thought."""
         return self.model_copy(update={"model_prompt": model_prompt})
 
+    def set_pydantic_data(self, rich_data: Dict[str, Any]) -> "Thought":
+        """Set PydanticAI rich result data on this thought.
+
+        Args:
+            rich_data: Dictionary containing PydanticAI result data with keys:
+                      usage, cost, messages, metadata
+
+        Returns:
+            A new Thought with PydanticAI data set.
+        """
+        updates = {}
+
+        # Set usage data
+        if rich_data.get("usage"):
+            updates["pydantic_usage"] = PydanticAIUsage(**rich_data["usage"])
+
+        # Set cost data
+        if rich_data.get("cost"):
+            updates["pydantic_cost"] = PydanticAICost(**rich_data["cost"])
+
+        # Set messages data
+        if rich_data.get("messages"):
+            messages = []
+            for msg_data in rich_data["messages"]:
+                # Handle timestamp parsing for messages
+                if msg_data.get("timestamp") and isinstance(msg_data["timestamp"], str):
+                    from sifaka.core.thought.utils import parse_timestamp
+
+                    msg_data["timestamp"] = parse_timestamp(msg_data["timestamp"])
+                messages.append(PydanticAIMessage(**msg_data))
+            updates["pydantic_messages"] = messages
+
+        # Set metadata
+        if rich_data.get("metadata"):
+            updates["pydantic_metadata"] = rich_data["metadata"]
+
+        return self.model_copy(update=updates)
+
+    def get_total_cost(self) -> Optional[float]:
+        """Get the total cost from PydanticAI data if available."""
+        if self.pydantic_cost:
+            return self.pydantic_cost.total_cost
+        return None
+
+    def get_total_tokens(self) -> Optional[int]:
+        """Get the total token count from PydanticAI data if available."""
+        if self.pydantic_usage:
+            return self.pydantic_usage.total_tokens
+        return None
+
+    def has_pydantic_data(self) -> bool:
+        """Check if this thought has any PydanticAI rich data."""
+        return any(
+            [
+                self.pydantic_usage,
+                self.pydantic_cost,
+                self.pydantic_messages,
+                self.pydantic_metadata,
+            ]
+        )
+
     def to_dict(self, exclude_prompt: bool = False) -> Dict[str, Any]:
         """Convert the Thought to a dictionary.
 
@@ -194,6 +288,12 @@ class Thought(BaseModel):
             for ref in data["history"]:
                 if ref.get("timestamp") and hasattr(ref["timestamp"], "isoformat"):
                     ref["timestamp"] = ref["timestamp"].isoformat()
+
+        # Convert PydanticAI message timestamps to strings for JSON serialization
+        if data.get("pydantic_messages"):
+            for msg in data["pydantic_messages"]:
+                if msg.get("timestamp") and hasattr(msg["timestamp"], "isoformat"):
+                    msg["timestamp"] = msg["timestamp"].isoformat()
 
         return data
 
@@ -224,5 +324,11 @@ class Thought(BaseModel):
                     validator_name = result_data.get("validator_name", "unknown_validator")
                     validation_dict[validator_name] = ValidationResult(**result_data)
             data["validation_results"] = validation_dict
+
+        # Handle PydanticAI message timestamp parsing
+        if "pydantic_messages" in data and data["pydantic_messages"]:
+            for msg in data["pydantic_messages"]:
+                if "timestamp" in msg:
+                    msg["timestamp"] = parse_timestamp(msg["timestamp"])
 
         return cls.model_validate(data)

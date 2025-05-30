@@ -51,6 +51,9 @@ class GenerationExecutor:
                 # Extract comprehensive metadata
                 metadata = self.data_extractor.extract_metadata(result, thought.prompt)
 
+                # Extract rich PydanticAI data
+                rich_data = self.data_extractor.extract_rich_data(result)
+
                 thought = thought.model_copy(
                     update={
                         # Don't increment iteration for initial generation - stay on iteration 0
@@ -59,6 +62,9 @@ class GenerationExecutor:
                         "system_prompt": metadata["system_prompt"],
                     }
                 )
+
+                # Add PydanticAI rich data to thought
+                thought = thought.set_pydantic_data(rich_data)
 
                 logger.debug(f"Agent generated {len(output)} characters")
                 return thought
@@ -93,6 +99,9 @@ class GenerationExecutor:
                 # Extract and update metadata for improvement iteration
                 metadata = self.data_extractor.extract_metadata(result, improvement_prompt)
 
+                # Extract rich PydanticAI data for improvement
+                rich_data = self.data_extractor.extract_rich_data(result)
+
                 current_thought = current_thought.model_copy(
                     update={
                         "model_name": metadata["model_name"],
@@ -100,6 +109,9 @@ class GenerationExecutor:
                         "system_prompt": metadata["system_prompt"],
                     }
                 )
+
+                # Add PydanticAI rich data to improvement thought
+                current_thought = current_thought.set_pydantic_data(rich_data)
 
                 logger.debug(f"Improvement generated {len(improved_text)} characters")
                 return current_thought
