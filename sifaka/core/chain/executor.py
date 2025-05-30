@@ -8,12 +8,13 @@ wrapping async implementations using asyncio.run() for backward compatibility.
 """
 
 import asyncio
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from sifaka.core.chain.config import ChainConfig
 from sifaka.core.chain.orchestrator import ChainOrchestrator
 from sifaka.core.interfaces import Critic, Validator
 from sifaka.core.thought import CriticFeedback, Thought, ValidationResult
+from sifaka.critics.feedback_summarizer import FeedbackSummarizer
 from sifaka.utils.error_handling import chain_context
 from sifaka.utils.logging import get_logger
 from sifaka.utils.performance import time_operation
@@ -37,6 +38,25 @@ class ChainExecutor:
         """
         self.config = config
         self.orchestrator = orchestrator
+
+        # Initialize feedback summarizer if enabled
+        self.feedback_summarizer: Optional[FeedbackSummarizer] = None
+        if config.get_option("summarize_feedback", False):
+            try:
+                self.feedback_summarizer = FeedbackSummarizer(
+                    model_name=config.get_option("summarizer_model", "t5-small"),
+                    model_type=config.get_option("summarizer_type", "auto"),
+                    max_length=config.get_option("summarizer_max_length", 150),
+                    min_length=20,
+                    cache_summaries=True,
+                    fallback_to_truncation=True,
+                )
+                logger.debug(
+                    f"Initialized FeedbackSummarizer with model: {config.get_option('summarizer_model', 't5-small')}"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to initialize FeedbackSummarizer: {e}")
+                self.feedback_summarizer = None
 
     def execute_generation(self, thought: Thought) -> Thought:
         """Execute text generation using the configured model.
@@ -140,7 +160,10 @@ class ChainExecutor:
             all_passed = True
             for i, result in enumerate(validation_results):
                 validator = self.config.validators[i]
-                validator_name = getattr(validator, "name", validator.__class__.__name__)
+                # Ensure validator_name is always a string
+                validator_name = getattr(validator, "name", None)
+                if not isinstance(validator_name, str):
+                    validator_name = validator.__class__.__name__
 
                 if isinstance(result, Exception):
                     logger.error(f"Validation error for {validator_name}: {result}")
@@ -171,10 +194,69 @@ class ChainExecutor:
                 message_prefix=f"Async validation failed for {validator.__class__.__name__}",
                 metadata={"validator_name": validator.__class__.__name__},
             ):
-                return await validator._validate_async(thought)  # type: ignore
+                # Check if validator has async method, otherwise use sync
+                if hasattr(validator, "_validate_async"):
+                    return await validator._validate_async(thought)  # type: ignore
+                else:
+                    # Fall back to sync validation for validators without async support
+                    return validator.validate(thought)
         except Exception as e:
             # Return a failed validation result for the error
             return ValidationResult(passed=False, message=f"Validation error: {str(e)}", score=0.0)
+
+    def _create_critic_feedback(
+        self, critic: Critic, feedback_dict: Dict[str, Any]
+    ) -> CriticFeedback:
+        """Create a CriticFeedback object from a feedback dictionary.
+
+        Args:
+            critic: The critic that generated the feedback.
+            feedback_dict: The feedback dictionary from the critic.
+
+        Returns:
+            A CriticFeedback object.
+        """
+        # Extract the main feedback text (try multiple possible fields)
+        main_feedback = (
+            feedback_dict.get("message")
+            or feedback_dict.get("critique")
+            or feedback_dict.get("feedback", "")
+        )
+
+        # Add critic model information to metadata
+        enhanced_metadata = dict(feedback_dict)
+        if hasattr(critic, "model") and hasattr(critic.model, "model_name"):
+            enhanced_metadata["critic_model_name"] = critic.model.model_name
+
+        return CriticFeedback(
+            critic_name=critic.__class__.__name__,
+            feedback=main_feedback,
+            needs_improvement=feedback_dict.get("needs_improvement", False),
+            confidence=feedback_dict.get("confidence", 0.8),
+            violations=feedback_dict.get("issues", []),
+            suggestions=feedback_dict.get("suggestions", []),
+            metadata=enhanced_metadata,
+        )
+
+    def _create_error_feedback(self, critic_name: str, error: Exception) -> CriticFeedback:
+        """Create error feedback for a failed critic.
+
+        Args:
+            critic_name: Name of the critic that failed.
+            error: The exception that occurred.
+
+        Returns:
+            A CriticFeedback object representing the error.
+        """
+        return CriticFeedback(
+            critic_name=critic_name,
+            feedback=f"Criticism error: {str(error)}",
+            needs_improvement=True,
+            confidence=0.0,
+            violations=[f"Criticism error: {str(error)}"],
+            suggestions=["Please try again or check the critic configuration."],
+            metadata={"error": str(error)},
+        )
 
     def execute_criticism(self, thought: Thought) -> Thought:
         """Execute criticism using all configured critics.
@@ -200,44 +282,13 @@ class ChainExecutor:
                         metadata={"critic_name": critic.__class__.__name__},
                     ):
                         feedback_dict = critic.critique(thought)
-
-                        # Convert the dictionary to a CriticFeedback object
-                        # Extract the main feedback text (try multiple possible fields)
-                        main_feedback = (
-                            feedback_dict.get("message")
-                            or feedback_dict.get("critique")
-                            or feedback_dict.get("feedback", "")
-                        )
-
-                        # Add critic model information to metadata
-                        enhanced_metadata = dict(feedback_dict)
-                        if hasattr(critic, "model") and hasattr(critic.model, "model_name"):
-                            enhanced_metadata["critic_model_name"] = critic.model.model_name
-
-                        feedback = CriticFeedback(
-                            critic_name=critic.__class__.__name__,
-                            feedback=main_feedback,  # Store main feedback as string
-                            needs_improvement=feedback_dict.get("needs_improvement", False),
-                            confidence=feedback_dict.get("confidence", 0.8),
-                            violations=feedback_dict.get("issues", []),
-                            suggestions=feedback_dict.get("suggestions", []),
-                            metadata=enhanced_metadata,  # Store the full feedback dict with model info in metadata
-                        )
-
+                        feedback = self._create_critic_feedback(critic, feedback_dict)
                         thought = thought.add_critic_feedback(feedback)
                         logger.debug(f"Added feedback from {critic.__class__.__name__}")
 
                 except Exception as e:
                     logger.error(f"Criticism error for {critic.__class__.__name__}: {e}")
-                    # Create error feedback
-                    error_feedback = CriticFeedback(
-                        critic_name=critic.__class__.__name__,
-                        feedback=f"Criticism error: {str(e)}",
-                        confidence=0.0,
-                        violations=[f"Criticism error: {str(e)}"],
-                        suggestions=["Please try again or check the critic configuration."],
-                        metadata={"error": str(e)},
-                    )
+                    error_feedback = self._create_error_feedback(critic.__class__.__name__, e)
                     thought = thought.add_critic_feedback(error_feedback)
 
             return thought
@@ -273,40 +324,10 @@ class ChainExecutor:
 
                 if isinstance(result, Exception):
                     logger.error(f"Criticism error for {critic_name}: {result}")
-                    # Create error feedback
-                    error_feedback = CriticFeedback(
-                        critic_name=critic_name,
-                        feedback=f"Criticism error: {str(result)}",
-                        needs_improvement=True,
-                        confidence=0.0,
-                        violations=[f"Criticism error: {str(result)}"],
-                        suggestions=["Please try again or check the critic configuration."],
-                        metadata={"error": str(result)},
-                    )
+                    error_feedback = self._create_error_feedback(critic_name, result)
                     thought = thought.add_critic_feedback(error_feedback)
                 elif isinstance(result, dict):
-                    # Convert the dictionary to a CriticFeedback object
-                    # Extract the main feedback text (try multiple possible fields)
-                    main_feedback = (
-                        result.get("message")
-                        or result.get("critique")
-                        or result.get("feedback", "")
-                    )
-
-                    # Add critic model information to metadata
-                    enhanced_metadata = dict(result)
-                    if hasattr(critic, "model") and hasattr(critic.model, "model_name"):
-                        enhanced_metadata["critic_model_name"] = critic.model.model_name
-
-                    feedback = CriticFeedback(
-                        critic_name=critic_name,
-                        feedback=main_feedback,  # Store main feedback as string
-                        needs_improvement=result.get("needs_improvement", False),
-                        confidence=result.get("confidence", 0.8),
-                        violations=result.get("issues", []),
-                        suggestions=result.get("suggestions", []),
-                        metadata=enhanced_metadata,  # Store the full feedback dict with model info in metadata
-                    )
+                    feedback = self._create_critic_feedback(critic, result)
                     thought = thought.add_critic_feedback(feedback)
                     logger.debug(f"Added async feedback from {critic_name}")
 
@@ -320,7 +341,12 @@ class ChainExecutor:
                 message_prefix=f"Async criticism failed for {critic.__class__.__name__}",
                 metadata={"critic_name": critic.__class__.__name__},
             ):
-                return await critic._critique_async(thought)  # type: ignore
+                # Check if critic has async method, otherwise use sync
+                if hasattr(critic, "_critique_async"):
+                    return await critic._critique_async(thought)  # type: ignore
+                else:
+                    # Fall back to sync criticism for critics without async support
+                    return critic.critique(thought)
         except Exception as e:
             # Return error feedback dict
             return {"error": str(e), "confidence": 0.0, "issues": [str(e)], "suggestions": []}
@@ -416,6 +442,33 @@ class ChainExecutor:
                                     temp_thought = thought.model_copy(
                                         update={"text": original_text}
                                     )
+
+                                    # Apply feedback summarization if enabled
+                                    if self.feedback_summarizer is not None:
+                                        try:
+                                            # Summarize the feedback and add it to the thought's metadata
+                                            summarized_feedback = (
+                                                self.feedback_summarizer.summarize_thought_feedback(
+                                                    temp_thought
+                                                )
+                                            )
+                                            logger.debug(
+                                                f"Summarized feedback: {summarized_feedback[:100]}..."
+                                            )
+
+                                            # Add summarized feedback to the thought's metadata for the critic to use
+                                            metadata = (
+                                                temp_thought.metadata.copy()
+                                                if temp_thought.metadata
+                                                else {}
+                                            )
+                                            metadata["summarized_feedback"] = summarized_feedback
+                                            temp_thought = temp_thought.model_copy(
+                                                update={"metadata": metadata}
+                                            )
+                                        except Exception as e:
+                                            logger.warning(f"Failed to summarize feedback: {e}")
+
                                     improved_text = critic.improve(temp_thought)
                                 else:
                                     # Fall back to regular generation if no original text available
@@ -510,12 +563,7 @@ class ChainExecutor:
         Args:
             thought: The thought to save.
         """
-        try:
-            # Save by thought ID only - let storage backends handle their own key strategies
-            await self.config.storage._set_async(thought.id, thought)
-            logger.debug(f"Saved thought (iteration {thought.iteration}) to storage")
-        except Exception as e:
-            logger.warning(f"Failed to save thought to storage: {e}")
+        await self._save_thought_to_storage_impl(thought, async_mode=True)
 
     def _save_thought_to_storage(self, thought: Thought) -> None:
         """Save a thought to the configured storage (sync wrapper).
@@ -523,9 +571,23 @@ class ChainExecutor:
         Args:
             thought: The thought to save.
         """
+        asyncio.run(self._save_thought_to_storage_impl(thought, async_mode=False))
+
+    async def _save_thought_to_storage_impl(
+        self, thought: Thought, async_mode: bool = True
+    ) -> None:
+        """Implementation for saving thoughts to storage.
+
+        Args:
+            thought: The thought to save.
+            async_mode: Whether to use async storage methods.
+        """
         try:
             # Save by thought ID only - let storage backends handle their own key strategies
-            self.config.storage.set(thought.id, thought)
+            if async_mode and hasattr(self.config.storage, "_set_async"):
+                await self.config.storage._set_async(thought.id, thought)
+            else:
+                self.config.storage.set(thought.id, thought)
             logger.debug(f"Saved thought (iteration {thought.iteration}) to storage")
         except Exception as e:
             logger.warning(f"Failed to save thought to storage: {e}")

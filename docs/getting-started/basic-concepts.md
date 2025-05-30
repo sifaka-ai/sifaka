@@ -2,9 +2,42 @@
 
 Understanding Sifaka's core concepts will help you build more effective AI applications. This guide covers the fundamental building blocks and how they work together.
 
+## 🚨 **Current Status (v0.2.1)**
+
+**Important**: This guide reflects current limitations in Sifaka 0.2.1:
+- **⚠️ HuggingFace Models**: Temporarily disabled due to PydanticAI dependency conflicts
+- **⚠️ Guardrails AI**: Temporarily disabled due to griffe version incompatibility
+- **⚠️ MCP Storage**: Redis and Milvus backends experiencing issues (use Memory/File storage)
+- **✅ PydanticAI Chain**: Now the primary and recommended approach
+
 ## Core Architecture
 
-Sifaka uses a **Thought-centric architecture** where everything revolves around a central state container:
+Sifaka uses a **Thought-centric architecture** where everything revolves around a central state container. The framework now supports two architectural approaches:
+
+### 🚀 Modern PydanticAI Architecture (Recommended)
+
+```mermaid
+graph TD
+    A[Prompt] --> B[PydanticAI Agent]
+    B --> C[Tool Calls]
+    C --> D[Generated Response]
+    D --> E[Thought Container]
+    E --> F[Sifaka Validators]
+    F --> G{Valid?}
+    G -->|No| H[Sifaka Critics]
+    H --> I[Improvement Feedback]
+    I --> B
+    G -->|Yes| J[Final Result]
+
+    K[Retrievers] --> B
+    K --> H
+
+    style B fill:#f0f8ff
+    style E fill:#e1f5fe
+    style J fill:#e8f5e8
+```
+
+### 🏗️ Traditional Architecture (Deprecated)
 
 ```mermaid
 graph TD
@@ -165,6 +198,23 @@ if critique_result['needs_improvement']:
     print(f"Improved: {improved_text}")
 ```
 
+### Feedback Summarization
+
+Critics can be enhanced with automatic feedback summarization to create more focused improvement prompts:
+
+```python
+from sifaka.critics import FeedbackSummarizer
+
+# Create a summarizer
+summarizer = FeedbackSummarizer(model_name="t5-small")
+
+# Summarize feedback from validation and critics
+summary = summarizer.summarize_thought_feedback(thought)
+print(f"Feedback summary: {summary}")
+```
+
+This feature helps reduce prompt length and improve the quality of iterative improvements by condensing verbose feedback into actionable summaries.
+
 ## The Chain
 
 The **Chain** orchestrates the entire workflow, coordinating models, validators, and critics.
@@ -172,21 +222,22 @@ The **Chain** orchestrates the entire workflow, coordinating models, validators,
 ### Basic Chain
 
 ```python
-from sifaka import Chain
+from sifaka.agents import create_pydantic_chain
+from pydantic_ai import Agent
 
-# Create a chain
-chain = Chain(
-    model=model,
-    prompt="Write a story about AI",
+# Create PydanticAI agent
+agent = Agent("openai:gpt-4", system_prompt="Write a story about AI")
+
+# Create modern PydanticAI chain
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[length_validator],
+    critics=[reflexion_critic],
     max_improvement_iterations=3
 )
 
-# Add validators and critics
-chain.validate_with(length_validator)
-chain.improve_with(reflexion_critic)
-
 # Run the chain
-result = chain.run()
+result = chain.run("Write a story about AI")
 ```
 
 ### Chain Execution Flow
@@ -235,28 +286,34 @@ Storage systems persist Thoughts for later analysis, caching, and debugging.
 ### Storage Backends
 
 ```python
-from sifaka.storage import MemoryStorage, FileStorage, RedisStorage
+from sifaka.storage import MemoryStorage, FileStorage
 
-# Memory storage (temporary)
+# ✅ Memory storage (temporary) - Working
 memory_storage = MemoryStorage()
 
-# File storage (persistent)
+# ✅ File storage (persistent) - Working
 file_storage = FileStorage(directory="./thoughts")
 
-# Redis storage (fast, persistent)
-redis_storage = RedisStorage(redis_config)
+# ⚠️ Redis storage - Currently broken (MCP issues)
+# redis_storage = RedisStorage(redis_config)
+
+# ⚠️ Milvus storage - Currently broken (MCP issues)
+# milvus_storage = MilvusStorage(milvus_config)
 ```
+
+> **⚠️ Current Limitation**: Redis and Milvus storage backends are experiencing MCP integration issues. Use Memory or File storage for now.
 
 ## Putting It All Together
 
 Here's how all the concepts work together:
 
 ```python
-from sifaka import Chain
+from sifaka.agents import create_pydantic_chain
 from sifaka.models import create_model
 from sifaka.validators import LengthValidator
 from sifaka.critics import ReflexionCritic
 from sifaka.storage import MemoryStorage
+from pydantic_ai import Agent
 
 # Create components
 model = create_model("openai:gpt-4")
@@ -264,20 +321,20 @@ validator = LengthValidator(min_length=100, max_length=1000)
 critic = ReflexionCritic(model=model)
 storage = MemoryStorage()
 
-# Build chain
-chain = Chain(
-    model=model,
-    prompt="Write an engaging story about AI helping humanity",
+# Create PydanticAI agent
+agent = Agent("openai:gpt-4", system_prompt="Write an engaging story about AI helping humanity")
+
+# Build modern PydanticAI chain
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[validator],
+    critics=[critic],
     storage=storage,
     max_improvement_iterations=3
 )
 
-# Configure validation and improvement
-chain.validate_with(validator)
-chain.improve_with(critic)
-
-# Run and get complete results
-thought = chain.run()
+# Run and get complete results (validators and critics are automatically applied)
+thought = chain.run("Write an engaging story about AI helping humanity")
 
 # Access all the information
 print(f"Final text: {thought.text}")
@@ -304,8 +361,9 @@ Now that you understand the core concepts:
 1. **[Explore examples](../../examples/)** - See real-world usage patterns
 2. **[Custom models guide](../guides/custom-models.md)** - Create your own model integrations
 3. **[Custom validators guide](../guides/custom-validators.md)** - Build domain-specific validation
-4. **[Storage setup guide](../guides/storage-setup.md)** - Configure persistent storage
-5. **[API reference](../api/API_REFERENCE.md)** - Complete technical documentation
+4. **[Feedback summarizer guide](../feedback-summarizer.md)** - Enhance critics with automatic feedback summarization
+5. **[Storage setup guide](../guides/storage-setup.md)** - Configure persistent storage
+6. **[API reference](../api/API_REFERENCE.md)** - Complete technical documentation
 
 ## Common Patterns
 

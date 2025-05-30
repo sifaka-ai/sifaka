@@ -35,18 +35,23 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
+from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
+from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
 
-class NCriticsCritic(BaseCritic):
-    """Critic that uses an ensemble of specialized critics.
+class NCriticsCritic(BaseCritic, ValidationAwareMixin):
+    """Critic that uses an ensemble of specialized critics with validation awareness.
 
     This critic implements the N-Critics technique, which leverages an ensemble
     of specialized critics, each focusing on different aspects of the text,
     to provide comprehensive feedback and guide the refinement process.
+
+    Enhanced with validation context awareness to prioritize validation constraints
+    over conflicting N-Critics suggestions.
     """
 
     def __init__(
@@ -57,6 +62,7 @@ class NCriticsCritic(BaseCritic):
         critic_roles: Optional[List[str]] = None,
         critique_prompt_template: Optional[str] = None,
         improve_prompt_template: Optional[str] = None,
+        improvement_threshold: float = 7.0,
         **model_kwargs: Any,
     ):
         """Initialize the N-Critics critic.
@@ -68,11 +74,13 @@ class NCriticsCritic(BaseCritic):
             critic_roles: List of specialized critic roles/perspectives.
             critique_prompt_template: Template for the critique prompt.
             improve_prompt_template: Template for the improvement prompt.
+            improvement_threshold: Score threshold below which improvement is needed (default: 7.0).
             **model_kwargs: Additional keyword arguments for model creation.
         """
         super().__init__(model=model, model_name=model_name, **model_kwargs)
 
         self.num_critics = num_critics
+        self.improvement_threshold = improvement_threshold
 
         # Set up critic roles
         self.critic_roles = (
@@ -137,7 +145,7 @@ class NCriticsCritic(BaseCritic):
         valid_critiques = []
         for i, result in enumerate(critic_critiques):
             if isinstance(result, Exception):
-                logger.error(f"NCriticsCritic: Error in critic {i+1}: {result}")
+                logger.error(f"NCriticsCritic: Error in critic {i + 1}: {result}")
                 # Create error critique
                 error_critique = {
                     "role": self.critic_roles[i],
@@ -165,7 +173,9 @@ class NCriticsCritic(BaseCritic):
                 all_suggestions.extend(critique["suggestions"])
 
         # Determine if improvement is needed
-        needs_improvement = aggregated_feedback.get("average_score", 5.0) < 7.0
+        needs_improvement = (
+            aggregated_feedback.get("average_score", 5.0) < self.improvement_threshold
+        )
 
         logger.debug(f"NCriticsCritic: Completed with {len(valid_critiques)} critics")
 
@@ -178,6 +188,7 @@ class NCriticsCritic(BaseCritic):
             "metadata": {
                 "critic_feedback": valid_critiques,
                 "aggregated_score": aggregated_feedback["average_score"],
+                "improvement_threshold": self.improvement_threshold,
                 "num_critics": len(valid_critiques),
             },
         }
@@ -190,6 +201,25 @@ class NCriticsCritic(BaseCritic):
 
         Returns:
             The improved text based on aggregated critic feedback.
+
+        Raises:
+            ImproverError: If the improvement fails.
+        """
+        # Use the enhanced method with validation context from thought
+        validation_context = create_validation_context(getattr(thought, "validation_results", None))
+        return self.improve_with_validation_context(thought, validation_context)
+
+    def improve_with_validation_context(
+        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Improve text with validation context awareness.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+            validation_context: Optional validation context for constraint awareness.
+
+        Returns:
+            The improved text that prioritizes validation constraints.
 
         Raises:
             ImproverError: If the improvement fails.
@@ -242,19 +272,36 @@ class NCriticsCritic(BaseCritic):
             # Prepare context for improvement (using mixin)
             context = self._prepare_context(thought)
 
-            # Create improvement prompt with context
-            improve_prompt = self.improve_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                aggregated_feedback=aggregated_feedback,
-                context=context,
-            )
+            # Create improvement prompt with validation awareness
+            if validation_context:
+                # Use enhanced prompt with validation awareness
+                improve_prompt = self._create_enhanced_improvement_prompt(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    critique=aggregated_feedback,
+                    context=context,
+                    validation_context=validation_context,
+                    critic_suggestions=[],  # NCriticsCritic has complex aggregated suggestions
+                )
+            else:
+                # Use original prompt template
+                improve_prompt = self.improve_prompt_template.format(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    aggregated_feedback=aggregated_feedback,
+                    context=context,
+                )
 
-            # Generate improved text
-            improved_text = self.model.generate(
-                prompt=improve_prompt,
-                system_prompt="You are an expert editor incorporating feedback from multiple specialized critics.",
-            )
+            # Generate improved text with error handling
+            try:
+                improved_text = self.model.generate(
+                    prompt=improve_prompt,
+                    system_prompt="You are an expert editor incorporating feedback from multiple specialized critics.",
+                )
+            except Exception as e:
+                logger.error(f"NCriticsCritic improvement generation failed: {e}")
+                # Fallback: return original text with a note about the failure
+                return f"{thought.text}\n\n[Note: Improvement generation failed due to: {str(e)}]"
 
             # Calculate processing time
             processing_time = (time.time() - start_time) * 1000
@@ -284,11 +331,18 @@ class NCriticsCritic(BaseCritic):
             context=context,
         )
 
-        # Generate critique (async)
-        critique_response = await self.model._generate_async(
-            prompt=critique_prompt,
-            system_message=f"You are a specialized critic with the role: {role}",
-        )
+        # Generate critique (async) with error handling
+        try:
+            critique_response = await self.model._generate_async(
+                prompt=critique_prompt,
+                system_message=f"You are a specialized critic with the role: {role}",
+            )
+        except Exception as e:
+            logger.error(f"NCriticsCritic async generation failed for role '{role}': {e}")
+            # Return a fallback critique
+            critique_response = (
+                f"Error generating critique for {role}: {str(e)}. Please review the text manually."
+            )
 
         # Extract score and determine improvement need
         score = self._extract_score_from_critique(critique_response)

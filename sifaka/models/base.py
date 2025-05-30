@@ -46,21 +46,39 @@ def create_model(
     model_spec: str,
     **kwargs: Any,
 ) -> Model:
-    """Create a model instance based on provider and model name.
+    """Create a unified model instance using PydanticAI.
 
-    This factory function creates a model instance based on the provider and model name.
+    This factory function creates model instances using a unified PydanticAI backend
+    for all major providers (OpenAI, Anthropic, Gemini, Ollama). This provides
+    consistent behavior, better reliability, and access to modern features like
+    tool calling and structured outputs across all providers.
+
     The model_spec can be in the format "provider:model_name" or just "model_name".
     If only "model_name" is provided, the provider is inferred from the model name.
 
     Args:
         model_spec: The model specification in the format "provider:model_name" or "model_name".
-        **kwargs: Additional keyword arguments to pass to the model constructor.
+                   Examples: "openai:gpt-4", "anthropic:claude-3-sonnet", "ollama:llama2"
+        **kwargs: Additional keyword arguments passed to the PydanticAI Agent constructor.
 
     Returns:
-        A model instance.
+        A PydanticAIModel instance (or MockModel/HuggingFaceModel for special cases).
 
     Raises:
         ConfigurationError: If the provider is not supported or the model cannot be created.
+
+    Example:
+        ```python
+        from sifaka.models.base import create_model
+
+        # All of these now use the unified PydanticAI backend:
+        openai_model = create_model("openai:gpt-4", api_key="your-key")
+        anthropic_model = create_model("anthropic:claude-3-sonnet")
+        ollama_model = create_model("ollama:llama2")
+
+        # Critics work seamlessly with all models:
+        critic = ReflexionCritic(model=openai_model)
+        ```
     """
     # Parse the model specification
     if ":" in model_spec:
@@ -79,43 +97,51 @@ def create_model(
 
     # Create the model based on the provider
     try:
-        if provider == "openai":
-            # Import the OpenAI model implementation
-            from sifaka.models.openai import create_openai_model
-
-            return create_openai_model(model_name=model_name, **kwargs)
-        elif provider == "anthropic":
-            # Import the Anthropic model implementation
-            from sifaka.models.anthropic import create_anthropic_model
-
-            return create_anthropic_model(model_name=model_name, **kwargs)  # type: ignore
+        # Handle special cases first
+        if provider == "mock":
+            # Keep mock model for testing
+            return MockModel(model_name=model_name, **kwargs)
         elif provider == "huggingface":
-            # Import the HuggingFace model implementation
+            # Keep HuggingFace legacy implementation (PydanticAI doesn't support HF yet)
             from sifaka.models.huggingface import create_huggingface_model
 
             return create_huggingface_model(model_name=model_name, **kwargs)
-        elif provider == "ollama":
-            # Import the Ollama model implementation
-            from sifaka.models.ollama import create_ollama_model
 
-            return create_ollama_model(model_name=model_name, **kwargs)
-        elif provider == "gemini":
-            # Import the Gemini model implementation
-            from sifaka.models.gemini import create_gemini_model
+        # All other providers use unified PydanticAI model
+        elif provider in ["openai", "anthropic", "gemini", "ollama", "pydantic-ai"]:
+            try:
+                from pydantic_ai import Agent
 
-            return create_gemini_model(model_name=model_name, **kwargs)
-        elif provider == "mock":
-            # Create a mock model for testing
-            return MockModel(model_name=model_name, **kwargs)
+                from sifaka.models.pydantic_ai import create_pydantic_ai_model
+
+                # For explicit pydantic-ai provider, use model_name directly
+                # For other providers, reconstruct the full model spec
+                if provider == "pydantic-ai":
+                    agent_model_spec = model_name
+                else:
+                    agent_model_spec = f"{provider}:{model_name}"
+
+                # Create agent from model spec and kwargs
+                agent = Agent(agent_model_spec, **kwargs)
+                return create_pydantic_ai_model(agent, model_name=agent_model_spec)
+
+            except ImportError:
+                raise ConfigurationError(
+                    "PydanticAI is not available. Please install it with: pip install pydantic-ai",
+                    suggestions=[
+                        "Install PydanticAI: pip install pydantic-ai",
+                        "Or use uv: uv add pydantic-ai",
+                    ],
+                )
         else:
             raise ConfigurationError(
                 f"Unsupported model provider: {provider}",
                 suggestions=[
-                    "Use 'openai' for OpenAI models",
-                    "Use 'anthropic' for Anthropic models",
-                    "Use 'huggingface' for HuggingFace models",
-                    "Use 'ollama' for Ollama models",
-                    "Use 'gemini' for Google Gemini models",
+                    "Use 'openai' for OpenAI models (via PydanticAI)",
+                    "Use 'anthropic' for Anthropic models (via PydanticAI)",
+                    "Use 'gemini' for Google Gemini models (via PydanticAI)",
+                    "Use 'ollama' for Ollama models (via PydanticAI)",
+                    "Use 'huggingface' for HuggingFace models (legacy)",
                     "Use 'mock' for mock models",
                 ],
             )

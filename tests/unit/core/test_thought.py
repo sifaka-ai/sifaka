@@ -8,7 +8,6 @@ including initialization, validation results, critic feedback, and serialization
 import json
 from datetime import datetime
 
-
 from sifaka.core.thought import CriticFeedback, Thought
 from sifaka.validators.shared import ValidationResult
 

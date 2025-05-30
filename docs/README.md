@@ -2,7 +2,15 @@
 
 Welcome to the Sifaka documentation! This guide will help you get started with Sifaka and make the most of its powerful features.
 
-## 🚀 Getting Started
+## � **Current Status (v0.2.1)**
+
+**Important**: Sifaka 0.2.1 introduces temporary compatibility changes due to dependency conflicts:
+- **⚠️ HuggingFace Models**: Temporarily disabled due to PydanticAI dependency conflicts
+- **⚠️ Guardrails AI**: Temporarily disabled due to griffe version incompatibility
+- **⚠️ MCP Storage**: Redis and Milvus backends experiencing issues
+- **✅ PydanticAI Chain**: Now the primary and recommended approach with full feature parity
+
+## �🚀 Getting Started
 
 New to Sifaka? Start here:
 
@@ -100,12 +108,14 @@ docs/
 
 Looking for working examples? Check out the [examples directory](../examples/) in the repository:
 
-- **[OpenAI Examples](../examples/openai/)** - Using OpenAI models
-- **[Anthropic Examples](../examples/anthropic/)** - Using Claude models
-- **[Google Gemini Examples](../examples/gemini/)** - Using Gemini models
-- **[HuggingFace Examples](../examples/huggingface/)** - Using open-source models
-- **[Storage Examples](../examples/thought_caching/)** - Redis and Milvus integration
-- **[Validation Examples](../examples/guardrails/)** - Advanced validation patterns
+- **[OpenAI Examples](../examples/openai/)** - Using OpenAI models ✅ **Fully supported**
+- **[Anthropic Examples](../examples/anthropic/)** - Using Claude models ✅ **Fully supported**
+- **[Google Gemini Examples](../examples/gemini/)** - Using Gemini models ✅ **Fully supported**
+- **[Ollama Examples](../examples/ollama/)** - Using local models ✅ **Fully supported**
+- **[Mock Examples](../examples/mock/)** - Development and testing ✅ **Fully supported**
+- **~~HuggingFace Examples~~** - ⚠️ **Temporarily disabled** due to dependency conflicts
+- **~~Storage Examples~~** - ⚠️ **MCP storage currently broken** (use Memory/File storage)
+- **~~Validation Examples~~** - ⚠️ **Guardrails temporarily disabled** (use built-in validators)
 
 ## 🆘 Getting Help
 

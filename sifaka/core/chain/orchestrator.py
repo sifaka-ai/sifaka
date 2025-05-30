@@ -4,6 +4,8 @@ This module contains the ChainOrchestrator class which handles high-level
 workflow coordination for chain execution.
 """
 
+from typing import List
+
 from sifaka.core.chain.config import ChainConfig
 from sifaka.core.thought import Document, Thought
 from sifaka.utils.logging import get_logger
@@ -48,35 +50,35 @@ class ChainOrchestrator:
             logger.warning(f"Unknown retrieval phase: {phase}")
             return thought
 
-    def _handle_pre_generation_retrieval(self, thought: Thought) -> Thought:
-        """Handle pre-generation retrieval using model retrievers.
+    def _retrieve_documents(self, retrievers, query: str, retrieval_type: str) -> List[Document]:
+        """Generic document retrieval method.
 
         Args:
-            thought: The current thought state.
+            retrievers: List of retrievers to use.
+            query: Query string for retrieval.
+            retrieval_type: Type of retrieval for logging.
 
         Returns:
-            Updated thought with pre-generation context.
+            List of retrieved documents.
         """
-        if not self.config.model_retrievers:
-            logger.debug("No model retrievers configured, skipping pre-generation retrieval")
-            return thought
+        if not retrievers:
+            logger.debug(f"No retrievers configured, skipping {retrieval_type} retrieval")
+            return []
 
-        with time_operation("pre_generation_retrieval"):
-            logger.debug(
-                f"Running pre-generation retrieval with {len(self.config.model_retrievers)} retrievers"
-            )
+        with time_operation(f"{retrieval_type}_retrieval"):
+            logger.debug(f"Running {retrieval_type} retrieval with {len(retrievers)} retrievers")
 
             all_documents = []
-            for retriever in self.config.model_retrievers:
+            for retriever in retrievers:
                 try:
-                    document_texts = retriever.retrieve(thought.prompt)
+                    document_texts = retriever.retrieve(query)
                     # Convert strings to Document objects
                     documents = [
                         Document(
                             text=text,
                             metadata={
                                 "source": retriever.__class__.__name__,
-                                "query": thought.prompt,
+                                "query": query,
                             },
                             score=1.0 - (i * 0.1),  # Simple scoring based on rank
                         )
@@ -88,14 +90,30 @@ class ChainOrchestrator:
                     )
                 except Exception as e:
                     logger.warning(
-                        f"Pre-generation retrieval failed for {retriever.__class__.__name__}: {e}"
+                        f"{retrieval_type.title()} retrieval failed for {retriever.__class__.__name__}: {e}"
                     )
 
-            if all_documents:
-                thought = thought.add_pre_generation_context(all_documents)
-                logger.debug(f"Added {len(all_documents)} documents to pre-generation context")
+            logger.debug(f"Retrieved {len(all_documents)} total documents for {retrieval_type}")
+            return all_documents
 
-            return thought
+    def _handle_pre_generation_retrieval(self, thought: Thought) -> Thought:
+        """Handle pre-generation retrieval using model retrievers.
+
+        Args:
+            thought: The current thought state.
+
+        Returns:
+            Updated thought with pre-generation context.
+        """
+        documents = self._retrieve_documents(
+            self.config.model_retrievers, thought.prompt, "pre_generation"
+        )
+
+        if documents:
+            thought = thought.add_pre_generation_context(documents)
+            logger.debug(f"Added {len(documents)} documents to pre-generation context")
+
+        return thought
 
     def _handle_post_generation_retrieval(self, thought: Thought) -> Thought:
         """Handle post-generation retrieval using model retrievers.
@@ -106,49 +124,19 @@ class ChainOrchestrator:
         Returns:
             Updated thought with post-generation context.
         """
-        if not self.config.model_retrievers:
-            logger.debug("No model retrievers configured, skipping post-generation retrieval")
-            return thought
-
         if not thought.text:
             logger.warning("No generated text available for post-generation retrieval")
             return thought
 
-        with time_operation("post_generation_retrieval"):
-            logger.debug(
-                f"Running post-generation retrieval with {len(self.config.model_retrievers)} retrievers"
-            )
+        documents = self._retrieve_documents(
+            self.config.model_retrievers, thought.text, "post_generation"
+        )
 
-            all_documents = []
-            for retriever in self.config.model_retrievers:
-                try:
-                    document_texts = retriever.retrieve(thought.text)
-                    # Convert strings to Document objects
-                    documents = [
-                        Document(
-                            text=text,
-                            metadata={
-                                "source": retriever.__class__.__name__,
-                                "query": thought.text,
-                            },
-                            score=1.0 - (i * 0.1),  # Simple scoring based on rank
-                        )
-                        for i, text in enumerate(document_texts)
-                    ]
-                    all_documents.extend(documents)
-                    logger.debug(
-                        f"Retrieved {len(documents)} documents from {retriever.__class__.__name__}"
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"Post-generation retrieval failed for {retriever.__class__.__name__}: {e}"
-                    )
+        if documents:
+            thought = thought.add_post_generation_context(documents)
+            logger.debug(f"Added {len(documents)} documents to post-generation context")
 
-            if all_documents:
-                thought = thought.add_post_generation_context(all_documents)
-                logger.debug(f"Added {len(all_documents)} documents to post-generation context")
-
-            return thought
+        return thought
 
     def _handle_critic_retrieval(self, thought: Thought) -> Thought:
         """Handle critic-specific retrieval using critic retrievers.
@@ -159,51 +147,18 @@ class ChainOrchestrator:
         Returns:
             Updated thought with critic context.
         """
-        if not self.config.critic_retrievers:
-            logger.debug("No critic retrievers configured, skipping critic retrieval")
-            return thought
-
         if not thought.text:
             logger.warning("No generated text available for critic retrieval")
             return thought
 
-        with time_operation("critic_retrieval"):
-            logger.debug(
-                f"Running critic retrieval with {len(self.config.critic_retrievers)} retrievers"
-            )
+        documents = self._retrieve_documents(self.config.critic_retrievers, thought.text, "critic")
 
-            all_documents = []
-            for retriever in self.config.critic_retrievers:
-                try:
-                    # Use the generated text as the query for critic retrieval
-                    document_texts = retriever.retrieve(thought.text)
-                    # Convert strings to Document objects
-                    documents = [
-                        Document(
-                            text=text,
-                            metadata={
-                                "source": retriever.__class__.__name__,
-                                "query": thought.text,
-                            },
-                            score=1.0 - (i * 0.1),  # Simple scoring based on rank
-                        )
-                        for i, text in enumerate(document_texts)
-                    ]
-                    all_documents.extend(documents)
-                    logger.debug(
-                        f"Retrieved {len(documents)} documents from {retriever.__class__.__name__}"
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"Critic retrieval failed for {retriever.__class__.__name__}: {e}"
-                    )
+        if documents:
+            # Add to post-generation context since critics use this context
+            thought = thought.add_post_generation_context(documents)
+            logger.debug(f"Added {len(documents)} documents to critic context")
 
-            if all_documents:
-                # Add to post-generation context since critics use this context
-                thought = thought.add_post_generation_context(all_documents)
-                logger.debug(f"Added {len(all_documents)} documents to critic context")
-
-            return thought
+        return thought
 
     def should_apply_critics(self, validation_passed: bool) -> bool:
         """Determine whether critics should be applied based on configuration and validation results.

@@ -32,8 +32,10 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
+from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
+from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
@@ -43,8 +45,8 @@ logger = get_logger(__name__)
 # This leverages the existing Thought infrastructure instead of duplicating it
 
 
-class ReflexionCritic(BaseCritic):
-    """Critic that uses self-reflection to improve text quality.
+class ReflexionCritic(BaseCritic, ValidationAwareMixin):
+    """Critic that uses self-reflection to improve text quality with validation awareness.
 
     This critic implements the Reflexion approach for improving text through
     self-reflection. It performs a critique, reflects on the critique to identify
@@ -54,6 +56,9 @@ class ReflexionCritic(BaseCritic):
     1. Generating an initial critique of the text
     2. Reflecting on the critique to identify specific improvements
     3. Improving the text based on the reflection
+
+    Enhanced with validation context awareness to prioritize validation constraints
+    over conflicting reflection suggestions.
     """
 
     def __init__(
@@ -201,6 +206,25 @@ class ReflexionCritic(BaseCritic):
         Raises:
             ImproverError: If the improvement fails.
         """
+        # Use the enhanced method with validation context from thought
+        validation_context = create_validation_context(getattr(thought, "validation_results", None))
+        return self.improve_with_validation_context(thought, validation_context)
+
+    def improve_with_validation_context(
+        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Improve text with validation context awareness.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+            validation_context: Optional validation context for constraint awareness.
+
+        Returns:
+            The improved text that prioritizes validation constraints.
+
+        Raises:
+            ImproverError: If the improvement fails.
+        """
         start_time = time.time()
 
         with critic_context(
@@ -270,14 +294,29 @@ class ReflexionCritic(BaseCritic):
             # Prepare context for improvement (using mixin)
             context = self._prepare_context(thought)
 
-            # Create improvement prompt with context, critique, and reflection
-            improve_prompt = self.improve_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                context=context,
-                critique=critique_text,
-                reflection=reflection_text,
-            )
+            # Create improvement prompt with validation awareness
+            if validation_context:
+                # Create a critique string for the enhanced prompt
+                critique = f"Critique:\n{critique_text}\n\nReflection:\n{reflection_text}"
+
+                # Use enhanced prompt with validation awareness
+                improve_prompt = self._create_enhanced_improvement_prompt(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    critique=critique,
+                    context=context,
+                    validation_context=validation_context,
+                    critic_suggestions=[],  # ReflexionCritic doesn't have structured suggestions
+                )
+            else:
+                # Use original prompt template
+                improve_prompt = self.improve_prompt_template.format(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    context=context,
+                    critique=critique_text,
+                    reflection=reflection_text,
+                )
 
             # Generate improved text
             improved_text = self.model.generate(
@@ -507,7 +546,7 @@ class ReflexionCritic(BaseCritic):
 
         # Check previous iterations for task feedback
         if thought.history:
-            for ref in thought.history[:3]:  # Check last 3 iterations
+            for _ref in thought.history[:3]:  # Check last 3 iterations
                 # In a real implementation, you'd load the thought from storage
                 # For now, just check if there's feedback info in the reference
                 pass
@@ -569,7 +608,7 @@ class ReflexionCritic(BaseCritic):
         if thought.history:
             attempts = []
             for i, ref in enumerate(thought.history[-3:]):  # Last 3 attempts
-                attempts.append(f"Attempt {i+1}: iteration {ref.iteration}")
+                attempts.append(f"Attempt {i + 1}: iteration {ref.iteration}")
             trial_context["previous_attempts"] = "; ".join(attempts)
 
         return trial_context

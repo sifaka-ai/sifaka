@@ -34,18 +34,23 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
+from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
+from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
 
-class SelfRefineCritic(BaseCritic):
-    """Critic that implements iterative self-refinement.
+class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
+    """Critic that implements iterative self-refinement with validation awareness.
 
     This critic uses the Self-Refine approach to iteratively improve text through
     self-critique and revision. It uses the same language model to critique its
     own output and then revise it based on that critique.
+
+    Enhanced with validation context awareness to prioritize validation constraints
+    over conflicting critic suggestions.
     """
 
     def __init__(
@@ -172,6 +177,25 @@ class SelfRefineCritic(BaseCritic):
         Raises:
             ImproverError: If the improvement fails.
         """
+        # Use the enhanced method with validation context from thought
+        validation_context = create_validation_context(getattr(thought, "validation_results", None))
+        return self.improve_with_validation_context(thought, validation_context)
+
+    def improve_with_validation_context(
+        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Improve text with validation context awareness.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+            validation_context: Optional validation context for constraint awareness.
+
+        Returns:
+            The improved text that prioritizes validation constraints.
+
+        Raises:
+            ImproverError: If the improvement fails.
+        """
         start_time = time.time()
 
         with critic_context(
@@ -218,13 +242,28 @@ class SelfRefineCritic(BaseCritic):
                     )
                     break
 
-                # REFINE: Generate improved text based on critique
-                improve_prompt = self.improve_prompt_template.format(
-                    prompt=thought.prompt,
-                    text=current_text,
-                    critique=critique,
-                    context=context,
-                )
+                # Parse critique to extract suggestions for filtering
+                _, suggestions = self._parse_critique(critique)
+
+                # REFINE: Generate improved text using validation-aware prompt
+                if validation_context:
+                    # Use enhanced prompt with validation awareness
+                    improve_prompt = self._create_enhanced_improvement_prompt(
+                        prompt=thought.prompt,
+                        text=current_text,
+                        critique=critique,
+                        context=context,
+                        validation_context=validation_context,
+                        critic_suggestions=suggestions,
+                    )
+                else:
+                    # Use original prompt template
+                    improve_prompt = self.improve_prompt_template.format(
+                        prompt=thought.prompt,
+                        text=current_text,
+                        critique=critique,
+                        context=context,
+                    )
 
                 # Store the actual prompt for logging/debugging
                 self.last_improvement_prompt = improve_prompt

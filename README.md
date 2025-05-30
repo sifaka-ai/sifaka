@@ -6,16 +6,49 @@
 
 An open-source framework that adds reflection and reliability to large language model (LLM) applications.
 
+## 🚨 **Version 0.2.1 Breaking Changes**
+
+**Sifaka 0.2.1** introduces temporary compatibility changes due to dependency conflicts in the rapidly evolving AI ecosystem:
+
+### **Temporary Removals (Will Be Restored)**
+- **⚠️ HuggingFace Models**: Temporarily disabled due to PydanticAI dependency conflicts
+  - **Impact**: HuggingFace models not available in PydanticAI chains
+  - **Workaround**: Use Traditional chains for HuggingFace models
+  - **Timeline**: Will be restored when PydanticAI adds native HuggingFace support
+
+- **⚠️ Guardrails AI**: Temporarily disabled due to griffe version incompatibility with PydanticAI
+  - **Impact**: GuardrailsValidator not available
+  - **Workaround**: Use built-in validators (Length, Regex, Content, Classifiers)
+  - **Timeline**: Will be restored when dependency conflicts are resolved
+
+- **📚 Updated examples**: Focus on OpenAI, Anthropic, and Gemini models
+
+### **Previous 0.2.0 Changes (Still Active)**
+- **🚀 PydanticAI Chain is now the primary and recommended approach**
+- **⚠️ Traditional Chain is deprecated** (still available but in maintenance mode)
+- **✨ Full feature parity**: PydanticAI chains now support retrievers, making them equivalent to Traditional chains
+- **✅ Enhanced feedback summarization**: T5, BART, and API-based critic feedback summarization
+- **✅ Checkpoint recovery**: Robust chain execution with failure recovery capabilities
+
+**For new projects**: Use PydanticAI Chain with OpenAI, Anthropic, or Gemini models
+**For existing projects**: Consider migrating to PydanticAI Chain (see [Migration Guide](#migration-guide))
+**For HuggingFace/Guardrails users**: Use Traditional Chain temporarily or wait for restoration
+
 ## What is Sifaka?
 
 Sifaka is a tool for adding reflection and reliability to large language model (LLM) applications. It implements research-backed techniques for validating, critiquing, and iteratively improving AI-generated text through a transparent, observable process.
 
-**Core Architecture:**
+**Modern Architecture (PydanticAI Chain):**
+```
+Agent → Tools → Thought → Validators → Critics → Improved Agent
+```
+
+**Legacy Architecture (Traditional Chain):**
 ```
 Thought → Model → Validators → Critics → Improved Thought
 ```
 
-Sifaka implements a **Thought-centric architecture** where a central state container flows through a chain of AI components. Unlike traditional pipeline approaches, every step of the generation process is tracked, validated, and can be iteratively improved.
+Sifaka implements a **Thought-centric architecture** where a central state container flows through a chain of AI components. The modern PydanticAI approach uses agents with tool calling, while the legacy approach uses direct model generation. Both maintain complete audit trails and iterative improvement.
 
 The **Thought** container maintains complete state including:
 - Original prompt and generated text
@@ -39,9 +72,34 @@ The **Thought** container maintains complete state including:
 
 **Complete Observability**: Every iteration, validation, and critique is tracked with full audit trails for debugging and analysis.
 
-**MCP Integration**: Uses Model Context Protocol for standardized external service communication and 3-tier storage (Memory → Redis → Milvus).
+**MCP Integration**: Uses Model Context Protocol for standardized external service communication and 3-tier storage (Memory → Redis → Milvus). ⚠️ *MCP storage currently under repair*
 
 ## How It Works
+
+### 🚀 Modern PydanticAI Chain Architecture
+
+```mermaid
+graph TD
+    A[Prompt] --> B[PydanticAI Agent]
+    B --> C[Tool Calls]
+    C --> D[Generated Response]
+    D --> E[Thought Container]
+    E --> F[Sifaka Validators]
+    F --> G{Valid?}
+    G -->|No| H[Sifaka Critics]
+    H --> I[Improvement Feedback]
+    I --> B
+    G -->|Yes| J[Final Result]
+
+    K[Retrievers] --> B
+    K --> H
+
+    style B fill:#f0f8ff
+    style E fill:#e1f5fe
+    style J fill:#e8f5e8
+```
+
+### 🏗️ Legacy Traditional Chain Architecture
 
 ```mermaid
 graph TD
@@ -112,6 +170,151 @@ pip install sifaka[classifiers]
 # Everything
 pip install sifaka[all]
 ```
+
+## ⚠️ Current Limitations
+
+### HuggingFace Models (Temporarily Unsupported)
+HuggingFace model integration is currently disabled due to dependency conflicts between `pydantic-ai` and HuggingFace libraries. This affects:
+- Direct HuggingFace model usage in PydanticAI chains
+- HuggingFace-specific examples and documentation
+
+**Workaround**: Use OpenAI, Anthropic, or Gemini models with PydanticAI chains. Traditional chains still support HuggingFace models.
+
+**Status**: Will be re-enabled when PydanticAI adds native HuggingFace support or dependency conflicts are resolved.
+
+### Guardrails AI (Temporarily Disabled)
+Guardrails AI integration is currently disabled due to dependency conflicts between `guardrails-ai` and `pydantic-ai` (griffe version incompatibility). This affects:
+- GuardrailsValidator usage
+- Guardrails-based validation examples
+
+**Workaround**: Use built-in validators (LengthValidator, RegexValidator) or custom validators. The GuardrailsValidator code remains in place for future re-enablement.
+
+**Status**: Will be re-enabled when guardrails-ai and pydantic-ai resolve their griffe version incompatibility.
+
+## Chain Types: PydanticAI vs Traditional
+
+Sifaka offers two chain implementations optimized for different use cases:
+
+### 🚀 **PydanticAI Chain** (Recommended for New Projects)
+
+**Best for**: Modern applications with tool calling, structured outputs, and type safety
+
+```python
+from sifaka.agents import create_pydantic_chain
+from sifaka.models import create_model
+from sifaka.validators import LengthValidator
+from sifaka.critics import ReflexionCritic
+from pydantic_ai import Agent
+
+# Create PydanticAI agent with tools
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant")
+
+@agent.tool_plain
+def search_web(query: str) -> str:
+    """Search the web for information."""
+    return f"Search results for: {query}"
+
+# Create Sifaka chain with PydanticAI integration
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[LengthValidator(min_length=50, max_length=500)],
+    critics=[ReflexionCritic(model=create_model("openai:gpt-4"))],
+    always_apply_critics=True
+)
+
+result = chain.run("Research the latest AI developments")
+```
+
+**Advantages**: ✅ Native tool calling ✅ Type safety ✅ Simple setup ✅ Modern async patterns ✅ Extensible via tools
+
+### 🏗️ **Traditional Chain** (Legacy - Maintenance Mode)
+
+**Best for**: Existing projects, migration scenarios, pipeline-based workflows
+
+> **⚠️ Note**: Traditional Chain is in maintenance mode. For new projects, we recommend PydanticAI Chain.
+
+```python
+from sifaka import Chain
+from sifaka.models import create_model
+from sifaka.storage import FileStorage
+from sifaka.validators import LengthValidator
+from sifaka.critics import ReflexionCritic
+
+# Traditional chain with advanced features
+chain = Chain(
+    model=create_model("openai:gpt-4"),
+    prompt="Analyze market trends",
+    model_retrievers=[redis_retriever],      # Advanced retrieval
+    critic_retrievers=[milvus_retriever],    # Separate retrieval for critics
+    max_improvement_iterations=3,
+    always_apply_critics=True,
+    storage=FileStorage("./thoughts.json")   # Persistent storage
+)
+
+# Add validators and critics (returns new chain instances)
+validator = LengthValidator(min_length=100, max_length=1000)
+critic = ReflexionCritic(model=create_model("openai:gpt-4"))
+chain = chain.validate_with(validator).improve_with(critic)
+
+result = chain.run()
+```
+
+**Advantages**: ✅ Pre-built features ✅ Pipeline orchestration ✅ Configuration-driven ✅ Mature ecosystem
+
+### 📊 **Quick Comparison**
+
+| Feature | PydanticAI Chain | Traditional Chain |
+|---------|------------------|-------------------|
+| **Tool Integration** | ✅ Excellent (native) | ⚠️ Manual implementation |
+| **Architecture** | ✅ Modern, async-first | ✅ Mature, pipeline-based |
+| **Built-in Features** | ⚠️ Fewer (but extensible) | ✅ Many (pre-built) |
+| **Flexibility** | ✅ High (via tools) | ✅ High (via configuration) |
+| **Development Speed** | ✅ Fast | ⚠️ Moderate |
+| **Learning Curve** | ✅ Gentle | ⚠️ Steeper |
+
+**Choose PydanticAI Chain when**: You need tool calling, prefer modern patterns, want extensibility through tools
+**Choose Traditional Chain when**: You want pre-built features, prefer pipeline architecture, use configuration-driven workflows
+
+## Migration Guide
+
+### Migrating from Traditional Chain to PydanticAI Chain
+
+**Before (Traditional Chain)**:
+```python
+from sifaka import Chain
+from sifaka.models import create_model
+
+chain = Chain(
+    model=create_model("openai:gpt-4"),
+    prompt="Your prompt here",
+    max_improvement_iterations=2,
+    always_apply_critics=True
+)
+chain = chain.validate_with(validator).improve_with(critic)
+result = chain.run()
+```
+
+**After (PydanticAI Chain)**:
+```python
+from sifaka.agents import create_pydantic_chain
+from pydantic_ai import Agent
+
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant")
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[validator],
+    critics=[critic],
+    max_improvement_iterations=2,
+    always_apply_critics=True
+)
+result = chain.run("Your prompt here")
+```
+
+**Key Changes**:
+- ✅ **Agent-based**: Use PydanticAI `Agent` instead of Sifaka `Model`
+- ✅ **Direct parameters**: Pass validators/critics as lists instead of chaining
+- ✅ **Runtime prompts**: Pass prompts to `run()` instead of constructor
+- ✅ **Tool support**: Add tools using `@agent.tool_plain` decorators
 
 ## Quick Start
 
@@ -188,6 +391,57 @@ print(f"Validation results: {thought.validation_results}")
 ```
 
 ## Advanced Usage
+
+### Feedback Summarization
+
+> **✅ Available Now**: Enhanced feedback summarization using both local and API-based models is now available with support for T5, BART, Pegasus, and API-based models.
+
+Sifaka supports automatic summarization of validation results and critic feedback to improve the quality and conciseness of improvement prompts. This feature uses configurable local or API-based models to create focused summaries.
+
+```python
+from sifaka.critics import FeedbackSummarizer, SelfRefineCritic
+from sifaka.models import create_model
+from sifaka import Chain
+
+# Create a model and critic
+model = create_model("openai:gpt-4")  # Requires OPENAI_API_KEY
+
+# Create a summarizer with T5 (default local model)
+summarizer = FeedbackSummarizer()
+
+# Or use API-based summarization
+api_summarizer = FeedbackSummarizer(
+    model_type="api",
+    api_model="openai:gpt-3.5-turbo",
+    max_length=100
+)
+
+# Integrate with critics for enhanced feedback processing
+class SummarizingSelfRefineCritic(SelfRefineCritic):
+    def __init__(self, model, **kwargs):
+        super().__init__(model=model, **kwargs)
+        self.feedback_summarizer = FeedbackSummarizer(
+            model_name="t5-small",
+            max_length=120
+        )
+
+    def improve(self, thought):
+        # Get summarized feedback for more focused improvements
+        summary = self.feedback_summarizer.summarize_thought_feedback(thought)
+        # Use summary in improvement prompt...
+
+# Use standalone for analysis
+summary = summarizer.summarize_thought_feedback(thought)
+print(f"Feedback Summary: {summary}")
+```
+
+**Key Features:**
+- **Multiple Models**: T5, BART, Pegasus, and API-based models (OpenAI, Anthropic)
+- **Configurable**: Custom prompts, length limits, and model parameters
+- **Selective**: Summarize validation results, critic feedback, or both
+- **Robust**: Fallback mechanisms and caching for reliability
+
+For detailed configuration and examples, see the **[Feedback Summarizer Guide](docs/feedback-summarizer.md)**.
 
 ### Working with Critics
 
@@ -407,12 +661,17 @@ Sifaka supports multiple storage backends for different use cases:
 
 - **Memory**: In-memory storage for development and testing
 - **File**: JSON file persistence for simple deployments
-- **Redis**: High-performance caching via MCP
-- **Milvus**: Vector storage for semantic search via MCP
+- **Redis**: High-performance caching via MCP ⚠️ **Currently broken - high priority fix in progress**
+- **Milvus**: Vector storage for semantic search via MCP ⚠️ **Currently broken - high priority fix in progress**
+
+> **⚠️ MCP Storage Status**: Redis and Milvus storage backends via MCP are currently experiencing issues and are being actively fixed. For production use, we recommend Memory or File storage until MCP integration is restored. This is our highest priority fix.
 
 For detailed installation and configuration instructions, see **[Storage Setup Guide](docs/guides/storage-setup.md)**.
 
 ## Documentation
+
+### Quick Reference
+- **[Quick Reference](docs/quick-reference.md)** - Common patterns and code snippets
 
 ### Getting Started
 - **[Installation Guide](docs/getting-started/installation.md)** - Complete installation instructions
@@ -420,9 +679,11 @@ For detailed installation and configuration instructions, see **[Storage Setup G
 - **[Basic Concepts](docs/getting-started/basic-concepts.md)** - Core concepts and terminology
 
 ### User Guides
+- **[Chain Selection](docs/guides/chain-selection.md)** - Choosing between PydanticAI and Traditional chains
 - **[Custom Models](docs/guides/custom-models.md)** - Creating and using custom models
 - **[Custom Validators](docs/guides/custom-validators.md)** - Building custom validation logic
 - **[Classifiers](docs/guides/classifiers.md)** - Using built-in text classifiers for content analysis
+- **[Feedback Summarizer](docs/feedback-summarizer.md)** - Automatic summarization of critic and validation feedback
 - **[Storage Setup](docs/guides/storage-setup.md)** - Storage backends and configuration
 - **[Configuration](docs/guides/configuration.md)** - Advanced configuration options
 - **[Performance Tuning](docs/guides/performance-tuning.md)** - Optimization and performance tips
@@ -435,6 +696,7 @@ For detailed installation and configuration instructions, see **[Storage Setup G
 ### Reference
 - **[API Reference](docs/api/api-reference.md)** - Complete API documentation
 - **[Architecture](docs/architecture.md)** - System design and interactions
+- **[Design Decisions](docs/DESIGN_DECISIONS.md)** - Key architectural decisions and trade-offs
 - **[Examples](examples/)** - Working examples for different providers
 - **[Critics](docs/critics.md)** - Critics and their use cases
 

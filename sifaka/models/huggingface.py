@@ -128,8 +128,8 @@ class HuggingFaceModelLoader:
         # Create stable JSON representation
         key_str = json.dumps(key_data, sort_keys=True)
 
-        # Use MD5 hash for shorter cache keys
-        return hashlib.md5(key_str.encode()).hexdigest()
+        # Use MD5 hash for shorter cache keys (not for security)
+        return hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()  # nosec
 
     def _detect_device(self, device: str = "auto") -> str:
         """Detect the best available device for model inference.
@@ -426,6 +426,7 @@ class HuggingFaceModel(BaseModelImplementation):
         # Check if HuggingFace packages are available for local inference
         if not use_inference_api and not HUGGINGFACE_AVAILABLE:
             from sifaka.utils.error_handling import ConfigurationError
+
             raise ConfigurationError(
                 "Required packages not available: 'transformers', 'torch', 'accelerate'",
                 component="HuggingFace",
@@ -524,7 +525,7 @@ class HuggingFaceModel(BaseModelImplementation):
                 },
             }
             key_str = json.dumps(key_data, sort_keys=True)
-            return hashlib.md5(key_str.encode()).hexdigest()
+            return hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()  # nosec
 
     def _ensure_local_model_loaded(self) -> None:
         """Ensure the local model is loaded for inference."""

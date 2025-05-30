@@ -299,9 +299,6 @@ model = create_model("anthropic:claude-3-sonnet", api_key="your-key")
 model = create_model("gemini:gemini-1.5-flash", api_key="your-key")
 model = create_model("gemini:gemini-1.5-pro")
 
-# HuggingFace models
-model = create_model("huggingface:microsoft/DialoGPT-medium")
-
 # Ollama models
 model = create_model("ollama:llama2")
 
@@ -309,89 +306,7 @@ model = create_model("ollama:llama2")
 model = create_model("mock:gpt-4")
 ```
 
-### Model Implementations
 
-#### OpenAIModel
-
-```python
-from sifaka.models.openai import OpenAIModel
-
-model = OpenAIModel(
-    model_name: str = "gpt-4",
-    api_key: Optional[str] = None,  # Uses OPENAI_API_KEY env var if not provided
-    base_url: Optional[str] = None,
-    temperature: float = 0.7,
-    max_tokens: Optional[int] = None,
-    **kwargs: Any
-)
-```
-
-#### AnthropicModel
-
-```python
-from sifaka.models.anthropic import AnthropicModel
-
-model = AnthropicModel(
-    model_name: str = "claude-3-sonnet-20240229",
-    api_key: Optional[str] = None,  # Uses ANTHROPIC_API_KEY env var if not provided
-    temperature: float = 0.7,
-    max_tokens: Optional[int] = None,
-    **kwargs: Any
-)
-```
-
-#### GeminiModel
-
-```python
-from sifaka.models.gemini import GeminiModel
-
-model = GeminiModel(
-    model_name: str = "gemini-1.5-flash",
-    api_key: Optional[str] = None,  # Uses GOOGLE_API_KEY env var if not provided
-    temperature: float = 0.7,
-    max_tokens: Optional[int] = None,
-    **kwargs: Any
-)
-```
-
-#### HuggingFaceModel
-
-```python
-from sifaka.models.huggingface import HuggingFaceModel
-
-model = HuggingFaceModel(
-    model_name: str,
-    api_key: Optional[str] = None,  # Uses HUGGINGFACE_API_KEY env var if not provided
-    temperature: float = 0.7,
-    max_tokens: Optional[int] = None,
-    **kwargs: Any
-)
-```
-
-#### OllamaModel
-
-```python
-from sifaka.models.ollama import OllamaModel
-
-model = OllamaModel(
-    model_name: str,
-    base_url: str = "http://localhost:11434",
-    temperature: float = 0.7,
-    **kwargs: Any
-)
-```
-
-#### MockModel
-
-```python
-from sifaka.models.base import MockModel
-
-model = MockModel(
-    model_name: str = "mock-model",
-    response_template: str = "Mock response: {prompt}",
-    token_count: int = 10
-)
-```
 
 ---
 
@@ -933,6 +848,8 @@ storage = FileStorage(
 
 ### Redis Storage
 
+> **⚠️ Currently Broken**: Redis storage via MCP is experiencing issues and is being actively fixed.
+
 Redis-based storage with MCP integration.
 
 ```python
@@ -953,6 +870,8 @@ storage = RedisStorage(
 ```
 
 ### Milvus Storage
+
+> **⚠️ Currently Broken**: Milvus storage via MCP is experiencing issues and is being actively fixed.
 
 Vector storage with Milvus and MCP integration.
 

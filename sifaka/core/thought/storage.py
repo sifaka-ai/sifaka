@@ -6,7 +6,9 @@ and retrieval of thoughts across different storage backends.
 
 from typing import Dict, List, Optional
 
+from sifaka.core.thought.constants import DEFAULT_MAX_ITERATIONS
 from sifaka.core.thought.thought import Thought
+from sifaka.core.thought.utils import extract_chain_ids_from_keys, generate_thought_key
 from sifaka.storage.protocol import Storage
 from sifaka.utils.logging import get_logger
 
@@ -41,7 +43,7 @@ class ThoughtStorage:
             thought: The thought to save.
         """
         try:
-            thought_key = self._generate_thought_key(thought)
+            thought_key = generate_thought_key(thought.chain_id, thought.iteration)
             self.storage.set(thought_key, thought.model_dump())
             logger.debug(f"Saved thought {thought.id} (iteration {thought.iteration}) to storage")
         except Exception as e:
@@ -58,13 +60,18 @@ class ThoughtStorage:
             The loaded thought, or None if not found.
         """
         try:
-            thought_key = f"thought_{chain_id}_{iteration}"
+            thought_key = generate_thought_key(chain_id, iteration)
             data = self.storage.get(thought_key)
             if data:
-                return Thought.from_dict(data)
+                # Handle case where storage returns a Thought object directly
+                if isinstance(data, Thought):
+                    return data
+                # Handle case where storage returns a dictionary
+                elif isinstance(data, dict):
+                    return Thought.from_dict(data)
             return None
         except Exception as e:
-            logger.warning(f"Failed to load thought {thought_key}: {e}")
+            logger.warning(f"Failed to load thought {chain_id}_{iteration}: {e}")
             return None
 
     def load_latest_thought(self, chain_id: str) -> Optional[Thought]:
@@ -76,16 +83,12 @@ class ThoughtStorage:
         Returns:
             The latest thought, or None if not found.
         """
-        try:
-            # Try to find the latest iteration
-            for iteration in range(10, 0, -1):  # Check last 10 iterations
-                thought = self.load_thought(chain_id, iteration)
-                if thought:
-                    return thought
-            return None
-        except Exception as e:
-            logger.warning(f"Failed to load latest thought for chain {chain_id}: {e}")
-            return None
+        # Try to find the latest iteration (including iteration 0)
+        for iteration in range(DEFAULT_MAX_ITERATIONS, -1, -1):
+            thought = self.load_thought(chain_id, iteration)
+            if thought:
+                return thought
+        return None
 
     def load_thought_history(self, chain_id: str) -> List[Thought]:
         """Load the complete thought history for a chain.
@@ -97,20 +100,19 @@ class ThoughtStorage:
             List of thoughts in chronological order.
         """
         thoughts = []
-        try:
-            # Load all iterations we can find
-            for iteration in range(1, 11):  # Check first 10 iterations
-                thought = self.load_thought(chain_id, iteration)
-                if thought:
-                    thoughts.append(thought)
-                else:
-                    break  # Stop when we don't find the next iteration
+        # Load all iterations we can find (including iteration 0)
+        for iteration in range(0, DEFAULT_MAX_ITERATIONS + 1):
+            thought = self.load_thought(chain_id, iteration)
+            if thought:
+                thoughts.append(thought)
+            else:
+                # For iteration 0, continue checking higher iterations
+                # For higher iterations, stop when we don't find the next one
+                if iteration > 0:
+                    break
 
-            logger.debug(f"Loaded {len(thoughts)} thoughts for chain {chain_id}")
-            return thoughts
-        except Exception as e:
-            logger.warning(f"Failed to load thought history for chain {chain_id}: {e}")
-            return thoughts
+        logger.debug(f"Loaded {len(thoughts)} thoughts for chain {chain_id}")
+        return thoughts
 
     def delete_thought(self, chain_id: str, iteration: int) -> bool:
         """Delete a thought from storage.
@@ -123,12 +125,12 @@ class ThoughtStorage:
             True if deleted successfully, False otherwise.
         """
         try:
-            thought_key = f"thought_{chain_id}_{iteration}"
+            thought_key = generate_thought_key(chain_id, iteration)
             self.storage.delete(thought_key)
             logger.debug(f"Deleted thought {thought_key}")
             return True
         except Exception as e:
-            logger.warning(f"Failed to delete thought {thought_key}: {e}")
+            logger.warning(f"Failed to delete thought {chain_id}_{iteration}: {e}")
             return False
 
     def delete_chain_thoughts(self, chain_id: str) -> int:
@@ -141,17 +143,13 @@ class ThoughtStorage:
             Number of thoughts deleted.
         """
         deleted_count = 0
-        try:
-            # Delete all iterations we can find
-            for iteration in range(1, 11):  # Check first 10 iterations
-                if self.delete_thought(chain_id, iteration):
-                    deleted_count += 1
+        # Delete all iterations we can find (including iteration 0)
+        for iteration in range(0, DEFAULT_MAX_ITERATIONS + 1):
+            if self.delete_thought(chain_id, iteration):
+                deleted_count += 1
 
-            logger.debug(f"Deleted {deleted_count} thoughts for chain {chain_id}")
-            return deleted_count
-        except Exception as e:
-            logger.warning(f"Failed to delete thoughts for chain {chain_id}: {e}")
-            return deleted_count
+        logger.debug(f"Deleted {deleted_count} thoughts for chain {chain_id}")
+        return deleted_count
 
     def list_chains(self) -> List[str]:
         """List all chain IDs that have stored thoughts.
@@ -163,17 +161,7 @@ class ThoughtStorage:
             # This is a simplified implementation
             # In practice, you'd want to maintain an index of chains
             keys = self.storage.keys() if hasattr(self.storage, "keys") else []
-            chain_ids = set()
-
-            for key in keys:
-                if key.startswith("thought_"):
-                    parts = key.split("_")
-                    if len(parts) >= 3:
-                        chain_id = "_".join(
-                            parts[1:-1]
-                        )  # Everything except "thought" and iteration
-                        chain_ids.add(chain_id)
-
+            chain_ids = extract_chain_ids_from_keys(keys)
             return list(chain_ids)
         except Exception as e:
             logger.warning(f"Failed to list chains: {e}")
@@ -215,14 +203,3 @@ class ThoughtStorage:
         # For now, just return 0 as a placeholder
         logger.info(f"Cleanup of thoughts older than {max_age_days} days not implemented yet")
         return 0
-
-    def _generate_thought_key(self, thought: Thought) -> str:
-        """Generate a storage key for a thought.
-
-        Args:
-            thought: The thought to generate a key for.
-
-        Returns:
-            The storage key.
-        """
-        return f"thought_{thought.chain_id}_{thought.iteration}"

@@ -8,7 +8,6 @@ and integration with the validation system.
 
 from unittest.mock import Mock, patch
 
-
 from sifaka.classifiers.bias import BiasClassifier
 from sifaka.classifiers.language import LanguageClassifier
 from sifaka.classifiers.profanity import ProfanityClassifier

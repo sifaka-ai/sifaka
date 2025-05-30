@@ -1,11 +1,17 @@
-"""GuardrailsAI validator for Sifaka.
+"""GuardrailsAI validator for Sifaka (PRERELEASE - DISABLED).
+
+⚠️  PRERELEASE STATUS: This module is currently disabled due to dependency conflicts
+between guardrails-ai and pydantic-ai (griffe version incompatibility).
 
 This module provides a GuardrailsValidator that integrates with GuardrailsAI
 for advanced text validation including PII detection, toxicity checking,
 and other safety measures.
 
 The GuardrailsValidator requires the guardrails-ai library and an API key
-to function properly.
+to function properly. Currently disabled due to dependency conflicts.
+
+Note: Will be re-enabled when guardrails-ai and pydantic-ai resolve their
+griffe version incompatibility.
 """
 
 import os

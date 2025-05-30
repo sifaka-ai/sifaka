@@ -151,27 +151,32 @@ chain = wizard.setup_for_use_case(
 ### Simple Storage Options
 
 ```python
-# Memory only (default)
+# Memory only (default) ✅ Working
 chain = QuickStart.basic_chain("openai:gpt-4", "prompt")
 
-# File persistence
+# File persistence ✅ Working
 chain = QuickStart.with_file_storage("openai:gpt-4", "./thoughts.json")
 
-# Redis caching
-chain = QuickStart.with_redis("openai:gpt-4", redis_url="redis://localhost:6379")
+# Redis caching ⚠️ Currently broken - MCP issues
+# chain = QuickStart.with_redis("openai:gpt-4", redis_url="redis://localhost:6379")
 
-# Milvus vector storage
-chain = QuickStart.with_milvus("openai:gpt-4", collection_name="my_thoughts")
+# Milvus vector storage ⚠️ Currently broken - MCP issues
+# chain = QuickStart.with_milvus("openai:gpt-4", collection_name="my_thoughts")
 ```
 
 ### Multi-Tier Storage
 
-```python
-# Two-tier: Memory + Redis
-chain = QuickStart.full_stack("openai:gpt-4", storage="memory+redis")
+> **⚠️ Limited Options**: Multi-tier storage with Redis and Milvus is not available until MCP storage is fixed.
 
-# Three-tier: Memory + Redis + Milvus
-chain = QuickStart.full_stack("openai:gpt-4", storage="memory+redis+milvus")
+```python
+# Two-tier: Memory + File (currently available)
+chain = QuickStart.full_stack("openai:gpt-4", storage="memory+file")
+
+# Two-tier: Memory + Redis ⚠️ Currently broken
+# chain = QuickStart.full_stack("openai:gpt-4", storage="memory+redis")
+
+# Three-tier: Memory + Redis + Milvus ⚠️ Currently broken
+# chain = QuickStart.full_stack("openai:gpt-4", storage="memory+redis+milvus")
 ```
 
 ## Error Handling and Validation
@@ -254,6 +259,157 @@ chain = QuickStart.for_production(
     validators=["length"],
     critics=["reflexion"]
 )
+```
+
+## Feedback Summarization Configuration
+
+Sifaka supports automatic summarization of validation results and critic feedback to create more focused and concise improvement prompts. This feature can be configured with various local or API-based models.
+
+### Basic Configuration
+
+```python
+from sifaka.critics import FeedbackSummarizer
+
+# Default T5-based summarization
+summarizer = FeedbackSummarizer()
+
+# Custom T5 model
+summarizer = FeedbackSummarizer(
+    model_name="t5-base",
+    max_length=150,
+    min_length=30
+)
+
+# BART-based summarization
+summarizer = FeedbackSummarizer(
+    model_name="facebook/bart-base",
+    model_type="bart",
+    max_length=120
+)
+```
+
+### API-Based Summarization
+
+```python
+# OpenAI-based summarization
+openai_summarizer = FeedbackSummarizer(
+    model_type="api",
+    api_model="openai:gpt-3.5-turbo",
+    max_length=100,
+    custom_prompt="Provide a concise summary of the key issues:"
+)
+
+# Anthropic-based summarization
+anthropic_summarizer = FeedbackSummarizer(
+    model_type="api",
+    api_model="anthropic:claude-3-5-haiku-latest",
+    max_length=80
+)
+```
+
+### Integration with Critics
+
+```python
+from sifaka.critics import SelfRefineCritic, ReflexionCritic
+
+class SummarizingCritic(SelfRefineCritic):
+    def __init__(self, model, summarizer_config=None, **kwargs):
+        super().__init__(model=model, **kwargs)
+
+        # Configure summarizer
+        config = summarizer_config or {}
+        self.feedback_summarizer = FeedbackSummarizer(**config)
+
+    def improve(self, thought):
+        # Get summarized feedback
+        summary = self.feedback_summarizer.summarize_thought_feedback(thought)
+
+        # Use summary in improvement prompt
+        prompt = f"""
+        Based on the following feedback summary, improve the text:
+
+        Feedback: {summary}
+
+        Original text: {thought.text}
+
+        Improved text:
+        """
+
+        return self.model.generate(prompt)
+
+# Use with custom summarizer configuration
+critic = SummarizingCritic(
+    model=model,
+    summarizer_config={
+        "model_type": "api",
+        "api_model": "openai:gpt-3.5-turbo",
+        "max_length": 100
+    }
+)
+```
+
+### Performance Configuration
+
+```python
+# Enable caching for repeated summarizations
+summarizer = FeedbackSummarizer(
+    cache_summaries=True,
+    model_name="t5-small"  # Faster model for better performance
+)
+
+# Disable fallback for strict requirements
+strict_summarizer = FeedbackSummarizer(
+    fallback_to_truncation=False,
+    model_type="api",
+    api_model="openai:gpt-4"
+)
+
+# Clear cache when needed
+summarizer.clear_cache()
+```
+
+### Selective Summarization
+
+```python
+# Summarize only validation results
+validation_summary = summarizer.summarize_validation_results(
+    thought.validation_results,
+    custom_prompt="List the main validation issues:"
+)
+
+# Summarize only critic feedback
+critic_summary = summarizer.summarize_critic_feedback(
+    thought.critic_feedback,
+    custom_prompt="Summarize the key improvement suggestions:"
+)
+
+# Summarize both with custom options
+full_summary = summarizer.summarize_thought_feedback(
+    thought,
+    include_validation=True,
+    include_critic_feedback=True,
+    custom_prompt="Provide actionable feedback summary:"
+)
+```
+
+### Environment Variables
+
+For API-based summarization, ensure you have the appropriate environment variables set:
+
+```bash
+# .env file
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+GOOGLE_API_KEY=your_google_api_key
+```
+
+### Dependencies
+
+For local model summarization:
+```bash
+pip install transformers torch
+# or
+pip install sifaka[classifiers]  # Includes transformers
 ```
 
 ## Environment Variables

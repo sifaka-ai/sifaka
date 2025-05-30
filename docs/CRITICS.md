@@ -501,6 +501,60 @@ critic = NCriticsCritic(
 
 ---
 
+## Feedback Summarization
+
+All critics in Sifaka can benefit from **automatic feedback summarization** to create more focused and concise improvement prompts. The `FeedbackSummarizer` can process validation results and critic feedback using various local or API-based models.
+
+### Integration with Critics
+
+```python
+from sifaka.critics import SelfRefineCritic, FeedbackSummarizer
+
+class SummarizingSelfRefineCritic(SelfRefineCritic):
+    def __init__(self, model, **kwargs):
+        super().__init__(model=model, **kwargs)
+        self.feedback_summarizer = FeedbackSummarizer(
+            model_name="t5-small",
+            max_length=120
+        )
+
+    def improve(self, thought):
+        # Get summarized feedback for more focused improvements
+        summary = self.feedback_summarizer.summarize_thought_feedback(thought)
+
+        # Use summary in improvement prompt
+        prompt = f"""
+        Based on this feedback summary, improve the text:
+
+        Feedback: {summary}
+        Original: {thought.text}
+
+        Improved version:
+        """
+
+        return self.model.generate(prompt)
+```
+
+### Benefits of Summarization
+
+- **🎯 Focused Improvements**: Condensed feedback highlights key issues
+- **⚡ Better Performance**: Shorter prompts reduce token usage and latency
+- **🔍 Clarity**: Removes redundant or verbose feedback
+- **🎛️ Configurable**: Choose between local models (T5, BART) or API models (OpenAI, Anthropic)
+
+### Summarization Models
+
+| Model Type | Speed | Quality | Use Case |
+|------------|-------|---------|----------|
+| **T5-small** | ⚡⚡⚡ | ⭐⭐ | Fast development, low memory |
+| **T5-base** | ⚡⚡ | ⭐⭐⭐ | Balanced performance |
+| **BART-base** | ⚡⚡ | ⭐⭐⭐ | General summarization |
+| **API Models** | ⚡ | ⭐⭐⭐⭐ | Highest quality, requires API key |
+
+For detailed configuration, see the **[Feedback Summarizer Guide](../feedback-summarizer.md)**.
+
+---
+
 ## Choosing the Right Critic
 
 ### Decision Tree

@@ -1,8 +1,9 @@
 # MCP Servers
 mcp/
 
-# Default file storage directory for thoughts -- useful for local debugging
+# Default file storage directory for thoughts and digests-- useful for local debugging
 thoughts/
+digests/
 
 # Python
 __pycache__/

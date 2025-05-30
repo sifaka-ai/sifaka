@@ -1,30 +1,33 @@
 #!/usr/bin/env python3
-"""Anthropic Self-Refine with Multiple Validators Example.
+"""Anthropic Self-Refine with Multiple Validators Example (PydanticAI).
 
 This example demonstrates:
-- Anthropic Claude model for text generation
+- PydanticAI Agent with Anthropic Claude Haiku model for efficient text generation
 - Self-Refine critic for iterative improvement
 - Comprehensive set of validators for quality assurance
+- Automatic feedback summarization using T5 model
 - Default retry behavior
 
 The chain will generate content about software engineering best practices
 and use multiple validators to ensure high-quality, comprehensive output.
+Feedback from validators and critics is automatically summarized for more
+effective improvement iterations.
 
 Prerequisites:
 - Install GuardrailsAI PII detector: guardrails hub install hub://guardrails/detect_pii
+- Install transformers for feedback summarization: pip install transformers torch
 """
 
-import json
 import os
-from datetime import datetime
 
 from dotenv import load_dotenv
+from pydantic_ai import Agent
 
+from sifaka.agents import create_pydantic_chain
 from sifaka.classifiers.language import LanguageClassifier
 from sifaka.classifiers.sentiment import SentimentClassifier
-from sifaka.core.chain import Chain
 from sifaka.critics.self_refine import SelfRefineCritic
-from sifaka.models.anthropic import AnthropicModel
+from sifaka.models import create_model
 from sifaka.storage import FileStorage
 from sifaka.utils.logging import get_logger
 from sifaka.validators.base import LengthValidator, RegexValidator
@@ -126,31 +129,30 @@ def create_comprehensive_validators():
 
 
 def main():
-    """Run the Anthropic Self-Refine with Multiple Validators example."""
+    """Run the Anthropic Self-Refine with Multiple Validators example using PydanticAI."""
 
     # Ensure API key is available
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 
-    logger.info("Creating Anthropic Self-Refine with multiple validators example")
+    logger.info("Creating PydanticAI Anthropic Self-Refine with multiple validators example")
 
-    # Create Anthropic model for main generation
-    model = AnthropicModel(
-        model_name="claude-sonnet-4-20250514",
-        max_tokens=5000,
-        temperature=0.7,
-        api_key=os.getenv("ANTHROPIC_API_KEY"),
+    # Create PydanticAI agent with Anthropic Claude model for main generation
+    agent = Agent(
+        "anthropic:claude-3-5-haiku-latest",
+        system_prompt=(
+            "You are a software engineering expert and technical writer. Provide comprehensive, "
+            "well-structured information about software engineering best practices, development "
+            "methodologies, code quality, testing approaches, and documentation standards. "
+            "Use clear headings, detailed explanations, and practical examples. Maintain a "
+            "positive and professional tone throughout your responses."
+        ),
     )
 
-    # Create smaller Haiku model for critic (faster and cheaper)
-    critic_model = AnthropicModel(
-        model_name="claude-3-5-haiku-latest",
-        max_tokens=500,
-        temperature=0.5,
-        api_key=os.getenv("ANTHROPIC_API_KEY"),
-    )
+    # Create Self-Refine critic using create_model for the critic model
+    critic_model = create_model("anthropic:claude-3-5-haiku-latest")
 
-    # Create Self-Refine critic for iterative improvement using Haiku
+    # Create Self-Refine critic for iterative improvement using create_model
     critic = SelfRefineCritic(
         model=critic_model,
         max_refinements=2,  # Allow up to 2 refinement iterations
@@ -167,12 +169,12 @@ def main():
         print(f"  {i}. {validator_name}")
     print()
 
-    # Create the chain with a prompt designed to initially fail validation
-    chain = Chain(
-        model=model,
-        prompt="Write about software engineering. Give me some tips.",
+    # Create the PydanticAI chain with comprehensive validation
+    chain = create_pydantic_chain(
+        agent=agent,
+        validators=validators,
+        critics=[critic],
         max_improvement_iterations=3,  # Default retry behavior
-        apply_improvers_on_validation_failure=True,
         always_apply_critics=False,
         storage=FileStorage(
             "./thoughts/self_refine_multi_validators_thoughts.json",
@@ -180,22 +182,23 @@ def main():
         ),  # Save thoughts to single JSON file for debugging
     )
 
-    # Add all validators
+    # Debug: Print validator info
+    print(f"Added {len(validators)} validators to PydanticAI chain:")
     for i, validator in enumerate(validators, 1):
         validator_name = getattr(validator, "name", type(validator).__name__)
-        print(f"Adding validator {i}: {validator_name}")
-        chain = chain.validate_with(validator)
+        print(f"  {i}. {validator_name}")
+    print()
 
-    # Add critic
-    chain = chain.improve_with(critic)
+    # Define the prompt designed to initially fail validation
+    prompt = "Write about software engineering. Give me some tips."
 
     # Run the chain
-    logger.info("Running chain with Self-Refine critic and comprehensive validation...")
-    result = chain.run()
+    logger.info("Running PydanticAI chain with Self-Refine critic and comprehensive validation...")
+    result = chain.run(prompt)
 
     # Display results
     print("\n" + "=" * 80)
-    print("ANTHROPIC SELF-REFINE WITH MULTIPLE VALIDATORS EXAMPLE")
+    print("PYDANTIC AI ANTHROPIC SELF-REFINE WITH MULTIPLE VALIDATORS EXAMPLE")
     print("=" * 80)
     print(f"\nPrompt: {result.prompt}")
     print(f"\nFinal Text ({len(result.text)} characters):")
@@ -242,7 +245,7 @@ def main():
                 print(f"     Refinement Iteration: {feedback.refinement_iteration}")
 
     print("\n" + "=" * 80)
-    logger.info("Self-Refine with multiple validators example completed successfully")
+    logger.info("PydanticAI Self-Refine with multiple validators example completed successfully")
 
 
 if __name__ == "__main__":

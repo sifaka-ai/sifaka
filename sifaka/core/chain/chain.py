@@ -9,6 +9,7 @@ wrapping async implementations using asyncio.run() for backward compatibility.
 """
 
 import asyncio
+from functools import wraps
 from typing import Any, List, Optional
 
 from sifaka.core.chain.config import ChainConfig
@@ -24,6 +25,25 @@ from sifaka.utils.logging import get_logger
 from sifaka.utils.performance import time_operation
 
 logger = get_logger(__name__)
+
+
+def async_to_sync(async_method):
+    """Decorator to create sync wrapper for async methods."""
+
+    @wraps(async_method)
+    def sync_wrapper(self, *args, **kwargs):
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_running_loop()
+            # If we get here, we're in an async context, run in thread pool
+            return asyncio.run_coroutine_threadsafe(
+                async_method(self, *args, **kwargs), loop
+            ).result()
+        except RuntimeError:
+            # No running event loop, safe to use asyncio.run()
+            return asyncio.run(async_method(self, *args, **kwargs))
+
+    return sync_wrapper
 
 
 class Chain:
@@ -51,6 +71,11 @@ class Chain:
         max_improvement_iterations: int = 3,
         apply_improvers_on_validation_failure: bool = False,
         always_apply_critics: bool = False,
+        # Feedback summarization options
+        summarize_feedback: bool = False,
+        summarizer_model: str = "t5-small",
+        summarizer_type: str = "auto",
+        summarizer_max_length: int = 150,
         # Additional options that tests expect
         max_iterations: Optional[int] = None,
         temperature: Optional[float] = None,
@@ -71,6 +96,10 @@ class Chain:
             max_improvement_iterations: Maximum number of improvement iterations.
             apply_improvers_on_validation_failure: Whether to apply improvers when validation fails.
             always_apply_critics: Whether to always apply critics regardless of validation status.
+            summarize_feedback: Whether to enable automatic feedback summarization.
+            summarizer_model: Model name for feedback summarization (e.g., "t5-small", "facebook/bart-base").
+            summarizer_type: Type of summarization model ("t5", "bart", "pegasus", "auto", "api").
+            summarizer_max_length: Maximum length of generated summaries.
             max_iterations: Alternative name for max_improvement_iterations (for backward compatibility).
             temperature: Temperature for text generation.
             max_tokens: Maximum tokens for text generation.
@@ -100,6 +129,10 @@ class Chain:
             max_improvement_iterations=max_improvement_iterations,
             apply_improvers_on_validation_failure=apply_improvers_on_validation_failure,
             always_apply_critics=always_apply_critics,
+            summarize_feedback=summarize_feedback,
+            summarizer_model=summarizer_model,
+            summarizer_type=summarizer_type,
+            summarizer_max_length=summarizer_max_length,
         )
 
         # Add additional options
@@ -117,10 +150,19 @@ class Chain:
         if additional_options:
             self._config.update_options(**additional_options)
 
-        # Create specialized components
-        self._orchestrator = ChainOrchestrator(self._config)
-        self._executor = ChainExecutor(self._config, self._orchestrator)
-        self._recovery_manager = RecoveryManager(self._config) if checkpoint_storage else None
+        # Lazy initialization of components - only create when needed
+        self._orchestrator = None
+        self._executor = None
+        self._recovery_manager = None
+
+    def _ensure_components(self):
+        """Ensure all components are initialized (lazy initialization)."""
+        if self._orchestrator is None:
+            self._orchestrator = ChainOrchestrator(self._config)
+        if self._executor is None:
+            self._executor = ChainExecutor(self._config, self._orchestrator)
+        if self._recovery_manager is None and self._config.checkpoint_storage:
+            self._recovery_manager = RecoveryManager(self._config)
 
     # Fluent API methods for configuration
 
@@ -134,6 +176,7 @@ class Chain:
             The chain instance for method chaining.
         """
         self._config.set_model(model)
+        self._invalidate_components()
         return self
 
     def with_prompt(self, prompt: str) -> "Chain":
@@ -158,6 +201,7 @@ class Chain:
             The chain instance for method chaining.
         """
         self._config.set_model_retrievers(retrievers)
+        self._invalidate_components()
         return self
 
     def with_critic_retrievers(self, retrievers: List[Retriever]) -> "Chain":
@@ -170,6 +214,7 @@ class Chain:
             The chain instance for method chaining.
         """
         self._config.set_critic_retrievers(retrievers)
+        self._invalidate_components()
         return self
 
     def validate_with(self, validator: Validator) -> "Chain":
@@ -181,20 +226,7 @@ class Chain:
         Returns:
             A new chain instance with the validator added.
         """
-        # Create a copy of the configuration
-        new_config = self._config.copy()
-        new_config.add_validator(validator)
-
-        # Create a new chain with the copied configuration
-        new_chain = Chain.__new__(Chain)
-        new_chain._config = new_config
-        new_chain._orchestrator = ChainOrchestrator(new_config)
-        new_chain._executor = ChainExecutor(new_config, new_chain._orchestrator)
-        new_chain._recovery_manager = (
-            RecoveryManager(new_config) if new_config.checkpoint_storage else None
-        )
-
-        return new_chain
+        return self._copy_with_config_change(lambda config: config.add_validator(validator))
 
     def improve_with(self, critic: Critic) -> "Chain":
         """Add a critic to the chain.
@@ -205,20 +237,7 @@ class Chain:
         Returns:
             A new chain instance with the critic added.
         """
-        # Create a copy of the configuration
-        new_config = self._config.copy()
-        new_config.add_critic(critic)
-
-        # Create a new chain with the copied configuration
-        new_chain = Chain.__new__(Chain)
-        new_chain._config = new_config
-        new_chain._orchestrator = ChainOrchestrator(new_config)
-        new_chain._executor = ChainExecutor(new_config, new_chain._orchestrator)
-        new_chain._recovery_manager = (
-            RecoveryManager(new_config) if new_config.checkpoint_storage else None
-        )
-
-        return new_chain
+        return self._copy_with_config_change(lambda config: config.add_critic(critic))
 
     def with_options(self, **options: Any) -> "Chain":
         """Set options for the chain.
@@ -229,20 +248,36 @@ class Chain:
         Returns:
             A new chain instance with the options updated.
         """
+        return self._copy_with_config_change(lambda config: config.update_options(**options))
+
+    def _copy_with_config_change(self, config_modifier) -> "Chain":
+        """Create a copy of the chain with a configuration change.
+
+        Args:
+            config_modifier: Function that modifies the config in-place
+
+        Returns:
+            A new Chain instance with the modified configuration.
+        """
         # Create a copy of the configuration
         new_config = self._config.copy()
-        new_config.update_options(**options)
+        config_modifier(new_config)
 
         # Create a new chain with the copied configuration
         new_chain = Chain.__new__(Chain)
         new_chain._config = new_config
-        new_chain._orchestrator = ChainOrchestrator(new_config)
-        new_chain._executor = ChainExecutor(new_config, new_chain._orchestrator)
-        new_chain._recovery_manager = (
-            RecoveryManager(new_config) if new_config.checkpoint_storage else None
-        )
+        # Use lazy initialization for components
+        new_chain._orchestrator = None
+        new_chain._executor = None
+        new_chain._recovery_manager = None
 
         return new_chain
+
+    def _invalidate_components(self):
+        """Invalidate components when configuration changes that affect them."""
+        self._orchestrator = None
+        self._executor = None
+        self._recovery_manager = None
 
     # Properties for backward compatibility
     @property
@@ -252,7 +287,8 @@ class Chain:
 
     # Execution methods
 
-    def run(self) -> Thought:
+    @async_to_sync
+    async def run(self) -> Thought:
         """Execute the chain and return the result.
 
         This method runs the complete chain execution process:
@@ -263,24 +299,13 @@ class Chain:
         5. Validation
         6. Improvement loop (if needed)
 
-        The method uses async implementation internally for better performance
-        while maintaining the same synchronous API for backward compatibility.
-
         Returns:
             A Thought object containing the final text and all results.
 
         Raises:
             ChainError: If the chain is not properly configured or execution fails.
         """
-        # Check if we're already in an async context
-        try:
-            # Try to get the current event loop
-            loop = asyncio.get_running_loop()
-            # If we get here, we're in an async context, run in thread pool
-            return asyncio.run_coroutine_threadsafe(self._run_async(), loop).result()
-        except RuntimeError:
-            # No running event loop, safe to use asyncio.run()
-            return asyncio.run(self._run_async())
+        return await self._run_async()
 
     async def run_async(self) -> Thought:
         """Execute the chain asynchronously (public async API).
@@ -308,6 +333,9 @@ class Chain:
             ChainError: If the chain is not properly configured or execution fails.
         """
         with time_operation(f"chain_execution_async_{self._config.chain_id}"):
+            # Ensure components are initialized
+            self._ensure_components()
+
             # Validate configuration
             self._config.validate()
 
@@ -325,8 +353,8 @@ class Chain:
             # Generate text (async)
             thought = await self._execute_generation_async(thought)
 
-            # Set iteration to 0 for the first meaningful thought (with text and model_prompt)
-            thought = thought.model_copy(update={"iteration": 0})
+            # Set iteration to 1 for the first meaningful thought (with text and model_prompt)
+            thought = thought.model_copy(update={"iteration": 1})
 
             # Save the first meaningful thought
             await self._executor._save_thought_to_storage_async(thought)
@@ -478,6 +506,8 @@ class Chain:
         Raises:
             ChainError: If the chain cannot be recovered after multiple attempts.
         """
+        self._ensure_components()
+
         if not self._recovery_manager:
             logger.warning("No recovery manager configured, falling back to regular run()")
             return self.run()
@@ -529,6 +559,9 @@ class Chain:
 
     def _execute_with_checkpoints(self) -> Thought:
         """Execute the chain with checkpoint creation at each step."""
+        # Ensure components are initialized
+        self._ensure_components()
+
         # Validate configuration
         self._config.validate()
 
@@ -671,11 +704,12 @@ class Chain:
         # This would implement checkpoint resumption logic
         # For now, fall back to regular execution
         logger.warning(
-            "Checkpoint resumption not fully implemented, falling back to regular execution"
+            f"Checkpoint resumption not fully implemented for step '{checkpoint.current_step}', "
+            "falling back to regular execution"
         )
         return self.run()
 
-    # Properties for clean API access
+    # Simplified property access - delegate directly to config
 
     @property
     def chain_id(self) -> str:

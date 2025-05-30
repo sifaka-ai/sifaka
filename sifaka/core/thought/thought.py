@@ -6,6 +6,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
+from sifaka.core.thought.utils import create_thought_summary, parse_timestamp
+
 
 class Document(BaseModel):
     """A document retrieved from a retriever."""
@@ -24,6 +26,18 @@ class ValidationResult(BaseModel):
     issues: Optional[List[str]] = None
     suggestions: Optional[List[str]] = None
     validator_name: Optional[str] = None  # Add validator_name for backward compatibility
+
+
+class ToolCall(BaseModel):
+    """Record of a tool call made during generation."""
+
+    tool_name: str
+    arguments: Dict[str, Any] = {}
+    result: Optional[Any] = None
+    timestamp: Optional[datetime] = None
+    processing_time_ms: Optional[float] = None
+    success: bool = True
+    error_message: Optional[str] = None
 
 
 class CriticFeedback(BaseModel):
@@ -60,6 +74,7 @@ class Thought(BaseModel):
     post_generation_context: Optional[List[Document]] = None
     validation_results: Optional[Dict[str, ValidationResult]] = None
     critic_feedback: Optional[List[CriticFeedback]] = None
+    tool_calls: Optional[List[ToolCall]] = None
     history: Optional[List[ThoughtReference]] = None
     parent_id: Optional[str] = None
     id: str = ""
@@ -81,11 +96,7 @@ class Thought(BaseModel):
             thought_id=self.id,
             iteration=self.iteration,
             timestamp=self.timestamp or datetime.now(),
-            summary=(
-                f"Iteration {self.iteration}: {len(self.text or '')} chars"
-                if self.text
-                else f"Iteration {self.iteration}"
-            ),
+            summary=create_thought_summary(self),
         )
 
         new_history = [current_ref]
@@ -148,6 +159,12 @@ class Thought(BaseModel):
         feedback_list.append(feedback)
         return self.model_copy(update={"critic_feedback": feedback_list})
 
+    def add_tool_call(self, tool_call: ToolCall) -> "Thought":
+        """Add a tool call record to this thought."""
+        tool_calls_list = list(self.tool_calls or [])
+        tool_calls_list.append(tool_call)
+        return self.model_copy(update={"tool_calls": tool_calls_list})
+
     def set_text(self, text: str) -> "Thought":
         """Set the generated text for this thought."""
         return self.model_copy(update={"text": text})
@@ -189,25 +206,14 @@ class Thought(BaseModel):
             pass
 
         # Handle timestamp parsing
-        if "timestamp" in data and isinstance(data["timestamp"], str):
-            from datetime import datetime
-
-            try:
-                data["timestamp"] = datetime.fromisoformat(data["timestamp"])
-            except ValueError:
-                # If parsing fails, use current time
-                data["timestamp"] = datetime.now()
+        if "timestamp" in data:
+            data["timestamp"] = parse_timestamp(data["timestamp"])
 
         # Handle history timestamp parsing
         if "history" in data and data["history"]:
-            from datetime import datetime
-
             for ref in data["history"]:
-                if "timestamp" in ref and isinstance(ref["timestamp"], str):
-                    try:
-                        ref["timestamp"] = datetime.fromisoformat(ref["timestamp"])
-                    except ValueError:
-                        ref["timestamp"] = datetime.now()
+                if "timestamp" in ref:
+                    ref["timestamp"] = parse_timestamp(ref["timestamp"])
 
         # Handle validation_results format conversion
         if "validation_results" in data and isinstance(data["validation_results"], list):

@@ -498,11 +498,12 @@ def validate_chain_config(**config):
     return issues
 
 # 2. Create chain with validation
-from sifaka import Chain
+from sifaka.agents import create_pydantic_chain
 from sifaka.models import create_model
+from pydantic_ai import Agent
 
-def create_validated_chain(**config):
-    """Create chain with configuration validation."""
+def create_validated_chain(agent, **config):
+    """Create PydanticAI chain with configuration validation."""
     issues = validate_chain_config(**config)
 
     if issues:
@@ -512,8 +513,8 @@ def create_validated_chain(**config):
         return None
 
     try:
-        chain = Chain(**config)
-        print("✅ Chain created successfully")
+        chain = create_pydantic_chain(agent=agent, **config)
+        print("✅ PydanticAI Chain created successfully")
         return chain
     except Exception as e:
         print(f"❌ Chain creation failed: {e}")
@@ -579,22 +580,24 @@ validators = create_validated_validators()
 ```python
 # development.py
 import os
-from sifaka import Chain
+from sifaka.agents import create_pydantic_chain
 from sifaka.models import create_model
 from sifaka.storage import MemoryStorage
+from pydantic_ai import Agent
 
 def create_dev_config():
     """Create development configuration."""
-    return {
-        "model": create_model("mock:test-model"),  # Fast, no API key needed
-        "storage": MemoryStorage(),  # No external dependencies
-        "max_improvement_iterations": 1,  # Fast iterations
-        "debug": True
-    }
+    agent = Agent("mock:test-model", system_prompt="You are a helpful assistant.")
+    return create_pydantic_chain(
+        agent=agent,
+        storage=MemoryStorage(),  # No external dependencies
+        validators=[],
+        critics=[],
+        max_improvement_iterations=1,  # Fast iterations
+    )
 
 # Usage
-config = create_dev_config()
-chain = Chain(**config)
+chain = create_dev_config()  # Returns a ready-to-use PydanticAI chain
 ```
 
 ### Production Configuration

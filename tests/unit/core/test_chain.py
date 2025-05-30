@@ -6,7 +6,6 @@ including initialization, configuration, validation, criticism, and execution.
 """
 
 
-
 from sifaka.core.chain import Chain
 from sifaka.core.thought import Thought
 from sifaka.critics.reflexion import ReflexionCritic

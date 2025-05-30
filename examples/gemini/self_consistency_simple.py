@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simple SelfConsistencyCritic example using Gemini.
+"""Simple SelfConsistencyCritic example using Gemini (PydanticAI).
 
 This example demonstrates the basic usage of SelfConsistencyCritic with Google Gemini,
 using no validators, no retrieval, and only one chain retry for simplicity.
@@ -7,6 +7,7 @@ using no validators, no retrieval, and only one chain retry for simplicity.
 Requirements:
 - Set GOOGLE_API_KEY environment variable
 - Install google-generativeai: pip install google-generativeai
+- Install pydantic-ai: pip install pydantic-ai
 
 The SelfConsistencyCritic generates multiple critiques of the same text and uses
 consensus to determine the most reliable feedback. This improves critique reliability
@@ -14,9 +15,12 @@ by reducing the impact of single inconsistent or low-quality critiques.
 """
 
 import os
-from sifaka import Chain
-from sifaka.models import create_model
+
+from pydantic_ai import Agent
+
+from sifaka.agents import create_pydantic_chain
 from sifaka.critics.self_consistency import SelfConsistencyCritic
+from sifaka.models import create_model
 from sifaka.storage import FileStorage
 
 
@@ -30,19 +34,32 @@ def main():
         print("export GOOGLE_API_KEY='your-api-key-here'")
         return
 
-    print("🤖 Simple SelfConsistencyCritic Example with Gemini")
-    print("=" * 50)
+    print("🤖 Simple SelfConsistencyCritic Example with Gemini (PydanticAI)")
+    print("=" * 60)
 
     try:
-        # Create Gemini model
-        print("📡 Creating Gemini model...")
-        model = create_model("gemini:gemini-1.5-flash")
-        print("✅ Model created successfully")
+        # Create PydanticAI agent with Gemini model
+        print("📡 Creating PydanticAI Gemini agent...")
+        agent = Agent(
+            "google-gla:gemini-2.0-flash",
+            system_prompt=(
+                "You are an AI education expert and science communicator. Provide clear, "
+                "accurate explanations of artificial intelligence concepts that are accessible "
+                "to general audiences. Use analogies, examples, and structured explanations "
+                "to make complex topics understandable. Maintain an engaging and informative tone."
+            ),
+        )
+        print("✅ Agent created successfully")
+
+        # Create Sifaka model for the critic (critics still need Sifaka models)
+        print("📡 Creating Sifaka model for critic...")
+        critic_model = create_model("pydantic-ai:google-gla:gemini-2.0-flash")
+        print("✅ Critic model created successfully")
 
         # Create SelfConsistencyCritic with simple configuration
         print("🔍 Creating SelfConsistencyCritic...")
         critic = SelfConsistencyCritic(
-            model=model,
+            model=critic_model,
             # Generate 3 critiques for consensus (small number for simplicity)
             num_iterations=3,
             # Require 60% agreement for consensus
@@ -54,11 +71,11 @@ def main():
         )
         print("✅ Critic created successfully")
 
-        # Create a simple chain
-        print("⛓️  Creating chain...")
-        chain = Chain(
-            model=model,
-            prompt="Explain the concept of machine learning and provide a simple example that anyone can understand.",
+        # Create a PydanticAI chain
+        print("⛓️  Creating PydanticAI chain...")
+        chain = create_pydantic_chain(
+            agent=agent,
+            critics=[critic],
             max_improvement_iterations=1,  # Only one retry
             always_apply_critics=True,  # Always apply the critic
             storage=FileStorage(
@@ -66,16 +83,15 @@ def main():
                 overwrite=True,  # Overwrite existing file instead of appending
             ),  # Save thoughts to single JSON file for debugging
         )
-
-        # Add the critic to the chain
-        chain = chain.improve_with(critic)
         print("✅ Chain configured successfully")
 
         # Run the chain
         print("\n🚀 Running chain...")
         print("-" * 30)
 
-        result = chain.run()
+        # Define the prompt for the PydanticAI chain
+        prompt = "Explain the concept of machine learning and provide a simple example that anyone can understand."
+        result = chain.run(prompt)
 
         # Display results
         print("\n📝 Results:")
@@ -112,13 +128,15 @@ def main():
         print("\n✅ Example completed successfully!")
         print("\n💡 Note: SelfConsistencyCritic generated multiple critiques internally")
         print("   and used consensus to provide the most reliable feedback.")
+        print("💡 This example now uses PydanticAI for modern agent-based workflows!")
 
     except Exception as e:
         print(f"\n❌ Error: {e}")
         print("Make sure you have:")
         print("1. Set GOOGLE_API_KEY environment variable")
         print("2. Installed google-generativeai package")
-        print("3. Valid API key with sufficient quota")
+        print("3. Installed pydantic-ai package")
+        print("4. Valid API key with sufficient quota")
 
 
 if __name__ == "__main__":
