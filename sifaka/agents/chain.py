@@ -7,7 +7,7 @@ PydanticAI agents with Sifaka's validation and criticism framework.
 import asyncio
 import uuid
 from functools import wraps
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from sifaka.core.interfaces import Critic, Validator
 from sifaka.core.thought import Thought
@@ -151,7 +151,7 @@ class PydanticAIChain:
             thought = Thought(prompt=prompt, chain_id=self.chain_id, iteration=0)
 
             # Phase 1: Pre-generation retrieval
-            thought = self._execute_model_retrieval(thought)
+            thought = await self._execute_model_retrieval_async(thought)
 
             # Phase 2: Initial generation with PydanticAI
             thought = await self._execute_agent_generation(thought, **kwargs)
@@ -160,7 +160,7 @@ class PydanticAIChain:
             await self._save_intermediate_thought(thought)
 
             # Phase 3: Sifaka validation
-            thought = self._execute_validation(thought)
+            thought = await self._execute_validation_async(thought)
 
             # Phase 4: Improvement loop if validation fails OR always_apply_critics is True
             validation_passed = self._validation_passed(thought)
@@ -229,7 +229,7 @@ class PydanticAIChain:
                 raise ChainError(f"PydanticAI agent generation failed: {e}")
 
     def _execute_validation(self, thought: Thought) -> Thought:
-        """Execute Sifaka validation on the generated text.
+        """Execute Sifaka validation on the generated text (sync version for backward compatibility).
 
         Args:
             thought: The thought with generated text.
@@ -258,6 +258,64 @@ class PydanticAIChain:
 
             return thought
 
+    async def _execute_validation_async(self, thought: Thought) -> Thought:
+        """Execute Sifaka validation on the generated text asynchronously.
+
+        Args:
+            thought: The thought with generated text.
+
+        Returns:
+            Updated thought with validation results.
+        """
+        if not self.validators:
+            logger.debug("No validators configured, skipping validation")
+            return thought
+
+        logger.debug(f"Running async validation with {len(self.validators)} validators")
+
+        with time_operation("validation"):
+            # Run all validators concurrently
+            validation_tasks = []
+            for validator in self.validators:
+                validation_tasks.append(self._validate_with_validator_async(validator, thought))
+
+            # Wait for all validations to complete
+            validation_results = await asyncio.gather(*validation_tasks, return_exceptions=True)
+
+            # Process results
+            for i, result in enumerate(validation_results):
+                validator = self.validators[i]
+                validator_name = validator.__class__.__name__
+
+                if isinstance(result, Exception):
+                    logger.error(f"Validation error for {validator_name}: {result}")
+                    # Continue with other validators - don't add failed validation to thought
+                else:
+                    # Add successful validation result to thought
+                    thought = thought.add_validation_result(validator_name, result)
+                    logger.debug(
+                        f"Async validation by {validator_name}: {'PASSED' if result.passed else 'FAILED'}"
+                    )
+
+            return thought
+
+    async def _validate_with_validator_async(self, validator, thought: Thought):
+        """Run a single validator asynchronously with error handling."""
+        try:
+            # Check if validator has async method, otherwise use sync in thread pool
+            if hasattr(validator, "_validate_async"):
+                return await validator._validate_async(thought)  # type: ignore
+            else:
+                # Fall back to sync validation in thread pool to avoid blocking
+                import concurrent.futures
+
+                loop = asyncio.get_event_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    return await loop.run_in_executor(executor, validator.validate, thought)
+        except Exception as e:
+            logger.error(f"Async validation failed for {validator.__class__.__name__}: {e}")
+            raise
+
     async def _execute_improvement_loop(self, thought: Thought, **kwargs) -> Thought:
         """Execute improvement iterations using critics and agent feedback.
 
@@ -278,8 +336,8 @@ class PydanticAIChain:
             logger.debug(f"Improvement iteration {iteration + 1}")
 
             # Apply critic retrieval and then critics to get feedback
-            current_thought = self._execute_critic_retrieval(current_thought)
-            current_thought = self._execute_criticism(current_thought)
+            current_thought = await self._execute_critic_retrieval_async(current_thought)
+            current_thought = await self._execute_criticism_async(current_thought)
 
             # Create improvement prompt based on feedback
             improvement_prompt = self._create_improvement_prompt(current_thought)
@@ -314,7 +372,7 @@ class PydanticAIChain:
                 )
 
                 # Re-validate
-                current_thought = self._execute_validation(current_thought)
+                current_thought = await self._execute_validation_async(current_thought)
 
                 # Save intermediate iteration
                 await self._save_intermediate_thought(current_thought)
@@ -330,8 +388,8 @@ class PydanticAIChain:
 
         return current_thought
 
-    def _execute_criticism(self, thought: Thought) -> Thought:
-        """Execute criticism using configured critics.
+    async def _execute_criticism_async(self, thought: Thought) -> Thought:
+        """Execute criticism using configured critics asynchronously.
 
         Args:
             thought: The thought to critique.
@@ -343,27 +401,69 @@ class PydanticAIChain:
             logger.debug("No critics configured, skipping criticism")
             return thought
 
-        logger.debug(f"Running criticism with {len(self.critics)} critics")
+        logger.debug(f"Running async criticism with {len(self.critics)} critics")
 
+        # Run all critics concurrently
+        criticism_tasks = []
         for critic in self.critics:
-            try:
-                feedback_dict = critic.critique(thought)
+            criticism_tasks.append(self._critique_with_critic_async(critic, thought))
+
+        # Wait for all criticisms to complete
+        criticism_results = await asyncio.gather(*criticism_tasks, return_exceptions=True)
+
+        # Process results
+        for i, result in enumerate(criticism_results):
+            critic = self.critics[i]
+            critic_name = critic.__class__.__name__
+
+            if isinstance(result, Exception):
+                logger.error(f"Criticism error for {critic_name}: {result}")
+                # Create error feedback
+                from sifaka.core.thought import CriticFeedback
+
+                error_feedback = CriticFeedback(
+                    critic_name=critic_name,
+                    feedback="Please try again or check the critic configuration",
+                    confidence=0.0,
+                    issues=[str(result)],
+                    suggestions=["Please try again or check the critic configuration"],
+                    needs_improvement=False,
+                )
+                thought = thought.add_critic_feedback(error_feedback)
+            elif isinstance(result, dict):
                 # Convert to CriticFeedback object and add to thought
                 from sifaka.core.thought import CriticFeedback
 
                 feedback = CriticFeedback(
-                    critic_name=critic.__class__.__name__,
-                    feedback=feedback_dict.get("feedback", ""),
-                    confidence=feedback_dict.get("confidence", 0.0),
-                    issues=feedback_dict.get("issues", []),
-                    suggestions=feedback_dict.get("suggestions", []),
+                    critic_name=critic_name,
+                    feedback=result.get("feedback", ""),
+                    confidence=result.get("confidence", 0.0),
+                    issues=result.get("issues", []),
+                    suggestions=result.get("suggestions", []),
+                    needs_improvement=result.get("needs_improvement", False),
                 )
                 thought = thought.add_critic_feedback(feedback)
-
-            except Exception as e:
-                logger.error(f"Criticism error for {critic.__class__.__name__}: {e}")
+                logger.debug(f"Added async feedback from {critic_name}")
 
         return thought
+
+    async def _critique_with_critic_async(self, critic: Critic, thought: Thought) -> Dict[str, Any]:
+        """Run a single critic asynchronously with error handling."""
+        try:
+            # Check if critic has async method, otherwise use sync in thread pool
+            if hasattr(critic, "_critique_async"):
+                return await critic._critique_async(thought)  # type: ignore
+            else:
+                # Fall back to sync criticism in thread pool to avoid blocking
+                import concurrent.futures
+
+                loop = asyncio.get_event_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    return await loop.run_in_executor(executor, critic.critique, thought)
+        except Exception as e:
+            logger.error(f"Async criticism failed for {critic.__class__.__name__}: {e}")
+            # Return error feedback dict
+            return {"error": str(e), "confidence": 0.0, "issues": [str(e)], "suggestions": []}
 
     def _create_improvement_prompt(self, thought: Thought) -> str:
         """Create an improvement prompt based on validation and critic feedback.
@@ -705,7 +805,7 @@ class PydanticAIChain:
             # Don't raise the exception to avoid breaking the chain execution
 
     def _execute_model_retrieval(self, thought: Thought) -> Thought:
-        """Execute pre-generation retrieval using model retrievers.
+        """Execute pre-generation retrieval using model retrievers (sync version for backward compatibility).
 
         Args:
             thought: The current thought state.
@@ -731,8 +831,49 @@ class PydanticAIChain:
 
             return thought
 
+    async def _execute_model_retrieval_async(self, thought: Thought) -> Thought:
+        """Execute pre-generation retrieval using model retrievers asynchronously.
+
+        Args:
+            thought: The current thought state.
+
+        Returns:
+            Updated thought with retrieved context.
+        """
+        if not self.model_retrievers:
+            logger.debug("No model retrievers configured, skipping model retrieval")
+            return thought
+
+        logger.debug(f"Running async model retrieval with {len(self.model_retrievers)} retrievers")
+
+        with time_operation("model_retrieval"):
+            # Run all retrievers concurrently
+            retrieval_tasks = []
+            for retriever in self.model_retrievers:
+                retrieval_tasks.append(
+                    self._retrieve_with_retriever_async(retriever, thought, is_pre_generation=True)
+                )
+
+            # Wait for all retrievals to complete
+            retrieval_results = await asyncio.gather(*retrieval_tasks, return_exceptions=True)
+
+            # Process results sequentially to maintain thought state consistency
+            for i, result in enumerate(retrieval_results):
+                retriever = self.model_retrievers[i]
+                retriever_name = retriever.__class__.__name__
+
+                if isinstance(result, Exception):
+                    logger.error(f"Model retrieval error for {retriever_name}: {result}")
+                    # Continue with other retrievers
+                else:
+                    # Update thought with retrieved context
+                    thought = result
+                    logger.debug(f"Applied async model retriever: {retriever_name}")
+
+            return thought
+
     def _execute_critic_retrieval(self, thought: Thought) -> Thought:
-        """Execute retrieval for critics using critic retrievers.
+        """Execute retrieval for critics using critic retrievers (sync version for backward compatibility).
 
         Args:
             thought: The current thought state.
@@ -757,6 +898,70 @@ class PydanticAIChain:
                     # Continue with other retrievers
 
             return thought
+
+    async def _execute_critic_retrieval_async(self, thought: Thought) -> Thought:
+        """Execute retrieval for critics using critic retrievers asynchronously.
+
+        Args:
+            thought: The current thought state.
+
+        Returns:
+            Updated thought with critic-specific context.
+        """
+        if not self.critic_retrievers:
+            logger.debug("No critic retrievers configured, skipping critic retrieval")
+            return thought
+
+        logger.debug(
+            f"Running async critic retrieval with {len(self.critic_retrievers)} retrievers"
+        )
+
+        with time_operation("critic_retrieval"):
+            # Run all retrievers concurrently
+            retrieval_tasks = []
+            for retriever in self.critic_retrievers:
+                retrieval_tasks.append(
+                    self._retrieve_with_retriever_async(retriever, thought, is_pre_generation=False)
+                )
+
+            # Wait for all retrievals to complete
+            retrieval_results = await asyncio.gather(*retrieval_tasks, return_exceptions=True)
+
+            # Process results sequentially to maintain thought state consistency
+            for i, result in enumerate(retrieval_results):
+                retriever = self.critic_retrievers[i]
+                retriever_name = retriever.__class__.__name__
+
+                if isinstance(result, Exception):
+                    logger.error(f"Critic retrieval error for {retriever_name}: {result}")
+                    # Continue with other retrievers
+                else:
+                    # Update thought with retrieved context
+                    thought = result
+                    logger.debug(f"Applied async critic retriever: {retriever_name}")
+
+            return thought
+
+    async def _retrieve_with_retriever_async(
+        self, retriever, thought: Thought, is_pre_generation: bool
+    ) -> Thought:
+        """Run a single retriever asynchronously with error handling."""
+        try:
+            # Check if retriever has async method, otherwise use sync in thread pool
+            if hasattr(retriever, "_retrieve_for_thought_async"):
+                return await retriever._retrieve_for_thought_async(thought, is_pre_generation)  # type: ignore
+            else:
+                # Fall back to sync retrieval in thread pool to avoid blocking
+                import concurrent.futures
+
+                loop = asyncio.get_event_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    return await loop.run_in_executor(
+                        executor, retriever.retrieve_for_thought, thought, is_pre_generation
+                    )
+        except Exception as e:
+            logger.error(f"Async retrieval failed for {retriever.__class__.__name__}: {e}")
+            raise
 
     def _setup_critic_tools(self):
         """Setup critics as PydanticAI tools (placeholder for Phase 2)."""
