@@ -14,9 +14,10 @@ by reducing the impact of single inconsistent or low-quality critiques.
 """
 
 import os
+
 from sifaka import Chain
-from sifaka.models import create_model
 from sifaka.critics.self_consistency import SelfConsistencyCritic
+from sifaka.models import create_model
 from sifaka.storage import FileStorage
 
 

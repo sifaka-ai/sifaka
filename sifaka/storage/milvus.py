@@ -79,7 +79,7 @@ class MilvusStorage:
         if isinstance(timestamp, str):
             try:
                 timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-            except:
+            except (ValueError, TypeError):
                 timestamp = datetime.now()
 
         # Format: YYYYMMDD_shortid_iterN
@@ -392,7 +392,9 @@ class MilvusStorage:
                                         data = json.loads(line.strip())
                                     except json.JSONDecodeError:
                                         # If JSON fails, try to evaluate as Python dict
-                                        data = eval(line.strip())
+                                        import ast
+
+                                        data = ast.literal_eval(line.strip())
 
                                     if isinstance(data, dict) and "content" in data:
                                         stored_content = data["content"]
@@ -495,7 +497,7 @@ class MilvusStorage:
                         "filter_expr": f"key == '{milvus_key}'",
                     },
                 )
-            except Exception:
+            except Exception:  # nosec
                 # Ignore errors if entity doesn't exist
                 pass
 
@@ -509,7 +511,7 @@ class MilvusStorage:
                             "filter_expr": f"key == '{original_key}'",
                         },
                     )
-                except Exception:
+                except Exception:  # nosec
                     # Ignore errors if entity doesn't exist
                     pass
 

@@ -273,7 +273,6 @@ class CachedStorage:
             value: The value to store.
         """
         cache_success = False
-        persistence_success = False
 
         # Write to cache immediately (fast)
         if self.cache is not None:
@@ -287,7 +286,7 @@ class CachedStorage:
         if self.persistence is not None:
             try:
                 self.persistence.set(key, value)
-                persistence_success = True
+
             except Exception as e:
                 logger.error(f"Persistence set failed for {key}: {e}")
                 # If both cache and persistence failed, raise StorageError

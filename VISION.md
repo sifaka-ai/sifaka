@@ -37,6 +37,15 @@ Most frameworks treat validation as an afterthought. Sifaka makes validation and
 
 ## Technical Vision
 
+### PydanticAI-First Architecture
+**As of Sifaka 0.2.0, we are fully aligned with PydanticAI's development and vision.** PydanticAI represents the future of AI agent frameworks, and Sifaka will evolve alongside it:
+
+- **Native PydanticAI integration** as our primary chain implementation
+- **Tool-based extensibility** leveraging PydanticAI's powerful tool system
+- **Type-safe AI applications** with Pydantic's validation and serialization
+- **Modern async patterns** built on PydanticAI's foundation
+- **Aligned development roadmap** with PydanticAI's evolution
+
 ### MCP-First Architecture
 We're building for the future of AI infrastructure using the Model Context Protocol (MCP):
 
@@ -63,11 +72,20 @@ Every aspect of the AI generation process should be observable and debuggable:
 
 ## Future Developments
 
-### Advanced Critics and Validators
-- **Multi-modal critics** for text, code, and structured data
-- **Domain-specific validators** for legal, medical, and technical content
-- **Ensemble methods** that combine multiple validation approaches
-- **Adaptive critics** that learn from validation patterns
+### PydanticAI Alignment and Evolution
+**Our development roadmap is aligned with PydanticAI's evolution:**
+
+- **Tool ecosystem expansion** leveraging PydanticAI's tool framework
+- **Advanced agent patterns** as PydanticAI introduces new capabilities
+- **Structured output validation** using Pydantic's evolving type system
+- **Performance optimizations** aligned with PydanticAI's improvements
+- **New PydanticAI features** integrated into Sifaka as they become available
+
+### Advanced Critics and Validators as Tools
+- **Multi-modal critics** implemented as PydanticAI tools for text, code, and structured data
+- **Domain-specific validators** as specialized tools for legal, medical, and technical content
+- **Ensemble methods** that combine multiple validation tools
+- **Adaptive critics** that learn from validation patterns through tool composition
 
 ### Enhanced Storage and Retrieval
 - **Semantic search** across thought histories for pattern recognition
@@ -124,11 +142,22 @@ Every aspect of the AI generation process should be observable and debuggable:
 
 ## Long-Term Vision
 
-Sifaka will become the standard framework for building reliable, observable AI applications that implement cutting-edge research. We envision a future where:
+**Sifaka will become the standard validation and reliability layer for PydanticAI applications.** We envision a future where:
 
-- **Research papers** can be quickly implemented and deployed in production
-- **AI applications** are fully observable and debuggable
-- **Quality assurance** is built into every AI system by default
-- **Academic research** directly benefits production applications
+- **PydanticAI agents** are enhanced with Sifaka's validation and criticism capabilities by default
+- **Research papers** can be quickly implemented as PydanticAI tools and deployed in production
+- **AI applications** are fully observable and debuggable through Sifaka's thought-centric architecture
+- **Quality assurance** is built into every PydanticAI system through Sifaka integration
+- **Academic research** directly benefits production applications via the PydanticAI + Sifaka ecosystem
 
-By focusing on the intersection of academic rigor and production reliability, Sifaka will enable the next generation of AI applications that are both innovative and trustworthy.
+### Strategic Partnership with PydanticAI
+
+**Sifaka's future is intrinsically linked to PydanticAI's success.** We will:
+
+- **Track PydanticAI releases** and integrate new features rapidly
+- **Contribute to PydanticAI** where our validation and reliability expertise adds value
+- **Maintain compatibility** with PydanticAI's evolving API and patterns
+- **Advocate for validation-first patterns** within the PydanticAI ecosystem
+- **Build the reliability layer** that makes PydanticAI agents production-ready
+
+By aligning our development with PydanticAI and focusing on the intersection of academic rigor and production reliability, Sifaka will enable the next generation of AI applications that are both innovative and trustworthy.

@@ -41,18 +41,23 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
+from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
+from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
 
-class ConstitutionalCritic(BaseCritic):
-    """Critic that evaluates text against constitutional principles.
+class ConstitutionalCritic(BaseCritic, ValidationAwareMixin):
+    """Critic that evaluates text against constitutional principles with validation awareness.
 
     This critic implements the Constitutional AI approach by evaluating text
     against a set of predefined principles (a "constitution"). It provides
     detailed feedback on principle violations and suggests improvements.
+
+    Enhanced with validation context awareness to prioritize validation constraints
+    over conflicting constitutional suggestions.
     """
 
     def __init__(
@@ -134,7 +139,7 @@ class ConstitutionalCritic(BaseCritic):
         """
         # Format principles for the prompt
         principles_text = "\n".join(
-            f"{i+1}. {principle}" for i, principle in enumerate(self.principles)
+            f"{i + 1}. {principle}" for i, principle in enumerate(self.principles)
         )
 
         # Prepare context from retrieved documents (using mixin)
@@ -196,6 +201,25 @@ class ConstitutionalCritic(BaseCritic):
         Raises:
             ImproverError: If the improvement fails.
         """
+        # Use the enhanced method with validation context from thought
+        validation_context = create_validation_context(getattr(thought, "validation_results", None))
+        return self.improve_with_validation_context(thought, validation_context)
+
+    def improve_with_validation_context(
+        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Improve text with validation context awareness.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+            validation_context: Optional validation context for constraint awareness.
+
+        Returns:
+            The improved text that prioritizes validation constraints.
+
+        Raises:
+            ImproverError: If the improvement fails.
+        """
         start_time = time.time()
 
         with critic_context(
@@ -239,20 +263,35 @@ class ConstitutionalCritic(BaseCritic):
 
             # Format principles for the prompt
             principles_text = "\n".join(
-                f"{i+1}. {principle}" for i, principle in enumerate(self.principles)
+                f"{i + 1}. {principle}" for i, principle in enumerate(self.principles)
             )
 
             # Prepare context for improvement (using mixin)
             context = self._prepare_context(thought)
 
-            # Create improvement prompt with context
-            improve_prompt = self.improve_prompt_template.format(
-                principles=principles_text,
-                prompt=thought.prompt,
-                text=thought.text,
-                critique=critique,
-                context=context,
-            )
+            # Parse critique to extract suggestions for filtering
+            _, suggestions = self._parse_critique(critique)
+
+            # Create improvement prompt with validation awareness
+            if validation_context:
+                # Use enhanced prompt with validation awareness
+                improve_prompt = self._create_enhanced_improvement_prompt(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    critique=critique,
+                    context=context,
+                    validation_context=validation_context,
+                    critic_suggestions=suggestions,
+                )
+            else:
+                # Use original prompt template
+                improve_prompt = self.improve_prompt_template.format(
+                    principles=principles_text,
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    critique=critique,
+                    context=context,
+                )
 
             # Store the actual prompt for logging/debugging
             self.last_improvement_prompt = improve_prompt

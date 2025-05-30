@@ -23,13 +23,12 @@ from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.mcp import MCPServerConfig, MCPTransportType
 from sifaka.models.huggingface import HuggingFaceModel
 from sifaka.retrievers.simple import InMemoryRetriever
+from sifaka.storage import FileStorage
 from sifaka.storage.cached import CachedStorage
 from sifaka.storage.memory import MemoryStorage
 from sifaka.storage.milvus import MilvusStorage
 from sifaka.storage.redis import RedisStorage
-from sifaka.storage import FileStorage
 from sifaka.utils.logging import get_logger
-
 
 # Load environment variables
 load_dotenv()

@@ -51,14 +51,16 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model, Retriever
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
+from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
+from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
 
-class SelfRAGCritic(BaseCritic):
-    """Critic that implements Self-RAG inspired approach with retrieval and self-reflection.
+class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
+    """Critic that implements Self-RAG inspired approach with retrieval and self-reflection and validation awareness.
 
     This critic uses a Self-RAG inspired approach which combines retrieval-augmented
     generation with self-reflection tokens to critique and improve text quality.
@@ -69,6 +71,9 @@ class SelfRAGCritic(BaseCritic):
     that captures the practical value of Self-RAG without requiring model training.
     It is approximately 30-40% faithful to the original Self-RAG paper, prioritizing
     ease of deployment and practical utility over research fidelity.
+
+    Enhanced with validation context awareness to prioritize validation constraints
+    over conflicting Self-RAG suggestions.
 
     See module docstring for detailed comparison with the original Self-RAG approach.
     """
@@ -261,6 +266,25 @@ class SelfRAGCritic(BaseCritic):
         Raises:
             ImproverError: If the improvement fails.
         """
+        # Use the enhanced method with validation context from thought
+        validation_context = create_validation_context(getattr(thought, "validation_results", None))
+        return self.improve_with_validation_context(thought, validation_context)
+
+    def improve_with_validation_context(
+        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Improve text with validation context awareness.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+            validation_context: Optional validation context for constraint awareness.
+
+        Returns:
+            The improved text that prioritizes validation constraints.
+
+        Raises:
+            ImproverError: If the improvement fails.
+        """
         start_time = time.time()
 
         with critic_context(
@@ -349,13 +373,25 @@ class SelfRAGCritic(BaseCritic):
                         context = chain_context
                         logger.debug("SelfRAGCritic: Using chain-level context for improvement")
 
-            # Create improvement prompt with context
-            improve_prompt = self.improve_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                context=context or "No retrieved context available",
-                critique=critique,
-            )
+            # Create improvement prompt with validation awareness
+            if validation_context:
+                # Use enhanced prompt with validation awareness
+                improve_prompt = self._create_enhanced_improvement_prompt(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    critique=critique,
+                    context=context or "No retrieved context available",
+                    validation_context=validation_context,
+                    critic_suggestions=[],  # SelfRAGCritic doesn't have structured suggestions
+                )
+            else:
+                # Use original prompt template
+                improve_prompt = self.improve_prompt_template.format(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    context=context or "No retrieved context available",
+                    critique=critique,
+                )
 
             # Generate improved text
             improved_text = self.model.generate(

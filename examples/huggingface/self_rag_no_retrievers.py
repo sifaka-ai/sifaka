@@ -11,6 +11,7 @@ The chain will generate content about quantum computing using only the model's
 internal knowledge and Self-RAG's built-in retrieval capabilities.
 """
 
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -18,9 +19,8 @@ from dotenv import load_dotenv
 from sifaka.core.chain import Chain
 from sifaka.critics.self_rag import SelfRAGCritic
 from sifaka.models.huggingface import HuggingFaceModel
-from sifaka.utils.logging import get_logger
-import logging
 from sifaka.storage import FileStorage
+from sifaka.utils.logging import get_logger
 
 # Load environment variables
 load_dotenv()

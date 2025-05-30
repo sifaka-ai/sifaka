@@ -35,18 +35,23 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
+from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
+from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
 
-class NCriticsCritic(BaseCritic):
-    """Critic that uses an ensemble of specialized critics.
+class NCriticsCritic(BaseCritic, ValidationAwareMixin):
+    """Critic that uses an ensemble of specialized critics with validation awareness.
 
     This critic implements the N-Critics technique, which leverages an ensemble
     of specialized critics, each focusing on different aspects of the text,
     to provide comprehensive feedback and guide the refinement process.
+
+    Enhanced with validation context awareness to prioritize validation constraints
+    over conflicting N-Critics suggestions.
     """
 
     def __init__(
@@ -137,7 +142,7 @@ class NCriticsCritic(BaseCritic):
         valid_critiques = []
         for i, result in enumerate(critic_critiques):
             if isinstance(result, Exception):
-                logger.error(f"NCriticsCritic: Error in critic {i+1}: {result}")
+                logger.error(f"NCriticsCritic: Error in critic {i + 1}: {result}")
                 # Create error critique
                 error_critique = {
                     "role": self.critic_roles[i],
@@ -194,6 +199,25 @@ class NCriticsCritic(BaseCritic):
         Raises:
             ImproverError: If the improvement fails.
         """
+        # Use the enhanced method with validation context from thought
+        validation_context = create_validation_context(getattr(thought, "validation_results", None))
+        return self.improve_with_validation_context(thought, validation_context)
+
+    def improve_with_validation_context(
+        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Improve text with validation context awareness.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+            validation_context: Optional validation context for constraint awareness.
+
+        Returns:
+            The improved text that prioritizes validation constraints.
+
+        Raises:
+            ImproverError: If the improvement fails.
+        """
         start_time = time.time()
 
         with critic_context(
@@ -242,13 +266,25 @@ class NCriticsCritic(BaseCritic):
             # Prepare context for improvement (using mixin)
             context = self._prepare_context(thought)
 
-            # Create improvement prompt with context
-            improve_prompt = self.improve_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                aggregated_feedback=aggregated_feedback,
-                context=context,
-            )
+            # Create improvement prompt with validation awareness
+            if validation_context:
+                # Use enhanced prompt with validation awareness
+                improve_prompt = self._create_enhanced_improvement_prompt(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    critique=aggregated_feedback,
+                    context=context,
+                    validation_context=validation_context,
+                    critic_suggestions=[],  # NCriticsCritic has complex aggregated suggestions
+                )
+            else:
+                # Use original prompt template
+                improve_prompt = self.improve_prompt_template.format(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    aggregated_feedback=aggregated_feedback,
+                    context=context,
+                )
 
             # Generate improved text
             improved_text = self.model.generate(

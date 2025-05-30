@@ -20,7 +20,6 @@ from dotenv import load_dotenv
 from sifaka.core.chain import Chain
 from sifaka.critics.self_rag import SelfRAGCritic
 from sifaka.mcp import MCPServerConfig, MCPTransportType
-from sifaka.models.anthropic import AnthropicModel
 from sifaka.retrievers.simple import InMemoryRetriever
 from sifaka.storage import FileStorage
 from sifaka.storage.cached import CachedStorage

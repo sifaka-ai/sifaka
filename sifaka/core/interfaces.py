@@ -9,7 +9,7 @@ The interfaces are defined as Protocols with abstract methods that must be imple
 by concrete classes. The sync methods are implemented by the concrete classes.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from sifaka.core.thought import Thought, ValidationResult
@@ -140,6 +140,34 @@ class Critic(Protocol):
 
         Returns:
             The improved text.
+        """
+        ...
+
+
+@runtime_checkable
+class ValidationAwareCritic(Critic, Protocol):
+    """Extended critic protocol that supports validation context awareness.
+
+    This protocol extends the base Critic protocol to support validation context
+    in the improve method, enabling critics to prioritize validation constraints
+    over conflicting suggestions.
+
+    Implementations can choose to implement either the base improve() method
+    or the enhanced improve_with_validation_context() method, or both for
+    maximum compatibility.
+    """
+
+    def improve_with_validation_context(
+        self, thought: "Thought", validation_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Improve text with validation context awareness.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+            validation_context: Optional validation context for constraint awareness.
+
+        Returns:
+            The improved text that prioritizes validation constraints.
         """
         ...
 

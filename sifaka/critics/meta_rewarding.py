@@ -35,19 +35,24 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
+from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
+from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
 
-class MetaRewardingCritic(BaseCritic):
-    """Critic that implements Meta-Rewarding with two-stage judgment process.
+class MetaRewardingCritic(BaseCritic, ValidationAwareMixin):
+    """Critic that implements Meta-Rewarding with two-stage judgment process and validation awareness.
 
     This critic uses the Meta-Rewarding approach which first judges the response
     quality, then judges the quality of that judgment itself (meta-judgment).
     This creates a feedback loop that can improve both response quality and
     judgment capabilities.
+
+    Enhanced with validation context awareness to prioritize validation constraints
+    over conflicting meta-rewarding suggestions.
     """
 
     def __init__(
@@ -208,7 +213,7 @@ class MetaRewardingCritic(BaseCritic):
         meta_judgment = await self._generate_meta_judgment_async(thought, initial_judgment)
 
         # Stage 3: Combine judgments into final assessment
-        combined_result = self._combine_judgments(thought, initial_judgment, meta_judgment)
+        combined_result = self._combine_judgments(initial_judgment, meta_judgment)
 
         logger.debug("MetaRewardingCritic: Completed two-stage judgment process")
 
@@ -225,7 +230,7 @@ class MetaRewardingCritic(BaseCritic):
         """
         # Format criteria for the prompt
         criteria_text = "\n".join(
-            f"{i+1}. {criterion}" for i, criterion in enumerate(self.judgment_criteria)
+            f"{i + 1}. {criterion}" for i, criterion in enumerate(self.judgment_criteria)
         )
 
         # Prepare context from retrieved documents (using mixin)
@@ -259,7 +264,7 @@ class MetaRewardingCritic(BaseCritic):
         """
         # Format meta-criteria for the prompt
         meta_criteria_text = "\n".join(
-            f"{i+1}. {criterion}" for i, criterion in enumerate(self.meta_judgment_criteria)
+            f"{i + 1}. {criterion}" for i, criterion in enumerate(self.meta_judgment_criteria)
         )
 
         # Create meta-judgment prompt
@@ -278,13 +283,10 @@ class MetaRewardingCritic(BaseCritic):
 
         return meta_judgment_response
 
-    def _combine_judgments(
-        self, thought: Thought, initial_judgment: str, meta_judgment: str
-    ) -> Dict[str, Any]:
+    def _combine_judgments(self, initial_judgment: str, meta_judgment: str) -> Dict[str, Any]:
         """Combine initial judgment and meta-judgment into final assessment.
 
         Args:
-            thought: The original thought.
             initial_judgment: The initial judgment text.
             meta_judgment: The meta-judgment text.
 
@@ -342,6 +344,25 @@ class MetaRewardingCritic(BaseCritic):
         Raises:
             ImproverError: If the improvement fails.
         """
+        # Use the enhanced method with validation context from thought
+        validation_context = create_validation_context(getattr(thought, "validation_results", None))
+        return self.improve_with_validation_context(thought, validation_context)
+
+    def improve_with_validation_context(
+        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Improve text with validation context awareness.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+            validation_context: Optional validation context for constraint awareness.
+
+        Returns:
+            The improved text that prioritizes validation constraints.
+
+        Raises:
+            ImproverError: If the improvement fails.
+        """
         start_time = time.time()
 
         with critic_context(
@@ -391,14 +412,31 @@ class MetaRewardingCritic(BaseCritic):
             # Prepare context for improvement (using mixin)
             context = self._prepare_context(thought)
 
-            # Create improvement prompt with both judgments
-            improve_prompt = self.improve_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                context=context,
-                initial_judgment=initial_judgment,
-                meta_judgment=meta_judgment,
-            )
+            # Create improvement prompt with validation awareness
+            if validation_context:
+                # Create a critique string for the enhanced prompt
+                critique = (
+                    f"Initial Judgment:\n{initial_judgment}\n\nMeta-Judgment:\n{meta_judgment}"
+                )
+
+                # Use enhanced prompt with validation awareness
+                improve_prompt = self._create_enhanced_improvement_prompt(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    critique=critique,
+                    context=context,
+                    validation_context=validation_context,
+                    critic_suggestions=[],  # MetaRewardingCritic doesn't have structured suggestions
+                )
+            else:
+                # Use original prompt template
+                improve_prompt = self.improve_prompt_template.format(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    context=context,
+                    initial_judgment=initial_judgment,
+                    meta_judgment=meta_judgment,
+                )
 
             # Generate improved text
             improved_text = self.model.generate(

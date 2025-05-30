@@ -6,6 +6,18 @@
 
 An open-source framework that adds reflection and reliability to large language model (LLM) applications.
 
+## 🚨 **Version 0.2.0 Breaking Changes**
+
+**Sifaka 0.2.0** introduces significant architectural improvements:
+
+- **🚀 PydanticAI Chain is now the primary and recommended approach**
+- **⚠️ Traditional Chain is deprecated** (still available but in maintenance mode)
+- **✨ Full feature parity**: PydanticAI chains now support retrievers, making them equivalent to Traditional chains
+- **📚 Updated documentation** focuses on PydanticAI Chain patterns
+
+**For new projects**: Use PydanticAI Chain
+**For existing projects**: Consider migrating to PydanticAI Chain (see [Migration Guide](#migration-guide))
+
 ## What is Sifaka?
 
 Sifaka is a tool for adding reflection and reliability to large language model (LLM) applications. It implements research-backed techniques for validating, critiquing, and iteratively improving AI-generated text through a transparent, observable process.
@@ -112,6 +124,131 @@ pip install sifaka[classifiers]
 # Everything
 pip install sifaka[all]
 ```
+
+## Chain Types: PydanticAI vs Traditional
+
+Sifaka offers two chain implementations optimized for different use cases:
+
+### 🚀 **PydanticAI Chain** (Recommended for New Projects)
+
+**Best for**: Modern applications with tool calling, structured outputs, and type safety
+
+```python
+from sifaka.agents import create_pydantic_chain
+from sifaka.models import create_model
+from sifaka.validators import LengthValidator
+from sifaka.critics import ReflexionCritic
+from pydantic_ai import Agent
+
+# Create PydanticAI agent with tools
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant")
+
+@agent.tool_plain
+def search_web(query: str) -> str:
+    """Search the web for information."""
+    return f"Search results for: {query}"
+
+# Create Sifaka chain with PydanticAI integration
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[LengthValidator(min_length=50, max_length=500)],
+    critics=[ReflexionCritic(model=create_model("openai:gpt-4"))],
+    always_apply_critics=True
+)
+
+result = chain.run("Research the latest AI developments")
+```
+
+**Advantages**: ✅ Native tool calling ✅ Type safety ✅ Simple setup ✅ Modern async patterns ✅ Extensible via tools
+
+### 🏗️ **Traditional Chain** (Legacy - Maintenance Mode)
+
+**Best for**: Existing projects, migration scenarios, pipeline-based workflows
+
+> **⚠️ Note**: Traditional Chain is in maintenance mode. For new projects, we recommend PydanticAI Chain.
+
+```python
+from sifaka import Chain
+from sifaka.models import create_model
+from sifaka.storage import FileStorage
+from sifaka.validators import LengthValidator
+from sifaka.critics import ReflexionCritic
+
+# Traditional chain with advanced features
+chain = Chain(
+    model=create_model("openai:gpt-4"),
+    prompt="Analyze market trends",
+    model_retrievers=[redis_retriever],      # Advanced retrieval
+    critic_retrievers=[milvus_retriever],    # Separate retrieval for critics
+    max_improvement_iterations=3,
+    always_apply_critics=True,
+    storage=FileStorage("./thoughts.json")   # Persistent storage
+)
+
+# Add validators and critics (returns new chain instances)
+validator = LengthValidator(min_length=100, max_length=1000)
+critic = ReflexionCritic(model=create_model("openai:gpt-4"))
+chain = chain.validate_with(validator).improve_with(critic)
+
+result = chain.run()
+```
+
+**Advantages**: ✅ Pre-built features ✅ Pipeline orchestration ✅ Configuration-driven ✅ Mature ecosystem
+
+### 📊 **Quick Comparison**
+
+| Feature | PydanticAI Chain | Traditional Chain |
+|---------|------------------|-------------------|
+| **Tool Integration** | ✅ Excellent (native) | ⚠️ Manual implementation |
+| **Architecture** | ✅ Modern, async-first | ✅ Mature, pipeline-based |
+| **Built-in Features** | ⚠️ Fewer (but extensible) | ✅ Many (pre-built) |
+| **Flexibility** | ✅ High (via tools) | ✅ High (via configuration) |
+| **Development Speed** | ✅ Fast | ⚠️ Moderate |
+| **Learning Curve** | ✅ Gentle | ⚠️ Steeper |
+
+**Choose PydanticAI Chain when**: You need tool calling, prefer modern patterns, want extensibility through tools
+**Choose Traditional Chain when**: You want pre-built features, prefer pipeline architecture, use configuration-driven workflows
+
+## Migration Guide
+
+### Migrating from Traditional Chain to PydanticAI Chain
+
+**Before (Traditional Chain)**:
+```python
+from sifaka import Chain
+from sifaka.models import create_model
+
+chain = Chain(
+    model=create_model("openai:gpt-4"),
+    prompt="Your prompt here",
+    max_improvement_iterations=2,
+    always_apply_critics=True
+)
+chain = chain.validate_with(validator).improve_with(critic)
+result = chain.run()
+```
+
+**After (PydanticAI Chain)**:
+```python
+from sifaka.agents import create_pydantic_chain
+from pydantic_ai import Agent
+
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant")
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[validator],
+    critics=[critic],
+    max_improvement_iterations=2,
+    always_apply_critics=True
+)
+result = chain.run("Your prompt here")
+```
+
+**Key Changes**:
+- ✅ **Agent-based**: Use PydanticAI `Agent` instead of Sifaka `Model`
+- ✅ **Direct parameters**: Pass validators/critics as lists instead of chaining
+- ✅ **Runtime prompts**: Pass prompts to `run()` instead of constructor
+- ✅ **Tool support**: Add tools using `@agent.tool_plain` decorators
 
 ## Quick Start
 
@@ -463,12 +600,16 @@ For detailed installation and configuration instructions, see **[Storage Setup G
 
 ## Documentation
 
+### Quick Reference
+- **[Quick Reference](docs/quick-reference.md)** - Common patterns and code snippets
+
 ### Getting Started
 - **[Installation Guide](docs/getting-started/installation.md)** - Complete installation instructions
 - **[First Chain](docs/getting-started/first-chain.md)** - Your first Sifaka chain
 - **[Basic Concepts](docs/getting-started/basic-concepts.md)** - Core concepts and terminology
 
 ### User Guides
+- **[Chain Selection](docs/guides/chain-selection.md)** - Choosing between PydanticAI and Traditional chains
 - **[Custom Models](docs/guides/custom-models.md)** - Creating and using custom models
 - **[Custom Validators](docs/guides/custom-validators.md)** - Building custom validation logic
 - **[Classifiers](docs/guides/classifiers.md)** - Using built-in text classifiers for content analysis

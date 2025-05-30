@@ -11,6 +11,8 @@ The chain will generate content about digital privacy rights using Redis
 for both model context and constitutional principles evaluation.
 """
 
+import logging
+
 from dotenv import load_dotenv
 
 from sifaka.core.chain import Chain
@@ -19,11 +21,9 @@ from sifaka.mcp import MCPServerConfig, MCPTransportType
 from sifaka.models.ollama import OllamaModel
 from sifaka.retrievers.simple import InMemoryRetriever
 from sifaka.storage import FileStorage
-from sifaka.storage.redis import RedisStorage
 from sifaka.storage.cached import CachedStorage
+from sifaka.storage.redis import RedisStorage
 from sifaka.utils.logging import get_logger
-import logging
-
 
 # Load environment variables
 load_dotenv()

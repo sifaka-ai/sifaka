@@ -46,8 +46,8 @@ def main():
         print("\n2. Creating Sifaka components...")
 
         # Validator to ensure reasonable length for an informative article
-        validator = LengthValidator(min_length=300, max_length=1000)
-        print("✓ Created length validator (300-1000 chars)")
+        validator = LengthValidator(min_length=300, max_length=1200)
+        print("✓ Created length validator (300-1200 chars)")
 
         # Critic to provide feedback (using a cheaper model)
         critic_model = create_model("openai:gpt-3.5-turbo")
@@ -56,13 +56,13 @@ def main():
 
         # Create storage for thoughts
 
-        # Create file storage in thoughts directory (using absolute path like Anthropic example)
-        import os
+        # Create file storage in thoughts directory (using relative path)
+        from pathlib import Path
 
-        thoughts_dir = "/Users/evanvolgas/Documents/not_beam/sifaka/thoughts"
-        os.makedirs(thoughts_dir, exist_ok=True)
+        thoughts_dir = Path("thoughts")
+        thoughts_dir.mkdir(exist_ok=True)
         storage = FileStorage(
-            os.path.join(thoughts_dir, "pydantic_ai_basic_example.json"),
+            thoughts_dir / "pydantic_ai_basic_example.json",
             overwrite=True,  # Overwrite existing file instead of appending
         )
         print("✓ Created file storage in thoughts directory")

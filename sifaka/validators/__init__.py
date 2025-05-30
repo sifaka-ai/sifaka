@@ -73,6 +73,9 @@ from sifaka.validators.guardrails import (
     guardrails_validator,
 )
 
+# Import validation context utilities
+from sifaka.validators.validation_context import ValidationContext, create_validation_context
+
 __all__ = [
     # Base validators
     "LengthValidator",
@@ -96,4 +99,7 @@ __all__ = [
     "GuardrailsValidator",
     "create_guardrails_validator",
     "guardrails_validator",
+    # Validation context utilities
+    "ValidationContext",
+    "create_validation_context",
 ]

@@ -35,19 +35,24 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
+from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
+from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
 
-class SelfConsistencyCritic(BaseCritic):
-    """Critic that implements Self-Consistency with multiple critique generation.
+class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
+    """Critic that implements Self-Consistency with multiple critique generation and validation awareness.
 
     This critic uses the Self-Consistency approach which generates multiple critiques
     of the same text and uses consensus to determine the most reliable feedback.
     This improves critique reliability by reducing the impact of single inconsistent
     or low-quality critiques.
+
+    Enhanced with validation context awareness to prioritize validation constraints
+    over conflicting consistency suggestions.
     """
 
     def __init__(
@@ -148,16 +153,22 @@ class SelfConsistencyCritic(BaseCritic):
 
         logger.debug(f"SelfConsistencyCritic: Completed {len(critiques)} critique iterations")
 
+        # Convert consensus items to strings for CriticFeedback compatibility
+        consensus_issues_strings = [item["text"] for item in aggregated_result["consensus_issues"]]
+        consensus_suggestions_strings = [
+            item["text"] for item in aggregated_result["consensus_suggestions"]
+        ]
+
         return {
             "needs_improvement": needs_improvement,
             "message": combined_message,
-            "issues": aggregated_result["consensus_issues"],
-            "suggestions": aggregated_result["consensus_suggestions"],
+            "issues": consensus_issues_strings,
+            "suggestions": consensus_suggestions_strings,
             "confidence": confidence,
             "metadata": {
                 "num_iterations": len(critiques),
                 "individual_critiques": critiques,
-                "consensus_stats": aggregated_result["stats"],
+                "consensus_stats": aggregated_result,  # Store full consensus data here
                 "use_chain_of_thought": self.use_chain_of_thought,
             },
         }
@@ -178,7 +189,7 @@ class SelfConsistencyCritic(BaseCritic):
         critiques = []
         for i, result in enumerate(critique_results):
             if isinstance(result, Exception):
-                logger.warning(f"Critique iteration {i+1} failed: {result}")
+                logger.warning(f"Critique iteration {i + 1} failed: {result}")
                 continue
             critiques.append(result)
 
@@ -482,7 +493,7 @@ class SelfConsistencyCritic(BaseCritic):
 
         message = f"=== Self-Consistency Evaluation ({num_critiques} iterations) ===\n\n"
         message += f"Confidence Level: {confidence:.1%}\n"
-        message += f"Majority Threshold: >50% (original Self-Consistency)\n\n"
+        message += "Majority Threshold: >50% (original Self-Consistency)\n\n"
 
         if consensus_issues:
             message += "CONSENSUS ISSUES (found in multiple evaluations):\n"
@@ -500,7 +511,7 @@ class SelfConsistencyCritic(BaseCritic):
 
         # Add summary statistics
         stats = aggregated_result["stats"]
-        message += f"EVALUATION SUMMARY:\n"
+        message += "EVALUATION SUMMARY:\n"
         message += f"• Total evaluations: {stats['total_critiques']}\n"
         message += f"• Consensus items: {stats['consensus_items']}\n"
         message += f"• Agreement on improvement need: {stats['agreement_ratio']:.1%}\n"
@@ -517,6 +528,25 @@ class SelfConsistencyCritic(BaseCritic):
 
         Returns:
             The improved text that addresses consensus feedback.
+
+        Raises:
+            ImproverError: If the improvement fails.
+        """
+        # Use the enhanced method with validation context from thought
+        validation_context = create_validation_context(getattr(thought, "validation_results", None))
+        return self.improve_with_validation_context(thought, validation_context)
+
+    def improve_with_validation_context(
+        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Improve text with validation context awareness.
+
+        Args:
+            thought: The Thought container with the text to improve and critique.
+            validation_context: Optional validation context for constraint awareness.
+
+        Returns:
+            The improved text that prioritizes validation constraints.
 
         Raises:
             ImproverError: If the improvement fails.
@@ -547,12 +577,10 @@ class SelfConsistencyCritic(BaseCritic):
                 for feedback in thought.critic_feedback:
                     if feedback.critic_name == "SelfConsistencyCritic":
                         metadata = feedback.metadata or {}
-                        consensus_issues = metadata.get("consensus_stats", {}).get(
-                            "consensus_issues", []
-                        )
-                        consensus_suggestions = metadata.get("consensus_stats", {}).get(
-                            "consensus_suggestions", []
-                        )
+                        # Get consensus data from the stored aggregated result
+                        consensus_stats = metadata.get("consensus_stats", {})
+                        consensus_issues = consensus_stats.get("consensus_issues", [])
+                        consensus_suggestions = consensus_stats.get("consensus_suggestions", [])
                         confidence = feedback.confidence
                         total_iterations = metadata.get("num_iterations", 0)
                         break
@@ -584,30 +612,67 @@ class SelfConsistencyCritic(BaseCritic):
             context = self._prepare_context(thought)
 
             # Format consensus feedback for improvement prompt
-            issues_text = (
-                "\n".join([f"• {issue['text']}" for issue in consensus_issues])
-                if consensus_issues
-                else "None identified"
-            )
-            suggestions_text = (
-                "\n".join([f"• {suggestion['text']}" for suggestion in consensus_suggestions])
-                if consensus_suggestions
-                else "None provided"
-            )
+            # Handle both dictionary format (from fresh critique) and string format (from stored feedback)
+            if consensus_issues and isinstance(consensus_issues[0], dict):
+                # Fresh critique - consensus_issues are dictionaries with 'text' key
+                issues_text = (
+                    "\n".join([f"• {issue['text']}" for issue in consensus_issues])
+                    if consensus_issues
+                    else "None identified"
+                )
+                suggestions_list = [suggestion["text"] for suggestion in consensus_suggestions]
+            else:
+                # Stored feedback - consensus_issues are already strings
+                issues_text = (
+                    "\n".join([f"• {issue}" for issue in consensus_issues])
+                    if consensus_issues
+                    else "None identified"
+                )
+                suggestions_list = list(consensus_suggestions) if consensus_suggestions else []
+
+            if consensus_suggestions and isinstance(consensus_suggestions[0], dict):
+                # Fresh critique - consensus_suggestions are dictionaries with 'text' key
+                suggestions_text = (
+                    "\n".join([f"• {suggestion['text']}" for suggestion in consensus_suggestions])
+                    if consensus_suggestions
+                    else "None provided"
+                )
+            else:
+                # Stored feedback - consensus_suggestions are already strings
+                suggestions_text = (
+                    "\n".join([f"• {suggestion}" for suggestion in consensus_suggestions])
+                    if consensus_suggestions
+                    else "None provided"
+                )
 
             consensus_count = max(len(consensus_issues), len(consensus_suggestions))
 
-            # Create improvement prompt with consensus feedback
-            improve_prompt = self.improve_prompt_template.format(
-                prompt=thought.prompt,
-                text=thought.text,
-                context=context,
-                consensus_issues=issues_text,
-                consensus_suggestions=suggestions_text,
-                consensus_count=consensus_count,
-                total_iterations=total_iterations,
-                confidence=confidence,
-            )
+            # Create improvement prompt with validation awareness
+            if validation_context:
+                # Create a critique string for the enhanced prompt
+                critique = f"Consensus Issues:\n{issues_text}\n\nConsensus Suggestions:\n{suggestions_text}"
+
+                # Use enhanced prompt with validation awareness
+                improve_prompt = self._create_enhanced_improvement_prompt(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    critique=critique,
+                    context=context,
+                    validation_context=validation_context,
+                    critic_suggestions=suggestions_list,
+                )
+            else:
+                # Use original prompt template
+                improve_prompt = self.improve_prompt_template.format(
+                    prompt=thought.prompt,
+                    text=thought.text,
+                    context=context,
+                    consensus_issues=issues_text,
+                    consensus_suggestions=suggestions_text,
+                    consensus_count=consensus_count,
+                    total_iterations=total_iterations,
+                    confidence=confidence,
+                )
 
             # Generate improved text
             improved_text = self.model.generate(

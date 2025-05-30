@@ -43,7 +43,7 @@ except ImportError:
     ANTHROPIC_AVAILABLE = False
 
 from sifaka.core.thought import Thought
-from sifaka.models.shared import BaseModelImplementation
+from sifaka.models.shared import BaseModelImplementation, create_factory_function
 from sifaka.utils.logging import get_logger
 
 # Configure logger
@@ -120,6 +120,7 @@ class AnthropicModel(BaseModelImplementation):
         # Check if Anthropic package is available
         if not ANTHROPIC_AVAILABLE:
             from sifaka.utils.error_handling import ConfigurationError
+
             raise ConfigurationError(
                 "Required packages not available: 'anthropic'",
                 component="Anthropic",
@@ -272,9 +273,6 @@ class AnthropicModel(BaseModelImplementation):
         # In a real implementation, you would use the async Anthropic client
         return self.generate_with_thought(thought, **options)
 
-
-# Create factory function using the shared pattern
-from sifaka.models.shared import create_factory_function
 
 create_anthropic_model = create_factory_function(
     model_class=AnthropicModel,

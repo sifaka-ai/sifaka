@@ -2,6 +2,15 @@
 
 Learn how to create and run your first Sifaka chain in just a few minutes.
 
+## Chain Types
+
+Sifaka offers two chain implementations:
+
+- **🚀 PydanticAI Chain**: Modern, tool-focused, simple setup (recommended for new projects)
+- **🏗️ Traditional Chain**: Feature-rich, production-ready, maximum flexibility
+
+This guide covers the **Traditional Chain**. For PydanticAI chains with tool calling, see the [Chain Selection Guide](../guides/chain-selection.md).
+
 ## What You'll Build
 
 By the end of this guide, you'll have created a working Sifaka chain that:
@@ -192,11 +201,12 @@ When you run a chain, you get a `Thought` object with:
 
 Now that you've created your first chain:
 
-1. **[Learn basic concepts](basic-concepts.md)** - Understand Thoughts, Models, and the architecture
-2. **[Explore examples](../../examples/)** - See more complex use cases
-3. **[Add storage](../guides/storage-setup.md)** - Set up Redis or Milvus for persistence
-4. **[Feedback summarization](../feedback-summarizer.md)** - Enhance critics with automatic feedback summarization
-5. **[Custom models](../guides/custom-models.md)** - Create your own model integrations
+1. **[Chain Selection Guide](../guides/chain-selection.md)** - Learn when to use PydanticAI vs Traditional chains
+2. **[Learn basic concepts](basic-concepts.md)** - Understand Thoughts, Models, and the architecture
+3. **[Explore examples](../../examples/)** - See more complex use cases
+4. **[Add storage](../guides/storage-setup.md)** - Set up Redis or Milvus for persistence
+5. **[Feedback summarization](../feedback-summarizer.md)** - Enhance critics with automatic feedback summarization
+6. **[Custom models](../guides/custom-models.md)** - Create your own model integrations
 
 ## Troubleshooting
 

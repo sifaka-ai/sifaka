@@ -15,9 +15,10 @@ This creates a feedback loop for improving both responses and judgment capabilit
 """
 
 import os
+
 from sifaka import Chain
-from sifaka.models import create_model
 from sifaka.critics.meta_rewarding import MetaRewardingCritic
+from sifaka.models import create_model
 from sifaka.storage import FileStorage
 
 

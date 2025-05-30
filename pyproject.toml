@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sifaka"
-version = "0.1.0"
+version = "0.2.0"
 description = "Sifaka - AI validation, improvement, and evaluation framework with built-in guardrails"
 authors = [{name = "Evan Volgas", email = "evan.volgas@gmail.com"}]
 license = {text = "MIT"}
