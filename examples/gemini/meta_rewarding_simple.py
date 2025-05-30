@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simple MetaRewardingCritic example using Gemini.
+"""Simple MetaRewardingCritic example using Gemini (PydanticAI).
 
 This example demonstrates the basic usage of MetaRewardingCritic with Google Gemini,
 using no validators, no retrieval, and only one chain retry for simplicity.
@@ -16,7 +16,9 @@ This creates a feedback loop for improving both responses and judgment capabilit
 
 import os
 
-from sifaka import Chain
+from pydantic_ai import Agent
+
+from sifaka.agents import create_pydantic_chain
 from sifaka.critics.meta_rewarding import MetaRewardingCritic
 from sifaka.models import create_model
 from sifaka.storage import FileStorage
@@ -36,28 +38,40 @@ def main():
     print("=" * 50)
 
     try:
-        # Create Gemini model
-        print("📡 Creating Gemini model...")
-        model = create_model("gemini:gemini-1.5-flash")
-        print("✅ Model created successfully")
+        # Create PydanticAI agent with Gemini model
+        print("📡 Creating PydanticAI Gemini agent...")
+        agent = Agent(
+            "gemini-1.5-flash",
+            system_prompt=(
+                "You are an AI education expert and science communicator. Provide clear, "
+                "accurate explanations of artificial intelligence concepts that are accessible "
+                "to general audiences. Use analogies, examples, and structured explanations "
+                "to make complex topics understandable. Maintain an engaging and informative tone."
+            ),
+        )
+        print("✅ Agent created successfully")
+
+        # Create Gemini model for the critic
+        print("🔍 Creating critic model...")
+        critic_model = create_model("gemini:gemini-1.5-flash")
 
         # Create MetaRewardingCritic with simple configuration
         print("🔍 Creating MetaRewardingCritic...")
         critic = MetaRewardingCritic(
-            model=model,
+            model=critic_model,
             # Use same model for meta-judgment (simplest setup)
-            meta_judge_model=model,
+            meta_judge_model=critic_model,
             # Enable scoring for clearer feedback
             use_scoring=True,
             score_range=(1, 10),
         )
         print("✅ Critic created successfully")
 
-        # Create a simple chain
-        print("⛓️  Creating chain...")
-        chain = Chain(
-            model=model,
-            prompt="Write a brief explanation of how artificial intelligence works, suitable for a general audience.",
+        # Create a PydanticAI chain
+        print("⛓️  Creating PydanticAI chain...")
+        chain = create_pydantic_chain(
+            agent=agent,
+            critics=[critic],
             max_improvement_iterations=2,  # Only two retries
             always_apply_critics=True,  # Always apply the critic
             storage=FileStorage(
@@ -65,16 +79,16 @@ def main():
                 overwrite=True,  # Overwrite existing file instead of appending
             ),  # Save thoughts to single JSON file for debugging
         )
-
-        # Add the critic to the chain
-        chain = chain.improve_with(critic)
         print("✅ Chain configured successfully")
 
+        # Define the prompt
+        prompt = "Write a brief explanation of how artificial intelligence works, suitable for a general audience."
+
         # Run the chain
-        print("\n🚀 Running chain...")
+        print("\n🚀 Running PydanticAI chain...")
         print("-" * 30)
 
-        result = chain.run()
+        result = chain.run(prompt)
 
         # Display results
         print("\n📝 Results:")
@@ -95,7 +109,25 @@ def main():
                 print(f"\nFeedback {i}:")
                 print(f"  Critic: {feedback.critic_name}")
                 print(f"  Needs improvement: {feedback.needs_improvement}")
-                print(f"  Message: {feedback.feedback[:200]}...")  # Truncate for readability
+
+                # Show issues and suggestions separately
+                if hasattr(feedback, "issues") and feedback.issues:
+                    print(f"  Issues ({len(feedback.issues)}):")
+                    for j, issue in enumerate(feedback.issues, 1):
+                        print(f"    {j}. {issue}")
+
+                if hasattr(feedback, "suggestions") and feedback.suggestions:
+                    print(f"  Suggestions ({len(feedback.suggestions)}):")
+                    for j, suggestion in enumerate(feedback.suggestions, 1):
+                        print(f"    {j}. {suggestion}")
+
+                # Show full message if no structured feedback
+                if not (hasattr(feedback, "issues") and feedback.issues) and not (
+                    hasattr(feedback, "suggestions") and feedback.suggestions
+                ):
+                    print(
+                        f"  Full message: {feedback.feedback[:500]}..."
+                    )  # Show more of the message
 
         # Show improvement history if available
         if hasattr(result, "improvement_history") and result.improvement_history:

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Anthropic Self-RAG with Redis + File Dual Storage and Length Validator Example.
+"""Anthropic Self-RAG with Redis + File Dual Storage and Length Validator Example (PydanticAI).
 
 This example demonstrates:
-- Anthropic Claude model with Redis retrieval for enhanced context
+- PydanticAI Agent with Anthropic Claude model and Redis retrieval for enhanced context
 - Self-RAG critic for retrieval-augmented generation feedback
 - Length validator to ensure appropriate response length
 - Dual storage: Redis (primary) + File storage (backup/fallback)
@@ -16,10 +16,12 @@ Thoughts are stored in both Redis and local files for redundancy.
 import os
 
 from dotenv import load_dotenv
+from pydantic_ai import Agent
 
-from sifaka.core.chain import Chain
+from sifaka.agents import create_pydantic_chain
 from sifaka.critics.self_rag import SelfRAGCritic
 from sifaka.mcp import MCPServerConfig, MCPTransportType
+from sifaka.models import create_model
 from sifaka.retrievers.simple import InMemoryRetriever
 from sifaka.storage import FileStorage
 from sifaka.storage.cached import CachedStorage
@@ -86,20 +88,23 @@ def setup_climate_redis_retriever():
 
 
 def main():
-    """Run the Anthropic Self-RAG with Redis and Length Validator example."""
+    """Run the Anthropic Self-RAG with Redis and Length Validator example using PydanticAI."""
 
     # Ensure API key is available
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 
-    logger.info("Creating Anthropic Self-RAG with Redis retrieval example")
+    logger.info("Creating PydanticAI Anthropic Self-RAG with Redis retrieval example")
 
-    # Create Anthropic model (using smaller Haiku model)
-    model = AnthropicModel(
-        model_name="claude-3-5-haiku-latest",
-        max_tokens=1000,  # Increased to allow for longer responses
-        temperature=0.4,  # Lower temperature for more consistent length
-        api_key=os.getenv("ANTHROPIC_API_KEY"),
+    # Create PydanticAI agent with Anthropic Claude model
+    agent = Agent(
+        "anthropic:claude-3-5-haiku-latest",
+        system_prompt=(
+            "You are a climate science expert assistant. Provide accurate, well-researched "
+            "information about climate change, greenhouse gases, and environmental solutions. "
+            "Use scientific evidence and cite relevant data when available. Be comprehensive "
+            "but concise in your explanations."
+        ),
     )
 
     # Set up Redis retriever with climate science context and dual storage
@@ -107,12 +112,7 @@ def main():
 
     # Create Self-RAG critic for fact-checking and retrieval-augmented feedback
     # Use Haiku model for the critic as per preferences
-    critic_model = AnthropicModel(
-        model_name="claude-3-5-haiku-latest",
-        max_tokens=1000,  # Increased to allow for detailed feedback
-        temperature=0.4,  # Lower temperature for more consistent feedback
-        api_key=os.getenv("ANTHROPIC_API_KEY"),
-    )
+    critic_model = create_model("anthropic:claude-3-5-haiku-latest")
 
     critic = SelfRAGCritic(
         model=critic_model,
@@ -127,28 +127,27 @@ def main():
         max_length=1600,  # Maximum 1600 characters (tighter window to require refinement)
     )
 
-    # Create the chain with Redis retrieval for the model
-    chain = Chain(
-        model=model,
-        prompt="Explain the relationship between greenhouse gas emissions and global temperature rise, including the main sources of emissions and potential solutions for mitigation.",
+    # Create the PydanticAI chain with Redis retrieval for the model
+    chain = create_pydantic_chain(
+        agent=agent,
         model_retrievers=[redis_retriever],  # Redis context for model
+        validators=[length_validator],
+        critics=[critic],
         max_improvement_iterations=3,  # Default retry behavior
-        apply_improvers_on_validation_failure=True,
         always_apply_critics=False,  # Set to False per user preferences
         storage=dual_storage,  # Use Redis + File dual storage for thoughts
     )
 
-    # Add validator and critic
-    chain = chain.validate_with(length_validator)
-    chain = chain.improve_with(critic)
+    # Define the prompt
+    prompt = "Explain the relationship between greenhouse gas emissions and global temperature rise, including the main sources of emissions and potential solutions for mitigation."
 
     # Run the chain
-    logger.info("Running chain with Self-RAG critic and Redis retrieval...")
-    result = chain.run()
+    logger.info("Running PydanticAI chain with Self-RAG critic and Redis retrieval...")
+    result = chain.run(prompt)
 
     # Display results
     print("\n" + "=" * 80)
-    print("ANTHROPIC SELF-RAG WITH REDIS + FILE DUAL STORAGE AND LENGTH VALIDATOR")
+    print("PYDANTIC AI ANTHROPIC SELF-RAG WITH REDIS + FILE DUAL STORAGE AND LENGTH VALIDATOR")
     print("=" * 80)
     print(f"\nPrompt: {result.prompt}")
     print(f"\nFinal Text ({len(result.text)} characters):")
@@ -196,7 +195,7 @@ def main():
                 print(f"     Retrieval Relevance Score: {feedback.retrieval_score}")
 
     print("\n" + "=" * 80)
-    logger.info("Self-RAG with Redis retrieval example completed successfully")
+    logger.info("PydanticAI Self-RAG with Redis retrieval example completed successfully")
 
 
 if __name__ == "__main__":

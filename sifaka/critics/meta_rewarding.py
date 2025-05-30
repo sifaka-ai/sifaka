@@ -518,13 +518,54 @@ class MetaRewardingCritic(BaseCritic, ValidationAwareMixin):
                     if suggestion_text:
                         suggestions.append(f"Address: {suggestion_text}")
 
-        # Fallback: extract from general content if no structured format found
+        # Fallback: extract actual content from unstructured judgment
         if not issues and not suggestions:
-            judgment_lower = judgment.lower()
-            if any(word in judgment_lower for word in ["weakness", "issue", "problem", "improve"]):
-                issues.append("Issues identified in meta-rewarding evaluation")
-            if any(word in judgment_lower for word in ["suggest", "should", "could", "recommend"]):
-                suggestions.append("See meta-rewarding feedback for improvement suggestions")
+            # Split judgment into sentences for better parsing
+            sentences = [s.strip() for s in judgment.replace("\n", ". ").split(".") if s.strip()]
+
+            for sentence in sentences:
+                sentence_lower = sentence.lower()
+
+                # Extract issues from sentences containing negative indicators
+                if any(
+                    word in sentence_lower
+                    for word in [
+                        "weakness",
+                        "issue",
+                        "problem",
+                        "lacking",
+                        "insufficient",
+                        "unclear",
+                        "confusing",
+                    ]
+                ):
+                    if len(sentence) > 10:  # Avoid very short fragments
+                        issues.append(sentence.strip())
+
+                # Extract suggestions from sentences containing improvement indicators
+                elif any(
+                    word in sentence_lower
+                    for word in [
+                        "should",
+                        "could",
+                        "recommend",
+                        "suggest",
+                        "consider",
+                        "improve",
+                        "enhance",
+                        "add",
+                        "include",
+                    ]
+                ):
+                    if len(sentence) > 10:  # Avoid very short fragments
+                        suggestions.append(sentence.strip())
+
+            # If still no specific feedback found, use the first few sentences as general feedback
+            if not issues and not suggestions and sentences:
+                # Take the first 2-3 meaningful sentences as suggestions
+                meaningful_sentences = [s for s in sentences[:3] if len(s) > 20]
+                if meaningful_sentences:
+                    suggestions.extend(meaningful_sentences)
 
         return issues, suggestions
 

@@ -79,7 +79,7 @@ class RedisStorage:
         if isinstance(timestamp, str):
             try:
                 timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-            except:
+            except (ValueError, TypeError):
                 timestamp = datetime.now()
 
         # Format: YYYYMMDD_shortid_iterN
