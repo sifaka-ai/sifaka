@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
-"""Ollama Constitutional Critic with Redis Retrieval Example.
+"""Ollama Constitutional Critic with Redis Retrieval Example (PydanticAI).
 
 This example demonstrates:
-- Ollama local model with Redis retrieval for context
+- PydanticAI agent with Ollama local model and Redis retrieval for context
 - Constitutional critic with Redis retrieval for principled evaluation
-- Default retry behavior
+- Modern agent-based workflow with hybrid Chain-Agent architecture
 - Local processing with external knowledge
 
-The chain will generate content about digital privacy rights using Redis
+The PydanticAI chain will generate content about digital privacy rights using Redis
 for both model context and constitutional principles evaluation.
 """
 
 import logging
 
 from dotenv import load_dotenv
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.openai import OpenAIProvider
 
-from sifaka.core.chain import Chain
+from sifaka.agents import create_pydantic_chain
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.mcp import MCPServerConfig, MCPTransportType
 from sifaka.models.ollama import OllamaModel
@@ -112,9 +115,9 @@ def setup_constitutional_principles():
 
 
 def main():
-    """Run the Ollama Constitutional Critic with Redis example."""
+    """Run the Ollama Constitutional Critic with Redis example using PydanticAI."""
 
-    logger.info("Creating Ollama Constitutional Critic with Redis retrieval example")
+    logger.info("Creating PydanticAI Ollama Constitutional Critic with Redis retrieval example")
 
     # Create Ollama model
     model = OllamaModel(
@@ -148,30 +151,48 @@ def main():
         name="Digital Privacy Constitutional Critic",
     )
 
-    # Create the chain with Redis for both model and critic
-    chain = Chain(
-        model=model,
-        prompt="Write a comprehensive analysis of digital privacy rights in the modern internet age, covering the challenges individuals face, the role of technology companies, government regulations, and practical steps people can take to protect their privacy online.",
-        model_retrievers=[privacy_retriever],  # Redis context for model
-        critic_retrievers=[privacy_retriever],  # Same Redis context for critic
+    # Create PydanticAI agent with Ollama model (using OpenAI-compatible API)
+    ollama_model = OpenAIModel(
+        model_name="mistral",  # Model name in Ollama
+        provider=OpenAIProvider(
+            base_url="http://localhost:11434/v1"
+        ),  # Ollama OpenAI-compatible endpoint
+    )
+
+    agent = Agent(
+        model=ollama_model,
+        system_prompt=(
+            "You are a digital privacy expert and policy analyst. Provide comprehensive, "
+            "well-researched analysis of digital privacy rights, data protection regulations, "
+            "and practical privacy solutions. Use evidence-based reasoning and consider "
+            "multiple perspectives including individual rights, technological capabilities, "
+            "and regulatory frameworks. Be thorough and educational in your responses."
+        ),
+    )
+
+    # Define the prompt
+    prompt = "Write a comprehensive analysis of digital privacy rights in the modern internet age, covering the challenges individuals face, the role of technology companies, government regulations, and practical steps people can take to protect their privacy online."
+
+    # Create PydanticAI chain with constitutional critic and Redis retrieval
+    chain = create_pydantic_chain(
+        agent=agent,
+        critics=[critic],  # Constitutional critic with Redis retrieval
+        model_retrievers=[privacy_retriever],  # Redis context for pre-generation
+        critic_retrievers=[privacy_retriever],  # Same Redis context for critic evaluation
         max_improvement_iterations=3,  # Default retry behavior
-        apply_improvers_on_validation_failure=True,
         always_apply_critics=True,
         storage=dual_storage,  # Use Redis + File dual storage for thoughts
     )
 
-    # Add constitutional critic (no validators specified)
-    print(f"DEBUG: Adding Constitutional critic to chain...")
-    chain = chain.improve_with(critic)
-    print(f"DEBUG: Chain now has {len(chain._config.critics)} critics")
+    print(f"DEBUG: Created PydanticAI chain with {len([critic])} critics")
 
     # Run the chain
-    logger.info("Running chain with constitutional critic and Redis retrieval...")
-    result = chain.run()
+    logger.info("Running PydanticAI chain with constitutional critic and Redis retrieval...")
+    result = chain.run(prompt)
 
     # Display results
     print("\n" + "=" * 80)
-    print("OLLAMA CONSTITUTIONAL CRITIC WITH REDIS RETRIEVAL EXAMPLE")
+    print("PYDANTIC AI OLLAMA CONSTITUTIONAL CRITIC WITH REDIS RETRIEVAL EXAMPLE")
     print("=" * 80)
     print(f"\nPrompt: {result.prompt}")
     print(f"\nFinal Text ({len(result.text)} characters):")
@@ -181,7 +202,7 @@ def main():
     print(f"\nProcessing Details:")
     print(f"  Iterations: {result.iteration}")
     print(f"  Chain ID: {result.chain_id}")
-    print(f"  Model: Local Ollama")
+    print(f"  Model: Local Ollama (via PydanticAI)")
     storage_status = "Redis + File Dual Storage"
     print(f"  Storage: {storage_status}")
 
@@ -216,14 +237,17 @@ def main():
         print(f"  ... and {len(constitutional_principles) - 5} more principles")
 
     print(f"\nSystem Features:")
-    print(f"  - Local Ollama processing")
+    print(f"  - Local Ollama processing via PydanticAI")
     storage_feature = "Redis retrieval with dual storage"
     print(f"  - {storage_feature}")
     print(f"  - Constitutional principles evaluation")
     print(f"  - Privacy-focused content generation")
+    print(f"  - Modern agent-based workflow")
 
     print("\n" + "=" * 80)
-    logger.info("Constitutional critic with Redis retrieval example completed successfully")
+    logger.info(
+        "PydanticAI Constitutional critic with Redis retrieval example completed successfully"
+    )
 
 
 if __name__ == "__main__":

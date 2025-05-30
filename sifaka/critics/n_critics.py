@@ -62,6 +62,7 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
         critic_roles: Optional[List[str]] = None,
         critique_prompt_template: Optional[str] = None,
         improve_prompt_template: Optional[str] = None,
+        improvement_threshold: float = 7.0,
         **model_kwargs: Any,
     ):
         """Initialize the N-Critics critic.
@@ -73,11 +74,13 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
             critic_roles: List of specialized critic roles/perspectives.
             critique_prompt_template: Template for the critique prompt.
             improve_prompt_template: Template for the improvement prompt.
+            improvement_threshold: Score threshold below which improvement is needed (default: 7.0).
             **model_kwargs: Additional keyword arguments for model creation.
         """
         super().__init__(model=model, model_name=model_name, **model_kwargs)
 
         self.num_critics = num_critics
+        self.improvement_threshold = improvement_threshold
 
         # Set up critic roles
         self.critic_roles = (
@@ -170,7 +173,9 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
                 all_suggestions.extend(critique["suggestions"])
 
         # Determine if improvement is needed
-        needs_improvement = aggregated_feedback.get("average_score", 5.0) < 7.0
+        needs_improvement = (
+            aggregated_feedback.get("average_score", 5.0) < self.improvement_threshold
+        )
 
         logger.debug(f"NCriticsCritic: Completed with {len(valid_critiques)} critics")
 
@@ -183,6 +188,7 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
             "metadata": {
                 "critic_feedback": valid_critiques,
                 "aggregated_score": aggregated_feedback["average_score"],
+                "improvement_threshold": self.improvement_threshold,
                 "num_critics": len(valid_critiques),
             },
         }
@@ -286,11 +292,16 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
                     context=context,
                 )
 
-            # Generate improved text
-            improved_text = self.model.generate(
-                prompt=improve_prompt,
-                system_prompt="You are an expert editor incorporating feedback from multiple specialized critics.",
-            )
+            # Generate improved text with error handling
+            try:
+                improved_text = self.model.generate(
+                    prompt=improve_prompt,
+                    system_prompt="You are an expert editor incorporating feedback from multiple specialized critics.",
+                )
+            except Exception as e:
+                logger.error(f"NCriticsCritic improvement generation failed: {e}")
+                # Fallback: return original text with a note about the failure
+                return f"{thought.text}\n\n[Note: Improvement generation failed due to: {str(e)}]"
 
             # Calculate processing time
             processing_time = (time.time() - start_time) * 1000
@@ -320,11 +331,18 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
             context=context,
         )
 
-        # Generate critique (async)
-        critique_response = await self.model._generate_async(
-            prompt=critique_prompt,
-            system_message=f"You are a specialized critic with the role: {role}",
-        )
+        # Generate critique (async) with error handling
+        try:
+            critique_response = await self.model._generate_async(
+                prompt=critique_prompt,
+                system_message=f"You are a specialized critic with the role: {role}",
+            )
+        except Exception as e:
+            logger.error(f"NCriticsCritic async generation failed for role '{role}': {e}")
+            # Return a fallback critique
+            critique_response = (
+                f"Error generating critique for {role}: {str(e)}. Please review the text manually."
+            )
 
         # Extract score and determine improvement need
         score = self._extract_score_from_critique(critique_response)

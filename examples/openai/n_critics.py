@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
-"""OpenAI N-Critics with Redis and Milvus Retrieval Example.
+"""PydanticAI N-Critics with In-Memory Retrieval Example.
 
 This example demonstrates:
-- OpenAI model with Redis retrieval for context
-- N-Critics ensemble with Milvus retrieval for comprehensive feedback
+- PydanticAI agent for generation with in-memory retrieval for context
+- N-Critics ensemble using unified PydanticAI models with specialized retrieval
 - No validators (validation bypassed)
 - Exactly 1 retry iteration
+- Unified model architecture for both generation and criticism
+- File storage for thought persistence
 
-The chain will generate content about machine learning with Redis providing
-context to the model and Milvus providing specialized knowledge to the critics.
+The chain will generate content about machine learning with in-memory retrievers
+providing context to the agent and specialized knowledge to the critics.
 """
 
 import os
 
 from dotenv import load_dotenv
+from pydantic_ai import Agent
 
-from sifaka.core.chain import Chain
+from sifaka.agents import create_pydantic_chain
 from sifaka.critics.n_critics import NCriticsCritic
-from sifaka.mcp import MCPServerConfig, MCPTransportType
-from sifaka.models.openai import OpenAIModel
+from sifaka.models.base import create_model
 from sifaka.retrievers.simple import InMemoryRetriever
 from sifaka.storage import FileStorage
-from sifaka.storage.milvus import MilvusStorage
-from sifaka.storage.redis import RedisStorage
 from sifaka.utils.logging import get_logger
 
 # Load environment variables
@@ -32,18 +32,8 @@ load_dotenv()
 logger = get_logger(__name__)
 
 
-def setup_redis_retriever():
-    """Set up Redis retriever with ML context documents."""
-
-    # Create Redis MCP configuration (using official Redis MCP server)
-    redis_config = MCPServerConfig(
-        name="redis-server",
-        transport_type=MCPTransportType.STDIO,
-        url="uv run --directory ../../mcp/mcp-redis src/main.py",
-    )
-
-    # Create Redis storage for model context
-    redis_storage = RedisStorage(mcp_config=redis_config, key_prefix="sifaka:ml_context")
+def setup_model_retriever():
+    """Set up in-memory retriever with ML context documents for the model."""
 
     # Create in-memory retriever and populate with ML context
     retriever = InMemoryRetriever()
@@ -66,18 +56,8 @@ def setup_redis_retriever():
     return retriever
 
 
-def setup_milvus_retriever():
-    """Set up Milvus retriever with specialized critic knowledge."""
-
-    # Create Milvus MCP configuration (using official Milvus MCP server)
-    milvus_config = MCPServerConfig(
-        name="milvus-server",
-        transport_type=MCPTransportType.STDIO,
-        url="uv run --directory ../../mcp/mcp-server-milvus src/mcp_server_milvus/server.py --milvus-uri http://localhost:19530",
-    )
-
-    # Create Milvus storage for critic context
-    milvus_storage = MilvusStorage(mcp_config=milvus_config, collection_name="critic_knowledge")
+def setup_critic_retriever():
+    """Set up in-memory retriever with specialized critic knowledge."""
 
     # Create in-memory retriever and populate with critic knowledge
     retriever = InMemoryRetriever()
@@ -99,54 +79,62 @@ def setup_milvus_retriever():
 
 
 def main():
-    """Run the OpenAI N-Critics with Redis and Milvus example."""
+    """Run the PydanticAI N-Critics with In-Memory Retrieval example."""
 
     # Ensure API key is available
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY environment variable is required")
 
-    logger.info("Creating OpenAI N-Critics with Redis and Milvus example")
+    logger.info("Creating PydanticAI N-Critics with In-Memory Retrieval example")
 
-    # Create OpenAI model
-    model = OpenAIModel(model_name="gpt-4", temperature=0.8, max_tokens=600)
+    # Create PydanticAI agent for generation
+    agent = Agent(
+        "openai:gpt-4",
+        system_prompt="You are an expert machine learning educator who provides clear, comprehensive explanations with practical examples.",
+    )
 
-    # Set up retrievers
-    redis_retriever = setup_redis_retriever()
-    milvus_retriever = setup_milvus_retriever()
+    # Set up in-memory retrievers
+    model_retriever = setup_model_retriever()
+    critic_retriever = setup_critic_retriever()
 
-    # Create N-Critics ensemble with specialized focus areas
+    # Set up file storage for thoughts
+    storage = FileStorage(file_path="./thoughts/n_critics_thoughts.json", overwrite=True)
+    logger.info("Using file storage for thoughts")
+
+    # Create unified model for critics using PydanticAI
+    critic_model = create_model("openai:gpt-4", temperature=0.8, max_tokens=600)
+
+    # Create extremely demanding N-Critics ensemble with specialized focus areas
     critic = NCriticsCritic(
-        model=model,
+        model=critic_model,
         num_critics=3,
-        focus_areas=["technical_accuracy", "clarity_and_structure", "practical_applications"],
-        name="ML Expertise Ensemble",
+        improvement_threshold=9.9,  # Extremely demanding threshold - almost always trigger improvements
+        critic_roles=[
+            "Technical Accuracy Expert: Focus on mathematical concepts, algorithmic correctness, and factual precision",
+            "Clarity and Structure Specialist: Focus on writing clarity, logical flow, and educational effectiveness",
+            "Practical Applications Analyst: Focus on real-world examples, use cases, and actionable insights",
+        ],
     )
 
-    # Create the chain with Redis for model and Milvus for critic
-    chain = Chain(
-        model=model,
-        prompt="Explain the key differences between supervised, unsupervised, and reinforcement learning, including when to use each approach and provide practical examples.",
-        model_retrievers=[redis_retriever],  # Redis context for model
-        critic_retrievers=[milvus_retriever],  # Milvus context for critics
+    # Create the PydanticAI chain with in-memory retrievers
+    chain = create_pydantic_chain(
+        agent=agent,
+        model_retrievers=[model_retriever],  # In-memory context for model
+        critic_retrievers=[critic_retriever],  # In-memory context for critics
+        critics=[critic],  # N-Critics ensemble
         max_improvement_iterations=1,  # Exactly 1 retry
-        apply_improvers_on_validation_failure=False,  # No validators
         always_apply_critics=True,
-        storage=FileStorage(
-            "./thoughts/n_critics_redis_milvus_thoughts.json",
-            overwrite=True,  # Overwrite existing file instead of appending
-        ),  # Save thoughts to single JSON file for debugging
+        storage=storage,  # File storage for thoughts
     )
 
-    # Add critic (no validators as specified)
-    chain.improve_with(critic)
-
-    # Run the chain
-    logger.info("Running chain with N-Critics and dual retrieval...")
-    result = chain.run()
+    # Run the chain with the prompt
+    prompt = "Explain the key differences between supervised, unsupervised, and reinforcement learning, including when to use each approach and provide practical examples."
+    logger.info("Running PydanticAI chain with N-Critics and in-memory retrieval...")
+    result = chain.run(prompt)
 
     # Display results
     print("\n" + "=" * 80)
-    print("OPENAI N-CRITICS WITH REDIS AND MILVUS RETRIEVAL EXAMPLE")
+    print("PYDANTIC AI N-CRITICS WITH IN-MEMORY RETRIEVAL EXAMPLE")
     print("=" * 80)
     print(f"\nPrompt: {result.prompt}")
     print(f"\nFinal Text ({len(result.text)} characters):")
@@ -159,7 +147,9 @@ def main():
 
     # Show retrieval context
     if hasattr(result, "pre_generation_context") and result.pre_generation_context:
-        print(f"\nModel Context from Redis ({len(result.pre_generation_context)} documents):")
+        print(
+            f"\nModel Context from In-Memory Retriever ({len(result.pre_generation_context)} documents):"
+        )
         for i, doc in enumerate(result.pre_generation_context[:3], 1):  # Show first 3
             # Handle both content and text attributes
             text = getattr(doc, "content", None) or getattr(doc, "text", str(doc))
@@ -175,8 +165,10 @@ def main():
                 print(f"     Suggestions: {feedback.suggestions[:200]}...")
 
     print(f"\nValidation: BYPASSED (no validators used)")
+    print(f"\nArchitecture: PydanticAI Agent + Unified Models + In-Memory Retrieval")
+    print(f"\nStorage: File storage (./thoughts)")
     print("\n" + "=" * 80)
-    logger.info("N-Critics with dual retrieval example completed successfully")
+    logger.info("PydanticAI N-Critics with in-memory retrieval example completed successfully")
 
 
 if __name__ == "__main__":

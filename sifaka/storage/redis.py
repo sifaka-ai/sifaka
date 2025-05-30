@@ -42,6 +42,21 @@ class RedisStorage:
 
         logger.debug(f"Initialized RedisStorage with prefix '{key_prefix}'")
 
+    def _run_async_safely(self, coro):
+        """Run async coroutine safely, handling existing event loops."""
+        try:
+            # Try to get the current event loop
+            asyncio.get_running_loop()
+            # If we're already in an event loop, we need to handle this differently
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, coro)
+                return future.result()
+        except RuntimeError:
+            # No event loop running, safe to use asyncio.run
+            return asyncio.run(coro)
+
     async def _ensure_connected(self) -> None:
         """Ensure MCP client is connected."""
         if not self._connected:
@@ -307,7 +322,7 @@ class RedisStorage:
         Returns:
             The stored value, or None if not found.
         """
-        return asyncio.run(self._get_async(key))
+        return self._run_async_safely(self._get_async(key))
 
     def set(self, key: str, value: Any) -> None:
         """Set a value for a key in Redis.
@@ -316,7 +331,7 @@ class RedisStorage:
             key: The storage key.
             value: The value to store.
         """
-        return asyncio.run(self._set_async(key, value))
+        return self._run_async_safely(self._set_async(key, value))
 
     def search(self, query: str, limit: int = 10) -> List[Any]:
         """Search for items matching a query.
@@ -330,11 +345,11 @@ class RedisStorage:
         Returns:
             List of matching values.
         """
-        return asyncio.run(self._search_async(query, limit))
+        return self._run_async_safely(self._search_async(query, limit))
 
     def clear(self) -> None:
         """Clear all data with the key prefix."""
-        return asyncio.run(self._clear_async())
+        return self._run_async_safely(self._clear_async())
 
     def delete(self, key: str) -> bool:
         """Delete a value by key from Redis.
@@ -345,7 +360,7 @@ class RedisStorage:
         Returns:
             True if the key was deleted, False if it didn't exist.
         """
-        return asyncio.run(self._delete_async(key))
+        return self._run_async_safely(self._delete_async(key))
 
     def keys(self) -> List[str]:
         """Get all keys in storage.
@@ -353,7 +368,7 @@ class RedisStorage:
         Returns:
             List of all storage keys.
         """
-        return asyncio.run(self._keys_async())
+        return self._run_async_safely(self._keys_async())
 
     def __len__(self) -> int:
         """Return number of stored items (simulated for Redis)."""

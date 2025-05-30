@@ -43,7 +43,7 @@ def setup_climate_redis_retriever():
     redis_config = MCPServerConfig(
         name="redis-server",
         transport_type=MCPTransportType.STDIO,
-        url="uv run --directory mcp/mcp-redis src/main.py",
+        url="uv --directory mcp/mcp-redis run src/main.py",
     )
 
     # Create Redis storage for thoughts with timestamp-based key pattern

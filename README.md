@@ -125,6 +125,26 @@ pip install sifaka[classifiers]
 pip install sifaka[all]
 ```
 
+## ⚠️ Current Limitations
+
+### HuggingFace Models (Temporarily Unsupported)
+HuggingFace model integration is currently disabled due to dependency conflicts between `pydantic-ai` and HuggingFace libraries. This affects:
+- Direct HuggingFace model usage in PydanticAI chains
+- HuggingFace-specific examples and documentation
+
+**Workaround**: Use OpenAI, Anthropic, or Gemini models with PydanticAI chains. Traditional chains still support HuggingFace models.
+
+**Status**: Will be re-enabled when PydanticAI adds native HuggingFace support or dependency conflicts are resolved.
+
+### Guardrails AI (Temporarily Disabled)
+Guardrails AI integration is currently disabled due to dependency conflicts between `guardrails-ai` and `pydantic-ai` (griffe version incompatibility). This affects:
+- GuardrailsValidator usage
+- Guardrails-based validation examples
+
+**Workaround**: Use built-in validators (LengthValidator, RegexValidator) or custom validators. The GuardrailsValidator code remains in place for future re-enablement.
+
+**Status**: Will be re-enabled when guardrails-ai and pydantic-ai resolve their griffe version incompatibility.
+
 ## Chain Types: PydanticAI vs Traditional
 
 Sifaka offers two chain implementations optimized for different use cases:

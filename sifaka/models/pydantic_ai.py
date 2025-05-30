@@ -165,6 +165,75 @@ class PydanticAIModel(ContextAwareMixin):
         logger.debug(f"Estimated tokens: {estimated_tokens} for {word_count} words")
         return estimated_tokens
 
+    # Async methods required by critics
+    async def _generate_async(self, prompt: str, **options: Any) -> str:
+        """Generate text asynchronously (required by critics).
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options passed to the agent.
+
+        Returns:
+            The generated text.
+        """
+        logger.debug(f"Generating text asynchronously with PydanticAI agent: {self.model_name}")
+
+        try:
+            # Run the agent asynchronously
+            result = await self.agent.run(prompt, **options)
+
+            # Extract the output text
+            output = self._extract_output(result)
+
+            logger.debug(f"Generated text async: {len(output)} characters")
+            return output
+
+        except Exception as e:
+            logger.error(f"PydanticAI async generation failed: {e}")
+            raise
+
+    async def _generate_with_thought_async(
+        self, thought: Thought, **options: Any
+    ) -> tuple[str, str]:
+        """Generate text from a thought asynchronously.
+
+        Args:
+            thought: The Thought container with context for generation.
+            **options: Additional options passed to the agent.
+
+        Returns:
+            A tuple of (generated_text, actual_prompt_used).
+        """
+        logger.debug("Generating text asynchronously with thought context")
+
+        # Build enhanced prompt from thought
+        enhanced_prompt = self._build_prompt_from_thought(thought)
+
+        try:
+            # Run the agent with enhanced prompt
+            result = await self.agent.run(enhanced_prompt, **options)
+
+            # Extract the output text
+            output = self._extract_output(result)
+
+            logger.debug(f"Generated text async with thought: {len(output)} characters")
+            return output, enhanced_prompt
+
+        except Exception as e:
+            logger.error(f"PydanticAI async generation with thought failed: {e}")
+            raise
+
+    async def _count_tokens_async(self, text: str) -> int:
+        """Count tokens asynchronously (for consistency with other models).
+
+        Args:
+            text: The text to count tokens in.
+
+        Returns:
+            Estimated number of tokens.
+        """
+        return self.count_tokens(text)
+
     def _build_prompt_from_thought(self, thought: Thought) -> str:
         """Build an enhanced prompt from a Thought object.
 

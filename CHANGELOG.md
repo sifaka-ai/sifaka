@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2024-12-19
+
+### 🚨 BREAKING CHANGES
+
+#### **Temporary Removal of HuggingFace and Guardrails Support**
+- **REMOVED**: HuggingFace examples and direct integration due to dependency conflicts with PydanticAI
+- **DISABLED**: Guardrails AI integration due to griffe version incompatibility with PydanticAI
+- **IMPACT**: Affects users relying on HuggingFace models in PydanticAI chains or GuardrailsValidator
+
+### Removed
+- **HuggingFace Examples**: Removed `examples/huggingface/` directory and all HuggingFace-specific examples
+- **HuggingFace PydanticAI Integration**: Disabled due to dependency conflicts
+- **Guardrails Dependency**: Removed from pyproject.toml due to griffe version conflicts
+
+### Changed
+- **GuardrailsValidator**: Marked as prerelease/disabled with clear documentation
+- **Documentation**: Added "Current Limitations" section explaining temporary removals
+- **Dependencies**: Cleaned up conflicting dependencies for better PydanticAI compatibility
+
+### Fixed
+- **Async Event Loop Issues**: Fixed "This event loop is already running" errors in PydanticAI chains
+- **Dependency Conflicts**: Resolved installation issues by removing conflicting packages
+- **PydanticAI Chain Stability**: Improved async handling and error recovery
+
+### Workarounds
+- **HuggingFace Models**: Use Traditional chains for HuggingFace models, or use OpenAI/Anthropic/Gemini with PydanticAI chains
+- **Guardrails Validation**: Use built-in validators (LengthValidator, RegexValidator) or create custom validators
+
+### Future Plans
+- **HuggingFace Support**: Will be restored when PydanticAI adds native HuggingFace support
+- **Guardrails Support**: Will be restored when dependency conflicts are resolved
+- **Enhanced Integration**: Planning improved integration patterns for both systems
+
+---
+
 ## [0.2.0] - 2024-12-19
 
 ### 🚨 BREAKING CHANGES

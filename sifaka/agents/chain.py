@@ -4,7 +4,9 @@ This module provides the main PydanticAIChain class that orchestrates
 PydanticAI agents with Sifaka's validation and criticism framework.
 """
 
+import asyncio
 import uuid
+from functools import wraps
 from typing import List, Optional
 
 from sifaka.core.interfaces import Critic, Validator
@@ -16,6 +18,28 @@ from sifaka.utils.logging import get_logger
 from sifaka.utils.performance import time_operation
 
 logger = get_logger(__name__)
+
+
+def async_to_sync(async_method):
+    """Decorator to create sync wrapper for async methods."""
+
+    @wraps(async_method)
+    def sync_wrapper(self, *args, **kwargs):
+        try:
+            # Try to get the current event loop
+            asyncio.get_running_loop()
+            # If we get here, we're in an async context, run in thread pool
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, async_method(self, *args, **kwargs))
+                return future.result()
+        except RuntimeError:
+            # No running event loop, safe to use asyncio.run()
+            return asyncio.run(async_method(self, *args, **kwargs))
+
+    return sync_wrapper
+
 
 # Import PydanticAI with availability check
 try:
@@ -89,8 +113,24 @@ class PydanticAIChain:
         if enable_validator_tools:
             self._setup_validator_tools()
 
-    def run(self, prompt: str, **kwargs) -> Thought:
-        """Execute the hybrid chain.
+    @async_to_sync
+    async def run(self, prompt: str, **kwargs) -> Thought:
+        """Execute the hybrid chain (sync wrapper for async implementation).
+
+        This method provides a sync interface that wraps the async implementation,
+        making it consistent with traditional Sifaka Chain API.
+
+        Args:
+            prompt: The input prompt for generation.
+            **kwargs: Additional arguments passed to the agent.
+
+        Returns:
+            A Thought object containing the final result.
+        """
+        return await self.run_async(prompt, **kwargs)
+
+    async def run_async(self, prompt: str, **kwargs) -> Thought:
+        """Execute the hybrid chain asynchronously.
 
         This method orchestrates the complete workflow:
         1. Initial generation with PydanticAI
@@ -114,10 +154,10 @@ class PydanticAIChain:
             thought = self._execute_model_retrieval(thought)
 
             # Phase 2: Initial generation with PydanticAI
-            thought = self._execute_agent_generation(thought, **kwargs)
+            thought = await self._execute_agent_generation(thought, **kwargs)
 
             # Save initial iteration
-            self._save_intermediate_thought(thought)
+            await self._save_intermediate_thought(thought)
 
             # Phase 3: Sifaka validation
             thought = self._execute_validation(thought)
@@ -129,13 +169,13 @@ class PydanticAIChain:
             )
 
             if should_improve:
-                thought = self._execute_improvement_loop(thought, **kwargs)
+                thought = await self._execute_improvement_loop(thought, **kwargs)
 
             # Save final result
             thought_key = f"thought_{thought.chain_id}_{thought.iteration}"
             try:
                 logger.debug(f"Saving thought with key: {thought_key}")
-                self.storage.save(thought_key, thought)
+                await self.storage._set_async(thought_key, thought)
                 logger.info(
                     f"Successfully saved thought to: {getattr(self.storage, 'file_path', 'storage')}"
                 )
@@ -146,7 +186,7 @@ class PydanticAIChain:
             logger.info(f"Chain execution completed. Final iteration: {thought.iteration}")
             return thought
 
-    def _execute_agent_generation(self, thought: Thought, **kwargs) -> Thought:
+    async def _execute_agent_generation(self, thought: Thought, **kwargs) -> Thought:
         """Execute initial generation using the PydanticAI agent.
 
         Args:
@@ -160,8 +200,8 @@ class PydanticAIChain:
 
         with time_operation("agent_generation"):
             try:
-                # Run the PydanticAI agent
-                result = self.agent.run_sync(thought.prompt, **kwargs)
+                # Run the PydanticAI agent asynchronously
+                result = await self.agent.run(thought.prompt, **kwargs)
 
                 # Extract output and update thought with comprehensive data
                 output, updated_thought = self._extract_agent_output(result, thought)
@@ -218,7 +258,7 @@ class PydanticAIChain:
 
             return thought
 
-    def _execute_improvement_loop(self, thought: Thought, **kwargs) -> Thought:
+    async def _execute_improvement_loop(self, thought: Thought, **kwargs) -> Thought:
         """Execute improvement iterations using critics and agent feedback.
 
         Args:
@@ -250,7 +290,7 @@ class PydanticAIChain:
                 logger.debug(
                     f"Running improvement iteration {iteration + 1} with prompt length: {len(improvement_prompt)}"
                 )
-                result = self.agent.run_sync(improvement_prompt, **kwargs)
+                result = await self.agent.run(improvement_prompt, **kwargs)
                 improved_text, updated_thought = self._extract_agent_output(result, current_thought)
                 logger.debug(
                     f"Improvement iteration {iteration + 1} completed, generated {len(improved_text)} characters"
@@ -277,7 +317,7 @@ class PydanticAIChain:
                 current_thought = self._execute_validation(current_thought)
 
                 # Save intermediate iteration
-                self._save_intermediate_thought(current_thought)
+                await self._save_intermediate_thought(current_thought)
 
                 # Check if validation now passes
                 if self._validation_passed(current_thought):
@@ -649,8 +689,8 @@ class PydanticAIChain:
             logger.warning(f"Failed to extract tool calls: {e}")
             return thought
 
-    def _save_intermediate_thought(self, thought: Thought):
-        """Save an intermediate thought iteration.
+    async def _save_intermediate_thought(self, thought: Thought):
+        """Save an intermediate thought iteration asynchronously.
 
         Args:
             thought: The thought to save.
@@ -658,7 +698,7 @@ class PydanticAIChain:
         try:
             thought_key = f"thought_{thought.chain_id}_{thought.iteration}"
             logger.debug(f"Saving intermediate thought with key: {thought_key}")
-            self.storage.save(thought_key, thought)
+            await self.storage._set_async(thought_key, thought)
             logger.debug(f"Successfully saved intermediate thought: iteration {thought.iteration}")
         except Exception as e:
             logger.error(f"Failed to save intermediate thought: {e}")

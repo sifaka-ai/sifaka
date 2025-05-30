@@ -1,14 +1,31 @@
-"""OpenAI model implementation for Sifaka.
+"""OpenAI model implementation for Sifaka (DEPRECATED).
+
+⚠️  DEPRECATED: This module is deprecated in favor of the unified PydanticAI model architecture.
+    Use `create_model("openai:gpt-4")` instead, which routes through PydanticAI for better
+    consistency, reliability, and feature support.
 
 This module provides an implementation of the Model protocol for OpenAI models,
 supporting both the chat completions API and the completions API. It handles
 token counting, error handling, and configuration for OpenAI models.
 
-The OpenAIModel class implements the Model protocol and provides methods for
-generating text and counting tokens. It also provides a configure method for
-updating model options after initialization.
+MIGRATION GUIDE:
+    ```python
+    # OLD (deprecated):
+    from sifaka.models.openai import OpenAIModel
+    model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
 
-Example:
+    # NEW (recommended):
+    from sifaka.models.base import create_model
+    model = create_model("openai:gpt-4", api_key="your-api-key")
+    ```
+
+The new unified approach provides:
+- Consistent behavior across all providers
+- Better error handling and reliability
+- Access to modern PydanticAI features (tools, structured outputs)
+- Reduced code duplication and maintenance burden
+
+Legacy Example (for backward compatibility):
     ```python
     from sifaka.models.openai import OpenAIModel, create_openai_model
 
