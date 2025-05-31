@@ -4,7 +4,6 @@ Redis-based storage for cross-process sharing and caching. Uses the Model Contex
 Protocol to communicate with a Redis MCP server.
 """
 
-import asyncio
 import json
 from datetime import datetime
 from typing import Any, List, Optional
@@ -41,21 +40,6 @@ class RedisStorage:
         self._connected = False
 
         logger.debug(f"Initialized RedisStorage with prefix '{key_prefix}'")
-
-    def _run_async_safely(self, coro):
-        """Run async coroutine safely, handling existing event loops."""
-        try:
-            # Try to get the current event loop
-            asyncio.get_running_loop()
-            # We're in an async context - this is not supported for sync methods
-            # The caller should use the async version instead
-            raise RuntimeError(
-                "Cannot call sync Redis storage methods from within an async context. "
-                "Use the async methods (_get_async, _set_async, etc.) instead."
-            )
-        except RuntimeError:
-            # No event loop running, safe to use asyncio.run
-            return asyncio.run(coro)
 
     async def _ensure_connected(self) -> None:
         """Ensure MCP client is connected."""
@@ -312,8 +296,8 @@ class RedisStorage:
         logger.warning("Keys listing is not implemented for Redis storage (requires SCAN)")
         return []
 
-    # Public sync methods (backward compatible API)
-    def get(self, key: str) -> Optional[Any]:
+    # Public async-only API
+    async def get(self, key: str) -> Optional[Any]:
         """Get a value by key from Redis.
 
         Args:
@@ -322,18 +306,18 @@ class RedisStorage:
         Returns:
             The stored value, or None if not found.
         """
-        return self._run_async_safely(self._get_async(key))
+        return await self._get_async(key)
 
-    def set(self, key: str, value: Any) -> None:
+    async def set(self, key: str, value: Any) -> None:
         """Set a value for a key in Redis.
 
         Args:
             key: The storage key.
             value: The value to store.
         """
-        return self._run_async_safely(self._set_async(key, value))
+        return await self._set_async(key, value)
 
-    def search(self, query: str, limit: int = 10) -> List[Any]:
+    async def search(self, query: str, limit: int = 10) -> List[Any]:
         """Search for items matching a query.
 
         For Redis storage, this scans keys and returns matching values.
@@ -345,13 +329,13 @@ class RedisStorage:
         Returns:
             List of matching values.
         """
-        return self._run_async_safely(self._search_async(query, limit))
+        return await self._search_async(query, limit)
 
-    def clear(self) -> None:
+    async def clear(self) -> None:
         """Clear all data with the key prefix."""
-        return self._run_async_safely(self._clear_async())
+        return await self._clear_async()
 
-    def delete(self, key: str) -> bool:
+    async def delete(self, key: str) -> bool:
         """Delete a value by key from Redis.
 
         Args:
@@ -360,24 +344,25 @@ class RedisStorage:
         Returns:
             True if the key was deleted, False if it didn't exist.
         """
-        return self._run_async_safely(self._delete_async(key))
+        return await self._delete_async(key)
 
-    def keys(self) -> List[str]:
+    async def keys(self) -> List[str]:
         """Get all keys in storage.
 
         Returns:
             List of all storage keys.
         """
-        return self._run_async_safely(self._keys_async())
+        return await self._keys_async()
 
-    def __len__(self) -> int:
+    async def __len__(self) -> int:
         """Return number of stored items (simulated for Redis)."""
         # In a real implementation, this would count keys with the prefix
         return 0  # Placeholder
 
-    def __contains__(self, key: str) -> bool:
+    async def __contains__(self, key: str) -> bool:
         """Check if key exists in Redis."""
-        return self.get(key) is not None
+        result = await self.get(key)
+        return result is not None
 
     def _connect_mcp(self) -> None:
         """Connect to the MCP server (placeholder for testing)."""
@@ -386,20 +371,20 @@ class RedisStorage:
         self._connected = True
         logger.debug("MCP connection established (mock)")
 
-    # Additional methods expected by tests
-    def save(self, key: str, value: Any) -> None:
+    # Additional async methods expected by tests
+    async def save(self, key: str, value: Any) -> None:
         """Save a value to Redis (alias for set)."""
-        self.set(key, value)
+        await self.set(key, value)
 
-    def load(self, key: str) -> Optional[Any]:
+    async def load(self, key: str) -> Optional[Any]:
         """Load a value from Redis (alias for get)."""
-        return self.get(key)
+        return await self.get(key)
 
-    def exists(self, key: str) -> bool:
+    async def exists(self, key: str) -> bool:
         """Check if a key exists in Redis."""
-        return key in self
+        return await self.__contains__(key)
 
-    def list_keys(self, pattern: str = "*") -> List[str]:
+    async def list_keys(self, pattern: str = "*") -> List[str]:
         """List keys matching a pattern (placeholder implementation)."""
         logger.warning("list_keys is not fully implemented for Redis storage")
         return []

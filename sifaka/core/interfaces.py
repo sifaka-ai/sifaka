@@ -96,12 +96,12 @@ class Validator(Protocol):
     """Protocol defining the interface for validators.
 
     This protocol defines the minimum interface that all validator
-    implementations must follow. It requires a validate method that
+    implementations must follow. It requires an async validate method that
     checks if text meets certain criteria.
     """
 
-    def validate(self, thought: "Thought") -> "ValidationResult":
-        """Validate text against specific criteria.
+    async def validate_async(self, thought: "Thought") -> "ValidationResult":
+        """Validate text against specific criteria asynchronously.
 
         Args:
             thought: The Thought container with the text to validate.
@@ -117,12 +117,12 @@ class Critic(Protocol):
     """Protocol defining the interface for critics.
 
     This protocol defines the minimum interface that all critic
-    implementations must follow. It requires methods for critiquing
+    implementations must follow. It requires async methods for critiquing
     and improving text.
     """
 
-    def critique(self, thought: "Thought") -> Dict[str, Any]:
-        """Critique text and provide feedback.
+    async def critique_async(self, thought: "Thought") -> Dict[str, Any]:
+        """Critique text and provide feedback asynchronously.
 
         Args:
             thought: The Thought container with the text to critique.
@@ -132,8 +132,8 @@ class Critic(Protocol):
         """
         ...
 
-    def improve(self, thought: "Thought") -> str:
-        """Improve text based on critique.
+    async def improve_async(self, thought: "Thought") -> str:
+        """Improve text based on critique asynchronously.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -151,16 +151,12 @@ class ValidationAwareCritic(Critic, Protocol):
     This protocol extends the base Critic protocol to support validation context
     in the improve method, enabling critics to prioritize validation constraints
     over conflicting suggestions.
-
-    Implementations can choose to implement either the base improve() method
-    or the enhanced improve_with_validation_context() method, or both for
-    maximum compatibility.
     """
 
-    def improve_with_validation_context(
+    async def improve_with_validation_context_async(
         self, thought: "Thought", validation_context: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Improve text with validation context awareness.
+        """Improve text with validation context awareness asynchronously.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -177,12 +173,12 @@ class Retriever(Protocol):
     """Protocol defining the interface for retrievers.
 
     This protocol defines the minimum interface that all retriever
-    implementations must follow. It requires a retrieve method that
-    finds relevant documents for a query.
+    implementations must follow. It requires async retrieve methods that
+    find relevant documents for a query.
     """
 
-    def retrieve(self, query: str) -> List[str]:
-        """Retrieve relevant documents for a query.
+    async def retrieve_async(self, query: str) -> List[str]:
+        """Retrieve relevant documents for a query asynchronously.
 
         Args:
             query: The query to retrieve documents for.
@@ -192,8 +188,10 @@ class Retriever(Protocol):
         """
         ...
 
-    def retrieve_for_thought(self, thought: "Thought", is_pre_generation: bool = True) -> "Thought":
-        """Retrieve documents and add them to a thought.
+    async def retrieve_for_thought_async(
+        self, thought: "Thought", is_pre_generation: bool = True
+    ) -> "Thought":
+        """Retrieve documents and add them to a thought asynchronously.
 
         Args:
             thought: The thought to add documents to.

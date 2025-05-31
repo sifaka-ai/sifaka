@@ -62,6 +62,18 @@ class Retriever(Protocol):
         """
         ...
 
+    async def retrieve_async(self, query: str, limit: int = 10) -> List[str]:
+        """Retrieve relevant documents for a query asynchronously.
+
+        Args:
+            query: The query to retrieve documents for.
+            limit: Maximum number of documents to return.
+
+        Returns:
+            A list of relevant document texts, ordered by relevance.
+        """
+        ...
+
     def add_document(self, doc_id: str, text: str) -> None:
         """Add a document to the retriever.
 

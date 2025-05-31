@@ -123,8 +123,8 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
             "Improved text:"
         )
 
-    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic using N-Critics ensemble approach.
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic using N-Critics ensemble approach (async).
 
         Args:
             thought: The Thought container with the text to critique.
@@ -132,11 +132,11 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
         Returns:
             A dictionary with critique results (without processing_time_ms).
         """
-        # Generate critiques from each specialized critic
+        # Generate critiques from each specialized critic (async)
         critic_results = []
         for role in self.critic_roles:
             try:
-                result = self._generate_critic_critique(thought, role)
+                result = await self._generate_critic_critique_async(thought, role)
                 critic_results.append(result)
             except Exception as e:
                 logger.warning(f"Critic role '{role}' failed: {e}")
@@ -162,7 +162,7 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
             aggregated_feedback.get("average_score", 5.0) < self.improvement_threshold
         )
 
-        logger.debug(f"NCriticsCritic: Completed with {len(valid_critiques)} critics")
+        logger.debug(f"NCriticsCritic: Async completed with {len(valid_critiques)} critics")
 
         return {
             "needs_improvement": needs_improvement,
@@ -178,8 +178,8 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
             },
         }
 
-    def improve(self, thought: Thought) -> str:
-        """Improve text based on ensemble critic feedback.
+    async def improve_async(self, thought: Thought) -> str:
+        """Improve text based on ensemble critic feedback asynchronously.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -192,12 +192,12 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
         """
         # Use the enhanced method with validation context from thought
         validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return self.improve_with_validation_context(thought, validation_context)
+        return await self.improve_with_validation_context_async(thought, validation_context)
 
-    def improve_with_validation_context(
+    async def improve_with_validation_context_async(
         self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Improve text with validation context awareness.
+        """Improve text with validation context awareness asynchronously.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -234,10 +234,10 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
                         aggregated_feedback = self._format_feedback_for_improvement(critic_feedback)
                         break
 
-            # If no critique available, generate one
+            # If no critique available, generate one using async method
             if not aggregated_feedback:
                 logger.debug("No critique found in thought, generating new critique")
-                critique_result = self._perform_critique(thought)
+                critique_result = await self._perform_critique_async(thought)
                 critic_feedback = critique_result["metadata"]["critic_feedback"]
                 aggregated_feedback = self._format_feedback_for_improvement(critic_feedback)
 
@@ -264,9 +264,9 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
                     context=context,
                 )
 
-            # Generate improved text with error handling
+            # Generate improved text with error handling (async only)
             try:
-                improved_text = self.model.generate(
+                improved_text = await self.model._generate_async(
                     prompt=improve_prompt,
                     system_prompt="You are an expert editor incorporating feedback from multiple specialized critics.",
                 )
@@ -282,8 +282,8 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
 
             return improved_text.strip()
 
-    def _generate_critic_critique(self, thought: Thought, role: str) -> Dict[str, Any]:
-        """Generate critique from a single specialized critic.
+    async def _generate_critic_critique_async(self, thought: Thought, role: str) -> Dict[str, Any]:
+        """Generate critique from a single specialized critic (async).
 
         Args:
             thought: The Thought container with the text to critique.
@@ -303,14 +303,14 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
             context=context,
         )
 
-        # Generate critique with error handling
+        # Generate critique with error handling (async only)
         try:
-            critique_response = self.model.generate(
+            critique_response = await self.model._generate_async(
                 prompt=critique_prompt,
                 system_prompt=f"You are a specialized critic with the role: {role}",
             )
         except Exception as e:
-            logger.error(f"NCriticsCritic generation failed for role '{role}': {e}")
+            logger.error(f"NCriticsCritic async generation failed for role '{role}': {e}")
             # Return a fallback critique
             critique_response = (
                 f"Error generating critique for {role}: {str(e)}. Please review the text manually."

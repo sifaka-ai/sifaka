@@ -173,8 +173,8 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
             "Improved text:"
         )
 
-    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
-        """Perform Self-RAG inspired critique with smart retrieval and reflection-style assessment.
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform Self-RAG inspired critique with smart retrieval and reflection-style assessment (async).
 
         Args:
             thought: The Thought container with the text to critique.
@@ -213,10 +213,10 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
                     retriever_used = "chain_level"
                     logger.debug("SelfRAGCritic: Using chain-level retrieved context")
 
-        # Step 3: Generate Self-RAG style critique
+        # Step 3: Generate Self-RAG style critique (async)
         critique_prompt = self._build_critique_prompt(thought, context, retrieval_needed)
 
-        critique_response = self.model.generate(
+        critique_response = await self.model._generate_async(
             prompt=critique_prompt,
             system_prompt="You are a Self-RAG inspired critic that provides structured feedback using reflection tokens.",
         )
@@ -236,7 +236,7 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
                 f"SelfRAGCritic: Forcing improvement due to issues/suggestions despite high utility score ({utility_score})"
             )
 
-        logger.debug(f"SelfRAGCritic: Completed with utility score {utility_score}")
+        logger.debug(f"SelfRAGCritic: Async completed with utility score {utility_score}")
 
         return {
             "needs_improvement": needs_improvement,
@@ -254,8 +254,8 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
             },
         }
 
-    def improve(self, thought: Thought) -> str:
-        """Improve text using Self-RAG approach with retrieval and reflection.
+    async def improve_async(self, thought: Thought) -> str:
+        """Improve text using Self-RAG approach with retrieval and reflection asynchronously.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -268,12 +268,12 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
         """
         # Use the enhanced method with validation context from thought
         validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return self.improve_with_validation_context(thought, validation_context)
+        return await self.improve_with_validation_context_async(thought, validation_context)
 
-    def improve_with_validation_context(
+    async def improve_with_validation_context_async(
         self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Improve text with validation context awareness.
+        """Improve text with validation context awareness asynchronously.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -309,10 +309,10 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
                         critique = feedback.feedback
                         break
 
-            # If no critique available, generate one
+            # If no critique available, generate one using async method
             if not critique:
                 logger.debug("No critique found in thought, generating new critique")
-                critique_result = self._perform_critique(thought)
+                critique_result = await self._perform_critique_async(thought)
                 critique = critique_result["message"]
 
             # Prepare context for improvement (using mixin + retrieval)
@@ -361,8 +361,8 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
                     critique=critique,
                 )
 
-            # Generate improved text
-            improved_text = self.model.generate(
+            # Generate improved text (async only)
+            improved_text = await self.model._generate_async(
                 prompt=improve_prompt,
                 system_prompt="You are an expert editor using Self-RAG principles to improve text with retrieved context.",
             )

@@ -14,6 +14,7 @@ Feedback from validators and critics is automatically summarized for more
 effective improvement iterations.
 """
 
+import asyncio
 import os
 
 from dotenv import load_dotenv
@@ -124,7 +125,7 @@ def create_comprehensive_validators():
     return validators
 
 
-def main():
+async def main():
     """Run the Self-Refine with Multiple Validators example using PydanticAI."""
 
     # Ensure API key is available
@@ -190,7 +191,7 @@ def main():
 
     # Run the chain
     logger.info("Running PydanticAI chain with Self-Refine critic and comprehensive validation...")
-    result = chain.run_sync(prompt)
+    result = await chain.run(prompt)
 
     # Display results
     print("\n" + "=" * 80)
@@ -245,4 +246,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

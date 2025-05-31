@@ -126,8 +126,8 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
             "Improved text:"
         )
 
-    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic using Self-Consistency approach.
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Async version of the critique logic using Self-Consistency approach.
 
         Args:
             thought: The Thought container with the text to critique.
@@ -136,7 +136,7 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
             A dictionary with critique results (without processing_time_ms).
         """
         # Generate multiple critiques following original Self-Consistency algorithm
-        critiques = self._generate_multiple_critiques(thought)
+        critiques = await self._generate_multiple_critiques(thought)
 
         # Aggregate critiques using majority voting
         aggregated_result = self._aggregate_critiques(critiques)
@@ -147,33 +147,24 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
         # Determine if improvement is needed based on majority vote
         needs_improvement = self._determine_improvement_need(critiques, aggregated_result)
 
-        # Create comprehensive feedback message
-        combined_message = self._format_consensus_message(critiques, aggregated_result, confidence)
-
-        logger.debug(f"SelfConsistencyCritic: Completed {len(critiques)} critique iterations")
-
-        # Convert consensus items to strings for CriticFeedback compatibility
-        consensus_issues_strings = [item["text"] for item in aggregated_result["consensus_issues"]]
-        consensus_suggestions_strings = [
-            item["text"] for item in aggregated_result["consensus_suggestions"]
-        ]
+        # Format consensus message
+        consensus_message = self._format_consensus_message(critiques, aggregated_result, confidence)
 
         return {
-            "needs_improvement": needs_improvement,
-            "feedback": combined_message,  # Use "feedback" field to match CriticFeedback
-            "message": combined_message,  # Keep "message" for backward compatibility
-            "issues": consensus_issues_strings,
-            "suggestions": consensus_suggestions_strings,
+            "message": consensus_message,
             "confidence": confidence,
+            "issues": aggregated_result["consensus_issues"],
+            "suggestions": aggregated_result["consensus_suggestions"],
+            "needs_improvement": needs_improvement,
             "metadata": {
-                "num_iterations": len(critiques),
+                "num_iterations": self.num_iterations,
                 "individual_critiques": critiques,
                 "consensus_stats": aggregated_result,  # Store full consensus data here
                 "use_chain_of_thought": self.use_chain_of_thought,
             },
         }
 
-    def _generate_multiple_critiques(self, thought: Thought) -> List[Dict[str, Any]]:
+    async def _generate_multiple_critiques(self, thought: Thought) -> List[Dict[str, Any]]:
         """Generate multiple critiques of the same text.
 
         Args:
@@ -186,7 +177,7 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
         critiques = []
         for i in range(self.num_iterations):
             try:
-                result = self._generate_single_critique(thought)
+                result = await self._generate_single_critique(thought)
                 critiques.append(result)
             except Exception as e:
                 logger.warning(f"Critique iteration {i + 1} failed: {e}")
@@ -205,7 +196,7 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
         )
         return critiques
 
-    def _generate_single_critique(self, thought: Thought) -> Dict[str, Any]:
+    async def _generate_single_critique(self, thought: Thought) -> Dict[str, Any]:
         """Generate a single critique using our own model.
 
         Args:
@@ -224,8 +215,8 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
             context=context,
         )
 
-        # Generate critique
-        critique_response = self.model.generate(
+        # Generate critique (async only)
+        critique_response = await self.model._generate_async(
             prompt=critique_prompt,
             system_prompt="You are an expert evaluator providing detailed, constructive feedback on text quality.",
         )
@@ -558,8 +549,8 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
 
         return message
 
-    def improve(self, thought: Thought) -> str:
-        """Improve text based on self-consistency critique.
+    async def improve_async(self, thought: Thought) -> str:
+        """Improve text based on self-consistency critique asynchronously.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -572,9 +563,9 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
         """
         # Use the enhanced method with validation context from thought
         validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return self.improve_with_validation_context(thought, validation_context)
+        return await self.improve_with_validation_context_async(thought, validation_context)
 
-    def improve_with_validation_context(
+    async def improve_with_validation_context_async(
         self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """Improve text with validation context awareness.
@@ -623,12 +614,12 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
                         total_iterations = metadata.get("num_iterations", 0)
                         break
 
-            # If no critique available, generate one
+            # If no critique available, generate one using async method
             if not consensus_issues and not consensus_suggestions:
                 logger.debug(
                     "No self-consistency critique found in thought, generating new critique"
                 )
-                critique_result = self._perform_critique(thought)
+                critique_result = await self._perform_critique_async(thought)
                 metadata = critique_result["metadata"]
                 consensus_issues = critique_result["issues"]
                 consensus_suggestions = critique_result["suggestions"]
@@ -701,8 +692,8 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
                     confidence=confidence,
                 )
 
-            # Generate improved text
-            improved_text = self.model.generate(
+            # Generate improved text (async only)
+            improved_text = await self.model._generate_async(
                 prompt=improve_prompt,
                 system_prompt="You are an expert editor using consensus feedback from multiple evaluations to improve text quality.",
             )

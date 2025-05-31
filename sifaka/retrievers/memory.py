@@ -103,6 +103,20 @@ class InMemoryRetriever:
         logger.debug(f"Retrieved {len(top_results)} documents")
         return top_results
 
+    async def retrieve_async(self, query: str, limit: int = None) -> List[str]:
+        """Retrieve relevant documents for a query asynchronously.
+
+        Args:
+            query: The query to retrieve documents for.
+            limit: Maximum number of documents to return. Uses default if None.
+
+        Returns:
+            A list of relevant document texts, ordered by relevance score.
+        """
+        # For in-memory retrieval, we can just call the sync version
+        # In a real implementation with external APIs, this would be truly async
+        return self.retrieve(query, limit)
+
     def retrieve_with_metadata(self, query: str, limit: int = None) -> List[dict]:
         """Retrieve relevant documents with metadata and scores.
 

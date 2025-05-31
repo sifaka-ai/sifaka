@@ -14,6 +14,7 @@ The MetaRewardingCritic implements a two-stage judgment process:
 This creates a feedback loop for improving both responses and judgment capabilities.
 """
 
+import asyncio
 import os
 
 from pydantic_ai import Agent
@@ -24,7 +25,7 @@ from sifaka.models import create_model
 from sifaka.storage import FileStorage
 
 
-def main():
+async def main():
     """Run a simple MetaRewardingCritic example with Gemini."""
 
     # Check for API keys
@@ -94,7 +95,7 @@ def main():
         print("\n🚀 Running PydanticAI chain...")
         print("-" * 30)
 
-        result = chain.run_sync(prompt)
+        result = await chain.run(prompt)
 
         # Display results
         print("\n📝 Results:")
@@ -153,4 +154,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

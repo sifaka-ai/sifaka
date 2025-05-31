@@ -122,7 +122,7 @@ async def main():
         critics=[critic],  # Translation prompt critic
         max_improvement_iterations=2,  # Exactly 2 retries as specified
         always_apply_critics=False,  # Only apply critics when validation fails
-        storage=FileStorage(
+        analytics_storage=FileStorage(
             "./thoughts/prompt_critic_example_thoughts.json",
             overwrite=True,  # Overwrite existing file instead of appending
         ),  # Save thoughts to single JSON file for debugging

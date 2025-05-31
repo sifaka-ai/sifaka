@@ -129,67 +129,6 @@ class ConstitutionalCritic(BaseCritic, ValidationAwareMixin, ContextAwareMixin):
         # Store the last improvement prompt used for debugging/logging
         self.last_improvement_prompt = None
 
-    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic using Constitutional AI approach.
-
-        Args:
-            thought: The Thought container with the text to critique.
-
-        Returns:
-            A dictionary with critique results (without processing_time_ms).
-        """
-        # Format principles for the prompt
-        principles_text = "\n".join(
-            f"{i + 1}. {principle}" for i, principle in enumerate(self.principles)
-        )
-
-        # Prepare context from retrieved documents (using mixin)
-        context = self._prepare_context(thought)
-
-        # Create critique prompt
-        critique_prompt = self.critique_prompt_template.format(
-            principles=principles_text,
-            prompt=thought.prompt,
-            text=thought.text,
-            context=context,
-        )
-
-        # Generate critique
-        critique_response = self.model.generate(
-            prompt=critique_prompt,
-            system_prompt="You are an expert constitutional AI evaluator. Assess text against constitutional principles.",
-        )
-
-        # Parse the critique
-        issues, suggestions = self._parse_critique(critique_response)
-        violations = self._extract_violations(critique_response)
-
-        # Determine if improvement is needed
-        needs_improvement = len(violations) > 0 or len(issues) > 0
-        if self.strict_mode:
-            needs_improvement = needs_improvement or "concern" in critique_response.lower()
-
-        # Calculate confidence based on violations found
-        confidence = 1.0 - (len(violations) / len(self.principles)) if self.principles else 1.0
-        confidence = max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
-
-        logger.debug(
-            f"ConstitutionalCritic: Found {len(violations)} violations, confidence: {confidence:.2f}"
-        )
-
-        return {
-            "needs_improvement": needs_improvement,
-            "message": critique_response,
-            "issues": issues,
-            "suggestions": suggestions,
-            "confidence": confidence,
-            "metadata": {
-                "principle_violations": violations,
-                "principles_evaluated": len(self.principles),
-                "strict_mode": self.strict_mode,
-            },
-        }
-
     async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
         """Perform the actual critique logic using Constitutional AI approach asynchronously.
 
@@ -215,18 +154,11 @@ class ConstitutionalCritic(BaseCritic, ValidationAwareMixin, ContextAwareMixin):
             context=context,
         )
 
-        # Generate critique asynchronously if the model supports it
-        if hasattr(self.model, "generate_async"):
-            critique_response = await self.model.generate_async(
-                prompt=critique_prompt,
-                system_prompt="You are an expert constitutional AI evaluator. Assess text against constitutional principles.",
-            )
-        else:
-            # Fall back to sync method
-            critique_response = self.model.generate(
-                prompt=critique_prompt,
-                system_prompt="You are an expert constitutional AI evaluator. Assess text against constitutional principles.",
-            )
+        # Generate critique asynchronously (async only)
+        critique_response = await self.model._generate_async(
+            prompt=critique_prompt,
+            system_prompt="You are an expert constitutional AI evaluator. Assess text against constitutional principles.",
+        )
 
         # Parse the critique
         issues, suggestions = self._parse_critique(critique_response)
@@ -258,8 +190,8 @@ class ConstitutionalCritic(BaseCritic, ValidationAwareMixin, ContextAwareMixin):
             },
         }
 
-    def improve(self, thought: Thought) -> str:
-        """Improve text to align with constitutional principles.
+    async def improve_async(self, thought: Thought) -> str:
+        """Improve text to align with constitutional principles asynchronously.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -272,9 +204,9 @@ class ConstitutionalCritic(BaseCritic, ValidationAwareMixin, ContextAwareMixin):
         """
         # Use the enhanced method with validation context from thought
         validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return self.improve_with_validation_context(thought, validation_context)
+        return await self.improve_with_validation_context_async(thought, validation_context)
 
-    def improve_with_validation_context(
+    async def improve_with_validation_context_async(
         self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """Improve text with validation context awareness.
@@ -313,10 +245,10 @@ class ConstitutionalCritic(BaseCritic, ValidationAwareMixin, ContextAwareMixin):
                         critique = feedback.feedback
                         break
 
-            # If no critique available, generate one
+            # If no critique available, generate one using async method
             if not critique:
                 logger.debug("No critique found in thought, generating new critique")
-                critique_result = self._perform_critique(thought)
+                critique_result = await self._perform_critique_async(thought)
                 critique = critique_result["message"]
 
             # Format principles for the prompt
@@ -354,8 +286,8 @@ class ConstitutionalCritic(BaseCritic, ValidationAwareMixin, ContextAwareMixin):
             # Store the actual prompt for logging/debugging
             self.last_improvement_prompt = improve_prompt
 
-            # Generate improved text
-            improved_text = self.model.generate(
+            # Generate improved text (async only)
+            improved_text = await self.model._generate_async(
                 prompt=improve_prompt,
                 system_prompt="You are an expert editor improving text to align with constitutional principles.",
             )

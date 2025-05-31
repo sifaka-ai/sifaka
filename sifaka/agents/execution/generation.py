@@ -41,18 +41,18 @@ class GenerationExecutor:
 
         with time_operation("agent_generation"):
             try:
+                # Use model_prompt if available, otherwise fall back to prompt
+                prompt_to_use = thought.model_prompt if thought.model_prompt else thought.prompt
+
                 # Run the PydanticAI agent asynchronously
-                result = await self.agent.run(thought.prompt, **kwargs)
+                result = await self.agent.run(prompt_to_use, **kwargs)
 
                 # Extract output and metadata
                 output, updated_thought = self.data_extractor.extract_output(result, thought)
                 thought = (updated_thought or thought).set_text(output)
 
                 # Extract comprehensive metadata
-                metadata = self.data_extractor.extract_metadata(result, thought.prompt)
-
-                # Extract rich PydanticAI data
-                rich_data = self.data_extractor.extract_rich_data(result)
+                metadata = self.data_extractor.extract_metadata(result, prompt_to_use)
 
                 thought = thought.model_copy(
                     update={
@@ -63,8 +63,8 @@ class GenerationExecutor:
                     }
                 )
 
-                # Add PydanticAI rich data to thought
-                thought = thought.set_pydantic_data(rich_data)
+                # NOTE: PydanticAI rich data not stored in thought to avoid duplication
+                # Use ConversationHistoryAdapter to access PydanticAI conversation data
 
                 logger.debug(f"Agent generated {len(output)} characters")
                 return thought
@@ -99,9 +99,6 @@ class GenerationExecutor:
                 # Extract and update metadata for improvement iteration
                 metadata = self.data_extractor.extract_metadata(result, improvement_prompt)
 
-                # Extract rich PydanticAI data for improvement
-                rich_data = self.data_extractor.extract_rich_data(result)
-
                 current_thought = current_thought.model_copy(
                     update={
                         "model_name": metadata["model_name"],
@@ -110,8 +107,8 @@ class GenerationExecutor:
                     }
                 )
 
-                # Add PydanticAI rich data to improvement thought
-                current_thought = current_thought.set_pydantic_data(rich_data)
+                # NOTE: PydanticAI rich data not stored in thought to avoid duplication
+                # Use ConversationHistoryAdapter to access PydanticAI conversation data
 
                 logger.debug(f"Improvement generated {len(improved_text)} characters")
                 return current_thought
