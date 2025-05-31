@@ -230,9 +230,10 @@ class PydanticAIChain:
                         thought = thought.set_text(improved_text)
                         # Mark that this thought has critic-improved text to skip generation
                         thought._critic_improved = True
-                        # Still need a model prompt for consistency, but it won't be used for generation
-                        improvement_prompt = (
-                            f"Improved text from {critic.__class__.__name__}: {improved_text}"
+                        # Build the proper improvement prompt that would have been used
+                        # This shows what the model would have received for debugging/logging
+                        improvement_prompt = self.prompt_builder.build_improvement_prompt(
+                            thought, prompt
                         )
                         thought = thought.set_model_prompt(improvement_prompt)
                     else:
