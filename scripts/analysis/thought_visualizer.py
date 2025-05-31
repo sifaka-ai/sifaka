@@ -84,13 +84,14 @@ class HTMLThoughtVisualizer:
         """Generate interactive HTML visualization"""
 
         if output_file is None:
-            # Create default output file in /analysis directory
+            # Create default output file in /analysis/html directory
             analysis_dir = Path("analysis")
-            analysis_dir.mkdir(exist_ok=True)
+            html_dir = analysis_dir / "html"
+            html_dir.mkdir(parents=True, exist_ok=True)
 
             # Generate filename based on input file
             base_name = self.json_file.stem
-            output_file = analysis_dir / f"{base_name}_visualization.html"
+            output_file = html_dir / f"{base_name}_visualization.html"
 
         output_path = Path(output_file)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -508,7 +509,7 @@ def main():
     parser.add_argument(
         "--output",
         "-o",
-        help="Output HTML file (default: analysis/{filename}_visualization.html)",
+        help="Output HTML file (default: analysis/html/{filename}_visualization.html)",
         default=None,
     )
 

@@ -759,13 +759,14 @@ class ThoughtAnalyzer:
     def export_summary(self, output_file: str = None):
         """Export analysis summary to a file"""
         if output_file is None:
-            # Create default output file in /analysis directory
+            # Create default output file in /analysis/reports directory
             analysis_dir = Path("analysis")
-            analysis_dir.mkdir(exist_ok=True)
+            reports_dir = analysis_dir / "reports"
+            reports_dir.mkdir(parents=True, exist_ok=True)
 
             # Generate filename based on input file
             base_name = self.json_file.stem
-            output_file = analysis_dir / f"{base_name}_analysis_summary.txt"
+            output_file = reports_dir / f"{base_name}_analysis_summary.txt"
 
         output_path = Path(output_file)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -795,7 +796,7 @@ def main():
     parser.add_argument(
         "--export",
         "-e",
-        help="Export analysis to file (default: analysis/{filename}_analysis_summary.txt)",
+        help="Export analysis to file (default: analysis/reports/{filename}_analysis_summary.txt)",
         default=None,
     )
     parser.add_argument("--overview-only", "-o", action="store_true", help="Show only overview")

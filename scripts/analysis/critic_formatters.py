@@ -591,6 +591,76 @@ class PromptCriticFormatter(BaseCriticFormatter):
         return html
 
 
+class SelfRefineCriticFormatter(BaseCriticFormatter):
+    """Formatter for Self-Refine Critic"""
+
+    def format_details(self, critic: dict, iteration: int, critic_index: int) -> str:
+        """Format Self-Refine Critic details"""
+        confidence = critic.get("confidence", 0.0)
+        violations = critic.get("violations", [])
+        suggestions = critic.get("suggestions", [])
+        feedback = critic.get("feedback", "")
+        metadata = critic.get("metadata", {})
+
+        html = f"<div><strong>Confidence:</strong> {confidence:.1f}</div>"
+
+        # Add violations and suggestions
+        html += self._format_violations_and_suggestions(violations, suggestions)
+
+        # Add detailed feedback
+        html += self._format_feedback(feedback)
+
+        # Add Self-Refine specific metadata
+        html += self._format_self_refine_metadata(metadata)
+
+        return html
+
+    def _format_self_refine_metadata(self, metadata: dict) -> str:
+        """Format Self-Refine specific metadata"""
+        if not metadata:
+            return ""
+
+        html = """
+        <div class="metadata">
+            <strong>🔄 Self-Refine Configuration:</strong><br>
+        """
+
+        # Max iterations
+        max_iterations = metadata.get("max_iterations", "N/A")
+        html += f"""
+        <div style="background: #e3f2fd; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #2196f3;">
+            <strong>🔁 Max Iterations: {max_iterations}</strong>
+        </div>
+        """
+
+        # Improvement criteria
+        improvement_criteria = metadata.get("improvement_criteria", [])
+        if improvement_criteria:
+            html += f"""
+            <div style="margin: 10px 0;">
+                <strong>🎯 Improvement Criteria ({len(improvement_criteria)}):</strong>
+                <ul style="margin: 5px 0; padding-left: 20px; font-size: 0.9em;">
+                    {"".join(f"<li><strong>{criterion.title()}</strong></li>" for criterion in improvement_criteria)}
+                </ul>
+            </div>
+            """
+
+        # Self-Refine process explanation
+        html += f"""
+        <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #6c757d;">
+            <strong>📋 Self-Refine Process:</strong><br>
+            <small style="color: #666;">
+                This critic uses iterative self-refinement where the same model critiques its own output
+                and then revises it based on that critique. The process continues until either the
+                maximum iterations are reached or the critic determines no further improvement is needed.
+            </small>
+        </div>
+        """
+
+        html += "</div>"
+        return html
+
+
 class SelfRAGCriticFormatter(BaseCriticFormatter):
     """Formatter for Self-RAG Critic"""
 
@@ -693,6 +763,7 @@ class CriticFormatterFactory:
         "MetaRewardingCritic": MetaRewardingCriticFormatter,
         "NCriticsCritic": NCriticsCriticFormatter,
         "PromptCritic": PromptCriticFormatter,
+        "SelfRefineCritic": SelfRefineCriticFormatter,
         "SelfRAGCritic": SelfRAGCriticFormatter,
     }
 
