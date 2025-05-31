@@ -1,0 +1,467 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sifaka Thought Analysis - meta_rewarding_example_thoughts.json</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .timeline {
+            padding: 20px;
+        }
+        .thought {
+            border-left: 4px solid #667eea;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 0 8px 8px 0;
+            position: relative;
+        }
+        .thought::before {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 20px;
+            width: 12px;
+            height: 12px;
+            background: #667eea;
+            border-radius: 50%;
+            border: 3px solid white;
+        }
+        .thought-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .iteration {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .model-info {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .response-preview {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+        .critics {
+            margin-top: 15px;
+        }
+        .critic {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .critic-header {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .critic-header:hover {
+            background: #e9ecef;
+        }
+        .critic-name {
+            font-weight: bold;
+        }
+        .critic-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .needs-improvement {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .approved {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        .critic-details {
+            padding: 15px;
+            display: none;
+        }
+        .critic-details.expanded {
+            display: block;
+        }
+        .suggestions {
+            margin-top: 10px;
+        }
+        .suggestion {
+            background: #fff3e0;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-left: 3px solid #ff9800;
+            border-radius: 0 4px 4px 0;
+        }
+        .metadata {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        .score {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .expand-btn {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Sifaka Thought Analysis</h1>
+            <p>File: meta_rewarding_example_thoughts.json | 3 iterations</p>
+        </div>
+        
+        <div class="timeline">
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 0</div>
+                    <div class="timestamp">2025-05-30 20:11:58.931651</div>
+                </div>
+                
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:gemini-2.0-flash<br>
+                    <strong>📝 Prompt:</strong> Write a brief explanation of how artificial intelligence works, suitable for a general audience.
+                </div>
+                
+                <div class="response-preview">
+                    <strong>Response (2,320 characters):</strong><br>
+                    Alright, let&#x27;s demystify Artificial Intelligence (AI)!
+
+Imagine AI as a really clever student, constantly learning to become better at tasks. But instead of textbooks and teachers, it uses data – lots and lots of data!
+
+Here&#x27;s the breakdown in simple terms:
+
+**1. Data is the Fuel:** AI thrives on in...
+                </div>
+                
+                <div class="critics">
+                    <strong>🔍 Critics (1):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-0-0')">
+                            <div class="critic-name">MetaRewardingCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: 9.0</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-0-0">
+                            <div><strong>Confidence:</strong> 0.9</div>
+                            
+                            
+                            <div class="suggestions">
+                                <strong>💡 Suggestions:</strong>
+                                <div class="suggestion">**Missed Opportunities for Engagement**: While the tone is warm, it could include a direct invitation for further questions or curiosity, which may enhance audience engagement further</div><div class="suggestion">A concluding remark that invites readers to think about the implications of AI might have added value</div><div class="suggestion">For more in-depth engagement, a reference to areas such as machine learning or neural networks could have been included without losing clarity</div><div class="suggestion">**Examples Limitations**: While the cat identification example is clear and effective, adding a more diverse range of applications of AI (e</div><div class="suggestion">Minor enhancements in depth and engagement could improve it further, but it adequately fulfills the original request</div>
+                            </div>
+                            
+                            
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Judgment Criteria: Accuracy and factual correctness, Helpfulness and relevance to the task, Clarity and coherence of expression, Completeness of the response, Appropriateness of tone and style<br>
+                                Base Critic Used: False<br>
+                                Meta Judge Model: PydanticAIModel
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 1</div>
+                    <div class="timestamp">2025-05-30 20:12:24.572465</div>
+                </div>
+                
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:gemini-2.0-flash<br>
+                    <strong>📝 Prompt:</strong> Write a brief explanation of how artificial intelligence works, suitable for a general audience.
+                </div>
+                
+                <div class="response-preview">
+                    <strong>Response (3,693 characters):</strong><br>
+                    Alright, let&#x27;s break down the fascinating world of Artificial Intelligence (AI) in a way that&#x27;s easy to understand!
+
+**What is Artificial Intelligence?**
+
+At its core, AI is about making computers think and act like humans. Instead of just following instructions step-by-step, AI aims to create machi...
+                </div>
+                
+                <div class="critics">
+                    <strong>🔍 Critics (2):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-1-0')">
+                            <div class="critic-name">MetaRewardingCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: 9.0</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-1-0">
+                            <div><strong>Confidence:</strong> 0.9</div>
+                            
+                            
+                            <div class="suggestions">
+                                <strong>💡 Suggestions:</strong>
+                                <div class="suggestion">**Missed Opportunities for Engagement**: While the tone is warm, it could include a direct invitation for further questions or curiosity, which may enhance audience engagement further</div><div class="suggestion">A concluding remark that invites readers to think about the implications of AI might have added value</div><div class="suggestion">For more in-depth engagement, a reference to areas such as machine learning or neural networks could have been included without losing clarity</div><div class="suggestion">**Examples Limitations**: While the cat identification example is clear and effective, adding a more diverse range of applications of AI (e</div><div class="suggestion">Minor enhancements in depth and engagement could improve it further, but it adequately fulfills the original request</div>
+                            </div>
+                            
+                            
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Judgment Criteria: Accuracy and factual correctness, Helpfulness and relevance to the task, Clarity and coherence of expression, Completeness of the response, Appropriateness of tone and style<br>
+                                Base Critic Used: False<br>
+                                Meta Judge Model: PydanticAIModel
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-1-1')">
+                            <div class="critic-name">MetaRewardingCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: 8.0</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-1-1">
+                            <div><strong>Confidence:</strong> 1.0</div>
+                            
+                            
+                            <div class="suggestions">
+                                <strong>💡 Suggestions:</strong>
+                                <div class="suggestion">It explains technical concepts using relatable analogies and examples, which enhances comprehension</div><div class="suggestion">**Lack of Depth in Advanced Concepts:** While the mention of machine learning and neural networks is a good addition, these terms are not explained in detail</div><div class="suggestion">**Ethical Implications Mentioned But Not Explored:** The response briefly mentions the importance of ethical implications but doesn&#x27;t discuss what these might be, which could be valuable for a complete understanding of AI&#x27;s impact</div><div class="suggestion">However, it could improve by offering more depth concerning advanced AI concepts and ethical considerations</div><div class="suggestion">The response successfully meets the criteria for a general overview but leaves room for enhancement in complexity and ethical discussions</div>
+                            </div>
+                            
+                            
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Judgment Criteria: Accuracy and factual correctness, Helpfulness and relevance to the task, Clarity and coherence of expression, Completeness of the response, Appropriateness of tone and style<br>
+                                Base Critic Used: False<br>
+                                Meta Judge Model: PydanticAIModel
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 2</div>
+                    <div class="timestamp">2025-05-30 20:12:50.582071</div>
+                </div>
+                
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:gemini-2.0-flash<br>
+                    <strong>📝 Prompt:</strong> Write a brief explanation of how artificial intelligence works, suitable for a general audience.
+                </div>
+                
+                <div class="response-preview">
+                    <strong>Response (4,785 characters):</strong><br>
+                    Okay, here&#x27;s an improved explanation of how artificial intelligence works, designed for a general audience, incorporating the feedback and suggestions:
+
+**Artificial Intelligence: Making Machines Smart**
+
+Imagine teaching a computer to do things that normally require human intelligence. That&#x27;s essen...
+                </div>
+                
+                <div class="critics">
+                    <strong>🔍 Critics (3):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-2-0')">
+                            <div class="critic-name">MetaRewardingCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: 9.0</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-2-0">
+                            <div><strong>Confidence:</strong> 0.9</div>
+                            
+                            
+                            <div class="suggestions">
+                                <strong>💡 Suggestions:</strong>
+                                <div class="suggestion">**Missed Opportunities for Engagement**: While the tone is warm, it could include a direct invitation for further questions or curiosity, which may enhance audience engagement further</div><div class="suggestion">A concluding remark that invites readers to think about the implications of AI might have added value</div><div class="suggestion">For more in-depth engagement, a reference to areas such as machine learning or neural networks could have been included without losing clarity</div><div class="suggestion">**Examples Limitations**: While the cat identification example is clear and effective, adding a more diverse range of applications of AI (e</div><div class="suggestion">Minor enhancements in depth and engagement could improve it further, but it adequately fulfills the original request</div>
+                            </div>
+                            
+                            
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Judgment Criteria: Accuracy and factual correctness, Helpfulness and relevance to the task, Clarity and coherence of expression, Completeness of the response, Appropriateness of tone and style<br>
+                                Base Critic Used: False<br>
+                                Meta Judge Model: PydanticAIModel
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-2-1')">
+                            <div class="critic-name">MetaRewardingCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: 8.0</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-2-1">
+                            <div><strong>Confidence:</strong> 1.0</div>
+                            
+                            
+                            <div class="suggestions">
+                                <strong>💡 Suggestions:</strong>
+                                <div class="suggestion">It explains technical concepts using relatable analogies and examples, which enhances comprehension</div><div class="suggestion">**Lack of Depth in Advanced Concepts:** While the mention of machine learning and neural networks is a good addition, these terms are not explained in detail</div><div class="suggestion">**Ethical Implications Mentioned But Not Explored:** The response briefly mentions the importance of ethical implications but doesn&#x27;t discuss what these might be, which could be valuable for a complete understanding of AI&#x27;s impact</div><div class="suggestion">However, it could improve by offering more depth concerning advanced AI concepts and ethical considerations</div><div class="suggestion">The response successfully meets the criteria for a general overview but leaves room for enhancement in complexity and ethical discussions</div>
+                            </div>
+                            
+                            
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Judgment Criteria: Accuracy and factual correctness, Helpfulness and relevance to the task, Clarity and coherence of expression, Completeness of the response, Appropriateness of tone and style<br>
+                                Base Critic Used: False<br>
+                                Meta Judge Model: PydanticAIModel
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-2-2')">
+                            <div class="critic-name">MetaRewardingCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: 8.0</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-2-2">
+                            <div><strong>Confidence:</strong> 0.9</div>
+                            
+                            
+                            <div class="suggestions">
+                                <strong>💡 Suggestions:</strong>
+                                <div class="suggestion">, recommendation systems and voice assistants)</div><div class="suggestion">The headings help guide the reader through the material, and the use of bullet points enhances readability</div><div class="suggestion">**Completeness of the Response:** The response covers a wide range of aspects related to AI, from how it works to real-world applications and ethical considerations</div><div class="suggestion">**Overuse of Jargon:** While terms like &quot;machine learning&quot; and &quot;neural networks&quot; are explained, the initial explanation could benefit from an even simpler breakdown of these concepts without assuming prior knowledge</div><div class="suggestion">For instance, the idea of &quot;parameters&quot; adjusting during training could confuse some readers</div>
+                            </div>
+                            
+                            
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Judgment Criteria: Accuracy and factual correctness, Helpfulness and relevance to the task, Clarity and coherence of expression, Completeness of the response, Appropriateness of tone and style<br>
+                                Base Critic Used: False<br>
+                                Meta Judge Model: PydanticAIModel
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+    
+    <script>
+        function toggleCritic(criticId) {
+            const details = document.getElementById(criticId);
+            const button = details.previousElementSibling.querySelector('.expand-btn');
+            
+            if (details.classList.contains('expanded')) {
+                details.classList.remove('expanded');
+                button.textContent = '▼';
+            } else {
+                details.classList.add('expanded');
+                button.textContent = '▲';
+            }
+        }
+        
+        // Auto-expand first critic for demo
+        document.addEventListener('DOMContentLoaded', function() {
+            const firstCritic = document.querySelector('.critic-details');
+            if (firstCritic) {
+                firstCritic.classList.add('expanded');
+                const button = firstCritic.previousElementSibling.querySelector('.expand-btn');
+                if (button) button.textContent = '▲';
+            }
+        });
+    </script>
+</body>
+</html>
