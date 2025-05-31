@@ -14,40 +14,72 @@ from typing import Dict, Any, List
 
 class HTMLThoughtVisualizer:
     """Creates HTML visualizations of thought data"""
-    
+
     def __init__(self, json_file: str):
         self.json_file = Path(json_file)
         self.data = self._load_data()
-    
+
     def _load_data(self) -> Dict[str, Any]:
         """Load JSON data from file"""
-        with open(self.json_file, 'r', encoding='utf-8') as f:
+        with open(self.json_file, "r", encoding="utf-8") as f:
             return json.load(f)
-    
+
     def _escape_html(self, text: str) -> str:
         """Escape HTML special characters"""
-        return (text.replace('&', '&amp;')
-                   .replace('<', '&lt;')
-                   .replace('>', '&gt;')
-                   .replace('"', '&quot;')
-                   .replace("'", '&#x27;'))
-    
+        return (
+            text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&#x27;")
+        )
+
     def _format_text_preview(self, text: str, max_length: int = 200) -> str:
         """Format text for preview with truncation"""
         if len(text) <= max_length:
             return self._escape_html(text)
         return self._escape_html(text[:max_length]) + "..."
-    
+
+    def _format_validation_results(self, validation_results: dict) -> str:
+        """Format validation results for display"""
+        if not validation_results:
+            return '<div class="content-box">No validation results</div>'
+
+        html = ""
+        for validator_name, result in validation_results.items():
+            passed = result.get("passed", False)
+            message = result.get("message", "")
+            score = result.get("score", 0.0)
+            issues = result.get("issues", [])
+            suggestions = result.get("suggestions", [])
+
+            status_icon = "✅" if passed else "❌"
+            status_class = "passed" if passed else "failed"
+
+            html += f"""
+            <div class="validation-result {status_class}">
+                <div class="validator-header">
+                    <strong>{status_icon} {self._escape_html(validator_name)}</strong>
+                    <span class="score">Score: {score:.1f}</span>
+                </div>
+                <div class="validator-message">{self._escape_html(message)}</div>
+                {f'<div class="validator-issues"><strong>Issues:</strong><ul>{"".join(f"<li>{self._escape_html(issue)}</li>" for issue in issues)}</ul></div>' if issues else ''}
+                {f'<div class="validator-suggestions"><strong>Suggestions:</strong><ul>{"".join(f"<li>{self._escape_html(suggestion)}</li>" for suggestion in suggestions)}</ul></div>' if suggestions else ''}
+            </div>
+            """
+
+        return html
+
     def generate_html(self, output_file: str):
         """Generate interactive HTML visualization"""
-        
+
         # Sort thoughts by iteration
         thoughts = []
         for thought_id, thought_data in self.data.items():
-            thought_data['id'] = thought_id
+            thought_data["id"] = thought_id
             thoughts.append(thought_data)
-        thoughts.sort(key=lambda t: t.get('iteration', 0))
-        
+        thoughts.sort(key=lambda t: t.get("iteration", 0))
+
         html_content = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -186,7 +218,7 @@ class HTMLThoughtVisualizer:
         .critic-details.expanded {{
             display: block;
         }}
-        .suggestions {{
+        .suggestions, .violations {{
             margin-top: 10px;
         }}
         .suggestion {{
@@ -195,6 +227,10 @@ class HTMLThoughtVisualizer:
             margin: 5px 0;
             border-left: 3px solid #ff9800;
             border-radius: 0 4px 4px 0;
+        }}
+        .violations .suggestion {{
+            background: #ffebee;
+            border-left: 3px solid #f44336;
         }}
         .metadata {{
             background: #f5f5f5;
@@ -215,6 +251,70 @@ class HTMLThoughtVisualizer:
             cursor: pointer;
             font-size: 0.9em;
         }}
+        .expandable-section {{
+            margin: 15px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }}
+        .section-header {{
+            background: #f8f9fa;
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e0e0e0;
+            transition: background-color 0.2s;
+        }}
+        .section-header:hover {{
+            background: #e9ecef;
+        }}
+        .section-details {{
+            display: none;
+            padding: 0;
+        }}
+        .section-details.expanded {{
+            display: block;
+        }}
+        .content-box {{
+            background: #ffffff;
+            padding: 15px;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+            border-radius: 0 0 8px 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }}
+        .validation-result {{
+            background: #f8f9fa;
+            margin: 10px;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+        }}
+        .validation-result.failed {{
+            border-left-color: #dc3545;
+        }}
+        .validator-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }}
+        .validator-message {{
+            margin-bottom: 8px;
+            font-style: italic;
+        }}
+        .validator-issues, .validator-suggestions {{
+            margin-top: 8px;
+        }}
+        .validator-issues ul, .validator-suggestions ul {{
+            margin: 5px 0;
+            padding-left: 20px;
+        }}
     </style>
 </head>
 <body>
@@ -223,52 +323,78 @@ class HTMLThoughtVisualizer:
             <h1>🧠 Sifaka Thought Analysis</h1>
             <p>File: {self.json_file.name} | {len(thoughts)} iterations</p>
         </div>
-        
+
         <div class="timeline">
 """
-        
+
         for thought in thoughts:
-            iteration = thought.get('iteration', 0)
-            timestamp = thought.get('timestamp', '')
-            model_name = thought.get('model_name', 'Unknown')
-            text = thought.get('text', '')
-            prompt = thought.get('prompt', '')
-            critics = thought.get('critic_feedback', [])
-            
+            iteration = thought.get("iteration", 0)
+            timestamp = thought.get("timestamp", "")
+            model_name = thought.get("model_name", "Unknown")
+            text = thought.get("text", "")
+            prompt = thought.get("prompt", "")
+            critics = thought.get("critic_feedback", [])
+
             html_content += f"""
             <div class="thought">
                 <div class="thought-header">
                     <div class="iteration">Iteration {iteration}</div>
                     <div class="timestamp">{timestamp}</div>
                 </div>
-                
+
                 <div class="model-info">
-                    <strong>🤖 Model:</strong> {self._escape_html(model_name)}<br>
-                    <strong>📝 Prompt:</strong> {self._format_text_preview(prompt, 150)}
+                    <strong>🤖 Model:</strong> {self._escape_html(model_name)}
                 </div>
-                
-                <div class="response-preview">
-                    <strong>Response ({len(text):,} characters):</strong><br>
-                    {self._format_text_preview(text, 300)}
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('prompt-{iteration}')">
+                        <strong>📝 Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="prompt-{iteration}">
+                        <div class="content-box">{self._escape_html(prompt)}</div>
+                    </div>
                 </div>
-                
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('response-{iteration}')">
+                        <strong>💬 Response ({len(text):,} characters)</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="response-{iteration}">
+                        <div class="content-box">{self._escape_html(text)}</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('validation-{iteration}')">
+                        <strong>✅ Validation Results</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="validation-{iteration}">
+                        {self._format_validation_results(thought.get('validation_results', {}))}
+                    </div>
+                </div>
+
                 <div class="critics">
                     <strong>🔍 Critics ({len(critics)}):</strong>
 """
-            
+
             for i, critic in enumerate(critics):
-                critic_name = critic.get('critic_name', 'Unknown')
-                needs_improvement = critic.get('needs_improvement', False)
-                confidence = critic.get('confidence', 0.0)
-                suggestions = critic.get('suggestions', [])
-                metadata = critic.get('metadata', {})
-                
-                status_class = 'needs-improvement' if needs_improvement else 'approved'
-                status_text = 'Needs Improvement' if needs_improvement else 'Approved'
-                status_icon = '❌' if needs_improvement else '✅'
-                
-                initial_score = metadata.get('initial_score', 'N/A')
-                
+                critic_name = critic.get("critic_name", "Unknown")
+                needs_improvement = critic.get("needs_improvement", False)
+                confidence = critic.get("confidence", 0.0)
+                suggestions = critic.get("suggestions", [])
+                violations = critic.get("violations", [])
+                feedback = critic.get("feedback", "")
+                metadata = critic.get("metadata", {})
+
+                status_class = "needs-improvement" if needs_improvement else "approved"
+                status_text = "Needs Improvement" if needs_improvement else "Approved"
+                status_icon = "❌" if needs_improvement else "✅"
+
+                initial_score = metadata.get("initial_score", "N/A")
+
                 html_content += f"""
                     <div class="critic">
                         <div class="critic-header" onclick="toggleCritic('critic-{iteration}-{i}')">
@@ -281,40 +407,57 @@ class HTMLThoughtVisualizer:
                         </div>
                         <div class="critic-details" id="critic-{iteration}-{i}">
                             <div><strong>Confidence:</strong> {confidence:.1f}</div>
-                            
+
+                            {f'''
+                            <div class="violations">
+                                <strong>⚠️ Issues Found:</strong>
+                                {"".join(f'<div class="suggestion">{self._escape_html(violation)}</div>' for violation in violations[:10])}
+                            </div>
+                            ''' if violations else ''}
+
                             {f'''
                             <div class="suggestions">
                                 <strong>💡 Suggestions:</strong>
                                 {"".join(f'<div class="suggestion">{self._escape_html(suggestion)}</div>' for suggestion in suggestions[:5])}
                             </div>
                             ''' if suggestions else ''}
-                            
+
+                            {f'''
+                            <div class="feedback">
+                                <strong>📝 Detailed Feedback:</strong>
+                                <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">{self._escape_html(feedback[:1500])}{"..." if len(feedback) > 1500 else ""}</div>
+                            </div>
+                            ''' if feedback else ''}
+
                             {f'''
                             <div class="metadata">
                                 <strong>📋 Metadata:</strong><br>
-                                Judgment Criteria: {", ".join(metadata.get('judgment_criteria', []))}<br>
-                                Base Critic Used: {metadata.get('base_critic_used', 'N/A')}<br>
-                                Meta Judge Model: {metadata.get('meta_judge_model', 'N/A')}
+                                {f"Iterations: {metadata.get('num_iterations', 'N/A')}<br>" if 'num_iterations' in metadata else ''}
+                                {f"Consensus Items: {metadata.get('consensus_stats', {}).get('stats', {}).get('consensus_items', 'N/A')}<br>" if metadata.get('consensus_stats') else ''}
+                                {f"Agreement Ratio: {metadata.get('consensus_stats', {}).get('stats', {}).get('agreement_ratio', 'N/A'):.1%}<br>" if metadata.get('consensus_stats') else ''}
+                                {f"Judgment Criteria: {', '.join(metadata.get('judgment_criteria', []))}<br>" if metadata.get('judgment_criteria') else ''}
+                                {f"Base Critic Used: {metadata.get('base_critic_used', 'N/A')}<br>" if metadata.get('base_critic_used') else ''}
+                                {f"Meta Judge Model: {metadata.get('meta_judge_model', 'N/A')}" if metadata.get('meta_judge_model') else ''}
                             </div>
                             ''' if metadata else ''}
                         </div>
                     </div>
 """
-            
+
             html_content += """
                 </div>
             </div>
 """
-        
+
         html_content += """
         </div>
     </div>
-    
+
     <script>
         function toggleCritic(criticId) {
             const details = document.getElementById(criticId);
             const button = details.previousElementSibling.querySelector('.expand-btn');
-            
+
             if (details.classList.contains('expanded')) {
                 details.classList.remove('expanded');
                 button.textContent = '▼';
@@ -323,7 +466,20 @@ class HTMLThoughtVisualizer:
                 button.textContent = '▲';
             }
         }
-        
+
+        function toggleSection(sectionId) {
+            const details = document.getElementById(sectionId);
+            const button = details.previousElementSibling.querySelector('.expand-btn');
+
+            if (details.classList.contains('expanded')) {
+                details.classList.remove('expanded');
+                button.textContent = '▼';
+            } else {
+                details.classList.add('expanded');
+                button.textContent = '▲';
+            }
+        }
+
         // Auto-expand first critic for demo
         document.addEventListener('DOMContentLoaded', function() {
             const firstCritic = document.querySelector('.critic-details');
@@ -337,10 +493,10 @@ class HTMLThoughtVisualizer:
 </body>
 </html>
 """
-        
-        with open(output_file, 'w', encoding='utf-8') as f:
+
+        with open(output_file, "w", encoding="utf-8") as f:
             f.write(html_content)
-        
+
         print(f"🌐 HTML visualization created: {output_file}")
 
 
@@ -348,17 +504,17 @@ def main():
     parser = argparse.ArgumentParser(description="Create HTML visualization of Sifaka thought data")
     parser.add_argument("json_file", help="Path to the thought JSON file")
     parser.add_argument("--output", "-o", help="Output HTML file", default="thought_analysis.html")
-    
+
     args = parser.parse_args()
-    
+
     try:
         visualizer = HTMLThoughtVisualizer(args.json_file)
         visualizer.generate_html(args.output)
-        
+
     except Exception as e:
         print(f"❌ Error: {e}")
         return 1
-    
+
     return 0
 
 

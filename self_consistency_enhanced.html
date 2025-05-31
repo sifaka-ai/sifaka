@@ -1,0 +1,874 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sifaka Thought Analysis - self_consistency_example_groq_thoughts.json</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .timeline {
+            padding: 20px;
+        }
+        .thought {
+            border-left: 4px solid #667eea;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 0 8px 8px 0;
+            position: relative;
+        }
+        .thought::before {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 20px;
+            width: 12px;
+            height: 12px;
+            background: #667eea;
+            border-radius: 50%;
+            border: 3px solid white;
+        }
+        .thought-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .iteration {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .model-info {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .response-preview {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+        .critics {
+            margin-top: 15px;
+        }
+        .critic {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .critic-header {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .critic-header:hover {
+            background: #e9ecef;
+        }
+        .critic-name {
+            font-weight: bold;
+        }
+        .critic-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .needs-improvement {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .approved {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        .critic-details {
+            padding: 15px;
+            display: none;
+        }
+        .critic-details.expanded {
+            display: block;
+        }
+        .suggestions, .violations {
+            margin-top: 10px;
+        }
+        .suggestion {
+            background: #fff3e0;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-left: 3px solid #ff9800;
+            border-radius: 0 4px 4px 0;
+        }
+        .violations .suggestion {
+            background: #ffebee;
+            border-left: 3px solid #f44336;
+        }
+        .metadata {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        .score {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .expand-btn {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .expandable-section {
+            margin: 15px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .section-header {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e0e0e0;
+            transition: background-color 0.2s;
+        }
+        .section-header:hover {
+            background: #e9ecef;
+        }
+        .section-details {
+            display: none;
+            padding: 0;
+        }
+        .section-details.expanded {
+            display: block;
+        }
+        .content-box {
+            background: #ffffff;
+            padding: 15px;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+            border-radius: 0 0 8px 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .validation-result {
+            background: #f8f9fa;
+            margin: 10px;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+        }
+        .validation-result.failed {
+            border-left-color: #dc3545;
+        }
+        .validator-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .validator-message {
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+        .validator-issues, .validator-suggestions {
+            margin-top: 8px;
+        }
+        .validator-issues ul, .validator-suggestions ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Sifaka Thought Analysis</h1>
+            <p>File: self_consistency_example_groq_thoughts.json | 3 iterations</p>
+        </div>
+
+        <div class="timeline">
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 0</div>
+                    <div class="timestamp">2025-05-31 11:18:42.555819</div>
+                </div>
+
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:llama-3.3-70b-versatile
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('prompt-0')">
+                        <strong>📝 Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="prompt-0">
+                        <div class="content-box">Explain the concept of machine learning and provide a simple example that anyone can understand.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('response-0')">
+                        <strong>💬 Response (2,302 characters)</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="response-0">
+                        <div class="content-box">Machine learning - the fascinating field that enables computers to think and learn like humans. Imagine you&#x27;re trying to teach a child to recognize different types of animals. You show them pictures of cats and dogs, and each time, you tell them which one is which. At first, they might get it wrong, but as they see more pictures, they start to notice patterns - like the shape of the ears, the length of the tail, or the color of the fur.
+
+Machine learning works in a similar way. It&#x27;s a type of artificial intelligence that allows computers to learn from data, without being explicitly programmed. Instead of writing a set of rules, you feed the computer a large amount of data, and it figures out the patterns and relationships on its own.
+
+Let&#x27;s consider a simple example: spam email filters. You know, those annoying emails that try to sell you something you don&#x27;t need or want. A machine learning algorithm can be trained to recognize spam emails by looking at thousands of examples of spam and non-spam emails. As it analyzes the data, it starts to notice patterns, such as:
+
+* Certain words or phrases that are commonly used in spam emails (e.g., &quot;win a prize&quot; or &quot;make money fast&quot;)
+* The sender&#x27;s email address or IP address
+* The time of day or day of the week when the email was sent
+
+The algorithm then uses these patterns to make predictions about new, unseen emails. If an email contains a combination of characteristics that are commonly found in spam emails, the algorithm will flag it as spam. And if it&#x27;s wrong, you can correct it, just like you would with a child learning to recognize animals.
+
+This process is called supervised learning, because the algorithm is learning from labeled data (spam vs. non-spam emails). As the algorithm sees more data, it becomes more accurate and can make better predictions. And that&#x27;s the magic of machine learning - it can learn, adapt, and improve over time, just like a child learning to recognize animals.
+
+So, to sum it up: machine learning is a type of artificial intelligence that enables computers to learn from data, recognize patterns, and make predictions or decisions. And with examples like spam email filters, it&#x27;s easy to see how machine learning can be applied to real-world problems, making our lives easier and more convenient.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('validation-0')">
+                        <strong>✅ Validation Results</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="validation-0">
+                        
+            <div class="validation-result failed">
+                <div class="validator-header">
+                    <strong>❌ LengthValidator</strong>
+                    <span class="score">Score: 0.0</span>
+                </div>
+                <div class="validator-message">Text is too long: 2302 characters (maximum allowed: 2000)</div>
+                <div class="validator-issues"><strong>Issues:</strong><ul><li>Text is too long: 2302 characters (maximum: 2000)</li></ul></div>
+                <div class="validator-suggestions"><strong>Suggestions:</strong><ul><li>Reduce content to stay within 2000 characters</li></ul></div>
+            </div>
+            
+                    </div>
+                </div>
+
+                <div class="critics">
+                    <strong>🔍 Critics (1):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-0-0')">
+                            <div class="critic-name">SelfConsistencyCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-0-0">
+                            <div><strong>Confidence:</strong> 0.7</div>
+
+                            
+                            <div class="violations">
+                                <strong>⚠️ Issues Found:</strong>
+                                <div class="suggestion">Slightly oversimplifies machine learning by comparing it too directly to human learning</div><div class="suggestion">Does not discuss limitations or potential challenges of machine learning</div><div class="suggestion">No mention of different types of machine learning beyond supervised learning</div>
+                            </div>
+                            
+
+                            
+
+                            
+                            <div class="feedback">
+                                <strong>📝 Detailed Feedback:</strong>
+                                <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">=== Self-Consistency Evaluation (3 iterations) ===
+
+Confidence Level: 66.1%
+Majority Threshold: &gt;50% (original Self-Consistency)
+
+CONSENSUS ISSUES (found in multiple evaluations):
+• Slightly oversimplifies machine learning by comparing it too directly to human learning (found in 2/3 evaluations, 67%)
+• Does not discuss limitations or potential challenges of machine learning (found in 2/3 evaluations, 67%)
+• No mention of different types of machine learning beyond supervised learning (found in 2/3 evaluations, 67%)
+
+EVALUATION SUMMARY:
+• Total evaluations: 3
+• Consensus items: 3
+• Agreement on improvement need: 100.0%
+
+=== End Self-Consistency Evaluation ===</div>
+                            </div>
+                            
+
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Iterations: 3<br>
+                                Consensus Items: 3<br>
+                                Agreement Ratio: 100.0%<br>
+                                
+                                
+                                
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 1</div>
+                    <div class="timestamp">2025-05-31 11:19:18.904021</div>
+                </div>
+
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:llama-3.3-70b-versatile
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('prompt-1')">
+                        <strong>📝 Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="prompt-1">
+                        <div class="content-box">Explain the concept of machine learning and provide a simple example that anyone can understand.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('response-1')">
+                        <strong>💬 Response (1,983 characters)</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="response-1">
+                        <div class="content-box">Here&#x27;s an improved version that addresses the length requirement while maintaining the core explanation:
+
+Machine learning is a type of artificial intelligence that enables computers to learn from data without being explicitly programmed. Imagine teaching a computer to recognize spam emails by showing it thousands of examples.
+
+Here&#x27;s how it works: Instead of writing detailed rules, you provide the computer with labeled data – in this case, spam and non-spam emails. The machine learning algorithm analyzes these examples, identifying patterns like:
+
+* Specific words (e.g., &quot;win a prize&quot;)
+* Sender email addresses
+* Sending time and frequency
+
+As the algorithm processes more data, it becomes better at distinguishing spam from legitimate emails. This is called supervised learning, where the computer learns by using labeled examples.
+
+Think of it like teaching a child to recognize animals. At first, the child might make mistakes, but with more practice, they become more accurate. Similarly, machine learning algorithms improve their predictions over time.
+
+The magic is in the algorithm&#x27;s ability to detect subtle patterns humans might miss. It can quickly analyze massive amounts of data, making predictions and decisions faster and sometimes more accurately than human experts.
+
+However, machine learning isn&#x27;t perfect. The quality of predictions depends entirely on the data used for training. Poor or biased data can lead to inaccurate or unfair results.
+
+Machine learning powers many technologies we use daily – from email filters and recommendation systems to facial recognition and medical diagnostics. It&#x27;s a powerful tool that continues to transform how we solve complex problems across various fields.
+
+Character count: 1,361 (well within the 2,000 character limit)
+
+Key improvements:
+- Significantly reduced length
+- Maintained clear explanation
+- Added brief note about limitations
+- Kept the core spam filter example
+- Preserved conversational, accessible tone</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('validation-1')">
+                        <strong>✅ Validation Results</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="validation-1">
+                        
+            <div class="validation-result passed">
+                <div class="validator-header">
+                    <strong>✅ LengthValidator</strong>
+                    <span class="score">Score: 1.0</span>
+                </div>
+                <div class="validator-message">Text length is valid: 1983 characters</div>
+                
+                
+            </div>
+            
+                    </div>
+                </div>
+
+                <div class="critics">
+                    <strong>🔍 Critics (2):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-1-0')">
+                            <div class="critic-name">SelfConsistencyCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-1-0">
+                            <div><strong>Confidence:</strong> 0.7</div>
+
+                            
+                            <div class="violations">
+                                <strong>⚠️ Issues Found:</strong>
+                                <div class="suggestion">Slightly oversimplifies machine learning by comparing it too directly to human learning</div><div class="suggestion">Does not discuss limitations or potential challenges of machine learning</div><div class="suggestion">No mention of different types of machine learning beyond supervised learning</div>
+                            </div>
+                            
+
+                            
+
+                            
+                            <div class="feedback">
+                                <strong>📝 Detailed Feedback:</strong>
+                                <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">=== Self-Consistency Evaluation (3 iterations) ===
+
+Confidence Level: 66.1%
+Majority Threshold: &gt;50% (original Self-Consistency)
+
+CONSENSUS ISSUES (found in multiple evaluations):
+• Slightly oversimplifies machine learning by comparing it too directly to human learning (found in 2/3 evaluations, 67%)
+• Does not discuss limitations or potential challenges of machine learning (found in 2/3 evaluations, 67%)
+• No mention of different types of machine learning beyond supervised learning (found in 2/3 evaluations, 67%)
+
+EVALUATION SUMMARY:
+• Total evaluations: 3
+• Consensus items: 3
+• Agreement on improvement need: 100.0%
+
+=== End Self-Consistency Evaluation ===</div>
+                            </div>
+                            
+
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Iterations: 3<br>
+                                Consensus Items: 3<br>
+                                Agreement Ratio: 100.0%<br>
+                                
+                                
+                                
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-1-1')">
+                            <div class="critic-name">SelfConsistencyCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-1-1">
+                            <div><strong>Confidence:</strong> 0.6</div>
+
+                            
+                            <div class="violations">
+                                <strong>⚠️ Issues Found:</strong>
+                                <div class="suggestion">Minor technical oversimplification of machine learning complexity</div>
+                            </div>
+                            
+
+                            
+
+                            
+                            <div class="feedback">
+                                <strong>📝 Detailed Feedback:</strong>
+                                <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">=== Self-Consistency Evaluation (3 iterations) ===
+
+Confidence Level: 56.2%
+Majority Threshold: &gt;50% (original Self-Consistency)
+
+CONSENSUS ISSUES (found in multiple evaluations):
+• Minor technical oversimplification of machine learning complexity (found in 2/3 evaluations, 67%)
+
+EVALUATION SUMMARY:
+• Total evaluations: 3
+• Consensus items: 1
+• Agreement on improvement need: 100.0%
+
+=== End Self-Consistency Evaluation ===</div>
+                            </div>
+                            
+
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Iterations: 3<br>
+                                Consensus Items: 1<br>
+                                Agreement Ratio: 100.0%<br>
+                                
+                                
+                                
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 2</div>
+                    <div class="timestamp">2025-05-31 11:19:50.156121</div>
+                </div>
+
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:llama-3.3-70b-versatile
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('prompt-2')">
+                        <strong>📝 Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="prompt-2">
+                        <div class="content-box">Explain the concept of machine learning and provide a simple example that anyone can understand.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('response-2')">
+                        <strong>💬 Response (2,051 characters)</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="response-2">
+                        <div class="content-box">Here&#x27;s an improved version addressing the consensus feedback:
+
+Machine learning is a sophisticated branch of artificial intelligence where computers learn from data by identifying patterns and making predictions without being explicitly programmed for every scenario.
+
+Unlike traditional programming, machine learning algorithms adapt and improve through experience. Consider the spam email filter example:
+
+Traditional Approach:
+* Manually writing complex rules for every possible spam variation
+* Constantly updating rules as spammers change tactics
+
+Machine Learning Approach:
+* Analyze thousands of email examples
+* Automatically detect nuanced patterns
+* Continuously refine detection capabilities
+
+There are three primary machine learning types:
+
+1. Supervised Learning: Uses labeled data (like spam/not spam)
+2. Unsupervised Learning: Discovers hidden patterns in unlabeled data
+3. Reinforcement Learning: Learns through trial and error, receiving feedback
+
+Key Limitations:
+* Requires high-quality, representative training data
+* Can perpetuate existing biases in data
+* Performance depends on algorithm complexity
+* Potential for overfitting or misinterpreting subtle contexts
+
+Real-world Applications:
+* Recommendation systems
+* Medical diagnostics
+* Autonomous vehicle navigation
+* Fraud detection
+* Language translation
+
+While powerful, machine learning isn&#x27;t magic—it&#x27;s a complex tool requiring careful design, diverse data, and ongoing refinement. As technology evolves, understanding its capabilities and limitations becomes increasingly crucial.
+
+Improvements:
+- Expanded machine learning types
+- Added explicit limitations section
+- Maintained accessible language
+- Provided broader context
+- Balanced technical accuracy with readability
+
+Key Changes:
+1. Addressed oversimplification
+2. Discussed multiple machine learning approaches
+3. Highlighted potential challenges
+4. Maintained engaging, conversational tone
+
+The revised text provides a more comprehensive, nuanced explanation while remaining approachable to a general audience.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('validation-2')">
+                        <strong>✅ Validation Results</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="validation-2">
+                        
+            <div class="validation-result failed">
+                <div class="validator-header">
+                    <strong>❌ LengthValidator</strong>
+                    <span class="score">Score: 0.0</span>
+                </div>
+                <div class="validator-message">Text is too long: 2051 characters (maximum allowed: 2000)</div>
+                <div class="validator-issues"><strong>Issues:</strong><ul><li>Text is too long: 2051 characters (maximum: 2000)</li></ul></div>
+                <div class="validator-suggestions"><strong>Suggestions:</strong><ul><li>Reduce content to stay within 2000 characters</li></ul></div>
+            </div>
+            
+                    </div>
+                </div>
+
+                <div class="critics">
+                    <strong>🔍 Critics (3):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-2-0')">
+                            <div class="critic-name">SelfConsistencyCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-2-0">
+                            <div><strong>Confidence:</strong> 0.7</div>
+
+                            
+                            <div class="violations">
+                                <strong>⚠️ Issues Found:</strong>
+                                <div class="suggestion">Slightly oversimplifies machine learning by comparing it too directly to human learning</div><div class="suggestion">Does not discuss limitations or potential challenges of machine learning</div><div class="suggestion">No mention of different types of machine learning beyond supervised learning</div>
+                            </div>
+                            
+
+                            
+
+                            
+                            <div class="feedback">
+                                <strong>📝 Detailed Feedback:</strong>
+                                <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">=== Self-Consistency Evaluation (3 iterations) ===
+
+Confidence Level: 66.1%
+Majority Threshold: &gt;50% (original Self-Consistency)
+
+CONSENSUS ISSUES (found in multiple evaluations):
+• Slightly oversimplifies machine learning by comparing it too directly to human learning (found in 2/3 evaluations, 67%)
+• Does not discuss limitations or potential challenges of machine learning (found in 2/3 evaluations, 67%)
+• No mention of different types of machine learning beyond supervised learning (found in 2/3 evaluations, 67%)
+
+EVALUATION SUMMARY:
+• Total evaluations: 3
+• Consensus items: 3
+• Agreement on improvement need: 100.0%
+
+=== End Self-Consistency Evaluation ===</div>
+                            </div>
+                            
+
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Iterations: 3<br>
+                                Consensus Items: 3<br>
+                                Agreement Ratio: 100.0%<br>
+                                
+                                
+                                
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-2-1')">
+                            <div class="critic-name">SelfConsistencyCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-2-1">
+                            <div><strong>Confidence:</strong> 0.6</div>
+
+                            
+                            <div class="violations">
+                                <strong>⚠️ Issues Found:</strong>
+                                <div class="suggestion">Minor technical oversimplification of machine learning complexity</div>
+                            </div>
+                            
+
+                            
+
+                            
+                            <div class="feedback">
+                                <strong>📝 Detailed Feedback:</strong>
+                                <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">=== Self-Consistency Evaluation (3 iterations) ===
+
+Confidence Level: 56.2%
+Majority Threshold: &gt;50% (original Self-Consistency)
+
+CONSENSUS ISSUES (found in multiple evaluations):
+• Minor technical oversimplification of machine learning complexity (found in 2/3 evaluations, 67%)
+
+EVALUATION SUMMARY:
+• Total evaluations: 3
+• Consensus items: 1
+• Agreement on improvement need: 100.0%
+
+=== End Self-Consistency Evaluation ===</div>
+                            </div>
+                            
+
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Iterations: 3<br>
+                                Consensus Items: 1<br>
+                                Agreement Ratio: 100.0%<br>
+                                
+                                
+                                
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-2-2')">
+                            <div class="critic-name">SelfConsistencyCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-2-2">
+                            <div><strong>Confidence:</strong> 0.5</div>
+
+                            
+
+                            
+
+                            
+                            <div class="feedback">
+                                <strong>📝 Detailed Feedback:</strong>
+                                <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">=== Self-Consistency Evaluation (3 iterations) ===
+
+Confidence Level: 50.0%
+Majority Threshold: &gt;50% (original Self-Consistency)
+
+EVALUATION SUMMARY:
+• Total evaluations: 3
+• Consensus items: 0
+• Agreement on improvement need: 100.0%
+
+=== End Self-Consistency Evaluation ===</div>
+                            </div>
+                            
+
+                            
+                            <div class="metadata">
+                                <strong>📋 Metadata:</strong><br>
+                                Iterations: 3<br>
+                                Consensus Items: 0<br>
+                                Agreement Ratio: 100.0%<br>
+                                
+                                
+                                
+                            </div>
+                            
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function toggleCritic(criticId) {
+            const details = document.getElementById(criticId);
+            const button = details.previousElementSibling.querySelector('.expand-btn');
+
+            if (details.classList.contains('expanded')) {
+                details.classList.remove('expanded');
+                button.textContent = '▼';
+            } else {
+                details.classList.add('expanded');
+                button.textContent = '▲';
+            }
+        }
+
+        function toggleSection(sectionId) {
+            const details = document.getElementById(sectionId);
+            const button = details.previousElementSibling.querySelector('.expand-btn');
+
+            if (details.classList.contains('expanded')) {
+                details.classList.remove('expanded');
+                button.textContent = '▼';
+            } else {
+                details.classList.add('expanded');
+                button.textContent = '▲';
+            }
+        }
+
+        // Auto-expand first critic for demo
+        document.addEventListener('DOMContentLoaded', function() {
+            const firstCritic = document.querySelector('.critic-details');
+            if (firstCritic) {
+                firstCritic.classList.add('expanded');
+                const button = firstCritic.previousElementSibling.querySelector('.expand-btn');
+                if (button) button.textContent = '▲';
+            }
+        });
+    </script>
+</body>
+</html>

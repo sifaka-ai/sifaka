@@ -150,11 +150,17 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
         # Format consensus message
         consensus_message = self._format_consensus_message(critiques, aggregated_result, confidence)
 
+        # Extract text from consensus items for CriticFeedback compatibility
+        consensus_issues_text = [item["text"] for item in aggregated_result["consensus_issues"]]
+        consensus_suggestions_text = [
+            item["text"] for item in aggregated_result["consensus_suggestions"]
+        ]
+
         return {
             "message": consensus_message,
             "confidence": confidence,
-            "issues": aggregated_result["consensus_issues"],
-            "suggestions": aggregated_result["consensus_suggestions"],
+            "issues": consensus_issues_text,
+            "suggestions": consensus_suggestions_text,
             "needs_improvement": needs_improvement,
             "metadata": {
                 "num_iterations": self.num_iterations,
