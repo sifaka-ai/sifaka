@@ -8,7 +8,6 @@ methods wrapping async implementations using asyncio.run() for backward compatib
 """
 
 import asyncio
-import concurrent.futures
 from typing import Any, List, Optional, Protocol
 
 
@@ -21,10 +20,12 @@ def _run_async_safely(coro):
     try:
         # Try to get the current event loop
         asyncio.get_running_loop()
-        # We're already in an event loop, so we need to run in a thread
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(asyncio.run, coro)
-            return future.result()
+        # We're in an async context - this is not supported for sync methods
+        # The caller should use the async version instead
+        raise RuntimeError(
+            "Cannot call sync storage methods from within an async context. "
+            "Use the async methods instead."
+        )
     except RuntimeError:
         # No event loop running, safe to use asyncio.run()
         return asyncio.run(coro)

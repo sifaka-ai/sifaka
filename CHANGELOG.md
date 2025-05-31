@@ -5,7 +5,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.1] - 2024-12-19
+## [0.3.0] - 2025-05-30
+
+### 🚨 BREAKING CHANGES
+
+#### **Complete Removal of Traditional Chain Implementation**
+- **REMOVED**: Entire `sifaka.core.chain` module and traditional Chain class
+- **REMOVED**: `QuickStart` utility class (was based on traditional Chain)
+- **REMOVED**: All backward compatibility code and properties
+- **REMOVED**: Traditional chain examples, tests, and documentation
+- **IMPACT**: All existing code using `from sifaka import Chain` will break
+
+#### **PydanticAI-Only Architecture**
+- **NEW**: Sifaka is now exclusively PydanticAI-native
+- **SIMPLIFIED**: Single chain implementation via `sifaka.agents.create_pydantic_chain`
+- **MODERNIZED**: All workflows now use PydanticAI agents with tool calling
+- **STREAMLINED**: Removed dual-API confusion and maintenance burden
+
+### Migration Guide
+
+**Before (v0.2.x - Traditional Chain)**:
+```python
+from sifaka import Chain
+from sifaka.models import create_model
+
+chain = Chain(
+    model=create_model("openai:gpt-4"),
+    prompt="Your prompt here"
+)
+chain = chain.validate_with(validator).improve_with(critic)
+result = chain.run()
+```
+
+**After (v0.3.0 - PydanticAI Only)**:
+```python
+from pydantic_ai import Agent
+from sifaka.agents import create_pydantic_chain
+
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant")
+chain = create_pydantic_chain(
+    agent=agent,
+    validators=[validator],
+    critics=[critic]
+)
+result = chain.run("Your prompt here")
+```
+
+### Removed
+- **Traditional Chain**: Complete removal of `sifaka.core.chain` module
+- **QuickStart Class**: Removed `sifaka.quickstart.QuickStart`
+- **Backward Compatibility**: All compatibility properties and deprecated classes
+- **Legacy Tests**: Removed traditional chain integration and unit tests
+- **Legacy Documentation**: Removed all traditional chain examples and guides
+
+### Changed
+- **Version**: Bumped to 0.3.0 to reflect breaking changes
+- **Package Description**: Updated to "PydanticAI-native AI validation framework"
+- **Main Exports**: `sifaka.__init__.py` now only exports core interfaces and Thought objects
+- **Documentation**: All examples now use PydanticAI chains exclusively
+
+### Benefits
+- ✅ **Simplified Architecture**: Single, modern chain implementation
+- ✅ **No Backward Compatibility Burden**: Clean, focused codebase
+- ✅ **PydanticAI-Native**: Full integration with modern agent patterns
+- ✅ **Reduced Confusion**: No more dual-API decision paralysis
+- ✅ **Easier Maintenance**: Significantly reduced codebase complexity
+
+---
+
+## [0.2.1] - 2025-05-29
 
 ### 🚨 BREAKING CHANGES
 
@@ -14,20 +82,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **DISABLED**: Guardrails AI integration due to griffe version incompatibility with PydanticAI
 - **IMPACT**: Affects users relying on HuggingFace models in PydanticAI chains or GuardrailsValidator
 
+### Added
+- **ToolCall Tracking**: Enhanced Thought containers now track tool calls made during PydanticAI agent execution
+  - **ToolCall Model**: Records tool name, arguments, results, timing, and success status
+  - **Thought Integration**: `add_tool_call()` method for tracking tool usage
+  - **Complete Observability**: Full audit trail of tool interactions within thought history
+- **Enhanced Documentation**: Comprehensive PydanticAI chain migration guides and architectural documentation
+- **Design Decisions Documentation**: Added `docs/DESIGN_DECISIONS.md` explaining architectural choices and trade-offs
+
+### Changed
+- **Thought Container**: Extended with `tool_calls` field for tracking PydanticAI agent tool usage
+- **PydanticAI Chain Documentation**: Updated all documentation to reflect PydanticAI chain as primary approach
+- **Architecture Documentation**: Enhanced with detailed flow diagrams and implementation patterns
+- **Examples**: Updated all examples to use PydanticAI chains consistently where possible
+- **GuardrailsValidator**: Marked as prerelease/disabled with clear documentation
+- **Documentation Structure**: Reorganized and updated for better clarity and current architecture
+
 ### Removed
 - **HuggingFace Examples**: Removed `examples/huggingface/` directory and all HuggingFace-specific examples
 - **HuggingFace PydanticAI Integration**: Disabled due to dependency conflicts
 - **Guardrails Dependency**: Removed from pyproject.toml due to griffe version conflicts
-
-### Changed
-- **GuardrailsValidator**: Marked as prerelease/disabled with clear documentation
-- **Documentation**: Added "Current Limitations" section explaining temporary removals
-- **Dependencies**: Cleaned up conflicting dependencies for better PydanticAI compatibility
+- **Deprecated Documentation**: Removed outdated AGENTS.md and examples/README.md files
 
 ### Fixed
 - **Async Event Loop Issues**: Fixed "This event loop is already running" errors in PydanticAI chains
 - **Dependency Conflicts**: Resolved installation issues by removing conflicting packages
 - **PydanticAI Chain Stability**: Improved async handling and error recovery
+- **Async Consistency**: Resolved mixed async/sync patterns in PydanticAI chain implementation
+
+### Enhanced
+- **Tool Call Observability**: Complete tracking of tool interactions with timing and success metrics
+- **Thought History**: Improved iteration tracking with tool call preservation across iterations
+- **Documentation Coverage**: Comprehensive guides for migration, architecture, and design decisions
 
 ### Workarounds
 - **HuggingFace Models**: Use Traditional chains for HuggingFace models, or use OpenAI/Anthropic/Gemini with PydanticAI chains
@@ -37,10 +123,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HuggingFace Support**: Will be restored when PydanticAI adds native HuggingFace support
 - **Guardrails Support**: Will be restored when dependency conflicts are resolved
 - **Enhanced Integration**: Planning improved integration patterns for both systems
+- **Tool Call Analytics**: Advanced analytics and visualization for tool usage patterns
 
 ---
 
-## [0.2.0] - 2024-12-19
+## [0.2.0] - 2025-05-28
 
 ### 🚨 BREAKING CHANGES
 
@@ -131,7 +218,7 @@ result = chain.run("Your prompt here")
 
 ---
 
-## [0.1.0] - 2024-12-18
+## [0.1.0] - 2025-05-27
 
 ### Added
 - Initial release of Sifaka framework

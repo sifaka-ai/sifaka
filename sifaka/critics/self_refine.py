@@ -120,7 +120,7 @@ class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
         # Store the last improvement prompt used for debugging/logging
         self.last_improvement_prompt = None
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
         """Perform the actual critique logic using Self-Refine approach.
 
         Args:
@@ -140,9 +140,9 @@ class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
         )
 
         # Generate critique
-        critique_response = await self.model._generate_async(
+        critique_response = self.model.generate(
             prompt=critique_prompt,
-            system_message="You are an expert critic providing detailed, constructive feedback.",
+            system_prompt="You are an expert critic providing detailed, constructive feedback.",
         )
 
         # Parse the critique

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sifaka"
-version = "0.2.1"
-description = "Sifaka - AI validation, improvement, and evaluation framework with built-in guardrails"
+version = "0.3.0"
+description = "Sifaka - PydanticAI-native AI validation, improvement, and evaluation framework"
 authors = [{name = "Evan Volgas", email = "evan.volgas@gmail.com"}]
 license = {text = "MIT"}
 readme = "README.md"
@@ -24,6 +24,7 @@ classifiers = [
 # Core dependencies (minimal required for basic functionality)
 dependencies = [
     "pydantic>=2.11.3",
+    "pydantic-ai>=0.2.0",
     "typing-extensions>=4.10.0",
     "python-dotenv>=1.0.1",
     "requests>=2.31.0",
@@ -41,21 +42,11 @@ openai = [
 anthropic = [
     "anthropic>=0.50.0",
 ]
-huggingface = [
-    "transformers>=4.52.3",
-    "torch>=2.7.0",
-    "accelerate>=1.7.0",
-    "sentence-transformers>=2.2.0",
-    "huggingface-hub>=0.16.0",
-]
 ollama = [
     "ollama>=0.1.0",
 ]
 gemini = [
     "google-generativeai>=0.8.5",
-]
-pydantic-ai = [
-    "pydantic-ai>=0.2.0",
 ]
 
 # Retrievers and vector databases
@@ -126,7 +117,7 @@ dev = [
 
 # Convenience groups
 models = [
-    "sifaka[openai,anthropic,huggingface,ollama,gemini,pydantic-ai]",
+    "sifaka[openai,anthropic,ollama,gemini]",
 ]
 retrievers = [
     "sifaka[redis,milvus]",
@@ -241,14 +232,10 @@ module = [
     "pymilvus.*",
     "anthropic.*",
     "openai.*",
-    "sentence_transformers.*",
-    "transformers.*",
-    "torch.*",
     "numpy.*",
     "pandas.*",
     "websockets.*",
     "tiktoken.*",
-    "huggingface_hub.*",
     "ollama.*",
     "traitlets.*",
 ]
@@ -257,8 +244,6 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "sifaka.core.registry",
-    "sifaka.core.chain.state",
-    "sifaka.core.chain.plugins",
     "sifaka.core.initialize_registry",
     "sifaka.classifiers.errors",
 ]

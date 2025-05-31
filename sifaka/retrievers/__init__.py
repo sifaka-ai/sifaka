@@ -1,16 +1,17 @@
-"""Simple retriever implementations for Sifaka.
+"""Simplified retriever implementations for Sifaka.
 
-This module provides basic retriever implementations that don't require external
-dependencies. These are primarily used for testing and as base components for
-the unified storage system.
+This module provides a clean, minimal retriever interface and implementation
+designed for the PydanticAI-first architecture.
 
-Available retrievers:
-- InMemoryRetriever: Simple in-memory document storage and retrieval
-- MockRetriever: Mock retriever for testing
-- Retriever: Protocol defining the retriever interface
+Available components:
+- Retriever: Protocol defining the simple retriever interface
+- InMemoryRetriever: Lightweight in-memory document storage and retrieval
 
-For advanced storage capabilities including caching and vector search,
-use the unified storage system in `sifaka.storage`.
+The retriever system has been simplified to focus on core functionality:
+- Simple text-based retrieval
+- Minimal interface for easy implementation
+- Compatible with PydanticAI tools
+- No complex thought integration
 
 Example:
     ```python
@@ -24,27 +25,17 @@ Example:
     retriever.add_document("doc2", "This is about ML")
 
     # Retrieve relevant documents
-    results = retriever.retrieve("artificial intelligence")
+    results = retriever.retrieve("artificial intelligence", limit=5)
     ```
 
-For caching, vector search, and persistence, use the unified storage system:
-    ```python
-    from sifaka.storage import SifakaStorage
-    from sifaka.retrievers import InMemoryRetriever
-
-    # Create storage manager
-    storage = SifakaStorage(redis_config=..., milvus_config=...)
-
-    # Wrap retriever with caching
-    base_retriever = InMemoryRetriever()
-    cached_retriever = storage.get_retriever_cache(base_retriever)
-    ```
+For advanced storage capabilities including caching and vector search,
+use the storage system in `sifaka.storage`.
 """
 
-from sifaka.retrievers.simple import InMemoryRetriever, MockRetriever, Retriever
+from sifaka.retrievers.memory import InMemoryRetriever
+from sifaka.retrievers.protocol import Retriever
 
 __all__ = [
     "Retriever",
     "InMemoryRetriever",
-    "MockRetriever",
 ]

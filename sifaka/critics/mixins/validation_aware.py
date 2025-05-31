@@ -102,7 +102,32 @@ class ValidationAwareMixin:
 
         header = feedback_categories["validation_header"]
 
-        if validation_context.get("type") == "length":
+        if validation_context.get("type") == "validation_failures":
+            failed_validations = validation_context.get("failed_validations", [])
+
+            if not failed_validations:
+                return f"{header}\n- Validation requirements must be met\n"
+
+            issues_text = f"{header}\n"
+            for validation in failed_validations:
+                validator_name = validation.get("validator_name", "Unknown Validator")
+                message = validation.get("message", "Validation failed")
+                suggestions = validation.get("suggestions", [])
+
+                issues_text += f"- {validator_name}: {message}\n"
+
+                # Include specific suggestions if available
+                if suggestions:
+                    for suggestion in suggestions[
+                        :2
+                    ]:  # Limit to first 2 suggestions to avoid clutter
+                        issues_text += f"  → {suggestion}\n"
+
+            issues_text += "\n"
+            return issues_text
+
+        # Legacy support for old constraint types
+        elif validation_context.get("type") == "length":
             return f"{header}\n- {validation_context['validator_name']}: {validation_context['message']}\n"
 
         elif validation_context.get("type") == "general":

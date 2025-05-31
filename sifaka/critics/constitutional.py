@@ -44,12 +44,13 @@ from sifaka.critics.base import BaseCritic
 from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
+from sifaka.utils.mixins import ContextAwareMixin
 from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
 
-class ConstitutionalCritic(BaseCritic, ValidationAwareMixin):
+class ConstitutionalCritic(BaseCritic, ValidationAwareMixin, ContextAwareMixin):
     """Critic that evaluates text against constitutional principles with validation awareness.
 
     This critic implements the Constitutional AI approach by evaluating text
@@ -128,7 +129,7 @@ class ConstitutionalCritic(BaseCritic, ValidationAwareMixin):
         # Store the last improvement prompt used for debugging/logging
         self.last_improvement_prompt = None
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
         """Perform the actual critique logic using Constitutional AI approach.
 
         Args:
@@ -154,9 +155,9 @@ class ConstitutionalCritic(BaseCritic, ValidationAwareMixin):
         )
 
         # Generate critique
-        critique_response = await self.model._generate_async(
+        critique_response = self.model.generate(
             prompt=critique_prompt,
-            system_message="You are an expert constitutional AI evaluator. Assess text against constitutional principles.",
+            system_prompt="You are an expert constitutional AI evaluator. Assess text against constitutional principles.",
         )
 
         # Parse the critique
@@ -174,6 +175,74 @@ class ConstitutionalCritic(BaseCritic, ValidationAwareMixin):
 
         logger.debug(
             f"ConstitutionalCritic: Found {len(violations)} violations, confidence: {confidence:.2f}"
+        )
+
+        return {
+            "needs_improvement": needs_improvement,
+            "message": critique_response,
+            "issues": issues,
+            "suggestions": suggestions,
+            "confidence": confidence,
+            "metadata": {
+                "principle_violations": violations,
+                "principles_evaluated": len(self.principles),
+                "strict_mode": self.strict_mode,
+            },
+        }
+
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic using Constitutional AI approach asynchronously.
+
+        Args:
+            thought: The Thought container with the text to critique.
+
+        Returns:
+            A dictionary with critique results (without processing_time_ms).
+        """
+        # Format principles for the prompt
+        principles_text = "\n".join(
+            f"{i + 1}. {principle}" for i, principle in enumerate(self.principles)
+        )
+
+        # Prepare context from retrieved documents (using mixin)
+        context = self._prepare_context(thought)
+
+        # Create critique prompt
+        critique_prompt = self.critique_prompt_template.format(
+            principles=principles_text,
+            prompt=thought.prompt,
+            text=thought.text,
+            context=context,
+        )
+
+        # Generate critique asynchronously if the model supports it
+        if hasattr(self.model, "generate_async"):
+            critique_response = await self.model.generate_async(
+                prompt=critique_prompt,
+                system_prompt="You are an expert constitutional AI evaluator. Assess text against constitutional principles.",
+            )
+        else:
+            # Fall back to sync method
+            critique_response = self.model.generate(
+                prompt=critique_prompt,
+                system_prompt="You are an expert constitutional AI evaluator. Assess text against constitutional principles.",
+            )
+
+        # Parse the critique
+        issues, suggestions = self._parse_critique(critique_response)
+        violations = self._extract_violations(critique_response)
+
+        # Determine if improvement is needed
+        needs_improvement = len(violations) > 0 or len(issues) > 0
+        if self.strict_mode:
+            needs_improvement = needs_improvement or "concern" in critique_response.lower()
+
+        # Calculate confidence based on violations found
+        confidence = 1.0 - (len(violations) / len(self.principles)) if self.principles else 1.0
+        confidence = max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
+
+        logger.debug(
+            f"ConstitutionalCritic: Async critique found {len(violations)} violations, confidence: {confidence:.2f}"
         )
 
         return {
@@ -247,18 +316,7 @@ class ConstitutionalCritic(BaseCritic, ValidationAwareMixin):
             # If no critique available, generate one
             if not critique:
                 logger.debug("No critique found in thought, generating new critique")
-                import asyncio
-
-                try:
-                    asyncio.get_running_loop()
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(asyncio.run, self._perform_critique_async(thought))
-                        critique_result = future.result()
-                except RuntimeError:
-                    critique_result = asyncio.run(self._perform_critique_async(thought))
-
+                critique_result = self._perform_critique(thought)
                 critique = critique_result["message"]
 
             # Format principles for the prompt

@@ -22,21 +22,13 @@ Example:
 
 from typing import Any, Optional
 
+from pydantic_ai import Agent
+
 from sifaka.core.thought import Thought
-from sifaka.utils.error_handling import ConfigurationError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.mixins import ContextAwareMixin
 
 logger = get_logger(__name__)
-
-# Check if PydanticAI is available
-try:
-    from pydantic_ai import Agent
-
-    PYDANTIC_AI_AVAILABLE = True
-except ImportError:
-    PYDANTIC_AI_AVAILABLE = False
-    Agent = None
 
 
 class PydanticAIModel(ContextAwareMixin):
@@ -60,17 +52,7 @@ class PydanticAIModel(ContextAwareMixin):
             model_name: Optional custom model name. If not provided, will be
                        derived from the agent's model.
 
-        Raises:
-            ConfigurationError: If PydanticAI is not available.
         """
-        if not PYDANTIC_AI_AVAILABLE:
-            raise ConfigurationError(
-                "PydanticAI is not available. Please install it with: pip install pydantic-ai",
-                suggestions=[
-                    "Install PydanticAI: pip install pydantic-ai",
-                    "Or use uv: uv add pydantic-ai",
-                ],
-            )
 
         super().__init__()
         self.agent = agent
@@ -100,8 +82,32 @@ class PydanticAIModel(ContextAwareMixin):
         logger.debug(f"Generating text with PydanticAI agent: {self.model_name}")
 
         try:
-            # Run the agent synchronously
-            result = self.agent.run_sync(prompt, **options)
+            import asyncio
+
+            # Check if we're in an async context (event loop already running)
+            try:
+                asyncio.get_running_loop()
+                # We're in an async context - this should not be called from sync code
+                # when we're already in an async context. The caller should use the async version.
+                logger.warning(
+                    "PydanticAI generate() called from async context. "
+                    "Consider using async methods to avoid event loop conflicts."
+                )
+
+                # For backward compatibility, try to run sync but this may fail
+                try:
+                    result = self.agent.run_sync(prompt, **options)
+                except RuntimeError as e:
+                    if "This event loop is already running" in str(e):
+                        # Return an error message instead of crashing
+                        logger.error(f"Event loop conflict in PydanticAI generate: {e}")
+                        return f"Error: Event loop conflict - {str(e)}"
+                    else:
+                        raise
+
+            except RuntimeError:
+                # No event loop running, safe to use run_sync
+                result = self.agent.run_sync(prompt, **options)
 
             # Extract the output text
             output = self._extract_output(result)
@@ -111,6 +117,33 @@ class PydanticAIModel(ContextAwareMixin):
 
         except Exception as e:
             logger.error(f"PydanticAI generation failed: {e}")
+            raise
+
+    def generate_with_rich_result(self, prompt: str, **options: Any) -> tuple[str, dict]:
+        """Generate text using PydanticAI agent and return rich result data.
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options passed to the agent.
+
+        Returns:
+            A tuple of (generated_text, rich_result_data).
+            The rich_result_data contains usage, cost, messages, tool_calls, and metadata.
+        """
+        logger.debug(f"Generating text with rich result capture: {self.model_name}")
+
+        try:
+            # Always use run_sync and let PydanticAI handle the async/sync bridge
+            result = self.agent.run_sync(prompt, **options)
+
+            # Extract rich result data
+            rich_data = self._extract_rich_result(result)
+
+            logger.debug(f"Generated text with rich data: {len(rich_data['output'])} characters")
+            return rich_data["output"], rich_data
+
+        except Exception as e:
+            logger.error(f"PydanticAI rich generation failed: {e}")
             raise
 
     def generate_with_thought(self, thought: Thought, **options: Any) -> tuple[str, str]:
@@ -132,7 +165,7 @@ class PydanticAIModel(ContextAwareMixin):
         enhanced_prompt = self._build_prompt_from_thought(thought)
 
         try:
-            # Run the agent with enhanced prompt
+            # Always use run_sync and let PydanticAI handle the async/sync bridge
             result = self.agent.run_sync(enhanced_prompt, **options)
 
             # Extract the output text
@@ -166,6 +199,32 @@ class PydanticAIModel(ContextAwareMixin):
         return estimated_tokens
 
     # Async methods required by critics
+    async def generate_async(self, prompt: str, **options: Any) -> str:
+        """Generate text asynchronously using PydanticAI agent.
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options passed to the agent.
+
+        Returns:
+            The generated text.
+        """
+        logger.debug(f"Generating text asynchronously with PydanticAI agent: {self.model_name}")
+
+        try:
+            # Run the agent asynchronously
+            result = await self.agent.run(prompt, **options)
+
+            # Extract the output text
+            output = self._extract_output(result)
+
+            logger.debug(f"Generated text async: {len(output)} characters")
+            return output
+
+        except Exception as e:
+            logger.error(f"PydanticAI async generation failed: {e}")
+            raise
+
     async def _generate_async(self, prompt: str, **options: Any) -> str:
         """Generate text asynchronously (required by critics).
 
@@ -190,6 +249,37 @@ class PydanticAIModel(ContextAwareMixin):
 
         except Exception as e:
             logger.error(f"PydanticAI async generation failed: {e}")
+            raise
+
+    async def generate_with_rich_result_async(
+        self, prompt: str, **options: Any
+    ) -> tuple[str, dict]:
+        """Generate text asynchronously with rich result data.
+
+        Args:
+            prompt: The prompt to generate text from.
+            **options: Additional options passed to the agent.
+
+        Returns:
+            A tuple of (generated_text, rich_result_data).
+            The rich_result_data contains usage, cost, messages, tool_calls, and metadata.
+        """
+        logger.debug(f"Generating text async with rich result capture: {self.model_name}")
+
+        try:
+            # Run the agent asynchronously
+            result = await self.agent.run(prompt, **options)
+
+            # Extract rich result data
+            rich_data = self._extract_rich_result(result)
+
+            logger.debug(
+                f"Generated text async with rich data: {len(rich_data['output'])} characters"
+            )
+            return rich_data["output"], rich_data
+
+        except Exception as e:
+            logger.error(f"PydanticAI async rich generation failed: {e}")
             raise
 
     async def _generate_with_thought_async(
@@ -303,6 +393,71 @@ class PydanticAIModel(ContextAwareMixin):
         except Exception as e:
             logger.warning(f"Failed to extract output from PydanticAI result: {e}")
             return str(result)
+
+    def _extract_rich_result(self, result) -> dict:
+        """Extract rich metadata from PydanticAI AgentRunResult.
+
+        Args:
+            result: The AgentRunResult object from PydanticAI agent.run_sync()
+
+        Returns:
+            Dictionary containing rich result data including usage and messages.
+        """
+        rich_data = {
+            "output": self._extract_output(result),
+            "usage": None,
+            "messages": None,
+            "metadata": {},
+        }
+
+        try:
+            # Extract usage information (token counts) - usage() is a method
+            if hasattr(result, "usage"):
+                usage = result.usage()
+                if usage:
+                    rich_data["usage"] = {
+                        "requests": getattr(usage, "requests", None),
+                        "request_tokens": getattr(usage, "request_tokens", None),
+                        "response_tokens": getattr(usage, "response_tokens", None),
+                        "total_tokens": getattr(usage, "total_tokens", None),
+                    }
+
+            # Extract message history - all_messages() is a method
+            if hasattr(result, "all_messages"):
+                rich_data["messages"] = []
+                try:
+                    messages = result.all_messages()
+                    for msg in messages:
+                        msg_data = {
+                            "kind": getattr(msg, "kind", None),
+                            "model_name": getattr(msg, "model_name", None),
+                            "timestamp": getattr(msg, "timestamp", None),
+                            "parts": [],
+                        }
+
+                        # Extract message parts
+                        if hasattr(msg, "parts") and msg.parts:
+                            for part in msg.parts:
+                                part_data = {
+                                    "part_kind": getattr(part, "part_kind", None),
+                                    "content": getattr(part, "content", None),
+                                    "timestamp": getattr(part, "timestamp", None),
+                                }
+                                msg_data["parts"].append(part_data)
+
+                        rich_data["messages"].append(msg_data)
+                except Exception as e:
+                    logger.warning(f"Failed to extract messages: {e}")
+
+            # Note: PydanticAI AgentRunResult doesn't have model, timestamp, run_id attributes
+            # Only extract metadata that actually exists
+
+        except Exception as e:
+            logger.warning(f"Failed to extract rich data from PydanticAI result: {e}")
+            # Ensure we always have the basic output even if rich extraction fails
+            rich_data["output"] = self._extract_output(result)
+
+        return rich_data
 
 
 def create_pydantic_ai_model(agent: "Agent", **kwargs) -> PydanticAIModel:

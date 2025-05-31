@@ -27,17 +27,29 @@ class ValidationContext:
         if not validation_results:
             return None
 
-        # Check for length constraints first (most common)
-        length_constraint = ValidationContext._detect_length_constraints(validation_results)
-        if length_constraint:
-            return length_constraint
+        # Get all failed validations - we don't need to categorize them
+        failed_validations = [
+            (name, result) for name, result in validation_results.items() if not result.passed
+        ]
 
-        # Check for other constraint types
-        other_constraints = ValidationContext._detect_other_constraints(validation_results)
-        if other_constraints:
-            return other_constraints
+        if not failed_validations:
+            return None
 
-        return None
+        # Return the raw validation failures - let the improvement prompt handle them intelligently
+        return {
+            "type": "validation_failures",
+            "failed_validations": [
+                {
+                    "validator_name": name,
+                    "message": result.message,
+                    "suggestions": result.suggestions or [],
+                    "issues": result.issues or [],
+                    "score": getattr(result, "score", 0.0),
+                }
+                for name, result in failed_validations
+            ],
+            "total_failures": len(failed_validations),
+        }
 
     @staticmethod
     def has_length_constraints(validation_results: Dict[str, ValidationResult]) -> bool:
@@ -93,28 +105,32 @@ class ValidationContext:
         Returns:
             Priority notice string for inclusion in improvement prompts.
         """
-        if not constraints:
+        if not constraints or constraints.get("type") != "validation_failures":
             return ""
 
-        if constraints.get("type") == "length":
-            # Extract the actual length limit from the constraint message
-            constraint_msg = constraints.get("message", "")
-            max_chars = "the specified limit"
-            if "maximum allowed:" in constraint_msg:
-                try:
-                    max_chars = constraint_msg.split("maximum allowed:")[1].strip().rstrip(")")
-                except (IndexError, AttributeError):
-                    max_chars = "the specified limit"
+        failed_validations = constraints.get("failed_validations", [])
+        if not failed_validations:
+            return ""
 
+        # Check if any validation failure seems critical (like length constraints)
+        critical_failures = []
+        for validation in failed_validations:
+            message = validation.get("message", "").lower()
+            if any(
+                keyword in message
+                for keyword in ["too long", "maximum", "limit", "characters", "words"]
+            ):
+                critical_failures.append(validation)
+
+        if critical_failures:
+            # Handle critical failures with strong language
             return (
-                f"🚨 CRITICAL: The text MUST be under {max_chars} characters. This is a HARD CONSTRAINT "
-                "that takes ABSOLUTE PRIORITY over all other suggestions. You MUST aggressively cut content, "
-                "remove details, eliminate examples, and focus ONLY on the most essential points. "
-                f"Count characters carefully and ensure you stay UNDER {max_chars}. "
-                "Content quality is secondary to meeting the length requirement. CUT RUTHLESSLY.\n\n"
+                "🚨 CRITICAL VALIDATION FAILURES: The following requirements MUST be met and take "
+                "ABSOLUTE PRIORITY over all other suggestions:\n\n"
             )
-
-        return "⚠️  IMPORTANT: Please ensure the text meets all validation requirements.\n\n"
+        else:
+            # Handle regular validation failures
+            return "⚠️ VALIDATION REQUIREMENTS: The text must be corrected to meet the following requirements:\n\n"
 
     @staticmethod
     def categorize_feedback(constraints: Optional[Dict[str, Any]]) -> Dict[str, str]:
@@ -126,47 +142,47 @@ class ValidationContext:
         Returns:
             Dictionary with categorized feedback templates.
         """
-        if constraints and constraints.get("type") == "length":
+        if not constraints or constraints.get("type") != "validation_failures":
             return {
-                "validation_header": "🚨 CRITICAL VALIDATION REQUIREMENTS (MUST BE ADDRESSED FIRST):",
-                "critic_header": "Secondary Feedback (IGNORE if it conflicts with length requirements):",
+                "validation_header": "Validation Issues:",
+                "critic_header": "Critic Feedback:",
                 "priority_instructions": (
-                    "IMMEDIATELY and AGGRESSIVELY addresses the length constraints by cutting content ruthlessly. "
-                    "Ignore all other feedback that would add content or increase length. "
-                    "Your PRIMARY GOAL is to meet the length requirement, even if it means sacrificing detail or quality"
+                    "addresses the issues identified in the feedback while maintaining the core message "
+                    "and staying true to the original task"
                 ),
             }
 
-        return {
-            "validation_header": "Validation Issues:",
-            "critic_header": "Critic Feedback:",
-            "priority_instructions": (
-                "addresses the issues identified in the feedback while maintaining the core message "
-                "and staying true to the original task"
-            ),
-        }
+        # Check if any validation failure seems critical
+        failed_validations = constraints.get("failed_validations", [])
+        has_critical_failures = any(
+            any(
+                keyword in validation.get("message", "").lower()
+                for keyword in ["too long", "maximum", "limit", "characters", "words"]
+            )
+            for validation in failed_validations
+        )
 
-    # Private helper methods
+        if has_critical_failures:
+            return {
+                "validation_header": "🚨 CRITICAL VALIDATION REQUIREMENTS (MUST BE ADDRESSED FIRST):",
+                "critic_header": "Secondary Feedback (IGNORE if it conflicts with validation requirements):",
+                "priority_instructions": (
+                    "IMMEDIATELY addresses the validation requirements listed above. "
+                    "These requirements take ABSOLUTE PRIORITY over all other feedback. "
+                    "Only consider other suggestions if they don't conflict with validation requirements"
+                ),
+            }
+        else:
+            return {
+                "validation_header": "⚠️ VALIDATION REQUIREMENTS:",
+                "critic_header": "Additional Feedback:",
+                "priority_instructions": (
+                    "first addresses the validation requirements, then incorporates other feedback "
+                    "while maintaining the core message and staying true to the original task"
+                ),
+            }
 
-    @staticmethod
-    def _detect_length_constraints(
-        validation_results: Dict[str, ValidationResult],
-    ) -> Optional[Dict[str, Any]]:
-        """Detect length constraints from validation results."""
-        for name, result in validation_results.items():
-            if not result.passed and ValidationContext._is_length_constraint(name, result):
-                return {
-                    "type": "length",
-                    "constraint": (
-                        "reduce_content"
-                        if "too long" in result.message.lower()
-                        else "expand_content"
-                    ),
-                    "validator_name": name,
-                    "message": result.message,
-                    "suggestions": result.suggestions or [],
-                }
-        return None
+    # Legacy methods - no longer needed with generic validation handling
 
     @staticmethod
     def _detect_other_constraints(
@@ -190,6 +206,70 @@ class ValidationContext:
                     for suggestion in (result.suggestions or [])
                 ],
             }
+
+        return None
+
+    @staticmethod
+    def _detect_language_constraints(
+        validation_results: Dict[str, ValidationResult],
+    ) -> Optional[Dict[str, Any]]:
+        """Detect language constraints from validation results.
+
+        Args:
+            validation_results: Dictionary of validation results from validators.
+
+        Returns:
+            Dictionary containing language constraint information, or None if no language constraints found.
+        """
+        for validator_name, result in validation_results.items():
+            if not result.passed:
+                # Check if this is a language validation failure
+                if (
+                    "language" in validator_name.lower()
+                    or "classified as invalid label" in result.message
+                    or "text classified as" in result.message.lower()
+                ):
+                    # Extract the detected language and expected language
+                    detected_lang = None
+                    expected_lang = None
+
+                    # Parse the message to extract language info
+                    if "classified as invalid label" in result.message:
+                        # Format: "Text classified as invalid label 'es'"
+                        try:
+                            detected_lang = result.message.split("'")[1]
+                        except (IndexError, AttributeError):
+                            detected_lang = "unknown"
+
+                    # Try to get expected language from suggestions
+                    if result.suggestions:
+                        for suggestion in result.suggestions:
+                            if "valid categories:" in suggestion:
+                                try:
+                                    # Extract expected languages from suggestions
+                                    categories_part = suggestion.split("valid categories:")[
+                                        1
+                                    ].strip()
+                                    if categories_part.startswith("[") and categories_part.endswith(
+                                        "]"
+                                    ):
+                                        expected_lang = (
+                                            categories_part.strip("[]")
+                                            .replace("'", "")
+                                            .replace('"', "")
+                                        )
+                                except (IndexError, AttributeError):
+                                    pass
+
+                    return {
+                        "type": "language",
+                        "validator_name": validator_name,
+                        "message": result.message,
+                        "detected_language": detected_lang,
+                        "expected_language": expected_lang or "en",  # Default to English
+                        "confidence": getattr(result, "score", 0.0),
+                        "suggestions": result.suggestions or [],
+                    }
 
         return None
 

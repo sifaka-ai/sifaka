@@ -191,7 +191,7 @@ class MetaRewardingCritic(BaseCritic, ValidationAwareMixin):
             "Improved text:"
         )
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
         """Perform the actual critique logic using Meta-Rewarding approach.
 
         Args:
@@ -203,14 +203,14 @@ class MetaRewardingCritic(BaseCritic, ValidationAwareMixin):
         # Stage 1: Initial judgment (either using base critic or self-judgment)
         if self.base_critic:
             # Use provided base critic for initial judgment
-            initial_judgment_result = await self.base_critic._critique_async(thought)
+            initial_judgment_result = self.base_critic.critique(thought)
             initial_judgment = initial_judgment_result["message"]
         else:
             # Generate initial judgment using our own model
-            initial_judgment = await self._generate_initial_judgment_async(thought)
+            initial_judgment = self._generate_initial_judgment(thought)
 
         # Stage 2: Meta-judgment (judge the quality of the initial judgment)
-        meta_judgment = await self._generate_meta_judgment_async(thought, initial_judgment)
+        meta_judgment = self._generate_meta_judgment(thought, initial_judgment)
 
         # Stage 3: Combine judgments into final assessment
         combined_result = self._combine_judgments(initial_judgment, meta_judgment)
@@ -219,7 +219,7 @@ class MetaRewardingCritic(BaseCritic, ValidationAwareMixin):
 
         return combined_result
 
-    async def _generate_initial_judgment_async(self, thought: Thought) -> str:
+    def _generate_initial_judgment(self, thought: Thought) -> str:
         """Generate the initial judgment of the response.
 
         Args:
@@ -245,14 +245,14 @@ class MetaRewardingCritic(BaseCritic, ValidationAwareMixin):
         )
 
         # Generate initial judgment
-        judgment_response = await self.model._generate_async(
+        judgment_response = self.model.generate(
             prompt=judgment_prompt,
-            system_message="You are an expert evaluator providing detailed, fair assessment of text quality.",
+            system_prompt="You are an expert evaluator providing detailed, fair assessment of text quality.",
         )
 
         return judgment_response
 
-    async def _generate_meta_judgment_async(self, thought: Thought, initial_judgment: str) -> str:
+    def _generate_meta_judgment(self, thought: Thought, initial_judgment: str) -> str:
         """Generate the meta-judgment (judgment of the judgment).
 
         Args:
@@ -276,9 +276,9 @@ class MetaRewardingCritic(BaseCritic, ValidationAwareMixin):
         )
 
         # Generate meta-judgment using meta-judge model
-        meta_judgment_response = await self.meta_judge_model._generate_async(
+        meta_judgment_response = self.meta_judge_model.generate(
             prompt=meta_judgment_prompt,
-            system_message="You are a meta-judge evaluating the quality of evaluations. Be critical and thorough.",
+            system_prompt="You are a meta-judge evaluating the quality of evaluations. Be critical and thorough.",
         )
 
         return meta_judgment_response
@@ -393,18 +393,7 @@ class MetaRewardingCritic(BaseCritic, ValidationAwareMixin):
             # If no critique available, generate one
             if not initial_judgment or not meta_judgment:
                 logger.debug("No meta-rewarding critique found in thought, generating new critique")
-                import asyncio
-
-                try:
-                    asyncio.get_running_loop()
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(asyncio.run, self._perform_critique_async(thought))
-                        critique_result = future.result()
-                except RuntimeError:
-                    critique_result = asyncio.run(self._perform_critique_async(thought))
-
+                critique_result = self._perform_critique(thought)
                 metadata = critique_result["metadata"]
                 initial_judgment = metadata["initial_judgment"]
                 meta_judgment = metadata["meta_judgment"]

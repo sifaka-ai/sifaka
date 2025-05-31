@@ -1,71 +1,42 @@
 """Models for Sifaka.
 
-This module provides implementations of the Model protocol for various
-language model providers, including OpenAI, Anthropic, and others.
+This module provides the unified model creation interface using PydanticAI
+as the backend for all language model providers.
 
-It also provides factory functions for creating model instances based on
-provider and model name.
+After the PydanticAI migration, all model creation goes through the
+create_model() factory function which uses PydanticAI agents internally.
 
 Example:
     ```python
     from sifaka.models import create_model
 
-    # Create a model using the factory function
-    model = create_model("openai:gpt-4", api_key="your-api-key")
+    # Create models using PydanticAI backend
+    model = create_model("openai:gpt-4")
+    model = create_model("anthropic:claude-3-sonnet")
+    model = create_model("google:gemini-1.5-flash")
+    model = create_model("ollama:llama2")
 
-    # Generate text
-    response = model.generate(
-        "Write a short story about a robot.",
-        temperature=0.7,
-        max_tokens=500
-    )
+    # Use in critics (legacy Sifaka model interface)
+    response = model.generate("Write a story about AI")
     print(response)
+    ```
 
-    # Count tokens
-    token_count = model.count_tokens("This is a test.")
-    print(f"Token count: {token_count}")
+For new code, prefer using PydanticAI agents directly:
+    ```python
+    from pydantic_ai import Agent
+    from sifaka.agents import create_pydantic_chain
+
+    # Modern approach - use PydanticAI agents directly
+    agent = Agent("openai:gpt-4", system_prompt="You are helpful.")
+    chain = create_pydantic_chain(agent=agent, validators=[], critics=[])
     ```
 """
 
-from typing import List
-
 from sifaka.models.base import create_model
 
-# Import models with error handling
-__all__: List[str] = ["create_model"]
+# Only export the unified factory function and PydanticAI adapter
+__all__ = ["create_model"]
 
-# OpenAI
-try:
-    from sifaka.models.openai import OPENAI_AVAILABLE
+# PydanticAI adapter (for backward compatibility with critics)
 
-    if OPENAI_AVAILABLE:
-        __all__.extend(["OpenAIModel", "create_openai_model"])
-except ImportError:
-    pass
-
-# Anthropic
-try:
-    from sifaka.models.anthropic import ANTHROPIC_AVAILABLE
-
-    if ANTHROPIC_AVAILABLE:
-        __all__.extend(["AnthropicModel", "create_anthropic_model"])
-except ImportError:
-    pass
-
-# Gemini
-try:
-    from sifaka.models.gemini import GEMINI_AVAILABLE
-
-    if GEMINI_AVAILABLE:
-        __all__.extend(["GeminiModel", "create_gemini_model"])
-except ImportError:
-    pass
-
-# PydanticAI
-try:
-    from sifaka.models.pydantic_ai import PYDANTIC_AI_AVAILABLE
-
-    if PYDANTIC_AI_AVAILABLE:
-        __all__.extend(["PydanticAIModel", "create_pydantic_ai_model"])
-except ImportError:
-    pass
+__all__.extend(["PydanticAIModel", "create_pydantic_ai_model"])

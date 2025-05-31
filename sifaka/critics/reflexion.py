@@ -149,8 +149,53 @@ class ReflexionCritic(BaseCritic, ValidationAwareMixin):
             "Improved text:"
         )
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
         """Perform the actual critique logic using Reflexion approach.
+
+        Args:
+            thought: The Thought container with the text to critique.
+
+        Returns:
+            A dictionary with critique results (without processing_time_ms).
+        """
+        # Check for external task feedback in thought metadata
+        task_feedback = self._extract_task_feedback(thought)
+
+        # Step 1: Generate initial critique (considering task feedback if available)
+        critique_result = self._generate_critique(thought, task_feedback)
+
+        # Step 2: Generate self-reflection on the critique and task performance
+        reflection_result = self._generate_reflection(
+            thought, critique_result["critique"], task_feedback
+        )
+
+        # Step 3: Store reflection in memory for future learning (legacy)
+        self._add_to_memory(
+            thought.text or "", critique_result["critique"], reflection_result["reflection"]
+        )
+
+        # Store trial outcome in thought metadata for enhanced episodic learning
+        self._store_trial_outcome(thought, reflection_result)
+
+        logger.debug("ReflexionCritic: Critique and reflection completed")
+
+        return {
+            "needs_improvement": critique_result["needs_improvement"],
+            "message": critique_result["critique"],
+            "issues": critique_result["issues"],
+            "suggestions": critique_result["suggestions"],
+            "confidence": 0.8,  # Default confidence for Reflexion
+            "metadata": {
+                "reflection": reflection_result["reflection"],
+                "improvement_strategy": reflection_result["improvement_strategy"],
+                "memory_size": len(self.memory_buffer),
+                "task_feedback": task_feedback,
+                "trial_number": thought.iteration,
+            },
+        }
+
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic using Reflexion approach (async version).
 
         Args:
             thought: The Thought container with the text to critique.
@@ -177,7 +222,7 @@ class ReflexionCritic(BaseCritic, ValidationAwareMixin):
         # Store trial outcome in thought metadata for enhanced episodic learning
         self._store_trial_outcome(thought, reflection_result)
 
-        logger.debug("ReflexionCritic: Critique and reflection completed")
+        logger.debug("ReflexionCritic: Async critique and reflection completed")
 
         return {
             "needs_improvement": critique_result["needs_improvement"],
@@ -255,40 +300,11 @@ class ReflexionCritic(BaseCritic, ValidationAwareMixin):
             # If no critique available, generate one
             if not critique_text:
                 logger.debug("No critique found in thought, generating new critique")
-                # Use sync version of critique generation
-                import asyncio
-
-                try:
-                    asyncio.get_running_loop()
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(
-                            lambda: asyncio.run(self._generate_critique_async(thought, None))
-                        )
-                        critique_result = future.result()
-                except RuntimeError:
-                    critique_result = asyncio.run(self._generate_critique_async(thought, None))
-
+                critique_result = self._generate_critique(thought, None)
                 critique_text = critique_result["critique"]
 
                 # Generate reflection for the new critique
-                try:
-                    asyncio.get_running_loop()
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(
-                            lambda: asyncio.run(
-                                self._generate_reflection_async(thought, critique_text, None)
-                            )
-                        )
-                        reflection_result = future.result()
-                except RuntimeError:
-                    reflection_result = asyncio.run(
-                        self._generate_reflection_async(thought, critique_text, None)
-                    )
-
+                reflection_result = self._generate_reflection(thought, critique_text, None)
                 reflection_text = reflection_result["reflection"]
 
             # Prepare context for improvement (using mixin)
@@ -334,10 +350,11 @@ class ReflexionCritic(BaseCritic, ValidationAwareMixin):
     async def _generate_critique_async(
         self, thought: Thought, task_feedback: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Generate initial critique of the text asynchronously.
+        """Generate initial critique of the text (async version).
 
         Args:
             thought: The Thought container with the text to critique.
+            task_feedback: Optional external task feedback.
 
         Returns:
             A dictionary with critique results.
@@ -357,11 +374,93 @@ class ReflexionCritic(BaseCritic, ValidationAwareMixin):
             context=context,
         )
 
-        # Generate the critique (async)
+        # Generate the critique using async model generation
+        logger.debug("Generating initial critique (async)")
+        if hasattr(self.model, "generate_async"):
+            critique_text = await self.model.generate_async(
+                prompt=critique_prompt,
+                system_prompt="You are an expert critic providing detailed feedback on text quality.",
+            )
+        else:
+            # Fall back to sync if async not available
+            critique_text = self.model.generate(
+                prompt=critique_prompt,
+                system_prompt="You are an expert critic providing detailed feedback on text quality.",
+            )
+        logger.debug(f"Generated critique of length {len(critique_text)}")
+
+        # Parse the critique (same logic as sync version)
+        issues = []
+        suggestions = []
+
+        # Simple parsing logic - can be improved
+        in_issues = False
+        in_suggestions = False
+
+        for line in critique_text.split("\n"):
+            line = line.strip()
+            if line.lower().startswith("issues:"):
+                in_issues = True
+                in_suggestions = False
+                continue
+            elif line.lower().startswith("suggestions:"):
+                in_issues = False
+                in_suggestions = True
+                continue
+            elif line.lower().startswith("overall assessment:"):
+                in_issues = False
+                in_suggestions = False
+                continue
+            elif not line or line.startswith("#"):
+                continue
+
+            if in_issues and line.startswith("-"):
+                issues.append(line[1:].strip())
+            elif in_suggestions and line.startswith("-"):
+                suggestions.append(line[1:].strip())
+
+        # Determine if improvement is needed
+        needs_improvement = len(issues) > 0 or "improvement" in critique_text.lower()
+
+        return {
+            "critique": critique_text,
+            "issues": issues,
+            "suggestions": suggestions,
+            "needs_improvement": needs_improvement,
+        }
+
+    def _generate_critique(
+        self, thought: Thought, task_feedback: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Generate initial critique of the text.
+
+        Args:
+            thought: The Thought container with the text to critique.
+            task_feedback: Optional external task feedback.
+
+        Returns:
+            A dictionary with critique results.
+        """
+        # Prepare context for critique (using mixin)
+        context = self._prepare_context(thought)
+
+        # Log context usage
+        if self._has_context(thought):
+            context_summary = self._get_context_summary(thought)
+            logger.debug(f"ReflexionCritic using context for critique: {context_summary}")
+
+        # Format the critique prompt with context
+        critique_prompt = self.critique_prompt_template.format(
+            prompt=thought.prompt,
+            text=thought.text,
+            context=context,
+        )
+
+        # Generate the critique
         logger.debug("Generating initial critique")
-        critique_text = await self.model._generate_async(
+        critique_text = self.model.generate(
             prompt=critique_prompt,
-            system_message="You are an expert critic providing detailed feedback on text quality.",
+            system_prompt="You are an expert critic providing detailed feedback on text quality.",
         )
         logger.debug(f"Generated critique of length {len(critique_text)}")
 
@@ -405,10 +504,10 @@ class ReflexionCritic(BaseCritic, ValidationAwareMixin):
             "needs_improvement": needs_improvement,
         }
 
-    async def _generate_reflection_async(
+    def _generate_reflection(
         self, thought: Thought, critique: str, task_feedback: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Generate reflection on the critique to identify specific improvements asynchronously.
+        """Generate reflection on the critique to identify specific improvements.
 
         Args:
             thought: The Thought container with the text to reflect on.
@@ -444,15 +543,107 @@ class ReflexionCritic(BaseCritic, ValidationAwareMixin):
             episodic_memory=episodic_memory,
         )
 
-        # Generate the reflection (async)
+        # Generate the reflection
         logger.debug("Generating reflection on critique")
-        reflection_text = await self.model._generate_async(
+        reflection_text = self.model.generate(
             prompt=reflection_prompt,
-            system_message="You are an expert reflecting on critique to identify specific improvements.",
+            system_prompt="You are an expert reflecting on critique to identify specific improvements.",
         )
         logger.debug(f"Generated reflection of length {len(reflection_text)}")
 
         # Parse the reflection
+        key_issues = []
+        improvement_strategy = []
+
+        # Simple parsing logic
+        in_key_issues = False
+        in_improvement_strategy = False
+
+        for line in reflection_text.split("\n"):
+            line = line.strip()
+            if line.lower().startswith("key issues to address:"):
+                in_key_issues = True
+                in_improvement_strategy = False
+                continue
+            elif line.lower().startswith("improvement strategy:"):
+                in_key_issues = False
+                in_improvement_strategy = True
+                continue
+            elif line.lower().startswith("expected outcome:") or line.lower().startswith(
+                "reflection:"
+            ):
+                in_key_issues = False
+                in_improvement_strategy = False
+                continue
+            elif not line or line.startswith("#"):
+                continue
+
+            if in_key_issues and line.startswith("-"):
+                key_issues.append(line[1:].strip())
+            elif in_improvement_strategy and line.startswith("-"):
+                improvement_strategy.append(line[1:].strip())
+
+        return {
+            "reflection": reflection_text,
+            "key_issues": key_issues,
+            "improvement_strategy": improvement_strategy,
+        }
+
+    async def _generate_reflection_async(
+        self, thought: Thought, critique: str, task_feedback: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Generate reflection on the critique to identify specific improvements (async version).
+
+        Args:
+            thought: The Thought container with the text to reflect on.
+            critique: The critique text to reflect on.
+            task_feedback: Optional external task feedback.
+
+        Returns:
+            A dictionary with reflection results.
+        """
+        # Extract trial context from thought
+        trial_context = self._extract_trial_context(thought)
+
+        # Get episodic memory from thought history and metadata
+        episodic_memory = self._build_episodic_memory(thought)
+
+        # Extract patterns from past experiences
+        success_patterns = self._extract_success_patterns(thought)
+        failure_patterns = self._extract_failure_patterns(thought)
+
+        # Get external feedback
+        external_feedback = task_feedback or self._extract_task_feedback(thought)
+
+        # Format the enhanced reflection prompt
+        reflection_prompt = self.reflection_prompt_template.format(
+            prompt=thought.prompt,
+            text=thought.text,
+            critique=critique,
+            trial_number=trial_context.get("trial_number", 1),
+            previous_attempts=trial_context.get("previous_attempts", "None"),
+            success_patterns=success_patterns,
+            failure_patterns=failure_patterns,
+            external_feedback=external_feedback or "None available",
+            episodic_memory=episodic_memory,
+        )
+
+        # Generate the reflection using async model generation
+        logger.debug("Generating reflection on critique (async)")
+        if hasattr(self.model, "generate_async"):
+            reflection_text = await self.model.generate_async(
+                prompt=reflection_prompt,
+                system_prompt="You are an expert reflecting on critique to identify specific improvements.",
+            )
+        else:
+            # Fall back to sync if async not available
+            reflection_text = self.model.generate(
+                prompt=reflection_prompt,
+                system_prompt="You are an expert reflecting on critique to identify specific improvements.",
+            )
+        logger.debug(f"Generated reflection of length {len(reflection_text)}")
+
+        # Parse the reflection (same logic as sync version)
         key_issues = []
         improvement_strategy = []
 

@@ -1,307 +1,285 @@
 # Sifaka Design Decisions
 
-This document captures key architectural decisions made during Sifaka's development, including the rationale, trade-offs considered, and implementation approaches chosen.
+This document captures the key architectural and design decisions made in Sifaka, along with the rationale, alternatives considered, and trade-offs involved.
 
-## Decision 1: PydanticAI Integration Strategy
+## 🏗️ Architectural Decisions
 
-**Date**: May 2025
-**Status**: Implemented
-**Decision**: Hybrid composition-based integration with PydanticAI rather than replacing Sifaka's core architecture.
+### **Decision 1: PydanticAI-Only Architecture (v0.3.0)**
 
-### Context
-
-With PydanticAI emerging as a leading agent framework, we needed to decide how to integrate with it while preserving Sifaka's unique value propositions around validation, criticism, and observability.
-
-### Options Considered
-
-1. **Full Migration**: Replace Sifaka chains with pure PydanticAI agents
-2. **Wrapper Approach**: Wrap PydanticAI agents as Sifaka models
-3. **Hybrid Composition**: Orchestrate PydanticAI agents with Sifaka components
-4. **Parallel Development**: Maintain separate implementations
-
-### Decision
-
-**Chosen**: Hybrid Composition (#3)
+**Decision**: Remove Traditional Chain completely and adopt PydanticAI-only architecture.
 
 **Rationale**:
-- Preserves Sifaka's research-grade validation and criticism capabilities
-- Leverages PydanticAI's tool calling and type safety
-- Enables gradual migration path for users
-- Maintains academic rigor while embracing modern patterns
+- **Simplicity**: Single chain implementation reduces complexity and maintenance burden
+- **Modern Patterns**: PydanticAI represents the future of AI agent frameworks
+- **Tool Integration**: Native tool calling provides better extensibility than pipeline-based approaches
+- **Type Safety**: Full Pydantic integration ensures type safety throughout the system
+- **Community Alignment**: Aligns with PydanticAI's development and ecosystem
 
-### Implementation
+**Alternatives Considered**:
+1. **Dual Architecture**: Maintain both Traditional and PydanticAI chains
+   - *Rejected*: Increased complexity, maintenance burden, and user confusion
+2. **Gradual Migration**: Slowly deprecate Traditional Chain over multiple versions
+   - *Rejected*: Prolonged complexity and unclear migration path
+3. **Traditional Chain as Primary**: Keep Traditional Chain as the main implementation
+   - *Rejected*: Would miss benefits of modern agent patterns and tool calling
 
-```python
-# PydanticAI Chain - Hybrid approach
-from sifaka.agents import create_pydantic_chain
-from pydantic_ai import Agent
+**Trade-offs**:
+- ✅ **Pros**: Simplified codebase, modern patterns, better extensibility, type safety
+- ❌ **Cons**: Breaking change for existing users, temporary loss of some features during transition
 
-agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant")
-chain = create_pydantic_chain(
-    agent=agent,                    # PydanticAI handles generation + tools
-    validators=[LengthValidator()], # Sifaka handles validation
-    critics=[ReflexionCritic()],    # Sifaka handles criticism
-)
-```
-
-### Outcomes
-
-- ✅ Preserved research-grade capabilities
-- ✅ Gained PydanticAI's tool calling and type safety
-- ✅ Maintained backward compatibility
-- ✅ Enabled modern development patterns
+**Impact**: Major breaking change requiring user migration, but provides cleaner foundation for future development.
 
 ---
 
-## Decision 2: Retriever Architecture - Current vs Tool-Based
+### **Decision 2: Thought-First Architecture**
 
-**Date**: May 2025
-**Status**: Under Consideration
-**Decision**: Hybrid approach - maintain current architecture as primary, add optional tool-based retrieval.
-
-### Context
-
-Should Sifaka's retrievers be implemented as PydanticAI tools to leverage agent-driven retrieval, or maintain the current deterministic retrieval phases?
-
-### Current Architecture
-
-```python
-# Deterministic retrieval phases
-chain = create_pydantic_chain(
-    agent=agent,
-    model_retrievers=[retriever],   # Pre-generation context
-    critic_retrievers=[retriever],  # Critic-specific context
-)
-```
-
-### Tool-Based Alternative
-
-```python
-# Agent-driven retrieval
-@agent.tool_plain
-def search_documents(query: str) -> str:
-    """Search for relevant documents."""
-    return retriever.retrieve(query)
-```
-
-### Trade-offs Analysis
-
-#### Benefits of Current Architecture
-- **Deterministic**: Guaranteed retrieval at specific phases
-- **Rich Metadata**: Structured `Document` objects with scores, sources
-- **Performance**: No additional token usage, better caching control
-- **Specialized Retrieval**: Different strategies for models vs critics
-
-#### Benefits of Tool-Based Approach
-- **Agent-Driven**: Dynamic, context-aware retrieval decisions
-- **Natural Language Queries**: Agent generates sophisticated queries
-- **Flexible Strategies**: Multiple retrieval calls with different queries
-- **PydanticAI Integration**: Consistent with tool-calling patterns
-
-### Decision
-
-**Chosen**: Hybrid Approach
-
-**Implementation Strategy**:
-1. **Keep current architecture as default** for production reliability
-2. **Add optional tool-based retrieval** for agent-driven applications
-3. **Provide utilities** to convert existing retrievers to tools
-4. **Clear documentation** on when to use each approach
-
-```python
-# Option 1: Current deterministic approach (recommended for production)
-chain = create_pydantic_chain(
-    agent=agent,
-    model_retrievers=[retriever],  # Guaranteed pre-generation context
-)
-
-# Option 2: Tool-based approach (for dynamic retrieval)
-@agent.tool_plain
-def search_knowledge(query: str) -> str:
-    return retriever.retrieve(query)
-
-chain = create_pydantic_chain(
-    agent=agent,  # Agent calls search_knowledge as needed
-    enable_retriever_tools=True
-)
-```
-
-### Rationale
-
-- **Production Systems**: Need deterministic, high-performance retrieval
-- **Research Applications**: Benefit from rich metadata and structured context
-- **Agent-Driven Apps**: Can leverage dynamic retrieval when appropriate
-- **Migration Path**: Users can choose the right approach for their use case
-
----
-
-## Decision 3: Validator and Critic Architecture - Orchestration vs Tools
-
-**Date**: May 2025
-**Status**: Under Consideration
-**Decision**: Hybrid approach - maintain orchestrated architecture as primary, add optional tool-based quality control.
-
-### Context
-
-Should validators and critics be implemented as PydanticAI tools to enable agent-driven quality control, or maintain the current orchestrated execution?
-
-### Current Architecture
-
-```python
-# Orchestrated quality control
-chain = create_pydantic_chain(
-    agent=agent,
-    validators=[LengthValidator(50, 500)],  # Deterministic validation
-    critics=[ReflexionCritic(model)],       # Research-grade criticism
-    max_improvement_iterations=3
-)
-```
-
-### Tool-Based Alternative
-
-```python
-# Agent-driven quality control
-@agent.tool_plain
-def validate_length(text: str) -> str:
-    """Check if text meets length requirements."""
-    # Validation logic here
-
-@agent.tool_plain
-def improve_with_reflexion(text: str, prompt: str) -> str:
-    """Improve text using reflexion methodology."""
-    # Improvement logic here
-```
-
-### Trade-offs Analysis
-
-#### Benefits of Current Architecture
-- **Guaranteed Quality Control**: Validation after every generation
-- **Rich Metadata**: Structured `ValidationResult` objects with scores, issues
-- **Academic Rigor**: Faithful implementation of research papers
-- **Audit Trails**: Complete validation/criticism history in `Thought` objects
-- **Performance**: No additional token usage for quality control
-
-#### Benefits of Tool-Based Approach
-- **Agent-Driven**: Dynamic quality control decisions
-- **Integrated Workflow**: Quality control as part of generation process
-- **Flexible Strategies**: Agent chooses which validators/critics to apply
-- **Natural Reasoning**: Agent can reason about quality issues
-
-#### Critical Considerations
-- **Research Fidelity**: Current critics implement complex multi-step processes (e.g., Reflexion's critique→reflect→improve)
-- **Production Reliability**: Deterministic validation crucial for enterprise applications
-- **Observability**: Rich metadata essential for debugging and analysis
-
-### Decision
-
-**Chosen**: Hybrid Approach with Current Architecture as Primary
+**Decision**: Center the entire system around the Thought container as the primary state management mechanism.
 
 **Rationale**:
-- **Validators**: Should remain deterministic for production reliability
-- **Critics**: Research-grade implementations too valuable to simplify
-- **Quality Assurance**: Guaranteed validation essential for enterprise use
-- **Academic Value**: Faithful paper implementations maintain research credibility
+- **Complete Observability**: Every step of the AI generation process is captured and traceable
+- **Immutable State**: Each iteration creates an immutable snapshot, ensuring audit trail integrity
+- **Debugging**: Exact prompts, responses, and intermediate states are preserved for debugging
+- **Serialization**: Complete state can be serialized for storage, analysis, and compliance
+- **Research Alignment**: Matches academic research patterns for AI system evaluation
 
-**Implementation Strategy**:
-```python
-# Primary approach: Orchestrated quality control
-chain = create_pydantic_chain(
-    agent=agent,
-    validators=[LengthValidator(50, 500)],    # Guaranteed validation
-    critics=[ReflexionCritic(model)],         # Research-grade improvement
-    always_apply_critics=False                # Only if validation fails
-)
+**Alternatives Considered**:
+1. **Chain-Centric Architecture**: Focus on chain operations with minimal state tracking
+   - *Rejected*: Poor observability and debugging capabilities
+2. **Event-Driven Architecture**: Use events to track system state changes
+   - *Rejected*: More complex to implement and reason about
+3. **Database-Centric**: Store all state in external database
+   - *Rejected*: Performance overhead and external dependencies
 
-# Optional: Agent-driven quality tools
-@agent.tool_plain
-def check_quality(text: str) -> str:
-    """Lightweight quality check for agent use."""
-    # Simplified validation logic
+**Trade-offs**:
+- ✅ **Pros**: Complete observability, excellent debugging, audit trails, research alignment
+- ❌ **Cons**: Memory overhead for complex workflows, serialization complexity
 
-chain = create_pydantic_chain(
-    agent=agent,
-    validators=[LengthValidator(50, 500)],    # Still guaranteed
-    enable_quality_tools=True,                # Agent can also self-check
-)
-```
-
-### Key Insight
-
-Unlike retrievers (which are naturally tool-like), validators and critics are **fundamental quality control mechanisms** that benefit from:
-- Deterministic execution for reliability
-- Rich metadata for observability
-- Research-grade implementations for academic rigor
-
-The hybrid approach preserves these strengths while enabling agent-driven quality control where appropriate.
+**Impact**: Enables unprecedented observability and debugging capabilities for AI text generation.
 
 ---
 
-## Decision 4: Thought-Centric Architecture
+### **Decision 3: Feedback Integration in Agent Prompts**
 
-**Date**: May 2025
-**Status**: Implemented
-**Decision**: Maintain immutable `Thought` containers as the central state management system.
-
-### Context
-
-Should Sifaka continue using `Thought` objects as central state containers, or adopt simpler state management approaches?
-
-### Decision
-
-**Chosen**: Keep Thought-Centric Architecture
+**Decision**: Pass validation results and critic feedback directly to PydanticAI agents in subsequent iterations.
 
 **Rationale**:
-- **Complete Observability**: Every iteration, validation, and critique tracked
-- **Immutable State**: Proper versioning and history management
-- **Audit Trails**: Essential for debugging, compliance, and research
-- **Research Value**: Enables analysis of AI behavior patterns
-- **Unique Value**: No other framework provides this level of observability
+- **Iterative Improvement**: Agents can learn from previous failures and feedback
+- **Context Preservation**: Complete context is available for improvement decisions
+- **Research Fidelity**: Matches academic research on iterative AI improvement
+- **Transparency**: Clear understanding of how feedback influences generation
 
-### Implementation
+**Alternatives Considered**:
+1. **External Feedback Processing**: Process feedback outside the agent
+   - *Rejected*: Loses context and reduces improvement effectiveness
+2. **Implicit Feedback**: Modify agent behavior without explicit feedback
+   - *Rejected*: Reduces transparency and debugging capabilities
+3. **Separate Improvement Agent**: Use a dedicated agent for improvements
+   - *Rejected*: Adds complexity and potential context loss
 
-```python
-class Thought(BaseModel):
-    prompt: str
-    text: Optional[str] = None
-    validation_results: Optional[Dict[str, ValidationResult]] = None
-    critic_feedback: Optional[List[CriticFeedback]] = None
-    history: Optional[List[ThoughtReference]] = None
-    iteration: int = 0
-    # ... complete state tracking
-```
+**Trade-offs**:
+- ✅ **Pros**: Effective iterative improvement, transparency, research alignment
+- ❌ **Cons**: Longer prompts, potential context window limitations
 
-**Benefits Realized**:
-- Enterprise-grade audit trails
-- Rich debugging capabilities
-- Research-grade observability
-- Compliance-ready documentation
+**Impact**: Enables effective iterative improvement while maintaining complete transparency.
 
 ---
 
-## Future Decisions
+### **Decision 4: Guaranteed Completion Pattern**
 
-### Under Active Consideration
+**Decision**: Always return a final Thought, either from successful validation or after reaching maximum iterations.
 
-1. **MCP Storage Integration**: Fixing Redis and Milvus storage via MCP
-2. **Feedback Summarization**: Enhanced summarization using local and API models
-3. **Multi-Modal Support**: Extending validation and criticism to images, audio
-4. **Tool Registration**: Automatic conversion of Sifaka components to PydanticAI tools
+**Rationale**:
+- **Reliability**: Users always get a result, even if not perfect
+- **Production Readiness**: Systems can handle edge cases gracefully
+- **Debugging**: Failed attempts are preserved for analysis
+- **User Experience**: Predictable behavior reduces user frustration
 
-### Decision Framework
+**Alternatives Considered**:
+1. **Exception on Failure**: Throw exceptions when validation fails
+   - *Rejected*: Poor user experience and production reliability
+2. **Optional Results**: Return None or Optional types for failures
+   - *Rejected*: Complicates user code and error handling
+3. **Infinite Retries**: Continue until validation passes
+   - *Rejected*: Risk of infinite loops and resource exhaustion
 
-When evaluating architectural decisions, we consider:
+**Trade-offs**:
+- ✅ **Pros**: Reliable behavior, graceful degradation, better debugging
+- ❌ **Cons**: Users must check validation status, potential for low-quality outputs
 
-1. **Research Fidelity**: Does it maintain academic rigor?
-2. **Production Readiness**: Is it reliable for enterprise use?
-3. **PydanticAI Alignment**: Does it leverage PydanticAI's strengths?
-4. **Migration Path**: Can users adopt incrementally?
-5. **Unique Value**: Does it preserve Sifaka's differentiators?
+**Impact**: Provides reliable, production-ready behavior while preserving debugging information.
 
 ---
 
-## References
+## 🔧 Implementation Decisions
 
-- [Vision Document](VISION.md) - Strategic direction and philosophy
-- [Architecture Document](ARCHITECTURE.md) - Technical implementation details
-- [PydanticAI Integration Guide](guides/pydantic-ai-integration.md)
-- [Chain Selection Guide](guides/chain-selection.md)
+### **Decision 5: Async-First Design**
+
+**Decision**: Use async/await patterns throughout the system by default.
+
+**Rationale**:
+- **Performance**: Better concurrency for I/O-bound operations (API calls, storage)
+- **PydanticAI Alignment**: PydanticAI is async-first
+- **Scalability**: Supports high-throughput production environments
+- **Modern Patterns**: Aligns with modern Python async ecosystem
+
+**Alternatives Considered**:
+1. **Sync-First with Async Wrappers**: Synchronous core with async wrappers
+   - *Rejected*: Performance overhead and complexity
+2. **Mixed Sync/Async**: Some components sync, others async
+   - *Rejected*: Inconsistent patterns and integration complexity
+3. **Sync-Only**: Purely synchronous implementation
+   - *Rejected*: Poor performance for I/O-bound operations
+
+**Trade-offs**:
+- ✅ **Pros**: Better performance, modern patterns, PydanticAI alignment
+- ❌ **Cons**: Learning curve for sync-focused developers, async complexity
+
+**Impact**: Enables high-performance, scalable applications with modern async patterns.
+
+---
+
+### **Decision 6: Composition Over Inheritance**
+
+**Decision**: Use composition patterns rather than inheritance for PydanticAI integration.
+
+**Rationale**:
+- **Flexibility**: Easier to modify and extend behavior
+- **Testability**: Components can be tested in isolation
+- **Maintainability**: Clearer dependencies and relationships
+- **PydanticAI Compatibility**: Avoids conflicts with PydanticAI's internal structure
+
+**Alternatives Considered**:
+1. **Inheritance from PydanticAI Classes**: Extend PydanticAI Agent directly
+   - *Rejected*: Tight coupling and potential conflicts with PydanticAI updates
+2. **Mixin Patterns**: Use mixins to add Sifaka functionality
+   - *Rejected*: Complex inheritance hierarchies and potential conflicts
+3. **Monkey Patching**: Modify PydanticAI classes at runtime
+   - *Rejected*: Fragile and difficult to maintain
+
+**Trade-offs**:
+- ✅ **Pros**: Flexibility, testability, maintainability, compatibility
+- ❌ **Cons**: More verbose setup, potential for configuration errors
+
+**Impact**: Provides flexible, maintainable integration with PydanticAI while avoiding tight coupling.
+
+---
+
+### **Decision 7: Research-Backed Implementation Priority**
+
+**Decision**: Prioritize implementing proven academic research over novel techniques.
+
+**Rationale**:
+- **Reliability**: Peer-reviewed research provides confidence in techniques
+- **Reproducibility**: Academic papers provide clear implementation guidelines
+- **Credibility**: Research backing increases user trust and adoption
+- **Educational Value**: Users learn established techniques rather than experimental ones
+
+**Alternatives Considered**:
+1. **Novel Technique Development**: Focus on creating new validation/criticism methods
+   - *Rejected*: Higher risk, less proven effectiveness
+2. **Industry Best Practices**: Implement common industry patterns
+   - *Rejected*: Often ad-hoc and not rigorously evaluated
+3. **Mixed Approach**: Combine research and novel techniques
+   - *Rejected*: Inconsistent quality and evaluation standards
+
+**Trade-offs**:
+- ✅ **Pros**: Proven effectiveness, reproducibility, credibility, educational value
+- ❌ **Cons**: Slower innovation, potential lag behind cutting-edge techniques
+
+**Impact**: Builds user trust and provides reliable, well-understood validation and criticism techniques.
+
+---
+
+## 🎯 Feature Decisions
+
+### **Decision 8: Configurable Critic Thresholds**
+
+**Decision**: Allow users to configure quality thresholds and critic sensitivity.
+
+**Rationale**:
+- **Use Case Flexibility**: Different applications have different quality requirements
+- **Performance Tuning**: Users can balance quality vs. performance
+- **Research Compatibility**: Matches configurable parameters in academic papers
+- **Production Readiness**: Enables fine-tuning for specific deployment environments
+
+**Alternatives Considered**:
+1. **Fixed Thresholds**: Use predetermined thresholds for all use cases
+   - *Rejected*: Inflexible and doesn't meet diverse user needs
+2. **Automatic Threshold Learning**: Learn optimal thresholds from user feedback
+   - *Rejected*: Complex to implement and requires significant user data
+3. **No Thresholds**: Always apply all critics regardless of scores
+   - *Rejected*: Inefficient and may lead to over-criticism
+
+**Trade-offs**:
+- ✅ **Pros**: Flexibility, performance tuning, research compatibility
+- ❌ **Cons**: Configuration complexity, potential for misconfiguration
+
+**Impact**: Enables users to fine-tune system behavior for their specific use cases and requirements.
+
+---
+
+### **Decision 9: Immutable Iteration Snapshots**
+
+**Decision**: Create immutable snapshots of Thoughts at each iteration boundary.
+
+**Rationale**:
+- **Audit Trails**: Complete history of how outputs evolved
+- **Debugging**: Ability to examine exact state at any iteration
+- **Reproducibility**: Exact recreation of generation process
+- **Compliance**: Meets audit requirements for regulated industries
+
+**Alternatives Considered**:
+1. **Mutable State Updates**: Update Thought state in place
+   - *Rejected*: Loses history and debugging information
+2. **Delta Storage**: Store only changes between iterations
+   - *Rejected*: Complex reconstruction and potential data loss
+3. **External History Tracking**: Store history separately from Thoughts
+   - *Rejected*: Fragmented state and synchronization issues
+
+**Trade-offs**:
+- ✅ **Pros**: Complete audit trails, excellent debugging, compliance support
+- ❌ **Cons**: Memory overhead, serialization complexity
+
+**Impact**: Provides unprecedented visibility into AI generation process evolution.
+
+---
+
+## 🔮 Future Decisions
+
+### **Upcoming Decision: Multi-Modal Support**
+
+**Context**: Extending beyond text to support images, audio, and structured data.
+
+**Considerations**:
+- **PydanticAI Evolution**: Wait for PydanticAI multi-modal support
+- **Validation Complexity**: Different modalities require different validation approaches
+- **Storage Requirements**: Multi-modal data has different storage needs
+- **Research Landscape**: Multi-modal criticism research is still emerging
+
+**Timeline**: Dependent on PydanticAI roadmap and research developments.
+
+---
+
+### **Upcoming Decision: Distributed Processing**
+
+**Context**: Scaling validation and criticism across multiple nodes.
+
+**Considerations**:
+- **State Management**: Distributed Thought state synchronization
+- **Performance**: Network overhead vs. parallel processing benefits
+- **Complexity**: Distributed system complexity and failure modes
+- **Use Cases**: Whether demand justifies implementation complexity
+
+**Timeline**: Based on user demand and scalability requirements.
+
+---
+
+## 📚 References
+
+- **[Architecture Document](docs/ARCHITECTURE.md)**: Technical implementation details
+- **[Vision Document](VISION.md)**: Strategic direction and long-term goals
+- **[Contributing Guide](CONTRIBUTING.md)**: How to contribute to these decisions
+
+---
+
+*These decisions represent our current understanding and may evolve as we learn more about user needs and technical constraints. All decisions are open for discussion and revision through our contribution process.*

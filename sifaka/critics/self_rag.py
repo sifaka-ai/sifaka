@@ -173,7 +173,7 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
             "Improved text:"
         )
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
         """Perform Self-RAG inspired critique with smart retrieval and reflection-style assessment.
 
         Args:
@@ -195,7 +195,7 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
             if self.retriever:
                 try:
                     query = f"{thought.prompt} {thought.text or ''}".strip()
-                    retrieved_docs = await self._retrieve_documents_async(query, self.retriever)
+                    retrieved_docs = self._retrieve_documents(query, self.retriever)
                     retriever_used = "critic_specific"
                     if retrieved_docs:
                         context = "\n\n".join(retrieved_docs[: self.max_retrieved_docs])
@@ -216,9 +216,9 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
         # Step 3: Generate Self-RAG style critique
         critique_prompt = self._build_critique_prompt(thought, context, retrieval_needed)
 
-        critique_response = await self.model._generate_async(
+        critique_response = self.model.generate(
             prompt=critique_prompt,
-            system_message="You are a Self-RAG inspired critic that provides structured feedback using reflection tokens.",
+            system_prompt="You are a Self-RAG inspired critic that provides structured feedback using reflection tokens.",
         )
 
         # Step 4: Parse the critique and extract assessments
@@ -312,20 +312,7 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
             # If no critique available, generate one
             if not critique:
                 logger.debug("No critique found in thought, generating new critique")
-                import asyncio
-
-                try:
-                    asyncio.get_running_loop()
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(
-                            lambda: asyncio.run(self._perform_critique_async(thought))
-                        )
-                        critique_result = future.result()
-                except RuntimeError:
-                    critique_result = asyncio.run(self._perform_critique_async(thought))
-
+                critique_result = self._perform_critique(thought)
                 critique = critique_result["message"]
 
             # Prepare context for improvement (using mixin + retrieval)
@@ -336,26 +323,7 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
                 # Try critic-specific retriever first
                 if self.retriever:
                     try:
-                        import asyncio
-
-                        try:
-                            asyncio.get_running_loop()
-                            import concurrent.futures
-
-                            # Run async retrieval in thread pool
-                            async def _retrieve_docs() -> List[str]:
-                                return await self._retrieve_documents_async(
-                                    thought.prompt, self.retriever
-                                )
-
-                            with concurrent.futures.ThreadPoolExecutor() as executor:
-                                future = executor.submit(asyncio.run, _retrieve_docs())  # type: ignore[arg-type]
-                                retrieved_docs: List[str] = future.result()  # type: ignore[assignment]
-                        except RuntimeError:
-                            retrieved_docs = asyncio.run(
-                                self._retrieve_documents_async(thought.prompt, self.retriever)
-                            )
-
+                        retrieved_docs = self._retrieve_documents(thought.prompt, self.retriever)
                         if retrieved_docs:
                             context = "\n\n".join(retrieved_docs[: self.max_retrieved_docs])
                             logger.debug(
@@ -535,9 +503,7 @@ Assessment:
 
         return prompt
 
-    async def _retrieve_documents_async(
-        self, query: str, retriever: Optional[Retriever] = None
-    ) -> List[str]:
+    def _retrieve_documents(self, query: str, retriever: Optional[Retriever] = None) -> List[str]:
         """Retrieve documents for the given query.
 
         Args:
@@ -553,10 +519,7 @@ Assessment:
 
         try:
             # Use retriever to get documents
-            import asyncio
-
-            loop = asyncio.get_event_loop()
-            results = await loop.run_in_executor(None, target_retriever.retrieve, query)
+            results = target_retriever.retrieve(query)
             return results[: self.max_retrieved_docs] if results else []
         except Exception as e:
             logger.error(f"SelfRAGCritic: Retrieval error: {e}")
