@@ -2,7 +2,7 @@
 mcp/
 
 # Default file storage directory for thoughts -- useful for local debugging
-thoughts/
+# thoughts/
 
 # Python
 __pycache__/
