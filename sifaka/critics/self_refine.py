@@ -120,8 +120,8 @@ class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
         # Store the last improvement prompt used for debugging/logging
         self.last_improvement_prompt = None
 
-    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic using Self-Refine approach.
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic using Self-Refine approach (async).
 
         Args:
             thought: The Thought container with the text to critique.
@@ -139,8 +139,8 @@ class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
             context=context,
         )
 
-        # Generate critique
-        critique_response = self.model.generate(
+        # Generate critique (async only)
+        critique_response = await self.model._generate_async(
             prompt=critique_prompt,
             system_prompt="You are an expert critic providing detailed, constructive feedback.",
         )
@@ -151,7 +151,7 @@ class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
         # Determine if improvement is needed based on critique content
         needs_improvement = self._needs_improvement(critique_response)
 
-        logger.debug("SelfRefineCritic: Critique completed")
+        logger.debug("SelfRefineCritic: Async critique completed")
 
         return {
             "needs_improvement": needs_improvement,
@@ -165,8 +165,8 @@ class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
             },
         }
 
-    def improve(self, thought: Thought) -> str:
-        """Improve text using iterative Self-Refine approach.
+    async def improve_async(self, thought: Thought) -> str:
+        """Improve text using iterative Self-Refine approach asynchronously.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -179,9 +179,9 @@ class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
         """
         # Use the enhanced method with validation context from thought
         validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return self.improve_with_validation_context(thought, validation_context)
+        return await self.improve_with_validation_context_async(thought, validation_context)
 
-    def improve_with_validation_context(
+    async def improve_with_validation_context_async(
         self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """Improve text with validation context awareness.
@@ -230,7 +230,8 @@ class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
                     context=context,
                 )
 
-                critique = self.model.generate(
+                # Generate critique (async only)
+                critique = await self.model._generate_async(
                     prompt=critique_prompt,
                     system_prompt="You are an expert critic providing detailed, constructive feedback.",
                 )
@@ -268,7 +269,8 @@ class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
                 # Store the actual prompt for logging/debugging
                 self.last_improvement_prompt = improve_prompt
 
-                improved_text = self.model.generate(
+                # Generate improved text (async only)
+                improved_text = await self.model._generate_async(
                     prompt=improve_prompt,
                     system_prompt="You are an expert editor improving text based on critique.",
                 )

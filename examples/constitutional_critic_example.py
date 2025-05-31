@@ -135,7 +135,7 @@ async def main():
         critic_retrievers=[privacy_retriever],  # Same in-memory context for critic evaluation
         max_improvement_iterations=3,  # Default retry behavior
         always_apply_critics=True,
-        storage=storage,  # Use file storage for thoughts
+        analytics_storage=storage,  # Use file storage for thoughts
     )
 
     print(f"DEBUG: Created PydanticAI chain with {len([critic])} critics")

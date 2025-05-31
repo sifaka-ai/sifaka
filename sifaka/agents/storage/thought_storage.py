@@ -32,11 +32,8 @@ class ThoughtStorage:
             # Use thought.id as key to match original behavior
             logger.debug(f"Saving intermediate thought with key: {thought.id}")
 
-            # Check if storage has async method, otherwise fall back to sync
-            if hasattr(self.storage, "_set_async"):
-                await self.storage._set_async(thought.id, thought)
-            else:
-                self.storage.set(thought.id, thought)
+            # Use standard async storage protocol (all storage implementations support this)
+            await self.storage.set(thought.id, thought)
 
             logger.debug(f"Successfully saved intermediate thought: iteration {thought.iteration}")
         except Exception as e:
@@ -53,11 +50,8 @@ class ThoughtStorage:
             # Use thought.id as key to match original behavior
             logger.debug(f"Saving final thought with key: {thought.id}")
 
-            # Check if storage has async method, otherwise fall back to sync
-            if hasattr(self.storage, "_set_async"):
-                await self.storage._set_async(thought.id, thought)
-            else:
-                self.storage.set(thought.id, thought)
+            # Use standard async storage protocol (all storage implementations support this)
+            await self.storage.set(thought.id, thought)
 
             logger.info(
                 f"Successfully saved thought to: {getattr(self.storage, 'file_path', 'storage')}"
@@ -80,11 +74,8 @@ class ThoughtStorage:
         """
         logger.debug(f"Loading thought with key: {thought_id}")
 
-        # Check if storage has async method, otherwise fall back to sync
-        if hasattr(self.storage, "_get_async"):
-            result = await self.storage._get_async(thought_id)
-        else:
-            result = self.storage.get(thought_id)
+        # Use standard async storage protocol (all storage implementations support this)
+        result = await self.storage.get(thought_id)
 
         if result is None:
             raise KeyError(f"Thought not found: {thought_id}")

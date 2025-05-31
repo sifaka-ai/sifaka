@@ -13,6 +13,7 @@ scientific context and Self-RAG ensuring factual accuracy through retrieval.
 Thoughts are stored in local files for persistence.
 """
 
+import asyncio
 import os
 
 from dotenv import load_dotenv
@@ -59,7 +60,7 @@ def setup_climate_retriever():
     return retriever
 
 
-def main():
+async def main():
     """Run the Self-RAG with Length Validator example using PydanticAI."""
 
     # Ensure API key is available
@@ -120,7 +121,7 @@ def main():
 
     # Run the chain
     logger.info("Running PydanticAI chain with Self-RAG critic and in-memory retrieval...")
-    result = chain.run_sync(prompt)
+    result = await chain.run(prompt)
 
     # Display results
     print("\n" + "=" * 80)
@@ -178,4 +179,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

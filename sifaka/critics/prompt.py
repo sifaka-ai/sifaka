@@ -98,51 +98,6 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
         # Store the last improvement prompt used for debugging/logging
         self.last_improvement_prompt = None
 
-    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic using custom prompt.
-
-        Args:
-            thought: The Thought container with the text to critique.
-
-        Returns:
-            A dictionary with critique results (without processing_time_ms).
-        """
-        # Prepare context from retrieved documents (using mixin)
-        context = self._prepare_context(thought)
-
-        # Create critique prompt with context
-        critique_prompt = self.critique_prompt_template.format(
-            prompt=thought.prompt,
-            text=thought.text,
-            context=context,
-        )
-
-        # Generate critique
-        critique_response = self.model.generate(
-            prompt=critique_prompt,
-            system_prompt=self.system_prompt,
-        )
-
-        # Parse the critique
-        issues, suggestions = self._parse_critique(critique_response)
-
-        # Determine if improvement is needed based on critique content
-        needs_improvement = self._needs_improvement(critique_response)
-
-        logger.debug("PromptCritic: Critique completed")
-
-        return {
-            "needs_improvement": needs_improvement,
-            "message": critique_response,
-            "issues": issues,
-            "suggestions": suggestions,
-            "confidence": 0.7,  # Default confidence for prompt-based critic
-            "metadata": {
-                "criteria": self.criteria,
-                "system_prompt": self.system_prompt,
-            },
-        }
-
     async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
         """Perform the actual critique logic using custom prompt asynchronously.
 
@@ -162,18 +117,11 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
             context=context,
         )
 
-        # Generate critique asynchronously if the model supports it
-        if hasattr(self.model, "generate_async"):
-            critique_response = await self.model.generate_async(
-                prompt=critique_prompt,
-                system_prompt=self.system_prompt,
-            )
-        else:
-            # Fall back to sync method
-            critique_response = self.model.generate(
-                prompt=critique_prompt,
-                system_prompt=self.system_prompt,
-            )
+        # Generate critique asynchronously (async only)
+        critique_response = await self.model._generate_async(
+            prompt=critique_prompt,
+            system_prompt=self.system_prompt,
+        )
 
         # Parse the critique
         issues, suggestions = self._parse_critique(critique_response)
@@ -195,8 +143,8 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
             },
         }
 
-    def improve(self, thought: Thought) -> str:
-        """Improve text based on prompt-based critique.
+    async def improve_async(self, thought: Thought) -> str:
+        """Improve text based on prompt-based critique asynchronously.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -209,9 +157,9 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
         """
         # Use the enhanced method with validation context from thought
         validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return self.improve_with_validation_context(thought, validation_context)
+        return await self.improve_with_validation_context_async(thought, validation_context)
 
-    def improve_with_validation_context(
+    async def improve_with_validation_context_async(
         self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """Improve text with validation context awareness.
@@ -250,10 +198,10 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
                         critique = feedback.feedback
                         break
 
-            # If no critique available, generate one
+            # If no critique available, generate one using async method
             if not critique:
                 logger.debug("No critique found in thought, generating new critique")
-                critique_result = self._perform_critique(thought)
+                critique_result = await self._perform_critique_async(thought)
                 critique = critique_result["message"]
 
             # Prepare context for improvement (using mixin)
@@ -285,8 +233,8 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
             # Store the actual prompt for logging/debugging
             self.last_improvement_prompt = improve_prompt
 
-            # Generate improved text
-            improved_text = self.model.generate(
+            # Generate improved text (async only)
+            improved_text = await self.model._generate_async(
                 prompt=improve_prompt,
                 system_prompt=self.system_prompt,
             )

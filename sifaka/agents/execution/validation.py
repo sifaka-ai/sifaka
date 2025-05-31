@@ -4,9 +4,9 @@ This module handles the validation phase, running validators concurrently
 and collecting results.
 """
 
+import asyncio
 from typing import List
 
-from sifaka.agents.core.async_utils import gather_with_error_handling, run_in_thread_pool
 from sifaka.core.interfaces import Validator
 from sifaka.core.thought import Thought
 from sifaka.utils.logging import get_logger
@@ -48,7 +48,7 @@ class ValidationExecutor:
             ]
 
             # Wait for all validations to complete
-            validation_results = await gather_with_error_handling(*validation_tasks)
+            validation_results = await asyncio.gather(*validation_tasks, return_exceptions=True)
 
             # Process results
             for i, result in enumerate(validation_results):
@@ -78,12 +78,8 @@ class ValidationExecutor:
             The validation result.
         """
         try:
-            # Check if validator has async method, otherwise use sync in thread pool
-            if hasattr(validator, "_validate_async"):
-                return await validator._validate_async(thought)  # type: ignore
-            else:
-                # Fall back to sync validation in thread pool to avoid blocking
-                return await run_in_thread_pool(validator.validate, thought)
+            # All validators must now be async-only
+            return await validator.validate_async(thought)
         except Exception as e:
             logger.error(f"Async validation failed for {validator.__class__.__name__}: {e}")
             raise

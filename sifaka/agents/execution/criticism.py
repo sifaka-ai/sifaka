@@ -4,9 +4,9 @@ This module handles the criticism phase, running critics concurrently
 and collecting feedback.
 """
 
+import asyncio
 from typing import Any, Dict, List
 
-from sifaka.agents.core.async_utils import gather_with_error_handling, run_in_thread_pool
 from sifaka.core.interfaces import Critic
 from sifaka.core.thought import CriticFeedback, Thought
 from sifaka.utils.logging import get_logger
@@ -44,7 +44,7 @@ class CriticismExecutor:
         criticism_tasks = [self._critique_with_critic(critic, thought) for critic in self.critics]
 
         # Wait for all criticisms to complete
-        criticism_results = await gather_with_error_handling(*criticism_tasks)
+        criticism_results = await asyncio.gather(*criticism_tasks, return_exceptions=True)
 
         # Process results
         for i, result in enumerate(criticism_results):
@@ -90,8 +90,8 @@ class CriticismExecutor:
             The criticism result as a dictionary.
         """
         try:
-            # Critics are now simple sync methods - run in thread pool to avoid blocking
-            return await run_in_thread_pool(critic.critique, thought)
+            # All critics must now be async-only
+            return await critic.critique_async(thought)
         except Exception as e:
             logger.error(f"Criticism failed for {critic.__class__.__name__}: {e}")
             # Return error feedback dict

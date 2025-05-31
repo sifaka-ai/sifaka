@@ -158,11 +158,8 @@ class SifakaDependencies:
         results = []
         for validator in self.validators:
             try:
-                # Use async validation if available, otherwise fall back to sync
-                if hasattr(validator, "_validate_async"):
-                    result = await validator._validate_async(thought)  # type: ignore
-                else:
-                    result = validator.validate(thought)
+                # Use standard async validation (all validators support this)
+                result = await validator.validate_async(thought)
                 results.append(result)
                 logger.debug(
                     f"Validation by {validator.__class__.__name__}: {'PASSED' if result.passed else 'FAILED'}"

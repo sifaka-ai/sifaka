@@ -4,9 +4,9 @@ This module handles the retrieval phases, both pre-generation and critic-specifi
 retrieval operations.
 """
 
+import asyncio
 from typing import List
 
-from sifaka.agents.core.async_utils import gather_with_error_handling, run_in_thread_pool
 from sifaka.core.thought import Thought
 from sifaka.utils.logging import get_logger
 from sifaka.utils.performance import time_operation
@@ -50,7 +50,7 @@ class RetrievalExecutor:
             ]
 
             # Wait for all retrievals to complete
-            retrieval_results = await gather_with_error_handling(*retrieval_tasks)
+            retrieval_results = await asyncio.gather(*retrieval_tasks, return_exceptions=True)
 
             # Process results sequentially to maintain thought state consistency
             for i, result in enumerate(retrieval_results):
@@ -92,7 +92,7 @@ class RetrievalExecutor:
             ]
 
             # Wait for all retrievals to complete
-            retrieval_results = await gather_with_error_handling(*retrieval_tasks)
+            retrieval_results = await asyncio.gather(*retrieval_tasks, return_exceptions=True)
 
             # Process results sequentially to maintain thought state consistency
             for i, result in enumerate(retrieval_results):
@@ -123,14 +123,57 @@ class RetrievalExecutor:
             Updated thought with retrieved context.
         """
         try:
-            # Check if retriever has async method, otherwise use sync in thread pool
-            if hasattr(retriever, "_retrieve_for_thought_async"):
-                return await retriever._retrieve_for_thought_async(thought, is_pre_generation)  # type: ignore
+            from sifaka.core.thought import Document
+
+            # Check which retriever interface this retriever implements
+            if hasattr(retriever, "retrieve_for_thought_async"):
+                # Core interface - async thought-based retrieval
+                return await retriever.retrieve_for_thought_async(thought, is_pre_generation)
+            elif hasattr(retriever, "retrieve_for_thought"):
+                # Core interface - sync thought-based retrieval (deprecated)
+                return retriever.retrieve_for_thought(thought, is_pre_generation)
+            elif hasattr(retriever, "retrieve_async"):
+                # Core interface - async query-based retrieval
+                query = thought.text if thought.text else thought.prompt
+                docs = await retriever.retrieve_async(query)
+                # Convert to Document objects and add to thought
+                documents = []
+                for doc in docs:
+                    if isinstance(doc, Document):
+                        documents.append(doc)
+                    elif isinstance(doc, dict):
+                        documents.append(Document(**doc))
+                    else:
+                        documents.append(Document(text=str(doc)))
+
+                if is_pre_generation:
+                    return thought.add_pre_generation_context(documents)
+                else:
+                    return thought.add_post_generation_context(documents)
+            elif hasattr(retriever, "retrieve"):
+                # Simple interface - sync query-based retrieval
+                query = thought.text if thought.text else thought.prompt
+                docs = retriever.retrieve(query)
+                # Convert to Document objects and add to thought
+                documents = []
+                for doc in docs:
+                    if isinstance(doc, Document):
+                        documents.append(doc)
+                    elif isinstance(doc, dict):
+                        documents.append(Document(**doc))
+                    else:
+                        documents.append(Document(text=str(doc)))
+
+                if is_pre_generation:
+                    return thought.add_pre_generation_context(documents)
+                else:
+                    return thought.add_post_generation_context(documents)
             else:
-                # Fall back to sync retrieval in thread pool to avoid blocking
-                return await run_in_thread_pool(
-                    retriever.retrieve_for_thought, thought, is_pre_generation
+                logger.error(
+                    f"Retriever {retriever.__class__.__name__} does not implement any known interface"
                 )
+                return thought
+
         except Exception as e:
             logger.error(f"Async retrieval failed for {retriever.__class__.__name__}: {e}")
             raise

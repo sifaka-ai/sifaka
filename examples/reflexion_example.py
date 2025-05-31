@@ -137,7 +137,7 @@ Improved Self-Evaluation:""",
         critics=[critic],  # ReflexionCritic
         max_improvement_iterations=2,  # Two rounds of improvement
         always_apply_critics=True,  # Always apply the critic
-        storage=storage,  # File storage for thoughts
+        analytics_storage=storage,  # File storage for thoughts
     )
 
     # Run the chain with the prompt

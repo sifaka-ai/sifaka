@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/sifaka-ai/sifaka)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue)](https://github.com/sifaka-ai/sifaka)
 
 A research-backed framework that transforms AI text generation from "hope for the best" to "guarantee quality through iterative improvement."
 

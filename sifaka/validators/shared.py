@@ -77,6 +77,21 @@ class BaseValidator(ValidationMixin):
             except Exception as e:
                 return self.create_error_result(e, self.name)
 
+    async def validate_async(self, thought: Thought) -> ValidationResult:
+        """Validate text asynchronously (required by Validator protocol).
+
+        Args:
+            thought: The Thought container with the text to validate.
+
+        Returns:
+            A ValidationResult with information about the validation.
+        """
+        # Use async implementation if available, otherwise fall back to sync
+        if hasattr(self, "_validate_async"):
+            return await self._validate_async(thought)  # type: ignore
+        else:
+            return self.validate(thought)
+
     def _validate_content(self, thought: Thought) -> ValidationResult:
         """Perform the actual content validation.
 
@@ -146,6 +161,21 @@ class LengthValidatorBase(BaseValidator):
                 return self._validate_content(thought)
             except Exception as e:
                 return self.create_error_result(e, self.name)
+
+    async def validate_async(self, thought: Thought) -> ValidationResult:
+        """Validate text asynchronously with length-specific handling (required by Validator protocol).
+
+        Args:
+            thought: The Thought container with the text to validate.
+
+        Returns:
+            A ValidationResult with information about the validation.
+        """
+        # Use async implementation if available, otherwise fall back to sync
+        if hasattr(self, "_validate_async"):
+            return await self._validate_async(thought)  # type: ignore
+        else:
+            return self.validate(thought)
 
     def _get_length(self, text: str) -> int:
         """Get the length of text in the specified unit.

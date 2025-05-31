@@ -4,7 +4,6 @@ Simple JSON file persistence for thoughts and other data. Perfect for single-use
 applications and development where you want to persist data between runs.
 """
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -236,7 +235,7 @@ class FileStorage:
         return list(self.data.keys())
 
     # Public sync methods (backward compatible API)
-    def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Optional[Any]:
         """Get a value by key.
 
         Args:
@@ -245,18 +244,18 @@ class FileStorage:
         Returns:
             The stored value, or None if not found.
         """
-        return asyncio.run(self._get_async(key))
+        return await self._get_async(key)
 
-    def set(self, key: str, value: Any) -> None:
+    async def set(self, key: str, value: Any) -> None:
         """Set a value for a key and save to file.
 
         Args:
             key: The storage key.
             value: The value to store.
         """
-        return asyncio.run(self._set_async(key, value))
+        return await self._set_async(key, value)
 
-    def search(self, query: str, limit: int = 10) -> List[Any]:
+    async def search(self, query: str, limit: int = 10) -> List[Any]:
         """Search for items matching a query.
 
         For file storage, this just returns all values (no semantic search).
@@ -268,13 +267,13 @@ class FileStorage:
         Returns:
             List of all stored values, limited by the limit parameter.
         """
-        return asyncio.run(self._search_async(query, limit))
+        return await self._search_async(query, limit)
 
-    def clear(self) -> None:
+    async def clear(self) -> None:
         """Clear all stored data and remove file."""
-        return asyncio.run(self._clear_async())
+        return await self._clear_async()
 
-    def delete(self, key: str) -> bool:
+    async def delete(self, key: str) -> bool:
         """Delete a value by key.
 
         Args:
@@ -283,15 +282,15 @@ class FileStorage:
         Returns:
             True if the key was deleted, False if it didn't exist.
         """
-        return asyncio.run(self._delete_async(key))
+        return await self._delete_async(key)
 
-    def keys(self) -> List[str]:
+    async def keys(self) -> List[str]:
         """Get all keys in storage.
 
         Returns:
             List of all storage keys.
         """
-        return asyncio.run(self._keys_async())
+        return await self._keys_async()
 
     def __len__(self) -> int:
         """Return number of stored items."""

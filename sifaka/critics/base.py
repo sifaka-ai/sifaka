@@ -58,56 +58,6 @@ class BaseCritic(ContextAwareMixin, ABC):
             else:
                 self.model = model
 
-    def critique(self, thought: Thought) -> Dict[str, Any]:
-        """Critique text and provide feedback.
-
-        This is the main public interface for criticism. Critics should be
-        simple and synchronous - PydanticAI will handle async coordination.
-
-        Args:
-            thought: The Thought container with the text to critique.
-
-        Returns:
-            A dictionary with critique results following the standard schema.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name=self.__class__.__name__,
-            operation="critique",
-            message_prefix=f"Failed to critique text with {self.__class__.__name__}",
-        ):
-            # Check if text is available
-            if not thought.text:
-                return self._create_error_result(
-                    "No text available for critique",
-                    issues=["Text is empty or None"],
-                    suggestions=["Provide text to critique"],
-                    start_time=start_time,
-                )
-
-            # Delegate to subclass implementation
-            try:
-                result = self._perform_critique(thought)
-
-                # Ensure processing time is included
-                processing_time = (time.time() - start_time) * 1000
-                result["processing_time_ms"] = processing_time
-
-                # Validate result schema
-                self._validate_result_schema(result)
-
-                return result
-
-            except Exception as e:
-                logger.error(f"{self.__class__.__name__} critique failed: {e}")
-                return self._create_error_result(
-                    f"Critique failed: {str(e)}",
-                    issues=[f"Internal error: {str(e)}"],
-                    suggestions=["Please try again or check the critic configuration"],
-                    start_time=start_time,
-                )
-
     async def critique_async(self, thought: Thought) -> Dict[str, Any]:
         """Critique text asynchronously.
 
@@ -135,14 +85,8 @@ class BaseCritic(ContextAwareMixin, ABC):
 
             # Delegate to subclass implementation
             try:
-                # Check if the subclass has an async implementation
-                if hasattr(self, "_perform_critique_async"):
-                    result = await self._perform_critique_async(thought)
-                else:
-                    # Fall back to sync method in thread pool
-                    from sifaka.agents.core.async_utils import run_in_thread_pool
-
-                    result = await run_in_thread_pool(self._perform_critique, thought)
+                # All critics must now be async-only
+                result = await self._perform_critique_async(thought)
 
                 # Ensure processing time is included
                 processing_time = (time.time() - start_time) * 1000
@@ -163,10 +107,10 @@ class BaseCritic(ContextAwareMixin, ABC):
                 )
 
     @abstractmethod
-    def improve(self, thought: Thought) -> str:
-        """Improve text based on critique.
+    async def improve_async(self, thought: Thought) -> str:
+        """Improve text based on critique asynchronously.
 
-        Each critic must implement its own improvement strategy.
+        Each critic must implement its own async improvement strategy.
 
         Args:
             thought: The Thought container with the text to improve and critique.
@@ -179,11 +123,10 @@ class BaseCritic(ContextAwareMixin, ABC):
         """
 
     @abstractmethod
-    def _perform_critique(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic (implemented by subclasses).
+    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
+        """Perform the actual critique logic asynchronously (implemented by subclasses).
 
-        This should be a simple synchronous method. PydanticAI will handle
-        any async coordination needed.
+        All critics must now be async-only to work with PydanticAI architecture.
 
         Args:
             thought: The Thought container with the text to critique.

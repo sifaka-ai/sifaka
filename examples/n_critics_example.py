@@ -13,6 +13,7 @@ The chain will generate content about machine learning with in-memory retrievers
 providing context to the agent and specialized knowledge to the critics.
 """
 
+import asyncio
 import os
 
 from dotenv import load_dotenv
@@ -78,7 +79,7 @@ def setup_critic_retriever():
     return retriever
 
 
-def main():
+async def main():
     """Run the PydanticAI N-Critics with In-Memory Retrieval example."""
 
     # Ensure API key is available
@@ -124,13 +125,13 @@ def main():
         critics=[critic],  # N-Critics ensemble
         max_improvement_iterations=1,  # Exactly 1 retry
         always_apply_critics=True,
-        storage=storage,  # File storage for thoughts
+        analytics_storage=storage,  # File storage for thoughts
     )
 
     # Run the chain with the prompt
     prompt = "Explain the key differences between supervised, unsupervised, and reinforcement learning, including when to use each approach and provide practical examples."
     logger.info("Running PydanticAI chain with N-Critics and in-memory retrieval...")
-    result = chain.run_sync(prompt)
+    result = await chain.run(prompt)
 
     # Display results
     print("\n" + "=" * 80)
@@ -172,4 +173,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

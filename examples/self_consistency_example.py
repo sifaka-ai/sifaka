@@ -13,6 +13,7 @@ consensus to determine the most reliable feedback. This improves critique reliab
 by reducing the impact of single inconsistent or low-quality critiques.
 """
 
+import asyncio
 import os
 
 from pydantic_ai import Agent
@@ -23,7 +24,7 @@ from sifaka.models import create_model
 from sifaka.storage import FileStorage
 
 
-def main():
+async def main():
     """Run a simple SelfConsistencyCritic example with OpenAI."""
 
     # Check for API key
@@ -90,7 +91,7 @@ def main():
 
         # Define the prompt for the PydanticAI chain
         prompt = "Explain the concept of machine learning and provide a simple example that anyone can understand."
-        result = chain.run_sync(prompt)
+        result = await chain.run(prompt)
 
         # Display results
         print("\n📝 Results:")
@@ -152,4 +153,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
