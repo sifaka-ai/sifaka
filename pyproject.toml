@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sifaka"
-version = "0.3.0"
+version = "0.4.0"
 description = "Sifaka - PydanticAI-native AI validation, improvement, and evaluation framework"
 authors = [{name = "Evan Volgas", email = "evan.volgas@gmail.com"}]
 license = {text = "MIT"}

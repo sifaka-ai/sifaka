@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-05-30
+
+### Added
+- **Rich Result Capture Foundation**: Enhanced PydanticAI integration with comprehensive result capture
+  - Added rich result methods to PydanticAIModel for detailed response metadata
+  - Extended Thought object with PydanticAI-specific fields (usage, cost, timestamp, model info)
+  - Updated AgentDataExtractor for comprehensive data extraction from PydanticAI responses
+  - Integrated rich data capture in GenerationExecutor for complete observability
+- **Comprehensive Codebase Review**: Added detailed REVIEW.md with analysis and recommendations
+  - Code quality assessment across maintainability, extensibility, usability criteria
+  - Architectural recommendations and improvement suggestions
+  - Performance optimization guidelines
+- **Example Verification**: Validated all 8 example files working seamlessly
+  - Constitutional critic, meta rewarding, n-critics, prompt critic all functional
+  - Reflexion, self-consistency, self-RAG, self-refine examples verified
+  - No async/sync issues or import errors detected
+  - PydanticAI integration working across all examples
+
+### Enhanced
+- **PydanticAI Integration**: Phase 1 of enhanced integration complete
+  - Maintains full backward compatibility while adding rich features
+  - Better observability and debugging capabilities
+  - Enhanced metadata capture for cost tracking and performance analysis
+- **Development Environment**: Improved uv environment compatibility
+  - All examples verified working with new uv package management
+  - Streamlined dependency management and installation process
+- **Documentation**: Updated README and comprehensive documentation review
+  - Import ordering fixes and consistency improvements
+  - Enhanced troubleshooting and configuration guidance
+
+### Technical Improvements
+- **AgentDataExtractor**: Enhanced extraction capabilities for PydanticAI responses
+- **Thought Object**: Extended with rich PydanticAI metadata fields
+- **GenerationExecutor**: Integrated rich data capture for complete audit trails
+- **Example Stability**: All critics and validators working reliably across model providers
+
+### Quality Assurance
+- **Zero Breaking Changes**: All enhancements maintain backward compatibility
+- **Example Coverage**: 100% of examples verified and working
+- **Integration Testing**: Comprehensive validation across all supported model providers
+- **Documentation Accuracy**: All guides and examples updated and verified
+
+---
+
 ## [0.3.0] - 2025-05-30
 
 ### 🚨 BREAKING CHANGES
