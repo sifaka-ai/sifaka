@@ -26,16 +26,23 @@ from sifaka.agents import create_pydantic_chain
 from sifaka.critics.self_consistency import SelfConsistencyCritic
 from sifaka.models import create_model
 from sifaka.storage import FileStorage
+from sifaka.validators import LengthValidator
 
 
 async def main():
     """Run a simple SelfConsistencyCritic example with Groq."""
 
-    # Check for API key
+    # Check for API keys
     if not os.getenv("GROQ_API_KEY"):
         print("❌ Error: GROQ_API_KEY environment variable not set")
         print("Please set your Groq API key:")
         print("export GROQ_API_KEY='your-api-key-here'")
+        return
+
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("❌ Error: ANTHROPIC_API_KEY environment variable not set")
+        print("Please set your Anthropic API key (needed for critic):")
+        print("export ANTHROPIC_API_KEY='your-api-key-here'")
         return
 
     print("🤖 Simple SelfConsistencyCritic Example with Groq (PydanticAI)")
@@ -45,7 +52,7 @@ async def main():
         # Create PydanticAI agent with Groq model
         print("📡 Creating PydanticAI Groq agent...")
         agent = Agent(
-            "groq:llama-3.3-70b-versatile",
+            "groq:llama-3.3-70b-versatile",  # Current supported Groq model
             system_prompt=(
                 "You are an AI education expert and science communicator. Provide clear, "
                 "accurate explanations of artificial intelligence concepts that are accessible "
@@ -55,9 +62,11 @@ async def main():
         )
         print("✅ Agent created successfully")
 
-        # Create Sifaka model for the critic (using OpenAI since Groq not yet supported in Sifaka)
-        print("📡 Creating Sifaka model for critic (using OpenAI since Groq not yet supported)...")
-        critic_model = create_model("openai:gpt-4o-mini")
+        # Create Sifaka model for the critic (using Claude Haiku since Groq not yet supported in Sifaka)
+        print(
+            "📡 Creating Sifaka model for critic (using Claude Haiku since Groq not yet supported)..."
+        )
+        critic_model = create_model("anthropic:claude-3-5-haiku-latest")
         print("✅ Critic model created successfully")
 
         # Create SelfConsistencyCritic with simple configuration
@@ -75,12 +84,21 @@ async def main():
         )
         print("✅ Critic created successfully")
 
+        # Create length validator
+        print("📏 Creating length validator...")
+        length_validator = LengthValidator(
+            min_length=200,  # Minimum 200 characters
+            max_length=2000,  # Maximum 2000 characters
+        )
+        print("✅ Length validator created successfully")
+
         # Create a PydanticAI chain
         print("⛓️  Creating PydanticAI chain...")
         chain = create_pydantic_chain(
             agent=agent,
             critics=[critic],
-            max_improvement_iterations=2,  # Only one retry
+            validators=[length_validator],  # Add the length validator
+            max_improvement_iterations=2,  # Allow more retries for validation
             always_apply_critics=True,  # Always apply the critic
             analytics_storage=FileStorage(
                 "./thoughts/self_consistency_example_groq_thoughts.json",
@@ -95,7 +113,10 @@ async def main():
 
         # Define the prompt for the PydanticAI chain
         prompt = "Explain the concept of machine learning and provide a simple example that anyone can understand."
+        print(f"📝 Prompt: {prompt}")
+        print("⏳ Generating response...")
         result = await chain.run(prompt)
+        print("✅ Response generated!")
 
         # Display results
         print("\n📝 Results:")
@@ -152,8 +173,9 @@ async def main():
         print(f"\n❌ Error: {e}")
         print("Make sure you have:")
         print("1. Set GROQ_API_KEY environment variable")
-        print("2. Installed pydantic-ai package")
-        print("3. Valid API key with sufficient quota")
+        print("2. Set ANTHROPIC_API_KEY environment variable (for critic)")
+        print("3. Installed pydantic-ai package")
+        print("4. Valid API keys with sufficient quota")
 
 
 if __name__ == "__main__":
