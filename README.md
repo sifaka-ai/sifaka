@@ -4,8 +4,6 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.4.0-blue)](https://github.com/sifaka-ai/sifaka)
 
-A research-backed framework that transforms AI text generation from "hope for the best" to "guarantee quality through iterative improvement."
-
 ## What is Sifaka?
 
 Sifaka implements cutting-edge AI research papers as production-ready code. Instead of just generating text and hoping it's good, Sifaka creates a feedback loop where AI systems validate, critique, and iteratively improve their own outputs until they meet your quality standards.
@@ -92,6 +90,57 @@ The `Thought` container maintains complete audit trails including prompts, gener
 **📊 Complete Observability**: Every decision is logged - see exactly why your AI made each choice
 
 **🔄 Guaranteed Improvement**: Systems that get measurably better through validation and critique cycles
+
+## How Sifaka Works
+
+Sifaka transforms unreliable AI text generation into a systematic quality assurance process through iterative validation and improvement:
+
+```mermaid
+graph TD
+    A[Input Prompt] --> B[PydanticAI Agent]
+    B --> C[Generate Initial Text]
+    C --> D[Run Validators]
+    D --> E{Validation Passed?}
+
+    E -->|Yes| F[Run Critics]
+    F --> G{Critics Suggest Improvements?}
+
+    G -->|No| H[Final Output]
+    G -->|Yes| I[Apply Critic Feedback]
+
+    E -->|No| J[Validation Failed]
+    J --> K[Apply Validation Context]
+    K --> I
+
+    I --> L[Generate Improved Text]
+    L --> M{Max Iterations Reached?}
+
+    M -->|No| D
+    M -->|Yes| H
+
+    style A fill:#e1f5fe
+    style H fill:#c8e6c9
+    style J fill:#ffcdd2
+    style D fill:#fff3e0
+    style F fill:#f3e5f5
+```
+
+### The Sifaka Process
+
+1. **Generation**: PydanticAI agent generates initial text from your prompt
+2. **Validation**: Multiple validators check the text against your requirements (length, format, content, etc.)
+3. **Criticism**: If validation passes, critics evaluate quality and suggest improvements
+4. **Improvement**: Failed validation or critic feedback triggers text regeneration with specific guidance
+5. **Iteration**: Process repeats until validation passes and critics are satisfied (or max iterations reached)
+6. **Observability**: Every step is logged in a `Thought` object for complete audit trails
+
+### Key Benefits
+
+- **Reliability**: Systematic validation ensures outputs meet your criteria
+- **Quality**: Research-backed critics improve text beyond basic requirements
+- **Transparency**: Complete audit trail shows why each decision was made
+- **Flexibility**: Mix and match validators and critics for your specific needs
+- **Production-Ready**: Built on PydanticAI with full async support and type safety
 
 ## Environment Setup
 
