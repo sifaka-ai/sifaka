@@ -22,14 +22,13 @@ Example:
 
 from typing import Any, Optional
 
+from pydantic_ai import Agent
+
 from sifaka.core.thought import Thought
 from sifaka.utils.logging import get_logger
 from sifaka.utils.mixins import ContextAwareMixin
 
 logger = get_logger(__name__)
-
-# PydanticAI is a required dependency
-from pydantic_ai import Agent
 
 
 class PydanticAIModel(ContextAwareMixin):

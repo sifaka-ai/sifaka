@@ -28,15 +28,14 @@ Example:
 
 from typing import Any, Dict, List, Optional
 
+from pydantic_ai import Agent
+from pydantic_ai.tools import Tool
+
 from sifaka.core.interfaces import Critic, Validator
 from sifaka.core.thought import CriticFeedback, Thought
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-# PydanticAI is a required dependency
-from pydantic_ai import Agent
-from pydantic_ai.tools import Tool
 
 
 def create_validation_tool(validator: Validator, tool_name: Optional[str] = None) -> "Tool":

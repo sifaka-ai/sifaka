@@ -14,6 +14,8 @@ import asyncio
 import uuid
 from typing import List, Optional
 
+from pydantic_ai import Agent
+
 from sifaka.agents.conversation import ConversationHistoryAdapter
 from sifaka.agents.dependencies import SifakaDependencies
 from sifaka.core.interfaces import Critic, Validator
@@ -23,9 +25,6 @@ from sifaka.utils.error_handling import ChainError
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-# PydanticAI is a required dependency
-from pydantic_ai import Agent
 
 
 class PydanticAIChain:

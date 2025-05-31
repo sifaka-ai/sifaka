@@ -32,13 +32,12 @@ Example:
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from pydantic_ai import Agent
+from pydantic_ai.messages import ModelMessage
+
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-# PydanticAI is a required dependency
-from pydantic_ai import Agent
-from pydantic_ai.messages import ModelMessage
 
 
 class ConversationHistoryAdapter:

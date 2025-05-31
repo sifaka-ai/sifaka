@@ -5,10 +5,13 @@ including output text, metadata, and tool calls.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 from sifaka.core.thought import Thought, ToolCall
 from sifaka.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from pydantic_ai import Agent
 
 logger = get_logger(__name__)
 
