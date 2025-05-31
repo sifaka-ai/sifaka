@@ -311,9 +311,16 @@ class SelfRAGCritic(BaseCritic, ValidationAwareMixin):
 
             # If no critique available, generate one using async method
             if not critique:
-                logger.debug("No critique found in thought, generating new critique")
+                logger.debug(
+                    "SelfRAGCritic: No critique found in thought, generating new critique for improvement"
+                )
                 critique_result = await self._perform_critique_async(thought)
                 critique = critique_result["message"]
+                logger.debug(
+                    "SelfRAGCritic: Generated new critique for improvement (not adding to thought feedback)"
+                )
+                # NOTE: This critique is only used for improvement, not added to thought.critic_feedback
+                # to prevent duplicate entries in the visualization
 
             # Prepare context for improvement (using mixin + retrieval)
             context = self._prepare_context(thought)

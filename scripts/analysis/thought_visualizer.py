@@ -5,10 +5,10 @@ HTML Thought Visualizer
 Creates an interactive HTML visualization of Sifaka thought data.
 """
 
-import json
 import argparse
+import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 try:
     from .critic_formatters import CriticFormatterFactory
@@ -422,14 +422,20 @@ class HTMLThoughtVisualizer:
                 status_text = "Needs Improvement" if needs_improvement else "Approved"
                 status_icon = "❌" if needs_improvement else "✅"
 
-                initial_score = metadata.get("initial_score", "N/A")
+                # Get score based on critic type
+                if critic_name == "NCriticsCritic":
+                    score = metadata.get("aggregated_score", "N/A")
+                    if score != "N/A":
+                        score = f"{score:.1f}/10"
+                else:
+                    score = metadata.get("initial_score", "N/A")
 
                 html_content += f"""
                     <div class="critic">
                         <div class="critic-header" onclick="toggleCritic('critic-{iteration}-{i}')">
                             <div class="critic-name">{self._escape_html(critic_name)}</div>
                             <div class="critic-status">
-                                <span class="score">Score: {initial_score}</span>
+                                <span class="score">Score: {score}</span>
                                 <span class="status-badge {status_class}">{status_icon} {status_text}</span>
                                 <span class="expand-btn">▼</span>
                             </div>

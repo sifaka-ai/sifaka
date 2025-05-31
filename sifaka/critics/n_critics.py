@@ -132,6 +132,8 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
         Returns:
             A dictionary with critique results (without processing_time_ms).
         """
+        logger.debug(f"NCriticsCritic: Starting critique for iteration {thought.iteration}")
+
         # Generate critiques from each specialized critic (async)
         critic_results = []
         for role in self.critic_roles:
@@ -227,16 +229,23 @@ class NCriticsCritic(BaseCritic, ValidationAwareMixin):
 
             # Get critique from thought
             aggregated_feedback = ""
+            critic_feedback = []
             if thought.critic_feedback:
                 for feedback in thought.critic_feedback:
                     if feedback.critic_name == "NCriticsCritic":
                         critic_feedback = feedback.metadata.get("critic_feedback", [])
                         aggregated_feedback = self._format_feedback_for_improvement(critic_feedback)
+                        logger.debug(
+                            f"Found existing NCriticsCritic feedback with {len(critic_feedback)} critics"
+                        )
                         break
 
             # If no critique available, generate one using async method
+            # This should rarely happen since improve_async is called after critique_async
             if not aggregated_feedback:
-                logger.debug("No critique found in thought, generating new critique")
+                logger.warning(
+                    "No NCriticsCritic feedback found in thought, generating new critique (this may indicate a workflow issue)"
+                )
                 critique_result = await self._perform_critique_async(thought)
                 critic_feedback = critique_result["metadata"]["critic_feedback"]
                 aggregated_feedback = self._format_feedback_for_improvement(critic_feedback)

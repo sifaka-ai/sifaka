@@ -66,7 +66,7 @@ def setup_privacy_retriever():
     # Create simple file storage for thoughts
     storage = FileStorage(
         "./thoughts/constitutional_critic_thoughts.json",
-        overwrite=False,  # Append to preserve all iterations with critic feedback
+        overwrite=True,  # Append to preserve all iterations with critic feedback
     )
 
     return retriever, storage
@@ -133,7 +133,7 @@ async def main():
         critics=[critic],  # Constitutional critic with in-memory retrieval
         model_retrievers=[privacy_retriever],  # In-memory context for pre-generation
         critic_retrievers=[privacy_retriever],  # Same in-memory context for critic evaluation
-        max_improvement_iterations=3,  # Default retry behavior
+        max_improvement_iterations=2,  # Allow 2 retries
         always_apply_critics=True,
         analytics_storage=storage,  # Use file storage for thoughts
     )

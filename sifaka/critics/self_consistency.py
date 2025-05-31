@@ -59,6 +59,9 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
         model: Optional[Model] = None,
         model_name: Optional[str] = None,
         num_iterations: int = 5,
+        consensus_threshold: float = 0.5,
+        use_semantic_similarity: bool = False,
+        similarity_threshold: float = 0.7,
         use_chain_of_thought: bool = True,
         critique_prompt_template: Optional[str] = None,
         improve_prompt_template: Optional[str] = None,
@@ -70,6 +73,7 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
             model: The language model to use for critique and improvement.
             model_name: The name of the model to use if model is not provided.
             num_iterations: Number of critique iterations to generate (default: 5).
+            consensus_threshold: Minimum agreement ratio for consensus (default: 0.5).
             use_chain_of_thought: Whether to use chain-of-thought prompting.
             critique_prompt_template: Template for the critique prompt.
             improve_prompt_template: Template for the improvement prompt.
@@ -79,6 +83,9 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
 
         # Configuration parameters
         self.num_iterations = max(3, num_iterations)  # Minimum 3 for meaningful consensus
+        self.consensus_threshold = max(
+            0.1, min(1.0, consensus_threshold)
+        )  # Clamp between 0.1 and 1.0
         self.use_chain_of_thought = use_chain_of_thought
 
         # Set up prompt templates
@@ -427,12 +434,12 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
         if not items:
             return []
 
-        # Simple frequency-based majority voting (original Self-Consistency approach)
+        # Frequency-based majority voting with configurable threshold
         item_counts = Counter(items)
         majority_items = []
 
-        # Items that appear in majority of critiques (more than half)
-        min_frequency = max(2, (self.num_iterations + 1) // 2)
+        # Items that appear above the consensus threshold
+        min_frequency = max(1, int(self.num_iterations * self.consensus_threshold))
 
         for item, count in item_counts.items():
             if count >= min_frequency:
@@ -528,7 +535,7 @@ class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
 
         message = f"=== Self-Consistency Evaluation ({num_critiques} iterations) ===\n\n"
         message += f"Confidence Level: {confidence:.1%}\n"
-        message += "Majority Threshold: >50% (original Self-Consistency)\n\n"
+        message += f"Consensus Threshold: {self.consensus_threshold:.1%}\n\n"
 
         if consensus_issues:
             message += "CONSENSUS ISSUES (found in multiple evaluations):\n"

@@ -6,12 +6,12 @@ This script analyzes and visualizes thought data from Sifaka's JSON files,
 providing insights into critic feedback, model performance, and iteration patterns.
 """
 
-import json
 import argparse
-from typing import Dict, List, Any, Optional
+import json
+import textwrap
 from dataclasses import dataclass
 from pathlib import Path
-import textwrap
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -88,7 +88,7 @@ class ThoughtAnalyzer:
                 timestamp=thought_data.get("timestamp", ""),
                 model_name=thought_data.get("model_name", "Unknown"),
                 prompt=thought_data.get("prompt", ""),
-                text_length=len(thought_data.get("text", "")),
+                text_length=len(thought_data.get("text") or ""),
                 has_validation_results=thought_data.get("validation_results") is not None,
                 critic_count=len(critics),
                 critics=critics,
@@ -246,6 +246,12 @@ class ThoughtAnalyzer:
                         self._print_meta_rewarding_details(critic)
                     elif critic.name == "ConstitutionalCritic":
                         self._print_constitutional_details(critic)
+                    elif critic.name == "NCriticsCritic":
+                        self._print_n_critics_details(critic)
+                    elif critic.name == "PromptCritic":
+                        self._print_prompt_critic_details(critic)
+                    elif critic.name == "SelfRAGCritic":
+                        self._print_self_rag_details(critic)
                     else:
                         self._print_generic_critic_details(critic)
 
@@ -351,20 +357,27 @@ class ThoughtAnalyzer:
         """Print detailed analysis of MetaRewardingCritic feedback"""
         print("   🎯 Meta-Rewarding Analysis:")
 
+        # Show initial score prominently
+        initial_score = critic.metadata.get("initial_score", "N/A")
+        print(f"      📊 Initial Score: {initial_score}/10")
+
+        # Show judgment criteria
+        judgment_criteria = critic.metadata.get("judgment_criteria", [])
+        if judgment_criteria:
+            print("      📋 Judgment Criteria:")
+            for criterion in judgment_criteria[:5]:  # Show first 5
+                print(f"         • {criterion}")
+
         # Extract initial judgment and meta-judgment from feedback
-        feedback = critic.metadata.get("initial_judgment", "")
+        initial_judgment = critic.metadata.get("initial_judgment", "")
         meta_judgment = critic.metadata.get("meta_judgment", "")
 
-        if feedback:
-            # Extract score from initial judgment
-            if "Score:" in feedback:
-                score_line = [line for line in feedback.split("\n") if "Score:" in line]
-                if score_line:
-                    print(f"      Initial Score: {score_line[0].split('Score:')[-1].strip()}")
-
-            # Extract key strengths and weaknesses
-            if "**Strengths:**" in feedback:
-                strengths_section = feedback.split("**Strengths:**")[1].split("**Weaknesses:**")[0]
+        if initial_judgment:
+            # Extract key strengths and weaknesses from structured initial judgment
+            if "**Strengths:**" in initial_judgment:
+                strengths_section = initial_judgment.split("**Strengths:**")[1].split(
+                    "**Weaknesses:**"
+                )[0]
                 strength_points = [
                     line.strip()
                     for line in strengths_section.split("\n")
@@ -376,8 +389,8 @@ class ThoughtAnalyzer:
                         title = point.split("**")[1] if "**" in point else point
                         print(f"         • {title}")
 
-            if "**Weaknesses:**" in feedback:
-                weaknesses_section = feedback.split("**Weaknesses:**")[1].split(
+            if "**Weaknesses:**" in initial_judgment:
+                weaknesses_section = initial_judgment.split("**Weaknesses:**")[1].split(
                     "**Overall Assessment**"
                 )[0]
                 weakness_points = [
@@ -392,19 +405,88 @@ class ThoughtAnalyzer:
                         print(f"         • {title}")
 
         if meta_judgment:
-            # Extract meta-judgment score
+            # Extract meta-judgment score with multiple patterns
+            meta_score = None
             if "judgment quality is rated as" in meta_judgment:
                 meta_score = (
                     meta_judgment.split("judgment quality is rated as")[-1].split(".")[0].strip()
                 )
-                print(f"      Meta-Judgment Score: {meta_score}")
             elif "Thus, the judgment quality is rated as" in meta_judgment:
                 meta_score = (
                     meta_judgment.split("Thus, the judgment quality is rated as")[-1]
                     .split(".")[0]
                     .strip()
                 )
-                print(f"      Meta-Judgment Score: {meta_score}")
+            elif "Meta-judgment:" in meta_judgment and "/10" in meta_judgment:
+                # Look for patterns like "8/10" in meta-judgment
+                import re
+
+                score_match = re.search(r"(\d+(?:\.\d+)?)/10", meta_judgment)
+                if score_match:
+                    meta_score = score_match.group(1) + "/10"
+
+            if meta_score:
+                print(f"      🔄 Meta-Judgment Score: {meta_score}")
+
+        # Show technical details
+        base_critic_used = critic.metadata.get("base_critic_used", "N/A")
+        meta_judge_model = critic.metadata.get("meta_judge_model", "N/A")
+        print(f"      🔧 Base Critic Used: {base_critic_used}")
+        print(f"      🤖 Meta Judge Model: {meta_judge_model}")
+
+    def _print_n_critics_details(self, critic: CriticAnalysis):
+        """Print detailed analysis of NCriticsCritic feedback"""
+        print("   👥 N Critics Ensemble Analysis:")
+
+        # Show ensemble score prominently
+        aggregated_score = critic.metadata.get("aggregated_score", "N/A")
+        improvement_threshold = critic.metadata.get("improvement_threshold", "N/A")
+        num_critics = critic.metadata.get("num_critics", "N/A")
+
+        print(f"      📊 Ensemble Score: {aggregated_score:.1f}/10")
+        print(f"      🎯 Improvement Threshold: {improvement_threshold}")
+        print(f"      👥 Number of Critics: {num_critics}")
+
+        # Show individual critic feedback
+        critic_feedback = critic.metadata.get("critic_feedback", [])
+        if critic_feedback:
+            print(f"      📋 Individual Critics ({len(critic_feedback)}):")
+            for i, individual_critic in enumerate(critic_feedback):
+                role = individual_critic.get("role", "Unknown Critic")
+                score = individual_critic.get("score", "N/A")
+                needs_improvement = individual_critic.get("needs_improvement", False)
+                issues = individual_critic.get("issues", [])
+                suggestions = individual_critic.get("suggestions", [])
+
+                status_icon = "❌" if needs_improvement else "✅"
+                print(f"         {i+1}. {status_icon} {role}")
+                print(f"            Score: {score}/10")
+
+                if issues:
+                    print(f"            Issues ({len(issues)}):")
+                    for issue in issues[:2]:  # Show first 2 issues
+                        wrapped = textwrap.fill(
+                            issue,
+                            width=60,
+                            initial_indent="              • ",
+                            subsequent_indent="                ",
+                        )
+                        print(wrapped)
+                    if len(issues) > 2:
+                        print(f"              ... and {len(issues) - 2} more")
+
+                if suggestions:
+                    print(f"            Suggestions ({len(suggestions)}):")
+                    for suggestion in suggestions[:2]:  # Show first 2 suggestions
+                        wrapped = textwrap.fill(
+                            suggestion,
+                            width=60,
+                            initial_indent="              • ",
+                            subsequent_indent="                ",
+                        )
+                        print(wrapped)
+                    if len(suggestions) > 2:
+                        print(f"              ... and {len(suggestions) - 2} more")
 
     def _print_constitutional_details(self, critic: CriticAnalysis):
         """Print detailed analysis of ConstitutionalCritic feedback"""
@@ -456,6 +538,115 @@ class ThoughtAnalyzer:
 
         if critic.suggestions:
             print("      💡 Constitutional Suggestions:")
+            for suggestion in critic.suggestions[:3]:
+                wrapped = textwrap.fill(
+                    suggestion,
+                    width=70,
+                    initial_indent="         • ",
+                    subsequent_indent="           ",
+                )
+                print(wrapped)
+
+    def _print_prompt_critic_details(self, critic: CriticAnalysis):
+        """Print detailed analysis of PromptCritic feedback"""
+        print("   📝 Prompt Critic Analysis:")
+
+        # Show evaluation criteria
+        criteria = critic.metadata.get("criteria", [])
+        if criteria:
+            print(f"      🎯 Evaluation Criteria ({len(criteria)}):")
+            for criterion in criteria:
+                wrapped = textwrap.fill(
+                    criterion,
+                    width=70,
+                    initial_indent="         • ",
+                    subsequent_indent="           ",
+                )
+                print(wrapped)
+
+        # Show issues and suggestions
+        if critic.violations:
+            print("      ⚠️ Issues Identified:")
+            for violation in critic.violations[:3]:
+                wrapped = textwrap.fill(
+                    violation,
+                    width=70,
+                    initial_indent="         • ",
+                    subsequent_indent="           ",
+                )
+                print(wrapped)
+
+        if critic.suggestions:
+            print("      💡 Improvement Suggestions:")
+            for suggestion in critic.suggestions[:3]:
+                wrapped = textwrap.fill(
+                    suggestion,
+                    width=70,
+                    initial_indent="         • ",
+                    subsequent_indent="           ",
+                )
+                print(wrapped)
+
+        # Show system prompt (truncated)
+        system_prompt = critic.metadata.get("system_prompt", "")
+        if system_prompt:
+            print("      🤖 System Prompt:")
+            truncated_prompt = (
+                system_prompt[:150] + "..." if len(system_prompt) > 150 else system_prompt
+            )
+            wrapped = textwrap.fill(
+                truncated_prompt,
+                width=70,
+                initial_indent="         ",
+                subsequent_indent="         ",
+            )
+            print(wrapped)
+
+    def _print_self_rag_details(self, critic: CriticAnalysis):
+        """Print detailed analysis of SelfRAGCritic feedback"""
+        print("   🔍 Self-RAG Critic Analysis:")
+
+        # Show Self-RAG reflection tokens
+        rag_assessments = critic.metadata.get("rag_assessments", {})
+        if rag_assessments:
+            print("      🎯 Self-RAG Reflection Tokens:")
+            for token_type, token_value in rag_assessments.items():
+                print(f"         • {token_type.title()}: {token_value}")
+
+        # Show utility score with color coding
+        utility_score = critic.metadata.get("utility_score")
+        if utility_score is not None:
+            score_emoji = "🟢" if utility_score >= 4 else "🟡" if utility_score >= 3 else "🔴"
+            print(f"      ⭐ Utility Score: {score_emoji} {utility_score}/5")
+
+        # Show retrieval information
+        retrieval_needed = critic.metadata.get("retrieval_needed")
+        retrieved_docs_count = critic.metadata.get("retrieved_docs_count", 0)
+        retriever_used = critic.metadata.get("retriever_used")
+        context_length = critic.metadata.get("context_length", 0)
+
+        if retrieval_needed is not None:
+            print("      📚 Retrieval Information:")
+            print(f"         • Retrieval Needed: {'✅ Yes' if retrieval_needed else '❌ No'}")
+            print(f"         • Documents Retrieved: {retrieved_docs_count}")
+            print(f"         • Context Length: {context_length} characters")
+            if retriever_used:
+                print(f"         • Retriever Used: {retriever_used}")
+
+        # Show issues and suggestions
+        if critic.violations:
+            print("      ⚠️ Issues Identified:")
+            for violation in critic.violations[:3]:
+                wrapped = textwrap.fill(
+                    violation,
+                    width=70,
+                    initial_indent="         • ",
+                    subsequent_indent="           ",
+                )
+                print(wrapped)
+
+        if critic.suggestions:
+            print("      💡 Improvement Suggestions:")
             for suggestion in critic.suggestions[:3]:
                 wrapped = textwrap.fill(
                     suggestion,

@@ -203,6 +203,8 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
                 logger.debug("No critique found in thought, generating new critique")
                 critique_result = await self._perform_critique_async(thought)
                 critique = critique_result["message"]
+            else:
+                logger.debug("Using existing critique from thought for improvement")
 
             # Prepare context for improvement (using mixin)
             context = self._prepare_context(thought)
@@ -279,10 +281,20 @@ class PromptCritic(BaseCritic, ValidationAwareMixin):
             elif not line or line.startswith("#"):
                 continue
 
-            if in_issues and line.startswith("-"):
-                issues.append(line[1:].strip())
-            elif in_suggestions and line.startswith("-"):
-                suggestions.append(line[1:].strip())
+            if in_issues and (line.startswith("-") or line.startswith("*")):
+                # Remove the bullet point and any markdown formatting
+                clean_line = line[1:].strip()
+                if clean_line.startswith("**") and ":**" in clean_line:
+                    # Extract content after the bold title (e.g., "**Title:** content")
+                    clean_line = clean_line.split(":**", 1)[1].strip()
+                issues.append(clean_line)
+            elif in_suggestions and (line.startswith("-") or line.startswith("*")):
+                # Remove the bullet point and any markdown formatting
+                clean_line = line[1:].strip()
+                if clean_line.startswith("**") and ":**" in clean_line:
+                    # Extract content after the bold title (e.g., "**Title:** content")
+                    clean_line = clean_line.split(":**", 1)[1].strip()
+                suggestions.append(clean_line)
 
         # If no structured format found, extract from general content
         if not issues and not suggestions:

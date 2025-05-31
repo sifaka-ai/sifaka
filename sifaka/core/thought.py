@@ -167,8 +167,8 @@ class Thought(BaseModel):
                 "timestamp": datetime.now(),
                 "parent_id": self.id,
                 "history": new_history,
-                # Preserve critic feedback from current iteration for next iteration's context
-                "critic_feedback": self.critic_feedback,
+                # Reset critic feedback for new iteration (each iteration gets only its own feedback)
+                "critic_feedback": None,
                 # Reset text and model_prompt for new iteration
                 "text": None,
                 "model_prompt": None,

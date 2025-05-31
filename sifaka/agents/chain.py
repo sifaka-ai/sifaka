@@ -201,6 +201,9 @@ class PydanticAIChain:
 
                 # Prepare for next iteration
                 if iteration < self.config.max_improvement_iterations:
+                    # Store parent critic feedback before creating next iteration
+                    parent_critic_feedback = thought.critic_feedback
+
                     # Try to use critic's improvement method BEFORE calling next_iteration()
                     # (since next_iteration() clears the text field)
                     improved_text = None
@@ -232,14 +235,18 @@ class PydanticAIChain:
                         thought._critic_improved = True
                         # Build the proper improvement prompt that would have been used
                         # This shows what the model would have received for debugging/logging
-                        improvement_prompt = self.prompt_builder.build_improvement_prompt(
-                            thought, prompt
+                        improvement_prompt = (
+                            self.prompt_builder.build_improvement_prompt_with_parent_feedback(
+                                thought, prompt, parent_critic_feedback
+                            )
                         )
                         thought = thought.set_model_prompt(improvement_prompt)
                     else:
-                        # Fallback to prompt builder
-                        improvement_prompt = self.prompt_builder.build_improvement_prompt(
-                            thought, prompt
+                        # Fallback to prompt builder with parent feedback
+                        improvement_prompt = (
+                            self.prompt_builder.build_improvement_prompt_with_parent_feedback(
+                                thought, prompt, parent_critic_feedback
+                            )
                         )
                         thought = thought.set_model_prompt(improvement_prompt)
 

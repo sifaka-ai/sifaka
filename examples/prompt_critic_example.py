@@ -53,15 +53,15 @@ async def main():
             "Cultural appropriateness",
         ],
         system_prompt=(
-            "You are a translation expert. When text fails validation because it's in the wrong language, "
-            "you MUST translate it to English. This is your PRIMARY responsibility."
+            "You are a translation expert. When text fails validation because it's in the wrong language"
+            "you MUST translate it to the correct language. This is your PRIMARY responsibility."
         ),
         critique_prompt_template=(
             "Evaluate this text for translation quality:\n\n"
             "Original task: {prompt}\n\n"
             "Text to evaluate:\n{text}\n\n"
             "Context: {context}\n\n"
-            "CRITICAL: If this text is not in English but should be, this is a MAJOR issue.\n\n"
+            "CRITICAL: If this text is not in the correct language but should be, this is a MAJOR issue.\n\n"
             "Provide your assessment:\n"
             "Issues:\n- [List any language or translation issues]\n\n"
             "Suggestions:\n- [List specific improvements needed]\n\n"
@@ -74,10 +74,9 @@ async def main():
             "Context: {context}\n\n"
             "Issues identified:\n{critique}\n\n"
             "INSTRUCTIONS:\n"
-            "1. If the text is in Spanish (or any non-English language), translate it completely to English\n"
-            "2. Preserve all content, meaning, and structure\n"
-            "3. Make the English natural and fluent\n"
-            "4. Do not add commentary - just provide the corrected/translated text\n\n"
+            "1. Preserve all content, meaning, and structure\n"
+            "2. Make the writing natural and fluent\n"
+            "3. Do not add commentary - just provide the corrected/translated text\n\n"
             "Corrected text:"
         ),
     )
@@ -121,7 +120,7 @@ async def main():
         validators=[language_validator],  # Language validator to ensure English output
         critics=[critic],  # Translation prompt critic
         max_improvement_iterations=2,  # Exactly 2 retries as specified
-        always_apply_critics=False,  # Only apply critics when validation fails
+        always_apply_critics=True,  # Only apply critics when validation fails
         analytics_storage=FileStorage(
             "./thoughts/prompt_critic_example_thoughts.json",
             overwrite=True,  # Overwrite existing file instead of appending

@@ -1,0 +1,125 @@
+================================================================================
+THOUGHT DATA OVERVIEW
+================================================================================
+📁 File: thoughts/self_consistency_example_thoughts.json
+🧠 Total Thoughts: 3
+🔗 Chains: 1
+🔄 Iterations: 0 - 2
+🤖 Models Used: pydantic-ai:gpt-4o-mini
+⏰ Time Range: 2025-05-31 13:32:57.356470 to 2025-05-31 13:35:00.574613
+🔍 Critics Used: SelfConsistencyCritic
+📊 Total Critic Evaluations: 3
+
+🔗 Chain 1 (59cad7cd...): 3 thoughts, iterations 0-2
+   ⏰ 2025-05-31 13:32:57.356470 to 2025-05-31 13:35:00.574613
+
+================================================================================
+VISUAL TIMELINE
+================================================================================
+┌─ START
+│  🤖 Model: pydantic-ai:gpt-4o-mini
+│  📝 Response: 2,465 chars
+│  ❌ SelfConsistencyCritic (conf: 0.5)
+│
+│
+├─ ITERATION 1
+│  🤖 Model: pydantic-ai:gpt-4o-mini
+│  📝 Response: 2,664 chars
+│  ❌ SelfConsistencyCritic (conf: 0.5)
+│
+│
+├─ ITERATION 2
+│  🤖 Model: pydantic-ai:gpt-4o-mini
+│  📝 Response: 2,788 chars
+│  ❌ SelfConsistencyCritic (conf: 0.5)
+│
+└─ END
+
+================================================================================
+ITERATION SUMMARY
+================================================================================
+
+🔗 Chain 1 (59cad7cd...):
+----------------------------------------
+
+🔄 Iteration 0
+   ID: 662be1d0...
+   Model: pydantic-ai:gpt-4o-mini
+   Response Length: 2,465 characters
+   Critics: 1
+     • SelfConsistencyCritic: ❌ Needs Improvement (confidence: 0.5)
+
+🔄 Iteration 1
+   ID: 1c85e11a...
+   Model: pydantic-ai:gpt-4o-mini
+   Response Length: 2,664 characters
+   Critics: 1
+     • SelfConsistencyCritic: ❌ Needs Improvement (confidence: 0.5)
+
+🔄 Iteration 2
+   ID: 8d870356...
+   Model: pydantic-ai:gpt-4o-mini
+   Response Length: 2,788 characters
+   Critics: 1
+     • SelfConsistencyCritic: ❌ Needs Improvement (confidence: 0.5)
+
+================================================================================
+CRITIC ANALYSIS
+================================================================================
+
+🔗 Chain 1 (59cad7cd...):
+========================================
+
+🔄 Iteration 0 - Critic Feedback
+------------------------------------------------------------
+
+🔍 SelfConsistencyCritic
+   Needs Improvement: Yes
+   Confidence: 0.5
+   📊 Consensus Analysis:
+      Total Critiques: 3
+      Consensus Items: 0
+      Agreement Ratio: 100.0%
+
+🔄 Iteration 1 - Critic Feedback
+------------------------------------------------------------
+
+🔍 SelfConsistencyCritic
+   Needs Improvement: Yes
+   Confidence: 0.5
+   📊 Consensus Analysis:
+      Total Critiques: 3
+      Consensus Items: 0
+      Agreement Ratio: 100.0%
+
+🔄 Iteration 2 - Critic Feedback
+------------------------------------------------------------
+
+🔍 SelfConsistencyCritic
+   Needs Improvement: Yes
+   Confidence: 0.5
+   📊 Consensus Analysis:
+      Total Critiques: 3
+      Consensus Items: 0
+      Agreement Ratio: 100.0%
+
+================================================================================
+PROMPT EVOLUTION
+================================================================================
+
+🔄 Iteration 0
+------------------------------------------------------------
+📝 Original: Explain the concept of machine learning and provide a
+          simple example that anyone can understand.
+🤖 Model:    Explain the concept of machine learning and provide a
+          simple example that anyone can understand.
+
+🔄 Iteration 1
+------------------------------------------------------------
+📝 Original: Explain the concept of machine learning and provide a
+          simple example that anyone can understand.
+
+🔄 Iteration 2
+------------------------------------------------------------
+📝 Original: Explain the concept of machine learning and provide a
+          simple example that anyone can understand.
