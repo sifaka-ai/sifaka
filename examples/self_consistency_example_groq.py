@@ -55,9 +55,9 @@ async def main():
         )
         print("✅ Agent created successfully")
 
-        # Create Sifaka model for the critic (critics still need Sifaka models)
-        print("📡 Creating Sifaka model for critic...")
-        critic_model = create_model("groq:llama-3.3-70b-versatile")
+        # Create Sifaka model for the critic (using OpenAI since Groq not yet supported in Sifaka)
+        print("📡 Creating Sifaka model for critic (using OpenAI since Groq not yet supported)...")
+        critic_model = create_model("openai:gpt-4o-mini")
         print("✅ Critic model created successfully")
 
         # Create SelfConsistencyCritic with simple configuration
