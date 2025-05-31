@@ -179,12 +179,17 @@ class ReflexionCritic(BaseCritic, ValidationAwareMixin):
 
         logger.debug("ReflexionCritic: Async critique and reflection completed")
 
+        # Calculate dynamic confidence based on Reflexion-specific factors
+        confidence = self._calculate_reflexion_confidence(
+            thought, critique_result, reflection_result, task_feedback
+        )
+
         return {
             "needs_improvement": critique_result["needs_improvement"],
             "message": critique_result["critique"],
             "issues": critique_result["issues"],
             "suggestions": critique_result["suggestions"],
-            "confidence": 0.8,  # Default confidence for Reflexion
+            "confidence": confidence,
             "metadata": {
                 "reflection": reflection_result["reflection"],
                 "improvement_strategy": reflection_result["improvement_strategy"],
@@ -681,6 +686,278 @@ class ReflexionCritic(BaseCritic, ValidationAwareMixin):
                 patterns.extend([f"Recurring issue: {issue}" for issue in recurring[:3]])
 
         return "; ".join(patterns) if patterns else "No clear failure patterns identified yet."
+
+    def _calculate_reflexion_confidence(
+        self,
+        thought: Thought,
+        critique_result: Dict[str, Any],
+        reflection_result: Dict[str, Any],
+        task_feedback: Optional[Dict[str, Any]] = None,
+    ) -> float:
+        """Calculate confidence score based on Reflexion-specific factors.
+
+        Args:
+            thought: The Thought being analyzed.
+            critique_result: Results from the critique generation.
+            reflection_result: Results from the reflection generation.
+            task_feedback: Optional external task feedback.
+
+        Returns:
+            Confidence score between 0.1 and 1.0.
+        """
+        # Start with base confidence
+        confidence = 0.5
+
+        # Factor 1: Critique quality (based on specificity and detail)
+        critique_text = critique_result.get("critique", "")
+        critique_quality = self._assess_critique_quality(critique_text)
+        confidence += critique_quality * 0.2
+
+        # Factor 2: Reflection depth and actionability
+        reflection_text = reflection_result.get("reflection", "")
+        reflection_quality = self._assess_reflection_quality(reflection_text)
+        confidence += reflection_quality * 0.2
+
+        # Factor 3: Memory coherence (consistency with past experiences)
+        memory_coherence = self._assess_memory_coherence(thought, reflection_text)
+        confidence += memory_coherence * 0.15
+
+        # Factor 4: Trial progression (confidence increases with experience)
+        trial_progression = self._assess_trial_progression(thought)
+        confidence += trial_progression * 0.1
+
+        # Factor 5: External validation (if task feedback is available)
+        if task_feedback:
+            external_validation = self._assess_external_validation(task_feedback)
+            confidence += external_validation * 0.15
+
+        # Factor 6: Consistency with previous critiques (if available)
+        critique_consistency = self._assess_critique_consistency(thought, critique_result)
+        confidence += critique_consistency * 0.1
+
+        # Ensure confidence is within valid range
+        return max(0.1, min(1.0, confidence))
+
+    def _assess_critique_quality(self, critique_text: str) -> float:
+        """Assess the quality of the critique based on specificity and structure.
+
+        Args:
+            critique_text: The critique text to assess.
+
+        Returns:
+            Quality score between 0.0 and 1.0.
+        """
+        if not critique_text:
+            return 0.0
+
+        quality_score = 0.0
+
+        # Check for structured feedback (numbered points, sections)
+        if any(marker in critique_text for marker in ["1.", "2.", "**", "###", "- "]):
+            quality_score += 0.3
+
+        # Check for specific examples and suggestions
+        if any(word in critique_text.lower() for word in ["example", "specific", "instead"]):
+            quality_score += 0.2
+
+        # Check for actionable language
+        if any(
+            word in critique_text.lower() for word in ["should", "could", "consider", "improve"]
+        ):
+            quality_score += 0.2
+
+        # Check for detailed analysis (longer critiques tend to be more thorough)
+        if len(critique_text) > 500:
+            quality_score += 0.2
+        elif len(critique_text) > 200:
+            quality_score += 0.1
+
+        # Check for balanced assessment (both strengths and weaknesses)
+        has_strengths = any(
+            word in critique_text.lower() for word in ["good", "strong", "excellent", "effective"]
+        )
+        has_weaknesses = any(
+            word in critique_text.lower() for word in ["weak", "improve", "issue", "problem"]
+        )
+        if has_strengths and has_weaknesses:
+            quality_score += 0.1
+
+        return min(1.0, quality_score)
+
+    def _assess_reflection_quality(self, reflection_text: str) -> float:
+        """Assess the quality of the self-reflection.
+
+        Args:
+            reflection_text: The reflection text to assess.
+
+        Returns:
+            Quality score between 0.0 and 1.0.
+        """
+        if not reflection_text:
+            return 0.0
+
+        quality_score = 0.0
+
+        # Check for self-awareness indicators
+        if any(
+            phrase in reflection_text.lower()
+            for phrase in ["my critique", "i missed", "i should", "my analysis"]
+        ):
+            quality_score += 0.3
+
+        # Check for specific improvement strategies
+        if any(
+            word in reflection_text.lower()
+            for word in ["strategy", "approach", "method", "technique"]
+        ):
+            quality_score += 0.2
+
+        # Check for learning from past experiences
+        if any(
+            phrase in reflection_text.lower()
+            for phrase in ["previous", "past", "learned", "experience"]
+        ):
+            quality_score += 0.2
+
+        # Check for actionable insights
+        if any(
+            word in reflection_text.lower()
+            for word in ["next time", "future", "going forward", "will"]
+        ):
+            quality_score += 0.2
+
+        # Check for depth (longer reflections tend to be more thoughtful)
+        if len(reflection_text) > 300:
+            quality_score += 0.1
+
+        return min(1.0, quality_score)
+
+    def _assess_memory_coherence(self, thought: Thought, reflection_text: str) -> float:
+        """Assess how well the current reflection aligns with past experiences.
+
+        Args:
+            thought: The current thought.
+            reflection_text: The current reflection text.
+
+        Returns:
+            Coherence score between 0.0 and 1.0.
+        """
+        # If no memory, return neutral score
+        if len(self.memory_buffer) == 0:
+            return 0.5
+
+        coherence_score = 0.5  # Start neutral
+
+        # Check if reflection references past experiences
+        if any(
+            word in reflection_text.lower() for word in ["previous", "past", "before", "earlier"]
+        ):
+            coherence_score += 0.3
+
+        # Check for consistency with memory patterns
+        success_patterns = self._extract_success_patterns(thought)
+        failure_patterns = self._extract_failure_patterns(thought)
+
+        # If reflection acknowledges known patterns, increase confidence
+        if success_patterns != "No clear success patterns identified yet.":
+            for pattern in success_patterns.split(";"):
+                if any(word in reflection_text.lower() for word in pattern.lower().split()[:3]):
+                    coherence_score += 0.1
+                    break
+
+        if failure_patterns != "No clear failure patterns identified yet.":
+            for pattern in failure_patterns.split(";"):
+                if any(word in reflection_text.lower() for word in pattern.lower().split()[:3]):
+                    coherence_score += 0.1
+                    break
+
+        return min(1.0, coherence_score)
+
+    def _assess_trial_progression(self, thought: Thought) -> float:
+        """Assess confidence based on trial number and learning progression.
+
+        Args:
+            thought: The current thought.
+
+        Returns:
+            Progression score between 0.0 and 1.0.
+        """
+        trial_number = thought.iteration
+        memory_size = len(self.memory_buffer)
+
+        # Confidence increases with experience, but with diminishing returns
+        experience_factor = min(0.8, (trial_number + memory_size) * 0.1)
+
+        # Bonus for having substantial memory
+        if memory_size >= 3:
+            experience_factor += 0.1
+
+        return min(1.0, experience_factor)
+
+    def _assess_external_validation(self, task_feedback: Dict[str, Any]) -> float:
+        """Assess confidence based on external task feedback.
+
+        Args:
+            task_feedback: External feedback about task performance.
+
+        Returns:
+            Validation score between 0.0 and 1.0.
+        """
+        if not task_feedback:
+            return 0.0
+
+        validation_score = 0.5  # Start neutral
+
+        # Check for positive feedback indicators
+        feedback_text = str(task_feedback).lower()
+        if any(word in feedback_text for word in ["good", "correct", "success", "improved"]):
+            validation_score += 0.3
+
+        # Check for negative feedback indicators
+        if any(word in feedback_text for word in ["poor", "incorrect", "failed", "worse"]):
+            validation_score -= 0.3
+
+        return max(0.0, min(1.0, validation_score))
+
+    def _assess_critique_consistency(
+        self, thought: Thought, critique_result: Dict[str, Any]
+    ) -> float:
+        """Assess consistency with previous critiques.
+
+        Args:
+            thought: The current thought.
+            critique_result: Current critique results.
+
+        Returns:
+            Consistency score between 0.0 and 1.0.
+        """
+        if not thought.critic_feedback:
+            return 0.5  # Neutral if no previous critiques
+
+        # Look for previous ReflexionCritic feedback
+        previous_critiques = [
+            feedback
+            for feedback in thought.critic_feedback
+            if feedback.critic_name == "ReflexionCritic"
+        ]
+
+        if not previous_critiques:
+            return 0.5
+
+        consistency_score = 0.5
+        current_issues = set(critique_result.get("issues", []))
+
+        # Check for consistency in identified issues
+        for prev_critique in previous_critiques[-2:]:  # Check last 2 critiques
+            prev_issues = set(prev_critique.violations)
+            if current_issues and prev_issues:
+                overlap = len(current_issues.intersection(prev_issues))
+                total_unique = len(current_issues.union(prev_issues))
+                if total_unique > 0:
+                    consistency_ratio = overlap / total_unique
+                    consistency_score += consistency_ratio * 0.2
+
+        return min(1.0, consistency_score)
 
     def _store_trial_outcome(self, thought: Thought, reflection_result: Dict[str, Any]) -> None:
         """Store trial outcome in thought metadata for future learning.

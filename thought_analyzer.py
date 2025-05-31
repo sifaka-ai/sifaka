@@ -185,15 +185,113 @@ class ThoughtAnalyzer:
                         )
                         print(wrapped)
 
-                # Show metadata insights
-                if critic.metadata:
-                    self._print_metadata_insights(critic.metadata)
-
-                # Special handling for MetaRewardingCritic
-                if critic.name == "MetaRewardingCritic":
+                # Use modular critic analysis based on type
+                if critic.name == "SelfConsistencyCritic":
+                    self._print_self_consistency_details(critic)
+                elif critic.name == "ReflexionCritic":
+                    self._print_reflexion_details(critic)
+                elif critic.name == "MetaRewardingCritic":
                     self._print_meta_rewarding_details(critic)
+                else:
+                    self._print_generic_critic_details(critic)
 
         print()
+
+    def _print_self_consistency_details(self, critic: CriticAnalysis):
+        """Print detailed analysis of SelfConsistencyCritic feedback"""
+        if critic.violations:
+            print("   ⚠️  Violations:")
+            for violation in critic.violations:
+                wrapped = textwrap.fill(
+                    violation,
+                    width=70,
+                    initial_indent="      • ",
+                    subsequent_indent="        ",
+                )
+                print(wrapped)
+
+        if critic.suggestions:
+            print("   💡 Suggestions:")
+            for suggestion in critic.suggestions:
+                wrapped = textwrap.fill(
+                    suggestion,
+                    width=70,
+                    initial_indent="      • ",
+                    subsequent_indent="        ",
+                )
+                print(wrapped)
+
+        # Show consensus statistics
+        if critic.metadata.get("consensus_stats"):
+            stats = critic.metadata["consensus_stats"]["stats"]
+            print("   📊 Consensus Analysis:")
+            print(f"      Total Critiques: {stats.get('total_critiques', 'N/A')}")
+            print(f"      Consensus Items: {stats.get('consensus_items', 'N/A')}")
+            print(f"      Agreement Ratio: {stats.get('agreement_ratio', 0):.1%}")
+
+    def _print_reflexion_details(self, critic: CriticAnalysis):
+        """Print detailed analysis of ReflexionCritic feedback"""
+        metadata = critic.metadata
+
+        print("   🔄 Reflexion Analysis:")
+        print(f"      Trial Number: {metadata.get('trial_number', 'N/A')}")
+        print(f"      Memory Size: {metadata.get('memory_size', 'N/A')}")
+
+        # Show reflection if available
+        reflection = metadata.get("reflection", "")
+        if reflection:
+            print("   🧠 Self-Reflection:")
+            # Show first few lines of reflection
+            reflection_lines = reflection.split("\n")[:3]
+            for line in reflection_lines:
+                if line.strip():
+                    wrapped = textwrap.fill(
+                        line.strip(),
+                        width=70,
+                        initial_indent="      ",
+                        subsequent_indent="      ",
+                    )
+                    print(wrapped)
+            if len(reflection.split("\n")) > 3:
+                print("      ...")
+
+        # Show memory sessions
+        reflexion_memory = metadata.get("reflexion_memory", {})
+        sessions = reflexion_memory.get("sessions", [])
+        if sessions:
+            print("   📚 Memory Sessions:")
+            for session in sessions[-2:]:  # Show last 2 sessions
+                trial_num = session.get("trial_number", "Unknown")
+                summary = session.get("summary", "No summary")
+                print(f"      Trial {trial_num}: {summary}")
+
+    def _print_generic_critic_details(self, critic: CriticAnalysis):
+        """Print generic critic details for unknown critic types"""
+        if critic.violations:
+            print("   ⚠️  Violations:")
+            for violation in critic.violations:
+                wrapped = textwrap.fill(
+                    violation,
+                    width=70,
+                    initial_indent="      • ",
+                    subsequent_indent="        ",
+                )
+                print(wrapped)
+
+        if critic.suggestions:
+            print("   💡 Suggestions:")
+            for suggestion in critic.suggestions:
+                wrapped = textwrap.fill(
+                    suggestion,
+                    width=70,
+                    initial_indent="      • ",
+                    subsequent_indent="        ",
+                )
+                print(wrapped)
+
+        # Show metadata insights
+        if critic.metadata:
+            self._print_metadata_insights(critic.metadata)
 
     def _print_meta_rewarding_details(self, critic: CriticAnalysis):
         """Print detailed analysis of MetaRewardingCritic feedback"""

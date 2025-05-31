@@ -70,6 +70,172 @@ class HTMLThoughtVisualizer:
 
         return html
 
+    def _format_critic_details(self, critic: dict, iteration: int, critic_index: int) -> str:
+        """Format critic details based on critic type"""
+        critic_name = critic.get("critic_name", "Unknown")
+
+        if critic_name == "SelfConsistencyCritic":
+            return self._format_self_consistency_critic(critic, iteration, critic_index)
+        elif critic_name == "ReflexionCritic":
+            return self._format_reflexion_critic(critic, iteration, critic_index)
+        else:
+            return self._format_generic_critic(critic, iteration, critic_index)
+
+    def _format_self_consistency_critic(
+        self, critic: dict, iteration: int, critic_index: int
+    ) -> str:
+        """Format SelfConsistencyCritic details"""
+        confidence = critic.get("confidence", 0.0)
+        violations = critic.get("violations", [])
+        suggestions = critic.get("suggestions", [])
+        feedback = critic.get("feedback", "")
+        metadata = critic.get("metadata", {})
+
+        return f"""
+            <div><strong>Confidence:</strong> {confidence:.1f}</div>
+
+            {f'''
+            <div class="violations">
+                <strong>⚠️ Issues Found:</strong>
+                {"".join(f'<div class="suggestion">{self._escape_html(violation)}</div>' for violation in violations[:10])}
+            </div>
+            ''' if violations else ''}
+
+            {f'''
+            <div class="suggestions">
+                <strong>💡 Suggestions:</strong>
+                {"".join(f'<div class="suggestion">{self._escape_html(suggestion)}</div>' for suggestion in suggestions[:5])}
+            </div>
+            ''' if suggestions else ''}
+
+            {f'''
+            <div class="feedback">
+                <strong>📝 Detailed Feedback:</strong>
+                <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">{self._escape_html(feedback[:1500])}{"..." if len(feedback) > 1500 else ""}</div>
+            </div>
+            ''' if feedback else ''}
+
+            {f'''
+            <div class="metadata">
+                <strong>📋 Metadata:</strong><br>
+                {f"Iterations: {metadata.get('num_iterations', 'N/A')}<br>" if 'num_iterations' in metadata else ''}
+                {f"Consensus Items: {metadata.get('consensus_stats', {}).get('stats', {}).get('consensus_items', 'N/A')}<br>" if metadata.get('consensus_stats') else ''}
+                {f"Agreement Ratio: {metadata.get('consensus_stats', {}).get('stats', {}).get('agreement_ratio', 'N/A'):.1%}<br>" if metadata.get('consensus_stats') else ''}
+            </div>
+            ''' if metadata else ''}
+        """
+
+    def _format_reflexion_critic(self, critic: dict, iteration: int, critic_index: int) -> str:
+        """Format ReflexionCritic details"""
+        confidence = critic.get("confidence", 0.0)
+        feedback = critic.get("feedback", "")
+        metadata = critic.get("metadata", {})
+        reflection = metadata.get("reflection", "")
+        memory_size = metadata.get("memory_size", 0)
+        trial_number = metadata.get("trial_number", 0)
+        reflexion_memory = metadata.get("reflexion_memory", {})
+
+        return f"""
+            <div><strong>Confidence:</strong> {confidence:.1f}</div>
+            <div><strong>Trial Number:</strong> {trial_number}</div>
+            <div><strong>Memory Size:</strong> {memory_size}</div>
+
+            {f'''
+            <div class="feedback">
+                <strong>📝 Critique:</strong>
+                <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">{self._escape_html(feedback[:2000])}{"..." if len(feedback) > 2000 else ""}</div>
+            </div>
+            ''' if feedback else ''}
+
+            {f'''
+            <div class="reflection">
+                <strong>🔄 Self-Reflection:</strong>
+                <div class="feedback-content" style="white-space: pre-wrap; background: #fff3e0; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em; border-left: 4px solid #ff9800;">{self._escape_html(reflection[:2000])}{"..." if len(reflection) > 2000 else ""}</div>
+            </div>
+            ''' if reflection else ''}
+
+            {f'''
+            <div class="reflexion-memory">
+                <strong>🧠 Reflexion Memory:</strong>
+                <div style="margin-top: 10px;">
+                    {self._format_reflexion_sessions(reflexion_memory.get('sessions', []))}
+                </div>
+            </div>
+            ''' if reflexion_memory.get('sessions') else ''}
+        """
+
+    def _format_reflexion_sessions(self, sessions: list) -> str:
+        """Format reflexion memory sessions"""
+        if not sessions:
+            return "<div>No memory sessions</div>"
+
+        html = ""
+        for session in sessions:
+            trial_num = session.get("trial_number", "Unknown")
+            summary = session.get("summary", "No summary")
+            timestamp = session.get("timestamp", "")
+
+            html += f"""
+            <div class="memory-session" style="background: #f0f8ff; padding: 8px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #2196f3;">
+                <strong>Trial {trial_num}:</strong> {self._escape_html(summary)}<br>
+                <small style="color: #666;">Timestamp: {timestamp}</small>
+            </div>
+            """
+
+        return html
+
+    def _format_generic_critic(self, critic: dict, iteration: int, critic_index: int) -> str:
+        """Format generic critic details for unknown critic types"""
+        confidence = critic.get("confidence", 0.0)
+        violations = critic.get("violations", [])
+        suggestions = critic.get("suggestions", [])
+        feedback = critic.get("feedback", "")
+        metadata = critic.get("metadata", {})
+
+        return f"""
+            <div><strong>Confidence:</strong> {confidence:.1f}</div>
+
+            {f'''
+            <div class="violations">
+                <strong>⚠️ Issues Found:</strong>
+                {"".join(f'<div class="suggestion">{self._escape_html(violation)}</div>' for violation in violations[:10])}
+            </div>
+            ''' if violations else ''}
+
+            {f'''
+            <div class="suggestions">
+                <strong>💡 Suggestions:</strong>
+                {"".join(f'<div class="suggestion">{self._escape_html(suggestion)}</div>' for suggestion in suggestions[:5])}
+            </div>
+            ''' if suggestions else ''}
+
+            {f'''
+            <div class="feedback">
+                <strong>📝 Feedback:</strong>
+                <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">{self._escape_html(feedback[:1500])}{"..." if len(feedback) > 1500 else ""}</div>
+            </div>
+            ''' if feedback else ''}
+
+            {f'''
+            <div class="metadata">
+                <strong>📋 Metadata:</strong><br>
+                {self._format_generic_metadata(metadata)}
+            </div>
+            ''' if metadata else ''}
+        """
+
+    def _format_generic_metadata(self, metadata: dict) -> str:
+        """Format generic metadata"""
+        html = ""
+        for key, value in metadata.items():
+            if isinstance(value, (str, int, float, bool)):
+                html += f"{key}: {value}<br>"
+            elif isinstance(value, list) and len(value) <= 5:
+                html += f"{key}: {', '.join(str(v) for v in value)}<br>"
+            elif isinstance(value, dict) and len(value) <= 3:
+                html += f"{key}: {str(value)}<br>"
+        return html
+
     def generate_html(self, output_file: str):
         """Generate interactive HTML visualization"""
 
@@ -348,11 +514,21 @@ class HTMLThoughtVisualizer:
 
                 <div class="expandable-section">
                     <div class="section-header" onclick="toggleSection('prompt-{iteration}')">
-                        <strong>📝 Prompt</strong>
+                        <strong>📝 User Prompt</strong>
                         <span class="expand-btn">▼</span>
                     </div>
                     <div class="section-details" id="prompt-{iteration}">
                         <div class="content-box">{self._escape_html(prompt)}</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('model-prompt-{iteration}')">
+                        <strong>🤖 Model Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="model-prompt-{iteration}">
+                        <div class="content-box">{self._escape_html(thought.get('model_prompt', 'No model prompt available'))}</div>
                     </div>
                 </div>
 
@@ -383,10 +559,6 @@ class HTMLThoughtVisualizer:
             for i, critic in enumerate(critics):
                 critic_name = critic.get("critic_name", "Unknown")
                 needs_improvement = critic.get("needs_improvement", False)
-                confidence = critic.get("confidence", 0.0)
-                suggestions = critic.get("suggestions", [])
-                violations = critic.get("violations", [])
-                feedback = critic.get("feedback", "")
                 metadata = critic.get("metadata", {})
 
                 status_class = "needs-improvement" if needs_improvement else "approved"
@@ -406,40 +578,7 @@ class HTMLThoughtVisualizer:
                             </div>
                         </div>
                         <div class="critic-details" id="critic-{iteration}-{i}">
-                            <div><strong>Confidence:</strong> {confidence:.1f}</div>
-
-                            {f'''
-                            <div class="violations">
-                                <strong>⚠️ Issues Found:</strong>
-                                {"".join(f'<div class="suggestion">{self._escape_html(violation)}</div>' for violation in violations[:10])}
-                            </div>
-                            ''' if violations else ''}
-
-                            {f'''
-                            <div class="suggestions">
-                                <strong>💡 Suggestions:</strong>
-                                {"".join(f'<div class="suggestion">{self._escape_html(suggestion)}</div>' for suggestion in suggestions[:5])}
-                            </div>
-                            ''' if suggestions else ''}
-
-                            {f'''
-                            <div class="feedback">
-                                <strong>📝 Detailed Feedback:</strong>
-                                <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">{self._escape_html(feedback[:1500])}{"..." if len(feedback) > 1500 else ""}</div>
-                            </div>
-                            ''' if feedback else ''}
-
-                            {f'''
-                            <div class="metadata">
-                                <strong>📋 Metadata:</strong><br>
-                                {f"Iterations: {metadata.get('num_iterations', 'N/A')}<br>" if 'num_iterations' in metadata else ''}
-                                {f"Consensus Items: {metadata.get('consensus_stats', {}).get('stats', {}).get('consensus_items', 'N/A')}<br>" if metadata.get('consensus_stats') else ''}
-                                {f"Agreement Ratio: {metadata.get('consensus_stats', {}).get('stats', {}).get('agreement_ratio', 'N/A'):.1%}<br>" if metadata.get('consensus_stats') else ''}
-                                {f"Judgment Criteria: {', '.join(metadata.get('judgment_criteria', []))}<br>" if metadata.get('judgment_criteria') else ''}
-                                {f"Base Critic Used: {metadata.get('base_critic_used', 'N/A')}<br>" if metadata.get('base_critic_used') else ''}
-                                {f"Meta Judge Model: {metadata.get('meta_judge_model', 'N/A')}" if metadata.get('meta_judge_model') else ''}
-                            </div>
-                            ''' if metadata else ''}
+                            {self._format_critic_details(critic, iteration, i)}
                         </div>
                     </div>
 """

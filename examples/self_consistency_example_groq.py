@@ -98,7 +98,7 @@ async def main():
             agent=agent,
             critics=[critic],
             validators=[length_validator],  # Add the length validator
-            max_improvement_iterations=2,  # Allow more retries for validation
+            max_improvement_iterations=1,  # Allow more retries for validation
             always_apply_critics=True,  # Always apply the critic
             analytics_storage=FileStorage(
                 "./thoughts/self_consistency_example_groq_thoughts.json",
