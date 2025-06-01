@@ -111,6 +111,7 @@ def create_model(
             "pydantic-ai",
             "google-gla",
             "google-vertex",
+            "groq",
         ]:
             try:
                 from pydantic_ai import Agent
