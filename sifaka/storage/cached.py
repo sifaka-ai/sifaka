@@ -15,10 +15,12 @@ logger = get_logger(__name__)
 
 
 class CachedStorage:
-    """Layered storage combining memory cache with persistent storage.
+    """Async layered storage combining memory cache with persistent storage.
 
     This storage implementation combines a fast cache (usually MemoryStorage)
     with a persistent backend (FileStorage, RedisStorage, or MilvusStorage).
+
+    All operations are async to properly handle modern storage backends.
 
     Read strategy:
     1. Check cache first (fast)
@@ -70,29 +72,46 @@ class CachedStorage:
         Returns:
             The stored value, or None if not found.
         """
-        # Try cache first (fast)
+        # Try cache first (fast) - async only
         if self.cache is not None:
             if hasattr(self.cache, "_get_async"):
                 value = await self.cache._get_async(key)
+            elif hasattr(self.cache, "get"):
+                # Try async get method
+                result = self.cache.get(key)
+                if hasattr(result, "__await__"):
+                    value = await result
+                else:
+                    value = result
             else:
-                value = self.cache.get(key)
+                value = None
             if value is not None:
                 logger.debug(f"Cached get async: {key} -> cache hit")
                 return value
 
-        # Try persistence (slower)
+        # Try persistence (slower) - async only
         if self.persistence is not None:
             if hasattr(self.persistence, "_get_async"):
                 value = await self.persistence._get_async(key)
+            elif hasattr(self.persistence, "get"):
+                # Try async get method
+                result = self.persistence.get(key)
+                if hasattr(result, "__await__"):
+                    value = await result
+                else:
+                    value = result
             else:
-                value = self.persistence.get(key)
+                value = None
             if value is not None:
-                # Cache the value for next time
+                # Cache the value for next time - async only
                 if self.cache is not None:
                     if hasattr(self.cache, "_set_async"):
                         await self.cache._set_async(key, value)
-                    else:
-                        self.cache.set(key, value)
+                    elif hasattr(self.cache, "set"):
+                        # Try async set method
+                        result = self.cache.set(key, value)
+                        if hasattr(result, "__await__"):
+                            await result
                 logger.debug(f"Cached get async: {key} -> persistence hit, cached")
                 return value
 
@@ -106,19 +125,29 @@ class CachedStorage:
             key: The storage key.
             value: The value to store.
         """
-        # Write to cache immediately (fast)
+        # Write to cache immediately (fast) - async only
         if self.cache is not None:
             if hasattr(self.cache, "_set_async"):
                 await self.cache._set_async(key, value)
+            elif hasattr(self.cache, "set"):
+                # Try async set method
+                result = self.cache.set(key, value)
+                if hasattr(result, "__await__"):
+                    await result
             else:
-                self.cache.set(key, value)
+                logger.warning(f"Cache {type(self.cache)} has no set method")
 
-        # Write to persistence (may be slower)
+        # Write to persistence (may be slower) - async only
         if self.persistence is not None:
             if hasattr(self.persistence, "_set_async"):
                 await self.persistence._set_async(key, value)
+            elif hasattr(self.persistence, "set"):
+                # Try async set method
+                result = self.persistence.set(key, value)
+                if hasattr(result, "__await__"):
+                    await result
             else:
-                self.persistence.set(key, value)
+                logger.warning(f"Persistence {type(self.persistence)} has no set method")
 
         logger.debug(f"Cached set async: {key} -> stored in available backends")
 
@@ -227,8 +256,8 @@ class CachedStorage:
 
         return list(all_keys)
 
-    def get(self, key: str) -> Optional[Any]:
-        """Get a value by key, checking cache first then persistence.
+    async def get(self, key: str) -> Optional[Any]:
+        """Get a value by key asynchronously, checking cache first then persistence.
 
         Args:
             key: The storage key.
@@ -236,74 +265,19 @@ class CachedStorage:
         Returns:
             The stored value, or None if not found.
         """
-        # Try cache first (fast)
-        if self.cache is not None:
-            try:
-                value = self.cache.get(key)
-                if value is not None:
-                    logger.debug(f"Cached get: {key} -> cache hit")
-                    return value
-            except Exception as e:
-                logger.warning(f"Cache get failed for {key}: {e}")
+        return await self._get_async(key)
 
-        # Try persistence (slower)
-        if self.persistence is not None:
-            try:
-                value = self.persistence.get(key)
-                if value is not None:
-                    # Cache the value for next time
-                    if self.cache is not None:
-                        try:
-                            self.cache.set(key, value)
-                        except Exception as e:
-                            logger.warning(f"Failed to cache value for {key}: {e}")
-                    logger.debug(f"Cached get: {key} -> persistence hit, cached")
-                    return value
-            except Exception as e:
-                logger.error(f"Persistence get failed for {key}: {e}")
-
-        logger.debug(f"Cached get: {key} -> miss")
-        return None
-
-    def set(self, key: str, value: Any) -> None:
-        """Set a value for a key in both cache and persistence.
+    async def set(self, key: str, value: Any) -> None:
+        """Set a value for a key asynchronously in both cache and persistence.
 
         Args:
             key: The storage key.
             value: The value to store.
         """
-        cache_success = False
+        await self._set_async(key, value)
 
-        # Write to cache immediately (fast)
-        if self.cache is not None:
-            try:
-                self.cache.set(key, value)
-                cache_success = True
-            except Exception as e:
-                logger.warning(f"Cache set failed for {key}: {e}")
-
-        # Write to persistence (may be slower)
-        if self.persistence is not None:
-            try:
-                self.persistence.set(key, value)
-
-            except Exception as e:
-                logger.error(f"Persistence set failed for {key}: {e}")
-                # If both cache and persistence failed, raise StorageError
-                if not cache_success:
-                    from sifaka.utils.error_handling import StorageError
-
-                    raise StorageError(
-                        f"Failed to save to both cache and persistence: {e}", storage_type="cached"
-                    )
-
-        logger.debug(f"Cached set: {key} -> stored in available backends")
-
-    def search(self, query: str, limit: int = 10) -> List[Any]:
-        """Search for items matching a query.
-
-        Prefers persistence for search (especially for vector search),
-        but falls back to cache if persistence is not available.
+    async def search(self, query: str, limit: int = 10) -> List[Any]:
+        """Search for items matching a query asynchronously.
 
         Args:
             query: The search query.
@@ -312,41 +286,30 @@ class CachedStorage:
         Returns:
             List of matching items.
         """
-        # Prefer persistence for search (especially vector search)
-        if self.persistence is not None:
-            results = self.persistence.search(query, limit)
-            logger.debug(f"Cached search: '{query}' -> {len(results)} results from persistence")
-            return results
+        return await self._search_async(query, limit)
 
-        # Fall back to cache
-        if self.cache is not None:
-            results = self.cache.search(query, limit)
-            logger.debug(f"Cached search: '{query}' -> {len(results)} results from cache")
-            return results
-
-        logger.debug(f"Cached search: '{query}' -> no backends available")
-        return []
-
-    def clear(self) -> None:
-        """Clear all data from both cache and persistence."""
-        cleared = []
-
-        if self.cache is not None:
-            self.cache.clear()
-            cleared.append("cache")
-
-        if self.persistence is not None:
-            self.persistence.clear()
-            cleared.append("persistence")
-
-        logger.debug(f"Cached clear: cleared {', '.join(cleared)}")
+    async def clear(self) -> None:
+        """Clear all data from both cache and persistence asynchronously."""
+        await self._clear_async()
 
     def __len__(self) -> int:
         """Return number of items in cache, or persistence if no cache."""
         if self.cache and hasattr(self.cache, "__len__"):
-            return len(self.cache)
+            try:
+                return len(self.cache)
+            except TypeError:
+                # Handle async __len__ methods
+                return 0
         elif self.persistence and hasattr(self.persistence, "__len__"):
-            return len(self.persistence)
+            try:
+                result = len(self.persistence)
+                # Check if it's a coroutine (async method)
+                if hasattr(result, "__await__"):
+                    return 0  # Can't await in sync method
+                return result
+            except TypeError:
+                # Handle async __len__ methods
+                return 0
         else:
             return 0
 
@@ -359,17 +322,18 @@ class CachedStorage:
         if self.persistence and hasattr(self.persistence, "__contains__"):
             return key in self.persistence
 
-        # Fall back to get() method
-        return self.get(key) is not None
+        # Fall back to checking if we can get the value
+        # Note: This is a sync method so we can't await, return False for safety
+        return False
 
-    def save(self, key: str, value: Any) -> None:
-        """Save a value for a key (same as set).
+    async def save(self, key: str, value: Any) -> None:
+        """Save a value for a key asynchronously (same as set).
 
         Args:
             key: The storage key.
             value: The value to store.
         """
-        self.set(key, value)
+        await self.set(key, value)
 
     def exists(self, key: str) -> bool:
         """Check if key exists in storage.
@@ -382,8 +346,8 @@ class CachedStorage:
         """
         return key in self
 
-    def load(self, key: str) -> Optional[Any]:
-        """Load a value by key (alias for get).
+    async def load(self, key: str) -> Optional[Any]:
+        """Load a value by key asynchronously (alias for get).
 
         Args:
             key: The storage key.
@@ -391,10 +355,10 @@ class CachedStorage:
         Returns:
             The stored value, or None if not found.
         """
-        return self.get(key)
+        return await self.get(key)
 
-    def delete(self, key: str) -> bool:
-        """Delete a value by key from both cache and persistence.
+    async def delete(self, key: str) -> bool:
+        """Delete a value by key asynchronously from both cache and persistence.
 
         Args:
             key: The storage key to delete.
@@ -402,15 +366,4 @@ class CachedStorage:
         Returns:
             True if the key was deleted from at least one backend, False otherwise.
         """
-        deleted = False
-
-        if self.cache is not None and hasattr(self.cache, "delete"):
-            cache_deleted = self.cache.delete(key)
-            deleted = deleted or cache_deleted
-
-        if self.persistence is not None and hasattr(self.persistence, "delete"):
-            persistence_deleted = self.persistence.delete(key)
-            deleted = deleted or persistence_deleted
-
-        logger.debug(f"Cached delete: {key} -> {'deleted' if deleted else 'not found'}")
-        return deleted
+        return await self._delete_async(key)

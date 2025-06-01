@@ -16,12 +16,16 @@ by reducing the impact of single inconsistent or low-quality critiques.
 import asyncio
 import os
 
+from dotenv import load_dotenv
 from pydantic_ai import Agent
 
 from sifaka.agents import create_pydantic_chain
 from sifaka.critics.self_consistency import SelfConsistencyCritic
 from sifaka.models import create_model
 from sifaka.storage import FileStorage
+
+# Load environment variables
+load_dotenv()
 
 
 async def main():

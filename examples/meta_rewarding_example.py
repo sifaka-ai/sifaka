@@ -17,12 +17,16 @@ This creates a feedback loop for improving both responses and judgment capabilit
 import asyncio
 import os
 
+from dotenv import load_dotenv
 from pydantic_ai import Agent
 
 from sifaka.agents import create_pydantic_chain
 from sifaka.critics.meta_rewarding import MetaRewardingCritic
 from sifaka.models import create_model
 from sifaka.storage import FileStorage
+
+# Load environment variables
+load_dotenv()
 
 
 async def main():

@@ -99,6 +99,13 @@ class HTMLThoughtVisualizer:
         # Sort thoughts by iteration and show all critic feedback for each iteration
         thoughts = []
         for thought_id, thought_data in self.data.items():
+            # Filter out metadata entries that aren't actual thought iterations
+            if thought_id in ["initial_prompt", "final_result"]:
+                continue
+            # Only include entries that have the required thought fields
+            if not isinstance(thought_data, dict) or "iteration" not in thought_data:
+                continue
+
             thought_data["id"] = thought_id
             # Show all critic feedback for this iteration (no filtering needed)
             thoughts.append(thought_data)
