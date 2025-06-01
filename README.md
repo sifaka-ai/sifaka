@@ -17,7 +17,7 @@ Sifaka implements cutting-edge AI research papers as production-ready code. Inst
 - **Guaranteed Quality**: Validation-first design ensures outputs meet your criteria
 - **Complete Observability**: Full audit trails of every decision, iteration, and improvement
 - **Iterative Improvement**: AI systems that get better at their tasks through self-critique
-- **Production-Ready**: Built on PydanticAI with type safety and async support
+- ** (coming soon) Production-Ready**: Built on PydanticAI with type safety and async support
 
 ## Installation
 
@@ -85,7 +85,7 @@ The `Thought` container maintains complete audit trails including prompts, gener
 - **Self-RAG** (Asai et al. 2023) - Retrieval-augmented self-critique
 - **Meta-Rewarding** (Wu et al. 2024) - Two-stage judgment with meta-evaluation
 
-**🎯 Production-Ready**: Built on PydanticAI with full type safety, async support, and tool calling
+**🎯 (coming soon) Production-Ready**: Built on PydanticAI with full type safety, async support, and tool calling
 
 **📊 Complete Observability**: Every decision is logged - see exactly why your AI made each choice
 
@@ -140,7 +140,7 @@ graph TD
 - **Quality**: Research-backed critics improve text beyond basic requirements
 - **Transparency**: Complete audit trail shows why each decision was made
 - **Flexibility**: Mix and match validators and critics for your specific needs
-- **Production-Ready**: Built on PydanticAI with full async support and type safety
+- **(coming soon) Production-Ready**: Built on PydanticAI with full async support and type safety
 
 ## Environment Setup
 

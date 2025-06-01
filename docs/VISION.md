@@ -120,7 +120,7 @@ Exciting developments in active development:
 - **New PydanticAI features** integrated into Sifaka as they become available
 
 ### Advanced Critics and Validators as Tools
-- **Enhanced feedback summarization** using both local and API-based models ✅ *Available now with T5, BART, and API models*
+- **Enhanced feedback summarization** using both local and API-based models
 - **Multi-modal critics** implemented as PydanticAI tools for text, code, and structured data
 - **Domain-specific validators** as specialized tools for legal, medical, and technical content
 - **Ensemble methods** that combine multiple validation tools
@@ -205,5 +205,3 @@ By aligning our development with PydanticAI and focusing on the intersection of 
 ## References
 
 - **[Design Decisions](docs/DESIGN_DECISIONS.md)** - Key architectural decisions and trade-offs
-- **[Architecture Document](docs/ARCHITECTURE.md)** - Technical implementation details
-- **[PydanticAI Integration Guide](docs/guides/chain-selection.md)** - Choosing between chain types

@@ -275,8 +275,6 @@ This document captures the key architectural and design decisions made in Sifaka
 ---
 
 ## 📚 References
-
-- **[Architecture Document](docs/ARCHITECTURE.md)**: Technical implementation details
 - **[Vision Document](VISION.md)**: Strategic direction and long-term goals
 - **[Contributing Guide](CONTRIBUTING.md)**: How to contribute to these decisions
 
