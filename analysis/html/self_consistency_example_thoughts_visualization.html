@@ -1,0 +1,889 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sifaka Thought Analysis - self_consistency_example_thoughts.json</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .timeline {
+            padding: 20px;
+        }
+        .thought {
+            border-left: 4px solid #667eea;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 0 8px 8px 0;
+            position: relative;
+        }
+        .thought::before {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 20px;
+            width: 12px;
+            height: 12px;
+            background: #667eea;
+            border-radius: 50%;
+            border: 3px solid white;
+        }
+        .thought-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .iteration {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .model-info {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .response-preview {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+        .critics {
+            margin-top: 15px;
+        }
+        .critic {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .critic-header {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .critic-header:hover {
+            background: #e9ecef;
+        }
+        .critic-name {
+            font-weight: bold;
+        }
+        .critic-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .needs-improvement {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .approved {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        .critic-details {
+            padding: 15px;
+            display: none;
+        }
+        .critic-details.expanded {
+            display: block;
+        }
+        .suggestions, .violations {
+            margin-top: 10px;
+        }
+        .suggestion {
+            background: #fff3e0;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-left: 3px solid #ff9800;
+            border-radius: 0 4px 4px 0;
+        }
+        .violations .suggestion {
+            background: #ffebee;
+            border-left: 3px solid #f44336;
+        }
+        .metadata {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        .score {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .expand-btn {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .expandable-section {
+            margin: 15px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .section-header {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e0e0e0;
+            transition: background-color 0.2s;
+        }
+        .section-header:hover {
+            background: #e9ecef;
+        }
+        .section-details {
+            display: none;
+            padding: 0;
+        }
+        .section-details.expanded {
+            display: block;
+        }
+        .content-box {
+            background: #ffffff;
+            padding: 15px;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+            border-radius: 0 0 8px 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .validation-result {
+            background: #f8f9fa;
+            margin: 10px;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+        }
+        .validation-result.failed {
+            border-left-color: #dc3545;
+        }
+        .validator-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .validator-message {
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+        .validator-issues, .validator-suggestions {
+            margin-top: 8px;
+        }
+        .validator-issues ul, .validator-suggestions ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Sifaka Thought Analysis</h1>
+            <p>File: self_consistency_example_thoughts.json | 3 iterations</p>
+        </div>
+
+        <div class="timeline">
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 0</div>
+                    <div class="timestamp">2025-05-31 16:43:27.205647</div>
+                </div>
+
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:gpt-4o-mini
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('prompt-0')">
+                        <strong>📝 User Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="prompt-0">
+                        <div class="content-box">Explain the concept of machine learning and provide a simple example that anyone can understand.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('model-prompt-0')">
+                        <strong>🤖 Model Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="model-prompt-0">
+                        <div class="content-box">System: You are an AI education expert and science communicator. Provide clear, accurate explanations of artificial intelligence concepts that are accessible to general audiences. Use analogies, examples, and structured explanations to make complex topics understandable. Maintain an engaging and informative tone.
+
+User: Explain the concept of machine learning and provide a simple example that anyone can understand.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('response-0')">
+                        <strong>💬 Response (2,993 characters)</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="response-0">
+                        <div class="content-box">Absolutely! Let’s dive into the concept of **machine learning** in a way that’s clear and relatable.
+
+### What is Machine Learning?
+
+At its core, machine learning is a subset of artificial intelligence (AI) that enables computers to learn from data. Instead of being explicitly programmed to perform a task, a machine learning model learns patterns and makes predictions based on the data it receives. Think of it like teaching a child to recognize different fruits by showing them many examples rather than providing a list of rules.
+
+### Analogy: Learning to Identify Fruits
+
+Imagine you’re teaching a child how to identify fruits. You show them apples, bananas, oranges, and pears several times. Each time you present a fruit, you tell them its name. Over time, the child begins to recognize the differences based on features like color, shape, and texture. 
+
+- **Training**: The process of showing the child different fruits is like &#x27;training&#x27; a machine learning model. You provide lots of examples (data) so they can learn what each fruit looks like.
+  
+- **Learning**: As they see more and more fruits, the child starts to form a mental model of what an apple is versus a banana. This is similar to how a machine learning model identifies patterns in data.
+
+- **Testing**: After training, you might show the child a fruit they’ve never seen before, like a kiwi, and ask them to guess what it is. If they can correctly identify it based on prior learning, it shows they’ve learned well. In machine learning, this phase is called &#x27;testing&#x27; or &#x27;validation.&#x27;
+
+### A Simple Example: Predicting House Prices
+
+Let’s say we want to use machine learning to predict house prices based on features like size, location, number of bedrooms, and age of the house. Here’s how it works:
+
+1. **Data Collection**: We gather lots of examples of houses — their prices and characteristics.
+   
+2. **Training the Model**: We feed this data into a machine learning algorithm. The model analyzes the data to find patterns, such as, &quot;Generally, bigger houses in nicer neighborhoods cost more.&quot;
+
+3. **Making Predictions**: Once trained, we can provide the model with a new house’s features (let’s say it’s a 2,000 square foot house in a good location with four bedrooms) and it will predict a price based on what it has learned.
+
+4. **Improving the Model**: As we gather more data (like actual sale prices), we can continuously challenge the model to improve its predictions.
+
+### In Summary
+
+Machine learning is about teaching computers to learn from data rather than simply following explicit instructions. By recognizing patterns through training, these systems can make predictions or decisions about new data. Just like a child learns to identify fruits by seeing many examples, machine learning models improve by analyzing data to perform tasks more effectively over time.
+
+Does that help clarify what machine learning is all about? If you have any more questions or need further examples, feel free to ask!</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('validation-0')">
+                        <strong>✅ Validation Results</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="validation-0">
+                        <div class="content-box">No validation results</div>
+                    </div>
+                </div>
+
+                <div class="critics">
+                    <strong>🔍 Critics (1):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-0-0')">
+                            <div class="critic-name">SelfConsistencyCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-0-0">
+                            <div><strong>Confidence:</strong> 1.0</div>
+            <div class="violations">
+                <strong>⚠️ Issues Found:</strong>
+                <div class="suggestion">While the analogy of teaching a child works well, it may oversimplify machine learning processes, as machine learning encompasses more complexity than human learning.</div><div class="suggestion">The example of predicting house prices could include more detail about the specific types of machine learning algorithms that might be used, such as regression models, to provide a fuller picture.</div><div class="suggestion">The phrase &quot;training the model&quot; could be explained more explicitly for readers who might not understand technical terms related to modeling.</div><div class="suggestion">At certain points, the text could benefit from more precision in terminology; terms like &quot;data&quot; and &quot;features&quot; could be defined for readers who might lack a technical background.</div><div class="suggestion">The example of predicting house prices, while relevant, may feel too abstract or complex for some readers, who might benefit from a more everyday example (like suggesting a movie based on viewing history).</div><div class="suggestion">The transition between the fruit analogy and the house price prediction could be smoothed out to maintain reader engagement and coherence.</div><div class="suggestion">The initial definition of machine learning could be more precise; it simplifies the concept too much without acknowledging that machine learning can also involve the use of algorithms that may not necessarily &quot;learn&quot; in a traditional sense.</div><div class="suggestion">The training process could mention various types of learning (supervised, unsupervised, etc.), which would provide a more comprehensive understanding of machine learning.</div><div class="suggestion">The term &quot;machine learning algorithm&quot; is used but not defined or explained, potentially leaving beginners confused about what constitutes an algorithm in this context.</div>
+            </div>
+            
+            <div class="suggestions">
+                <strong>💡 Suggestions:</strong>
+                <div class="suggestion">Consider providing a brief description of various types of machine learning (e.g., supervised, unsupervised, reinforcement learning) to give readers a broader context.</div><div class="suggestion">Explain a specific algorithm used for the house price prediction example. This could help bridge the gap between the analogy of fruit identification and real-world machine learning applications.</div><div class="suggestion">Incorporate a section on limitations or challenges in machine learning to give a more rounded view of the topic.</div><div class="suggestion">Consider adding brief definitions or explanations for terms like &quot;data,&quot; &quot;training,&quot; and &quot;model&quot; to ensure clarity.</div><div class="suggestion">Provide additional examples that could be more relatable or use common scenarios familiar to a broader audience, such as personal recommendations (movies, music).</div>
+            </div>
+            
+        <div class="feedback">
+            <strong>📝 Feedback:</strong>
+            <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">=== Self-Consistency Evaluation (3 iterations) ===
+
+Confidence Level: 100.0%
+Consensus Threshold: 60.0%
+
+CONSENSUS ISSUES (found in multiple evaluations):
+• While the analogy of teaching a child works well, it may oversimplify machine learning processes, as machine learning encompasses more complexity than human learning. (found in 1/3 evaluations, 33%)
+• The example of predicting house prices could include more detail about the specific types of machine learning algorithms that might be used, such as regression models, to provide a fuller picture. (found in 1/3 evaluations, 33%)
+• The phrase &quot;training the model&quot; could be explained more explicitly for readers who might not understand technical terms related to modeling. (found in 1/3 evaluations, 33%)
+• At certain points, the text could benefit from more precision in terminology; terms like &quot;data&quot; and &quot;features&quot; could be defined for readers who might lack a technical background. (found in 1/3 evaluations, 33%)
+• The example of predicting house prices, while relevant, may feel too abstract or complex for some readers, who might benefit from a more everyday example (like suggesting a movie based on viewing history). (found in 1/3 evaluations, 33%)
+• The transition between the fruit analogy and the house price prediction could be smoothed out to maintain reader engagement and coherence. (found in 1/3 evaluations, 33%)
+• The initial definition of machine learning could be more precise; it simplifies the concept too much without a...</div>
+        </div>
+        
+        <div class="metadata">
+            <strong>📋 Consistency Analysis:</strong><br>
+        Iterations: 3<br>Consensus Items: 18<br>Agreement Ratio: 100.0%<br></div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 1</div>
+                    <div class="timestamp">2025-05-31 16:44:10.631724</div>
+                </div>
+
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:gpt-4o-mini
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('prompt-1')">
+                        <strong>📝 User Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="prompt-1">
+                        <div class="content-box">Explain the concept of machine learning and provide a simple example that anyone can understand.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('model-prompt-1')">
+                        <strong>🤖 Model Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="model-prompt-1">
+                        <div class="content-box">System: You are an AI education expert and science communicator. Provide clear, accurate explanations of artificial intelligence concepts that are accessible to general audiences. Use analogies, examples, and structured explanations to make complex topics understandable. Maintain an engaging and informative tone.
+
+Original Request: Explain the concept of machine learning and provide a simple example that anyone can understand.
+
+Improvement Suggestions:
+- SelfConsistencyCritic: === Self-Consistency Evaluation (3 iterations) ===
+
+Confidence Level: 100.0%
+Consensus Threshold: 60.0%
+
+CONSENSUS ISSUES (found in multiple evaluations):
+• While the analogy of teaching a child works well, it may oversimplify machine learning processes, as machine learning encompasses more complexity than human learning. (found in 1/3 evaluations, 33%)
+• The example of predicting house prices could include more detail about the specific types of machine learning algorithms that might be used, such as regression models, to provide a fuller picture. (found in 1/3 evaluations, 33%)
+• The phrase &quot;training the model&quot; could be explained more explicitly for readers who might not understand technical terms related to modeling. (found in 1/3 evaluations, 33%)
+• At certain points, the text could benefit from more precision in terminology; terms like &quot;data&quot; and &quot;features&quot; could be defined for readers who might lack a technical background. (found in 1/3 evaluations, 33%)
+• The example of predicting house prices, while relevant, may feel too abstract or complex for some readers, who might benefit from a more everyday example (like suggesting a movie based on viewing history). (found in 1/3 evaluations, 33%)
+• The transition between the fruit analogy and the house price prediction could be smoothed out to maintain reader engagement and coherence. (found in 1/3 evaluations, 33%)
+• The initial definition of machine learning could be more precise; it simplifies the concept too much without acknowledging that machine learning can also involve the use of algorithms that may not necessarily &quot;learn&quot; in a traditional sense. (found in 1/3 evaluations, 33%)
+• The training process could mention various types of learning (supervised, unsupervised, etc.), which would provide a more comprehensive understanding of machine learning. (found in 1/3 evaluations, 33%)
+• The term &quot;machine learning algorithm&quot; is used but not defined or explained, potentially leaving beginners confused about what constitutes an algorithm in this context. (found in 1/3 evaluations, 33%)
+
+CONSENSUS SUGGESTIONS (found in multiple evaluations):
+• Consider providing a brief description of various types of machine learning (e.g., supervised, unsupervised, reinforcement learning) to give readers a broader context. (found in 1/3 evaluations, 33%)
+• Explain a specific algorithm used for the house price prediction example. This could help bridge the gap between the analogy of fruit identification and real-world machine learning applications. (found in 1/3 evaluations, 33%)
+• Incorporate a section on limitations or challenges in machine learning to give a more rounded view of the topic. (found in 1/3 evaluations, 33%)
+• Consider adding brief definitions or explanations for terms like &quot;data,&quot; &quot;training,&quot; and &quot;model&quot; to ensure clarity. (found in 1/3 evaluations, 33%)
+• Provide additional examples that could be more relatable or use common scenarios familiar to a broader audience, such as personal recommendations (movies, music). (found in 1/3 evaluations, 33%)
+• Enhance the concluding section to reinforce key takeaways, possibly summarizing why understanding machine learning is relevant in today&#x27;s tech-driven world. (found in 1/3 evaluations, 33%)
+• Enhance the initial definition by distinguishing between the types of machine learning, such as supervised, unsupervised, and reinforcement learning. (found in 1/3 evaluations, 33%)
+• Include a brief explanation of what constitutes a machine learning algorithm and how it operates on the data. (found in 1/3 evaluations, 33%)
+• Consider adding a real-world application or consequence of machine learning in society to highlight its relevance. (found in 1/3 evaluations, 33%)
+
+EVALUATION SUMMARY:
+• Total evaluations: 3
+• Consensus items: 18
+• Agreement on improvement need: 100.0%
+
+=== End Self-Consistency Evaluation ===
+
+Previous Attempt:
+Sure! Here’s a revised version of the text that addresses the feedback and suggestions from the evaluations while maintaining the original intent and style.
+
+---
+
+### Understanding Machine Learning
+
+Let’s explore the concept of **machine learning** in a clear and relatable way. 
+
+### What is Machine Learning?
+
+At its essence, machine learning is a subset of artificial intelligence (AI) that empowers computers to learn from data. Instead of following a fixed set of rules, a machine learning model learns from patterns in data and makes predictions. You can think of it as akin to teaching a child to recognize different fruits by showing them various examples rather than providing a strict list of rules.
+
+**Types of Machine Learning**:
+1. **Supervised Learning**: The model learns from labeled data (where the correct answers are provided).
+2. **Unsupervised Learning**: The model identifies patterns in data without labeled outputs (like grouping similar items).
+3. **Reinforcement Learning**: The model learns by interacting with its environment and receiving feedback based on actions taken.
+
+### Analogy: Teaching a Child to Identify Fruits
+
+Imagine you are teaching a child how to identify fruits. You show them several apples, bananas, oranges, and pears, consistently naming each fruit. Over time, the child begins to distinguish them based on features such as color, shape, and texture. 
+
+- **Training**: This process of showing the child different fruits is similar to &#x27;training&#x27; a machine learning model. You provide numerous examples (data) so they can learn what each fruit looks like.
+  
+- **Learning**: With exposure to more fruits, the child forms a mental model distinguishing an apple from a banana—mirroring how a machine learning model identifies patterns in data.
+
+- **Testing**: Once they&#x27;ve learned, you might present a fruit they&#x27;ve never seen, like a kiwi, and ask them to guess its name. If they can identify it based on previous learning, it indicates successful learning, akin to the &#x27;testing&#x27; phase in machine learning.
+
+### A Simple Example: Movie Recommendations
+
+Let’s say we want to use machine learning to recommend movies based on your viewing history. Here’s how it works:
+
+1. **Data Collection**: We gather data from a large number of users, including what movies they watched and their ratings.
+
+2. **Training the Model**: We use a machine learning algorithm, such as a collaborative filtering algorithm, which analyzes user preferences to identify patterns. For example, if many users who liked “Inception” also rated “Interstellar” highly, the model learns this connection.
+
+3. **Making Predictions**: After training, if you watched and liked “Inception,” the model can recommend “Interstellar” based on what it has learned about your preferences and those of similar users.
+
+4. **Improving the Model**: As new data comes in (like new movie ratings), we continually update the model to refine its recommendations and improve accuracy.
+
+### In Summary
+
+Machine learning is about enabling computers to learn from data instead of strictly following programmed rules. By recognizing patterns through training, these systems can make informed predictions or decisions about new data. Just like a child learns to identify fruits through various examples, machine learning models evolve by analyzing vast amounts of data. 
+
+Understanding machine learning is crucial in today’s technology-driven world, as it powers many applications we interact with daily, from personalized recommendations to advances in healthcare.
+
+If you have further questions or need more examples, feel free to ask!
+
+Please provide an improved response that incorporates the improvement suggestions.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('response-1')">
+                        <strong>💬 Response (3,627 characters)</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="response-1">
+                        <div class="content-box">Sure! Here’s a revised version of the text that addresses the feedback and suggestions from the evaluations while maintaining the original intent and style.
+
+---
+
+### Understanding Machine Learning
+
+Let’s explore the concept of **machine learning** in a clear and relatable way. 
+
+### What is Machine Learning?
+
+At its essence, machine learning is a subset of artificial intelligence (AI) that empowers computers to learn from data. Instead of following a fixed set of rules, a machine learning model learns from patterns in data and makes predictions. You can think of it as akin to teaching a child to recognize different fruits by showing them various examples rather than providing a strict list of rules.
+
+**Types of Machine Learning**:
+1. **Supervised Learning**: The model learns from labeled data (where the correct answers are provided).
+2. **Unsupervised Learning**: The model identifies patterns in data without labeled outputs (like grouping similar items).
+3. **Reinforcement Learning**: The model learns by interacting with its environment and receiving feedback based on actions taken.
+
+### Analogy: Teaching a Child to Identify Fruits
+
+Imagine you are teaching a child how to identify fruits. You show them several apples, bananas, oranges, and pears, consistently naming each fruit. Over time, the child begins to distinguish them based on features such as color, shape, and texture. 
+
+- **Training**: This process of showing the child different fruits is similar to &#x27;training&#x27; a machine learning model. You provide numerous examples (data) so they can learn what each fruit looks like.
+  
+- **Learning**: With exposure to more fruits, the child forms a mental model distinguishing an apple from a banana—mirroring how a machine learning model identifies patterns in data.
+
+- **Testing**: Once they&#x27;ve learned, you might present a fruit they&#x27;ve never seen, like a kiwi, and ask them to guess its name. If they can identify it based on previous learning, it indicates successful learning, akin to the &#x27;testing&#x27; phase in machine learning.
+
+### A Simple Example: Movie Recommendations
+
+Let’s say we want to use machine learning to recommend movies based on your viewing history. Here’s how it works:
+
+1. **Data Collection**: We gather data from a large number of users, including what movies they watched and their ratings.
+
+2. **Training the Model**: We use a machine learning algorithm, such as a collaborative filtering algorithm, which analyzes user preferences to identify patterns. For example, if many users who liked “Inception” also rated “Interstellar” highly, the model learns this connection.
+
+3. **Making Predictions**: After training, if you watched and liked “Inception,” the model can recommend “Interstellar” based on what it has learned about your preferences and those of similar users.
+
+4. **Improving the Model**: As new data comes in (like new movie ratings), we continually update the model to refine its recommendations and improve accuracy.
+
+### In Summary
+
+Machine learning is about enabling computers to learn from data instead of strictly following programmed rules. By recognizing patterns through training, these systems can make informed predictions or decisions about new data. Just like a child learns to identify fruits through various examples, machine learning models evolve by analyzing vast amounts of data. 
+
+Understanding machine learning is crucial in today’s technology-driven world, as it powers many applications we interact with daily, from personalized recommendations to advances in healthcare.
+
+If you have further questions or need more examples, feel free to ask!</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('validation-1')">
+                        <strong>✅ Validation Results</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="validation-1">
+                        <div class="content-box">No validation results</div>
+                    </div>
+                </div>
+
+                <div class="critics">
+                    <strong>🔍 Critics (1):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-1-0')">
+                            <div class="critic-name">SelfConsistencyCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-1-0">
+                            <div><strong>Confidence:</strong> 1.0</div>
+            <div class="violations">
+                <strong>⚠️ Issues Found:</strong>
+                <div class="suggestion">The introduction could benefit from a more dynamic hook to capture attention immediately. Starting with a question or a compelling statement might enhance engagement.</div><div class="suggestion">The phrase &quot;machine learning is a subset of artificial intelligence&quot; could be clearer. Not all readers may understand the relationship between AI and machine learning without a bit more context.</div><div class="suggestion">While the analogy is strong, it could be enhanced by explicitly relating each step of the analogy back to the machine learning process for greater clarity.</div><div class="suggestion">The explanation of the types of machine learning is somewhat brief and lacks depth; a sentence or two explaining each type could increase reader understanding.</div><div class="suggestion">The section on movie recommendations, while helpful, could benefit from more detail on how data is processed and how user preferences evolve over time to avoid oversimplification.</div><div class="suggestion">There is a lack of engagement in terms of drawing the reader in; the introduction and conclusion could be more compelling to motivate readers to continue learning about the topic.</div><div class="suggestion">The introduction lacks a hook or direct engagement to capture the reader&#x27;s attention from the very beginning.</div><div class="suggestion">Some jargon, such as &quot;collaborative filtering algorithm,&quot; could benefit from further simplification or explanation to ensure complete understanding by those unfamiliar with technical terms.</div><div class="suggestion">The transition between sections could be smoother; for example, connecting supervised learning to how it is applied in the movie recommendation example could reinforce the concepts more effectively.</div>
+            </div>
+            
+            <div class="suggestions">
+                <strong>💡 Suggestions:</strong>
+                <div class="suggestion">Consider revising the introduction to include a question or engaging statement about how ubiquitous machine learning has become in everyday life to draw readers in.</div><div class="suggestion">Add more detail to clarify the distinction between AI and machine learning, possibly defining artificial intelligence in the context of this discussion.</div><div class="suggestion">Strengthen the connection between the child-fruit analogy and machine learning phases by emphasizing how each part of the learning process directly correlates to machine learning concepts, ensuring readers understand the parallels.</div><div class="suggestion">Consider incorporating visuals or examples that could break up text and provide visual cues of the concepts discussed.</div><div class="suggestion">Expand on the descriptions of the types of machine learning, offering examples or applications for each type to help contextualize the differences.</div>
+            </div>
+            
+        <div class="feedback">
+            <strong>📝 Feedback:</strong>
+            <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">=== Self-Consistency Evaluation (3 iterations) ===
+
+Confidence Level: 100.0%
+Consensus Threshold: 60.0%
+
+CONSENSUS ISSUES (found in multiple evaluations):
+• The introduction could benefit from a more dynamic hook to capture attention immediately. Starting with a question or a compelling statement might enhance engagement. (found in 1/3 evaluations, 33%)
+• The phrase &quot;machine learning is a subset of artificial intelligence&quot; could be clearer. Not all readers may understand the relationship between AI and machine learning without a bit more context. (found in 1/3 evaluations, 33%)
+• While the analogy is strong, it could be enhanced by explicitly relating each step of the analogy back to the machine learning process for greater clarity. (found in 1/3 evaluations, 33%)
+• The explanation of the types of machine learning is somewhat brief and lacks depth; a sentence or two explaining each type could increase reader understanding. (found in 1/3 evaluations, 33%)
+• The section on movie recommendations, while helpful, could benefit from more detail on how data is processed and how user preferences evolve over time to avoid oversimplification. (found in 1/3 evaluations, 33%)
+• There is a lack of engagement in terms of drawing the reader in; the introduction and conclusion could be more compelling to motivate readers to continue learning about the topic. (found in 1/3 evaluations, 33%)
+• The introduction lacks a hook or direct engagement to capture the reader&#x27;s attention from the very be...</div>
+        </div>
+        
+        <div class="metadata">
+            <strong>📋 Consistency Analysis:</strong><br>
+        Iterations: 3<br>Consensus Items: 20<br>Agreement Ratio: 100.0%<br></div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 2</div>
+                    <div class="timestamp">2025-05-31 16:44:48.468758</div>
+                </div>
+
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:gpt-4o-mini
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('prompt-2')">
+                        <strong>📝 User Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="prompt-2">
+                        <div class="content-box">Explain the concept of machine learning and provide a simple example that anyone can understand.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('model-prompt-2')">
+                        <strong>🤖 Model Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="model-prompt-2">
+                        <div class="content-box">System: You are an AI education expert and science communicator. Provide clear, accurate explanations of artificial intelligence concepts that are accessible to general audiences. Use analogies, examples, and structured explanations to make complex topics understandable. Maintain an engaging and informative tone.
+
+Original Request: Explain the concept of machine learning and provide a simple example that anyone can understand.
+
+Improvement Suggestions:
+- SelfConsistencyCritic: === Self-Consistency Evaluation (3 iterations) ===
+
+Confidence Level: 100.0%
+Consensus Threshold: 60.0%
+
+CONSENSUS ISSUES (found in multiple evaluations):
+• The introduction could benefit from a more dynamic hook to capture attention immediately. Starting with a question or a compelling statement might enhance engagement. (found in 1/3 evaluations, 33%)
+• The phrase &quot;machine learning is a subset of artificial intelligence&quot; could be clearer. Not all readers may understand the relationship between AI and machine learning without a bit more context. (found in 1/3 evaluations, 33%)
+• While the analogy is strong, it could be enhanced by explicitly relating each step of the analogy back to the machine learning process for greater clarity. (found in 1/3 evaluations, 33%)
+• The explanation of the types of machine learning is somewhat brief and lacks depth; a sentence or two explaining each type could increase reader understanding. (found in 1/3 evaluations, 33%)
+• The section on movie recommendations, while helpful, could benefit from more detail on how data is processed and how user preferences evolve over time to avoid oversimplification. (found in 1/3 evaluations, 33%)
+• There is a lack of engagement in terms of drawing the reader in; the introduction and conclusion could be more compelling to motivate readers to continue learning about the topic. (found in 1/3 evaluations, 33%)
+• The introduction lacks a hook or direct engagement to capture the reader&#x27;s attention from the very beginning. (found in 1/3 evaluations, 33%)
+• Some jargon, such as &quot;collaborative filtering algorithm,&quot; could benefit from further simplification or explanation to ensure complete understanding by those unfamiliar with technical terms. (found in 1/3 evaluations, 33%)
+• The transition between sections could be smoother; for example, connecting supervised learning to how it is applied in the movie recommendation example could reinforce the concepts more effectively. (found in 1/3 evaluations, 33%)
+
+CONSENSUS SUGGESTIONS (found in multiple evaluations):
+• Consider revising the introduction to include a question or engaging statement about how ubiquitous machine learning has become in everyday life to draw readers in. (found in 1/3 evaluations, 33%)
+• Add more detail to clarify the distinction between AI and machine learning, possibly defining artificial intelligence in the context of this discussion. (found in 1/3 evaluations, 33%)
+• Strengthen the connection between the child-fruit analogy and machine learning phases by emphasizing how each part of the learning process directly correlates to machine learning concepts, ensuring readers understand the parallels. (found in 1/3 evaluations, 33%)
+• Consider incorporating visuals or examples that could break up text and provide visual cues of the concepts discussed. (found in 1/3 evaluations, 33%)
+• Expand on the descriptions of the types of machine learning, offering examples or applications for each type to help contextualize the differences. (found in 1/3 evaluations, 33%)
+• Provide additional detail in the movie recommendation example, such as how algorithms account for new users or changing user tastes, to enhance realism and depth. (found in 1/3 evaluations, 33%)
+• Consider adding a catchy opening sentence or an interesting fact about machine learning to grab the reader&#x27;s attention right from the start. (found in 1/3 evaluations, 33%)
+• Enhance the conclusion by emphasizing the growing relevance of machine learning in contemporary society and encouraging curiosity about future developments. (found in 1/3 evaluations, 33%)
+• To enhance engagement, consider starting with a compelling question or a real-world scenario that sparks curiosity about machine learning. (found in 1/3 evaluations, 33%)
+• Provide simpler terms or brief explanations for any technical jargon used so that all readers, regardless of their background, can comprehend the text. (found in 1/3 evaluations, 33%)
+• Improve transitions between sections for better flow; linking the discussion on the types of machine learning directly to the movie recommendation example would create a cohesive narrative. (found in 1/3 evaluations, 33%)
+
+EVALUATION SUMMARY:
+• Total evaluations: 3
+• Consensus items: 20
+• Agreement on improvement need: 100.0%
+
+=== End Self-Consistency Evaluation ===
+
+Previous Attempt:
+### Understanding Machine Learning: A Simple Guide
+
+Have you ever wondered how your favorite streaming service seems to know just what you want to watch next? That’s the magic of **machine learning**, a powerful tool in the realm of artificial intelligence (AI). Let&#x27;s delve into this fascinating concept in a straightforward way!
+
+### What is Machine Learning?
+
+Machine learning is a branch of AI that allows computers to learn from and make predictions based on data. Rather than being programmed with explicit instructions, machine learning models analyze patterns in data and draw conclusions from them. Think of it like teaching a child to identify types of fruit: instead of memorizing rules, the child learns by seeing different examples.
+
+**Understanding AI vs. Machine Learning**: AI refers to broader computer systems designed to perform tasks requiring human intelligence, like understanding language or recognizing images. Machine learning, on the other hand, is a specific method used to achieve AI by allowing systems to learn and adapt independently based on their experiences.
+
+### Types of Machine Learning
+
+Machine learning can be divided into three main types, each with its unique ways of learning from data:
+
+1. **Supervised Learning**: In this approach, the model learns using labeled data, where the correct answers are provided. For example, if you&#x27;re teaching a model to recognize emails as &quot;spam&quot; or &quot;not spam,&quot; you feed it a dataset where those labels are already assigned.
+   
+2. **Unsupervised Learning**: Here, the model discovers patterns in data without any labeled outcomes. This method is useful for clustering similar items together. For instance, it could group customer data into segments that share common traits without pre-existing labels.
+
+3. **Reinforcement Learning**: This type involves models learning through trial and error by interacting with their environment and receiving feedback. An example of this is training an AI to play a game, where it learns optimal strategies through successes and failures.
+
+### Analogy: Teaching a Child to Identify Fruits
+
+Let’s return to our analogy of teaching a child about fruits to explain machine learning further:
+
+1. **Training**: As you introduce the child to various fruits—apples, bananas, and oranges—you provide numerous examples. This process is like &#x27;training&#x27; a machine learning model where lots of data helps the model learn to recognize different elements.
+
+2. **Learning**: As the child sees more varieties and names them correctly, they start creating an internal model for distinguishing these fruits. This reflects how a machine learning system uses training data to form an understanding of patterns.
+
+3. **Testing**: After some time, you could present a fruit they&#x27;ve never encountered, like a kiwi, and ask them to identify it. If they can make a correct guess based on previous examples, it mirrors the &#x27;testing phase&#x27; in machine learning where the model applies its learned knowledge to new data.
+
+### A Simple Example: Movie Recommendations
+
+Let’s bring this concept to life with a relatable example of how machine learning can recommend movies:
+
+1. **Data Collection**: Imagine a streaming platform collects data about what movies users watch and how they rate them.
+
+2. **Training the Model**: Using a collaborative filtering algorithm, the platform analyzes user data to find patterns. For instance, if many users who loved “Inception” also rated “Interstellar” highly, the model learns this connection.
+
+3. **Making Predictions**: After training, the system can recommend “Interstellar” to you if you’ve watched and enjoyed “Inception,” drawing from what it learned about similar users’ preferences.
+
+4. **Improving the Model**: As new ratings come in, the model adapts to changing trends and user tastes, ensuring recommendations remain relevant and personalized.
+
+### In Summary
+
+Machine learning is about equipping computers to learn from experience rather than relying solely on preset rules. Like a child who learns to identify fruits based on examples, machine learning models improve by analyzing large datasets to recognize patterns. This technology is increasingly relevant in our daily lives, from personalized content suggestions to advancements in healthcare.
+
+Curious to learn more about how machine learning continues to evolve? Feel free to ask! Understanding this concept opens the door to a future filled with exciting possibilities!
+
+Please provide an improved response that incorporates the improvement suggestions.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('response-2')">
+                        <strong>💬 Response (4,463 characters)</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="response-2">
+                        <div class="content-box">### Understanding Machine Learning: A Simple Guide
+
+Have you ever wondered how your favorite streaming service seems to know just what you want to watch next? That’s the magic of **machine learning**, a powerful tool in the realm of artificial intelligence (AI). Let&#x27;s delve into this fascinating concept in a straightforward way!
+
+### What is Machine Learning?
+
+Machine learning is a branch of AI that allows computers to learn from and make predictions based on data. Rather than being programmed with explicit instructions, machine learning models analyze patterns in data and draw conclusions from them. Think of it like teaching a child to identify types of fruit: instead of memorizing rules, the child learns by seeing different examples.
+
+**Understanding AI vs. Machine Learning**: AI refers to broader computer systems designed to perform tasks requiring human intelligence, like understanding language or recognizing images. Machine learning, on the other hand, is a specific method used to achieve AI by allowing systems to learn and adapt independently based on their experiences.
+
+### Types of Machine Learning
+
+Machine learning can be divided into three main types, each with its unique ways of learning from data:
+
+1. **Supervised Learning**: In this approach, the model learns using labeled data, where the correct answers are provided. For example, if you&#x27;re teaching a model to recognize emails as &quot;spam&quot; or &quot;not spam,&quot; you feed it a dataset where those labels are already assigned.
+   
+2. **Unsupervised Learning**: Here, the model discovers patterns in data without any labeled outcomes. This method is useful for clustering similar items together. For instance, it could group customer data into segments that share common traits without pre-existing labels.
+
+3. **Reinforcement Learning**: This type involves models learning through trial and error by interacting with their environment and receiving feedback. An example of this is training an AI to play a game, where it learns optimal strategies through successes and failures.
+
+### Analogy: Teaching a Child to Identify Fruits
+
+Let’s return to our analogy of teaching a child about fruits to explain machine learning further:
+
+1. **Training**: As you introduce the child to various fruits—apples, bananas, and oranges—you provide numerous examples. This process is like &#x27;training&#x27; a machine learning model where lots of data helps the model learn to recognize different elements.
+
+2. **Learning**: As the child sees more varieties and names them correctly, they start creating an internal model for distinguishing these fruits. This reflects how a machine learning system uses training data to form an understanding of patterns.
+
+3. **Testing**: After some time, you could present a fruit they&#x27;ve never encountered, like a kiwi, and ask them to identify it. If they can make a correct guess based on previous examples, it mirrors the &#x27;testing phase&#x27; in machine learning where the model applies its learned knowledge to new data.
+
+### A Simple Example: Movie Recommendations
+
+Let’s bring this concept to life with a relatable example of how machine learning can recommend movies:
+
+1. **Data Collection**: Imagine a streaming platform collects data about what movies users watch and how they rate them.
+
+2. **Training the Model**: Using a collaborative filtering algorithm, the platform analyzes user data to find patterns. For instance, if many users who loved “Inception” also rated “Interstellar” highly, the model learns this connection.
+
+3. **Making Predictions**: After training, the system can recommend “Interstellar” to you if you’ve watched and enjoyed “Inception,” drawing from what it learned about similar users’ preferences.
+
+4. **Improving the Model**: As new ratings come in, the model adapts to changing trends and user tastes, ensuring recommendations remain relevant and personalized.
+
+### In Summary
+
+Machine learning is about equipping computers to learn from experience rather than relying solely on preset rules. Like a child who learns to identify fruits based on examples, machine learning models improve by analyzing large datasets to recognize patterns. This technology is increasingly relevant in our daily lives, from personalized content suggestions to advancements in healthcare.
+
+Curious to learn more about how machine learning continues to evolve? Feel free to ask! Understanding this concept opens the door to a future filled with exciting possibilities!</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('validation-2')">
+                        <strong>✅ Validation Results</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="validation-2">
+                        <div class="content-box">No validation results</div>
+                    </div>
+                </div>
+
+                <div class="critics">
+                    <strong>🔍 Critics (1):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-2-0')">
+                            <div class="critic-name">SelfConsistencyCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge needs-improvement">❌ Needs Improvement</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-2-0">
+                            <div><strong>Confidence:</strong> 1.0</div>
+            <div class="violations">
+                <strong>⚠️ Issues Found:</strong>
+                <div class="suggestion">The explanation of machine learning could be more concise; some sentences are long and complex, which may lead to reader fatigue.</div><div class="suggestion">The analogy of teaching a child can be somewhat redundant, as it is repeated multiple times without introducing new insights.</div><div class="suggestion">The section on &quot;Types of Machine Learning&quot; could benefit from brief, direct examples for each type rather than just one main example, enhancing comprehension of these categories.</div><div class="suggestion">While the text uses a good analogy, it could potentially be simplified further. The analogy of teaching a child fruits may not be entirely clear to all readers, particularly in conveying how machine learning truly differs from traditional programming methods.</div><div class="suggestion">The section on types of machine learning is informative but lacks concrete examples for &quot;unsupervised learning&quot; and &quot;reinforcement learning.&quot; Including more relatable examples for these types could improve understanding, as they might be less familiar to readers compared to supervised learning.</div><div class="suggestion">The phrase &quot;magic of machine learning&quot; is somewhat informal and may undermine the scientific aspect of the technology. A more neutral phrase might improve the credibility of the text.</div><div class="suggestion">The introduction could be slightly misleading by referring to the &quot;magic&quot; of machine learning, which may imply that it is a more mystical process than it is. It&#x27;s important to emphasize the scientific and data-driven nature of these technologies.</div><div class="suggestion">The term &quot;labeled data&quot; in the explanation for supervised learning might not be immediately clear to all readers. A brief explanation of what constitutes labeled data could enhance understanding.</div><div class="suggestion">The transition between sections and ideas could be smoother. For example, moving from the introduction of machine learning to its types could include a linking sentence that emphasizes the relevance of understanding different types.</div>
+            </div>
+            
+            <div class="suggestions">
+                <strong>💡 Suggestions:</strong>
+                <div class="suggestion">Streamline explanations by avoiding overly complex sentences. Breaking up longer sentences can help maintain reader engagement.</div><div class="suggestion">Introduce more varied and specific examples for each type of machine learning to illustrate differences better.</div><div class="suggestion">Consider removing redundant phrases or sections to tighten the narrative and improve flow.</div><div class="suggestion">Simplify the analogy of teaching a child fruits to focus specifically on the learning aspect, emphasizing the actions of the child and how it relates directly to machine learning without going into too much detail.</div><div class="suggestion">Provide concrete, everyday examples for unsupervised and reinforcement learning. For instance, specify clustering in customer segmentation for unsupervised learning and give a specific game (like chess) for reinforcement learning.</div>
+            </div>
+            
+        <div class="feedback">
+            <strong>📝 Feedback:</strong>
+            <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">=== Self-Consistency Evaluation (3 iterations) ===
+
+Confidence Level: 100.0%
+Consensus Threshold: 60.0%
+
+CONSENSUS ISSUES (found in multiple evaluations):
+• The explanation of machine learning could be more concise; some sentences are long and complex, which may lead to reader fatigue. (found in 1/3 evaluations, 33%)
+• The analogy of teaching a child can be somewhat redundant, as it is repeated multiple times without introducing new insights. (found in 1/3 evaluations, 33%)
+• The section on &quot;Types of Machine Learning&quot; could benefit from brief, direct examples for each type rather than just one main example, enhancing comprehension of these categories. (found in 1/3 evaluations, 33%)
+• While the text uses a good analogy, it could potentially be simplified further. The analogy of teaching a child fruits may not be entirely clear to all readers, particularly in conveying how machine learning truly differs from traditional programming methods. (found in 1/3 evaluations, 33%)
+• The section on types of machine learning is informative but lacks concrete examples for &quot;unsupervised learning&quot; and &quot;reinforcement learning.&quot; Including more relatable examples for these types could improve understanding, as they might be less familiar to readers compared to supervised learning. (found in 1/3 evaluations, 33%)
+• The phrase &quot;magic of machine learning&quot; is somewhat informal and may undermine the scientific aspect of the technology. A more neutral phrase might improve the credibility of the text...</div>
+        </div>
+        
+        <div class="metadata">
+            <strong>📋 Consistency Analysis:</strong><br>
+        Iterations: 3<br>Consensus Items: 18<br>Agreement Ratio: 100.0%<br></div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function toggleCritic(criticId) {
+            const details = document.getElementById(criticId);
+            const button = details.previousElementSibling.querySelector('.expand-btn');
+
+            if (details.classList.contains('expanded')) {
+                details.classList.remove('expanded');
+                button.textContent = '▼';
+            } else {
+                details.classList.add('expanded');
+                button.textContent = '▲';
+            }
+        }
+
+        function toggleSection(sectionId) {
+            const details = document.getElementById(sectionId);
+            const button = details.previousElementSibling.querySelector('.expand-btn');
+
+            if (details.classList.contains('expanded')) {
+                details.classList.remove('expanded');
+                button.textContent = '▼';
+            } else {
+                details.classList.add('expanded');
+                button.textContent = '▲';
+            }
+        }
+
+        // Auto-expand first critic for demo
+        document.addEventListener('DOMContentLoaded', function() {
+            const firstCritic = document.querySelector('.critic-details');
+            if (firstCritic) {
+                firstCritic.classList.add('expanded');
+                const button = firstCritic.previousElementSibling.querySelector('.expand-btn');
+                if (button) button.textContent = '▲';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,822 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sifaka Thought Analysis - prompt_critic_example_thoughts.json</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .timeline {
+            padding: 20px;
+        }
+        .thought {
+            border-left: 4px solid #667eea;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 0 8px 8px 0;
+            position: relative;
+        }
+        .thought::before {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 20px;
+            width: 12px;
+            height: 12px;
+            background: #667eea;
+            border-radius: 50%;
+            border: 3px solid white;
+        }
+        .thought-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .iteration {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .model-info {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .response-preview {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+        .critics {
+            margin-top: 15px;
+        }
+        .critic {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .critic-header {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .critic-header:hover {
+            background: #e9ecef;
+        }
+        .critic-name {
+            font-weight: bold;
+        }
+        .critic-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .needs-improvement {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .approved {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        .critic-details {
+            padding: 15px;
+            display: none;
+        }
+        .critic-details.expanded {
+            display: block;
+        }
+        .suggestions, .violations {
+            margin-top: 10px;
+        }
+        .suggestion {
+            background: #fff3e0;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-left: 3px solid #ff9800;
+            border-radius: 0 4px 4px 0;
+        }
+        .violations .suggestion {
+            background: #ffebee;
+            border-left: 3px solid #f44336;
+        }
+        .metadata {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        .score {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .expand-btn {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .expandable-section {
+            margin: 15px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .section-header {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e0e0e0;
+            transition: background-color 0.2s;
+        }
+        .section-header:hover {
+            background: #e9ecef;
+        }
+        .section-details {
+            display: none;
+            padding: 0;
+        }
+        .section-details.expanded {
+            display: block;
+        }
+        .content-box {
+            background: #ffffff;
+            padding: 15px;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+            border-radius: 0 0 8px 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .validation-result {
+            background: #f8f9fa;
+            margin: 10px;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+        }
+        .validation-result.failed {
+            border-left-color: #dc3545;
+        }
+        .validator-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .validator-message {
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+        .validator-issues, .validator-suggestions {
+            margin-top: 8px;
+        }
+        .validator-issues ul, .validator-suggestions ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Sifaka Thought Analysis</h1>
+            <p>File: prompt_critic_example_thoughts.json | 3 iterations</p>
+        </div>
+
+        <div class="timeline">
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 0</div>
+                    <div class="timestamp">2025-05-31 16:25:57.640827</div>
+                </div>
+
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:gemini-1.5-flash
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('prompt-0')">
+                        <strong>📝 User Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="prompt-0">
+                        <div class="content-box">Escribe un ensayo detallado en español sobre los beneficios y desafíos de la inteligencia artificial en la educación moderna.
+    Incluye ejemplos específicos de cómo la IA puede personalizar el aprendizaje, automatizar tareas administrativas,
+    y mejorar la accesibilidad educativa. También discute las preocupaciones sobre la privacidad de datos estudiantiles
+    y la necesidad de mantener la interacción humana en el proceso educativo.
+
+    Responde completamente en español con al menos 200 palabras.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('model-prompt-0')">
+                        <strong>🤖 Model Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="model-prompt-0">
+                        <div class="content-box">System: You are a translation assistant. Follow the user&#x27;s instructions exactly. If asked to write in Spanish, write in Spanish. If asked to translate to English, provide only the English translation without any additional commentary.
+
+User: Escribe un ensayo detallado en español sobre los beneficios y desafíos de la inteligencia artificial en la educación moderna.
+    Incluye ejemplos específicos de cómo la IA puede personalizar el aprendizaje, automatizar tareas administrativas,
+    y mejorar la accesibilidad educativa. También discute las preocupaciones sobre la privacidad de datos estudiantiles
+    y la necesidad de mantener la interacción humana en el proceso educativo.
+
+    Responde completamente en español con al menos 200 palabras.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('response-0')">
+                        <strong>💬 Response (3,453 characters)</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="response-0">
+                        <div class="content-box">La inteligencia artificial (IA) está irrumpiendo en el panorama educativo moderno, ofreciendo un potencial transformador sin precedentes.  Si bien presenta numerosos beneficios, también plantea desafíos significativos que requieren una cuidadosa consideración.  Este ensayo explorará tanto los aspectos positivos como los negativos de la implementación de la IA en la educación.
+
+Uno de los beneficios más prometedores de la IA es su capacidad para personalizar el aprendizaje.  A través del análisis de datos de rendimiento estudiantil, las plataformas de IA pueden adaptar el ritmo y el contenido del curso a las necesidades individuales de cada alumno.  Por ejemplo, un sistema de IA podría identificar las áreas donde un estudiante está luchando y proporcionar ejercicios adicionales o recursos de aprendizaje específicos para abordar esas deficiencias.  Esto permite una educación más eficiente y efectiva, maximizando el potencial de cada estudiante.
+
+Además, la IA puede automatizar numerosas tareas administrativas, liberando a los educadores para que se centren en la interacción con los estudiantes.  La calificación automática de exámenes objetivos, la programación de clases y la gestión de la comunicación entre profesores y padres son solo algunos ejemplos de cómo la IA puede optimizar los procesos administrativos.  Esta automatización no solo ahorra tiempo y recursos, sino que también reduce la carga de trabajo del personal docente, permitiéndoles dedicar más tiempo a la enseñanza y al desarrollo individual de los alumnos.
+
+En términos de accesibilidad, la IA ofrece soluciones innovadoras para estudiantes con discapacidades.  Los sistemas de IA pueden proporcionar herramientas de apoyo, como la lectura de texto en voz alta o la traducción en tiempo real, facilitando el acceso al material educativo para estudiantes con dificultades de aprendizaje o visuales.  Esto contribuye a la creación de un entorno educativo más inclusivo y equitativo.
+
+Sin embargo, la integración de la IA en la educación también presenta desafíos significativos.  La privacidad de los datos estudiantiles es una preocupación primordial.  La recopilación y el uso de datos personales sensibles requieren políticas y regulaciones estrictas para garantizar la seguridad y la confidencialidad de la información.  Es crucial establecer mecanismos robustos de protección de datos para evitar posibles abusos o violaciones de la privacidad.
+
+Otro desafío importante es la necesidad de mantener la interacción humana en el proceso educativo.  Si bien la IA puede ser una herramienta invaluable, no debe reemplazar la relación profesor-alumno.  La interacción humana, el apoyo emocional y la guía personalizada siguen siendo fundamentales para el desarrollo integral del estudiante.  El equilibrio entre la utilización de la IA y el mantenimiento de un enfoque humanista en la educación es crucial para un éxito a largo plazo.
+
+En conclusión, la inteligencia artificial tiene el potencial de revolucionar la educación moderna, ofreciendo oportunidades sin precedentes para la personalización, la automatización y la accesibilidad.  Sin embargo, es fundamental abordar los desafíos relacionados con la privacidad de los datos y la necesidad de preservar la interacción humana.  Un enfoque equilibrado y responsable en la implementación de la IA en la educación es esencial para asegurar que esta tecnología se utilice para el beneficio de todos los estudiantes.
+</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('validation-0')">
+                        <strong>✅ Validation Results</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="validation-0">
+                        
+            <div class="validation-result failed">
+                <div class="validator-header">
+                    <strong>❌ ClassifierValidator</strong>
+                    <span class="score">Score: 0.0</span>
+                </div>
+                <div class="validator-message">Text classified as invalid label &#x27;es&#x27;</div>
+                <div class="validator-issues"><strong>Issues:</strong><ul><li>Text classified as &#x27;es&#x27; which is not allowed</li></ul></div>
+                <div class="validator-suggestions"><strong>Suggestions:</strong><ul><li>Modify text to avoid classification as &#x27;es&#x27;</li><li>Ensure text aligns with valid categories: [&#x27;en&#x27;]</li></ul></div>
+            </div>
+            
+                    </div>
+                </div>
+
+                <div class="critics">
+                    <strong>🔍 Critics (1):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-0-0')">
+                            <div class="critic-name">PromptCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge approved">✅ Approved</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-0-0">
+                            <div><strong>Confidence:</strong> 0.7</div>
+            <div class="violations">
+                <strong>⚠️ Issues Found:</strong>
+                <div class="suggestion">The Spanish is grammatically correct and fluent.  The vocabulary is appropriate for the topic.</div><div class="suggestion">While the text is well-written, it&#x27;s somewhat generic and lacks specific examples beyond general statements.  The essay relies heavily on general descriptions of AI capabilities rather than concrete illustrations of their application in education.  For instance, the examples of AI-powered tools for accessibility are very broad (&quot;reading text aloud&quot; or &quot;real-time translation&quot;) instead of naming specific software or platforms.</div><div class="suggestion">While it exceeds 200 words,  it could benefit from expanding on specific examples to deepen the analysis and fully meet the prompt&#x27;s requirements.</div>
+            </div>
+            
+            <div class="suggestions">
+                <strong>💡 Suggestions:</strong>
+                <div class="suggestion">Instead of saying &quot;a system of IA could identify...&quot;,  mention specific examples of AI-powered learning platforms (e.g., Khan Academy&#x27;s personalized learning features, Duolingo&#x27;s adaptive exercises) or AI-driven assessment tools.  For accessibility, mention specific assistive technologies powered by AI.  Similarly, give examples of administrative tasks automated by AI in schools (specific software used for scheduling, grading, etc.).</div><div class="suggestion">The section on data privacy is a bit superficial.  It should delve into specific data protection regulations (like GDPR or CCPA, adapting to the context of the relevant country), discuss potential vulnerabilities, and suggest concrete solutions to safeguard student data (e.g., anonymization techniques, data encryption, robust access control).</div><div class="suggestion">The conclusion summarizes the points well, but it could be strengthened by offering a more proactive and forward-looking statement about responsible AI implementation in education, perhaps suggesting specific guidelines or recommendations for educators and policymakers.</div>
+            </div>
+            
+        <div class="feedback">
+            <strong>📝 Feedback:</strong>
+            <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">Issues:
+
+- **No major language issues:** The Spanish is grammatically correct and fluent.  The vocabulary is appropriate for the topic.
+
+- **Minor stylistic issues:** While the text is well-written, it&#x27;s somewhat generic and lacks specific examples beyond general statements.  The essay relies heavily on general descriptions of AI capabilities rather than concrete illustrations of their application in education.  For instance, the examples of AI-powered tools for accessibility are very broad (&quot;reading text aloud&quot; or &quot;real-time translation&quot;) instead of naming specific software or platforms.
+
+- **Length:** While it exceeds 200 words,  it could benefit from expanding on specific examples to deepen the analysis and fully meet the prompt&#x27;s requirements.
+
+Suggestions:
+
+- **Provide concrete examples:** Instead of saying &quot;a system of IA could identify...&quot;,  mention specific examples of AI-powered learning platforms (e.g., Khan Academy&#x27;s personalized learning features, Duolingo&#x27;s adaptive exercises) or AI-driven assessment tools.  For accessibility, mention specific assistive technologies powered by AI.  Similarly, give examples of administrative tasks automated by AI in schools (specific software used for scheduling, grading, etc.).
+
+- **Deepen the discussion of data privacy:** The section on data privacy is a bit superficial.  It should delve into specific data protection regulations (like GDPR or CCPA, adapting to the context of the relevant country), discuss potential vulnerabiliti...</div>
+        </div>
+        
+        <div class="metadata">
+            <strong>📝 Prompt Critic Configuration:</strong><br>
+        
+            <div style="margin: 10px 0;">
+                <strong>🎯 Evaluation Criteria (4):</strong>
+                <ul style="margin: 5px 0; padding-left: 20px; font-size: 0.9em;">
+                    <li>Language correctness</li><li>Translation accuracy and completeness</li><li>Fluency and natural expression</li><li>Cultural appropriateness</li>
+                </ul>
+            </div>
+            
+            <div style="margin: 10px 0;">
+                <div style="cursor: pointer; padding: 6px; background: #e3f2fd; border-radius: 3px; font-size: 0.9em;"
+                     onclick="toggleSection('system-prompt-1866')">
+                    <strong>🤖 System Prompt</strong> <span id="system-prompt-1866-toggle">▼</span>
+                </div>
+                <div id="system-prompt-1866" style="display: none; padding: 8px; background: #f8f9fa; border: 1px solid #ddd; border-top: none; border-radius: 0 0 3px 3px;">
+                    <pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.8em; margin: 0; line-height: 1.3;">You are a translation expert. When text fails validation because it&#x27;s in the wrong languageyou MUST translate it to the correct language. This is your PRIMARY responsibility.</pre>
+                </div>
+            </div>
+            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 1</div>
+                    <div class="timestamp">2025-05-31 16:26:10.294247</div>
+                </div>
+
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:gemini-1.5-flash
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('prompt-1')">
+                        <strong>📝 User Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="prompt-1">
+                        <div class="content-box">Escribe un ensayo detallado en español sobre los beneficios y desafíos de la inteligencia artificial en la educación moderna.
+    Incluye ejemplos específicos de cómo la IA puede personalizar el aprendizaje, automatizar tareas administrativas,
+    y mejorar la accesibilidad educativa. También discute las preocupaciones sobre la privacidad de datos estudiantiles
+    y la necesidad de mantener la interacción humana en el proceso educativo.
+
+    Responde completamente en español con al menos 200 palabras.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('model-prompt-1')">
+                        <strong>🤖 Model Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="model-prompt-1">
+                        <div class="content-box">System: You are a translation assistant. Follow the user&#x27;s instructions exactly. If asked to write in Spanish, write in Spanish. If asked to translate to English, provide only the English translation without any additional commentary.
+
+Original Request: Escribe un ensayo detallado en español sobre los beneficios y desafíos de la inteligencia artificial en la educación moderna.
+    Incluye ejemplos específicos de cómo la IA puede personalizar el aprendizaje, automatizar tareas administrativas,
+    y mejorar la accesibilidad educativa. También discute las preocupaciones sobre la privacidad de datos estudiantiles
+    y la necesidad de mantener la interacción humana en el proceso educativo.
+
+    Responde completamente en español con al menos 200 palabras.
+
+Validation Issues:
+- Validator: Text classified as &#x27;es&#x27; which is not allowed (Suggestions: Modify text to avoid classification as &#x27;es&#x27;, Ensure text aligns with valid categories: [&#x27;en&#x27;])
+
+Improvement Suggestions:
+- PromptCritic: Issues:
+
+- **No major language issues:** The Spanish is grammatically correct and fluent.  The vocabulary is appropriate for the topic.
+
+- **Minor stylistic issues:** While the text is well-written, it&#x27;s somewhat generic and lacks specific examples beyond general statements.  The essay relies heavily on general descriptions of AI capabilities rather than concrete illustrations of their application in education.  For instance, the examples of AI-powered tools for accessibility are very broad (&quot;reading text aloud&quot; or &quot;real-time translation&quot;) instead of naming specific software or platforms.
+
+- **Length:** While it exceeds 200 words,  it could benefit from expanding on specific examples to deepen the analysis and fully meet the prompt&#x27;s requirements.
+
+Suggestions:
+
+- **Provide concrete examples:** Instead of saying &quot;a system of IA could identify...&quot;,  mention specific examples of AI-powered learning platforms (e.g., Khan Academy&#x27;s personalized learning features, Duolingo&#x27;s adaptive exercises) or AI-driven assessment tools.  For accessibility, mention specific assistive technologies powered by AI.  Similarly, give examples of administrative tasks automated by AI in schools (specific software used for scheduling, grading, etc.).
+
+- **Deepen the discussion of data privacy:** The section on data privacy is a bit superficial.  It should delve into specific data protection regulations (like GDPR or CCPA, adapting to the context of the relevant country), discuss potential vulnerabilities, and suggest concrete solutions to safeguard student data (e.g., anonymization techniques, data encryption, robust access control).
+
+- **Strengthen the conclusion:** The conclusion summarizes the points well, but it could be strengthened by offering a more proactive and forward-looking statement about responsible AI implementation in education, perhaps suggesting specific guidelines or recommendations for educators and policymakers.
+
+
+Overall Assessment:
+
+The text is a good, competent essay that fulfills the basic requirements of the prompt.  However, it lacks the depth and specificity required to be truly excellent.  The writing is clear, concise, and grammatically correct, but more concrete examples and a deeper exploration of the discussed issues (particularly data privacy) would significantly enhance its quality and demonstrate a more nuanced understanding of the topic.  With the suggested improvements, it would move from a &quot;good&quot; to an &quot;excellent&quot; essay.
+
+
+Previous Attempt:
+Artificial intelligence (AI) is rapidly transforming modern education, offering unprecedented potential for positive change. While presenting numerous benefits, its implementation also raises significant challenges that demand careful consideration. This essay will explore both the advantages and drawbacks of integrating AI into the educational landscape.
+
+One of AI&#x27;s most promising benefits is its capacity for personalized learning.  AI-powered platforms, such as Khan Academy&#x27;s personalized learning paths and Duolingo&#x27;s adaptive exercises, analyze student performance data to tailor the pace and content of coursework to individual needs. For example, if a student struggles with algebra, the system can provide targeted practice problems and supplementary resources, maximizing learning efficiency. This adaptive approach ensures that each student receives the support they need to reach their full potential.
+
+Furthermore, AI can automate various administrative tasks, freeing educators to focus on student interaction.  Software like Google Classroom streamlines communication between teachers and parents, while automated grading systems (e.g., those used for multiple-choice assessments) reduce teachers&#x27; workload. This not only saves time and resources but also allows educators to dedicate more time to individual student guidance and mentoring.
+
+AI also offers innovative solutions for students with disabilities.  Assistive technologies, such as text-to-speech software and real-time captioning tools, enhance accessibility for students with visual or auditory impairments.  AI-powered translation tools can also break down language barriers, making education more inclusive.  These technologies contribute to a more equitable and supportive learning environment.
+
+However, the integration of AI in education also presents considerable challenges.  A major concern is student data privacy.  The collection and use of sensitive personal data necessitates strict adherence to data protection regulations such as GDPR and CCPA (or equivalent national regulations).  Potential vulnerabilities, including data breaches and unauthorized access, require robust security measures such as data encryption, anonymization techniques, and strict access control protocols.  Schools and developers must prioritize transparent data handling practices and obtain informed consent from parents or guardians.
+
+Another critical challenge is maintaining the human element in education.  While AI can be an invaluable tool, it should not replace the crucial teacher-student relationship.  The emotional support, personalized guidance, and mentorship provided by educators remain fundamental to a student&#x27;s holistic development.  Striking a balance between leveraging AI&#x27;s capabilities and preserving the humanistic approach to education is crucial for long-term success.
+
+In conclusion, AI has the potential to revolutionize modern education, offering significant opportunities for personalized learning, administrative efficiency, and enhanced accessibility.  However, responsible implementation requires addressing data privacy concerns through stringent regulations and robust security measures.  Equally crucial is preserving the irreplaceable role of human interaction in the learning process.  A balanced approach, guided by ethical considerations and a commitment to student well-being, will ensure that AI serves as a powerful tool for improving educational outcomes for all.
+
+Please provide an improved response that addresses the validation issues and incorporates the improvement suggestions.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('response-1')">
+                        <strong>💬 Response (3,478 characters)</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="response-1">
+                        <div class="content-box">Artificial intelligence (AI) is rapidly transforming modern education, offering unprecedented potential for positive change. While presenting numerous benefits, its implementation also raises significant challenges that demand careful consideration. This essay will explore both the advantages and drawbacks of integrating AI into the educational landscape.
+
+One of AI&#x27;s most promising benefits is its capacity for personalized learning.  AI-powered platforms, such as Khan Academy&#x27;s personalized learning paths and Duolingo&#x27;s adaptive exercises, analyze student performance data to tailor the pace and content of coursework to individual needs. For example, if a student struggles with algebra, the system can provide targeted practice problems and supplementary resources, maximizing learning efficiency. This adaptive approach ensures that each student receives the support they need to reach their full potential.
+
+Furthermore, AI can automate various administrative tasks, freeing educators to focus on student interaction.  Software like Google Classroom streamlines communication between teachers and parents, while automated grading systems (e.g., those used for multiple-choice assessments) reduce teachers&#x27; workload. This not only saves time and resources but also allows educators to dedicate more time to individual student guidance and mentoring.
+
+AI also offers innovative solutions for students with disabilities.  Assistive technologies, such as text-to-speech software and real-time captioning tools, enhance accessibility for students with visual or auditory impairments.  AI-powered translation tools can also break down language barriers, making education more inclusive.  These technologies contribute to a more equitable and supportive learning environment.
+
+However, the integration of AI in education also presents considerable challenges.  A major concern is student data privacy.  The collection and use of sensitive personal data necessitates strict adherence to data protection regulations such as GDPR and CCPA (or equivalent national regulations).  Potential vulnerabilities, including data breaches and unauthorized access, require robust security measures such as data encryption, anonymization techniques, and strict access control protocols.  Schools and developers must prioritize transparent data handling practices and obtain informed consent from parents or guardians.
+
+Another critical challenge is maintaining the human element in education.  While AI can be an invaluable tool, it should not replace the crucial teacher-student relationship.  The emotional support, personalized guidance, and mentorship provided by educators remain fundamental to a student&#x27;s holistic development.  Striking a balance between leveraging AI&#x27;s capabilities and preserving the humanistic approach to education is crucial for long-term success.
+
+In conclusion, AI has the potential to revolutionize modern education, offering significant opportunities for personalized learning, administrative efficiency, and enhanced accessibility.  However, responsible implementation requires addressing data privacy concerns through stringent regulations and robust security measures.  Equally crucial is preserving the irreplaceable role of human interaction in the learning process.  A balanced approach, guided by ethical considerations and a commitment to student well-being, will ensure that AI serves as a powerful tool for improving educational outcomes for all.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('validation-1')">
+                        <strong>✅ Validation Results</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="validation-1">
+                        
+            <div class="validation-result passed">
+                <div class="validator-header">
+                    <strong>✅ ClassifierValidator</strong>
+                    <span class="score">Score: 1.0</span>
+                </div>
+                <div class="validator-message">Text classified as &#x27;en&#x27; with confidence 1.000</div>
+                
+                
+            </div>
+            
+                    </div>
+                </div>
+
+                <div class="critics">
+                    <strong>🔍 Critics (1):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-1-0')">
+                            <div class="critic-name">PromptCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge approved">✅ Approved</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-1-0">
+                            <div><strong>Confidence:</strong> 0.7</div>
+            <div class="violations">
+                <strong>⚠️ Issues Found:</strong>
+                <div class="suggestion">The text is entirely in English, fulfilling the prompt&#x27;s requirement to respond in Spanish.  This is a MAJOR issue as the prompt explicitly asked for a response in Spanish.  The submitted text is in English.</div>
+            </div>
+            
+            <div class="suggestions">
+                <strong>💡 Suggestions:</strong>
+                <div class="suggestion">The entire response needs to be rewritten in Spanish.  The English text, while well-written and addressing the prompt&#x27;s points, completely misses the core requirement of the task.</div>
+            </div>
+            
+        <div class="feedback">
+            <strong>📝 Feedback:</strong>
+            <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">Issues:
+
+* **No major language issues:** The text is entirely in English, fulfilling the prompt&#x27;s requirement to respond in Spanish.  This is a MAJOR issue as the prompt explicitly asked for a response in Spanish.  The submitted text is in English.
+
+
+Suggestions:
+
+* **Complete rewrite in Spanish:** The entire response needs to be rewritten in Spanish.  The English text, while well-written and addressing the prompt&#x27;s points, completely misses the core requirement of the task.
+
+
+Overall Assessment:
+
+The response is completely unacceptable.  While the English text demonstrates a good understanding of the topic and is well-structured, its failure to meet the fundamental requirement of being in Spanish renders it a failure.  The translation quality is not applicable because there was no translation attempted.  A score of 0/10 is appropriate.
+</div>
+        </div>
+        
+        <div class="metadata">
+            <strong>📝 Prompt Critic Configuration:</strong><br>
+        
+            <div style="margin: 10px 0;">
+                <strong>🎯 Evaluation Criteria (4):</strong>
+                <ul style="margin: 5px 0; padding-left: 20px; font-size: 0.9em;">
+                    <li>Language correctness</li><li>Translation accuracy and completeness</li><li>Fluency and natural expression</li><li>Cultural appropriateness</li>
+                </ul>
+            </div>
+            
+            <div style="margin: 10px 0;">
+                <div style="cursor: pointer; padding: 6px; background: #e3f2fd; border-radius: 3px; font-size: 0.9em;"
+                     onclick="toggleSection('system-prompt-1866')">
+                    <strong>🤖 System Prompt</strong> <span id="system-prompt-1866-toggle">▼</span>
+                </div>
+                <div id="system-prompt-1866" style="display: none; padding: 8px; background: #f8f9fa; border: 1px solid #ddd; border-top: none; border-radius: 0 0 3px 3px;">
+                    <pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.8em; margin: 0; line-height: 1.3;">You are a translation expert. When text fails validation because it&#x27;s in the wrong languageyou MUST translate it to the correct language. This is your PRIMARY responsibility.</pre>
+                </div>
+            </div>
+            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="thought">
+                <div class="thought-header">
+                    <div class="iteration">Iteration 2</div>
+                    <div class="timestamp">2025-05-31 16:26:17.188402</div>
+                </div>
+
+                <div class="model-info">
+                    <strong>🤖 Model:</strong> pydantic-ai:gemini-1.5-flash
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('prompt-2')">
+                        <strong>📝 User Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="prompt-2">
+                        <div class="content-box">Escribe un ensayo detallado en español sobre los beneficios y desafíos de la inteligencia artificial en la educación moderna.
+    Incluye ejemplos específicos de cómo la IA puede personalizar el aprendizaje, automatizar tareas administrativas,
+    y mejorar la accesibilidad educativa. También discute las preocupaciones sobre la privacidad de datos estudiantiles
+    y la necesidad de mantener la interacción humana en el proceso educativo.
+
+    Responde completamente en español con al menos 200 palabras.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('model-prompt-2')">
+                        <strong>🤖 Model Prompt</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="model-prompt-2">
+                        <div class="content-box">System: You are a translation assistant. Follow the user&#x27;s instructions exactly. If asked to write in Spanish, write in Spanish. If asked to translate to English, provide only the English translation without any additional commentary.
+
+Original Request: Escribe un ensayo detallado en español sobre los beneficios y desafíos de la inteligencia artificial en la educación moderna.
+    Incluye ejemplos específicos de cómo la IA puede personalizar el aprendizaje, automatizar tareas administrativas,
+    y mejorar la accesibilidad educativa. También discute las preocupaciones sobre la privacidad de datos estudiantiles
+    y la necesidad de mantener la interacción humana en el proceso educativo.
+
+    Responde completamente en español con al menos 200 palabras.
+
+Improvement Suggestions:
+- PromptCritic: Issues:
+
+* **No major language issues:** The text is entirely in English, fulfilling the prompt&#x27;s requirement to respond in Spanish.  This is a MAJOR issue as the prompt explicitly asked for a response in Spanish.  The submitted text is in English.
+
+
+Suggestions:
+
+* **Complete rewrite in Spanish:** The entire response needs to be rewritten in Spanish.  The English text, while well-written and addressing the prompt&#x27;s points, completely misses the core requirement of the task.
+
+
+Overall Assessment:
+
+The response is completely unacceptable.  While the English text demonstrates a good understanding of the topic and is well-structured, its failure to meet the fundamental requirement of being in Spanish renders it a failure.  The translation quality is not applicable because there was no translation attempted.  A score of 0/10 is appropriate.
+
+
+Previous Attempt:
+La inteligencia artificial (IA) está transformando rápidamente la educación moderna, ofreciendo un potencial sin precedentes para un cambio positivo. Si bien presenta numerosos beneficios, su implementación también plantea desafíos significativos que requieren una consideración cuidadosa. Este ensayo explorará las ventajas y desventajas de integrar la IA en el panorama educativo.
+
+Uno de los beneficios más prometedores de la IA es su capacidad para la personalización del aprendizaje. Las plataformas impulsadas por IA, como las rutas de aprendizaje personalizadas de Khan Academy y los ejercicios adaptativos de Duolingo, analizan los datos del rendimiento estudiantil para adaptar el ritmo y el contenido del curso a las necesidades individuales. Por ejemplo, si un estudiante tiene dificultades con álgebra, el sistema puede proporcionar problemas de práctica específicos y recursos complementarios, maximizando la eficiencia del aprendizaje. Este enfoque adaptativo garantiza que cada estudiante reciba el apoyo que necesita para alcanzar su máximo potencial.
+
+Además, la IA puede automatizar varias tareas administrativas, liberando a los educadores para que se centren en la interacción con los estudiantes.  Programas como Google Classroom agilizan la comunicación entre profesores y padres, mientras que los sistemas de calificación automatizados (por ejemplo, los utilizados para las evaluaciones de opción múltiple) reducen la carga de trabajo de los profesores. Esto no solo ahorra tiempo y recursos, sino que también permite a los educadores dedicar más tiempo a la orientación y tutoría individual de los estudiantes.
+
+La IA también ofrece soluciones innovadoras para estudiantes con discapacidades. Las tecnologías de asistencia, como el software de texto a voz y las herramientas de subtitulado en tiempo real, mejoran la accesibilidad para los estudiantes con deficiencias visuales o auditivas. Las herramientas de traducción impulsadas por IA también pueden romper las barreras del idioma, haciendo que la educación sea más inclusiva. Estas tecnologías contribuyen a un entorno de aprendizaje más equitativo y solidario.
+
+Sin embargo, la integración de la IA en la educación también presenta desafíos considerables. Una preocupación importante es la privacidad de los datos de los estudiantes. La recopilación y el uso de datos personales sensibles requieren el cumplimiento estricto de las regulaciones de protección de datos, como el RGPD y la CCPA (o regulaciones nacionales equivalentes). Las posibles vulnerabilidades, incluidas las violaciones de datos y el acceso no autorizado, requieren medidas de seguridad sólidas, como el cifrado de datos, las técnicas de anonimización y los protocolos estrictos de control de acceso. Las escuelas y los desarrolladores deben priorizar las prácticas transparentes de manejo de datos y obtener el consentimiento informado de los padres o tutores.
+
+Otro desafío crítico es mantener el elemento humano en la educación. Si bien la IA puede ser una herramienta invaluable, no debe reemplazar la relación crucial profesor-alumno. El apoyo emocional, la orientación personalizada y la tutoría proporcionados por los educadores siguen siendo fundamentales para el desarrollo integral de un estudiante. Lograr un equilibrio entre aprovechar las capacidades de la IA y preservar el enfoque humanista de la educación es crucial para el éxito a largo plazo.
+
+En conclusión, la IA tiene el potencial de revolucionar la educación moderna, ofreciendo importantes oportunidades para el aprendizaje personalizado, la eficiencia administrativa y una mayor accesibilidad. Sin embargo, una implementación responsable requiere abordar las preocupaciones sobre la privacidad de los datos mediante regulaciones estrictas y medidas de seguridad sólidas. Igualmente crucial es preservar el papel insustituible de la interacción humana en el proceso de aprendizaje. Un enfoque equilibrado, guiado por consideraciones éticas y un compromiso con el bienestar del estudiante, garantizará que la IA sirva como una herramienta poderosa para mejorar los resultados educativos para todos.
+
+Please provide an improved response that incorporates the improvement suggestions.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('response-2')">
+                        <strong>💬 Response (4,122 characters)</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="response-2">
+                        <div class="content-box">La inteligencia artificial (IA) está transformando rápidamente la educación moderna, ofreciendo un potencial sin precedentes para un cambio positivo. Si bien presenta numerosos beneficios, su implementación también plantea desafíos significativos que requieren una consideración cuidadosa. Este ensayo explorará las ventajas y desventajas de integrar la IA en el panorama educativo.
+
+Uno de los beneficios más prometedores de la IA es su capacidad para la personalización del aprendizaje. Las plataformas impulsadas por IA, como las rutas de aprendizaje personalizadas de Khan Academy y los ejercicios adaptativos de Duolingo, analizan los datos del rendimiento estudiantil para adaptar el ritmo y el contenido del curso a las necesidades individuales. Por ejemplo, si un estudiante tiene dificultades con álgebra, el sistema puede proporcionar problemas de práctica específicos y recursos complementarios, maximizando la eficiencia del aprendizaje. Este enfoque adaptativo garantiza que cada estudiante reciba el apoyo que necesita para alcanzar su máximo potencial.
+
+Además, la IA puede automatizar varias tareas administrativas, liberando a los educadores para que se centren en la interacción con los estudiantes.  Programas como Google Classroom agilizan la comunicación entre profesores y padres, mientras que los sistemas de calificación automatizados (por ejemplo, los utilizados para las evaluaciones de opción múltiple) reducen la carga de trabajo de los profesores. Esto no solo ahorra tiempo y recursos, sino que también permite a los educadores dedicar más tiempo a la orientación y tutoría individual de los estudiantes.
+
+La IA también ofrece soluciones innovadoras para estudiantes con discapacidades. Las tecnologías de asistencia, como el software de texto a voz y las herramientas de subtitulado en tiempo real, mejoran la accesibilidad para los estudiantes con deficiencias visuales o auditivas. Las herramientas de traducción impulsadas por IA también pueden romper las barreras del idioma, haciendo que la educación sea más inclusiva. Estas tecnologías contribuyen a un entorno de aprendizaje más equitativo y solidario.
+
+Sin embargo, la integración de la IA en la educación también presenta desafíos considerables. Una preocupación importante es la privacidad de los datos de los estudiantes. La recopilación y el uso de datos personales sensibles requieren el cumplimiento estricto de las regulaciones de protección de datos, como el RGPD y la CCPA (o regulaciones nacionales equivalentes). Las posibles vulnerabilidades, incluidas las violaciones de datos y el acceso no autorizado, requieren medidas de seguridad sólidas, como el cifrado de datos, las técnicas de anonimización y los protocolos estrictos de control de acceso. Las escuelas y los desarrolladores deben priorizar las prácticas transparentes de manejo de datos y obtener el consentimiento informado de los padres o tutores.
+
+Otro desafío crítico es mantener el elemento humano en la educación. Si bien la IA puede ser una herramienta invaluable, no debe reemplazar la relación crucial profesor-alumno. El apoyo emocional, la orientación personalizada y la tutoría proporcionados por los educadores siguen siendo fundamentales para el desarrollo integral de un estudiante. Lograr un equilibrio entre aprovechar las capacidades de la IA y preservar el enfoque humanista de la educación es crucial para el éxito a largo plazo.
+
+En conclusión, la IA tiene el potencial de revolucionar la educación moderna, ofreciendo importantes oportunidades para el aprendizaje personalizado, la eficiencia administrativa y una mayor accesibilidad. Sin embargo, una implementación responsable requiere abordar las preocupaciones sobre la privacidad de los datos mediante regulaciones estrictas y medidas de seguridad sólidas. Igualmente crucial es preservar el papel insustituible de la interacción humana en el proceso de aprendizaje. Un enfoque equilibrado, guiado por consideraciones éticas y un compromiso con el bienestar del estudiante, garantizará que la IA sirva como una herramienta poderosa para mejorar los resultados educativos para todos.</div>
+                    </div>
+                </div>
+
+                <div class="expandable-section">
+                    <div class="section-header" onclick="toggleSection('validation-2')">
+                        <strong>✅ Validation Results</strong>
+                        <span class="expand-btn">▼</span>
+                    </div>
+                    <div class="section-details" id="validation-2">
+                        
+            <div class="validation-result failed">
+                <div class="validator-header">
+                    <strong>❌ ClassifierValidator</strong>
+                    <span class="score">Score: 0.0</span>
+                </div>
+                <div class="validator-message">Text classified as invalid label &#x27;es&#x27;</div>
+                <div class="validator-issues"><strong>Issues:</strong><ul><li>Text classified as &#x27;es&#x27; which is not allowed</li></ul></div>
+                <div class="validator-suggestions"><strong>Suggestions:</strong><ul><li>Modify text to avoid classification as &#x27;es&#x27;</li><li>Ensure text aligns with valid categories: [&#x27;en&#x27;]</li></ul></div>
+            </div>
+            
+                    </div>
+                </div>
+
+                <div class="critics">
+                    <strong>🔍 Critics (1):</strong>
+
+                    <div class="critic">
+                        <div class="critic-header" onclick="toggleCritic('critic-2-0')">
+                            <div class="critic-name">PromptCritic</div>
+                            <div class="critic-status">
+                                <span class="score">Score: N/A</span>
+                                <span class="status-badge approved">✅ Approved</span>
+                                <span class="expand-btn">▼</span>
+                            </div>
+                        </div>
+                        <div class="critic-details" id="critic-2-0">
+                            <div><strong>Confidence:</strong> 0.7</div>
+            <div class="violations">
+                <strong>⚠️ Issues Found:</strong>
+                <div class="suggestion">The Spanish is correct, fluent, and uses appropriate vocabulary for the academic context.  The grammar is impeccable.</div><div class="suggestion">While the writing is good, it&#x27;s a bit formal and lacks some engaging elements.  The essay relies heavily on a list-like structure (benefit 1, benefit 2, challenge 1, challenge 2). A more nuanced approach with smoother transitions would improve it.</div><div class="suggestion">While it&#x27;s likely above 200 words,  it&#x27;s advisable to explicitly count the words to ensure compliance with the instructions.</div>
+            </div>
+            
+            <div class="suggestions">
+                <strong>💡 Suggestions:</strong>
+                <div class="suggestion">Instead of presenting benefits and challenges as separate lists, weave them together more organically. For example, after discussing a benefit of AI, briefly mention a potential counterpoint or challenge related to that benefit. This makes the argument more engaging and sophisticated.</div><div class="suggestion">While the examples of Khan Academy and Duolingo are good, more specific examples of AI applications in education (e.g., specific AI-powered assessment tools, chatbot tutors, virtual reality learning environments) would strengthen the essay.  These examples could be linked back to the benefits and challenges more directly.</div><div class="suggestion">The discussion on data privacy is good, but could be expanded to include other ethical concerns like algorithmic bias, the potential for AI to exacerbate existing inequalities, or the impact of AI on teacher roles and professional development.</div><div class="suggestion">The conclusion summarizes the points well, but it could be made more impactful by offering a call to action or a forward-looking perspective on the future of AI in education.  For instance, it could suggest areas needing further research or policy development.</div>
+            </div>
+            
+        <div class="feedback">
+            <strong>📝 Feedback:</strong>
+            <div class="feedback-content" style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-family: monospace; font-size: 0.9em;">Issues:
+
+* **No major language issues:** The Spanish is correct, fluent, and uses appropriate vocabulary for the academic context.  The grammar is impeccable.
+
+* **Minor stylistic issues:**  While the writing is good, it&#x27;s a bit formal and lacks some engaging elements.  The essay relies heavily on a list-like structure (benefit 1, benefit 2, challenge 1, challenge 2). A more nuanced approach with smoother transitions would improve it.
+
+* **Word count:** While it&#x27;s likely above 200 words,  it&#x27;s advisable to explicitly count the words to ensure compliance with the instructions.
+
+
+Suggestions:
+
+* **Improve flow and transitions:** Instead of presenting benefits and challenges as separate lists, weave them together more organically. For example, after discussing a benefit of AI, briefly mention a potential counterpoint or challenge related to that benefit. This makes the argument more engaging and sophisticated.
+
+* **Add more specific examples:** While the examples of Khan Academy and Duolingo are good, more specific examples of AI applications in education (e.g., specific AI-powered assessment tools, chatbot tutors, virtual reality learning environments) would strengthen the essay.  These examples could be linked back to the benefits and challenges more directly.
+
+* **Expand on ethical considerations:**  The discussion on data privacy is good, but could be expanded to include other ethical concerns like algorithmic bias, the potential for AI to exacerbate existing inequalities, o...</div>
+        </div>
+        
+        <div class="metadata">
+            <strong>📝 Prompt Critic Configuration:</strong><br>
+        
+            <div style="margin: 10px 0;">
+                <strong>🎯 Evaluation Criteria (4):</strong>
+                <ul style="margin: 5px 0; padding-left: 20px; font-size: 0.9em;">
+                    <li>Language correctness</li><li>Translation accuracy and completeness</li><li>Fluency and natural expression</li><li>Cultural appropriateness</li>
+                </ul>
+            </div>
+            
+            <div style="margin: 10px 0;">
+                <div style="cursor: pointer; padding: 6px; background: #e3f2fd; border-radius: 3px; font-size: 0.9em;"
+                     onclick="toggleSection('system-prompt-1866')">
+                    <strong>🤖 System Prompt</strong> <span id="system-prompt-1866-toggle">▼</span>
+                </div>
+                <div id="system-prompt-1866" style="display: none; padding: 8px; background: #f8f9fa; border: 1px solid #ddd; border-top: none; border-radius: 0 0 3px 3px;">
+                    <pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.8em; margin: 0; line-height: 1.3;">You are a translation expert. When text fails validation because it&#x27;s in the wrong languageyou MUST translate it to the correct language. This is your PRIMARY responsibility.</pre>
+                </div>
+            </div>
+            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function toggleCritic(criticId) {
+            const details = document.getElementById(criticId);
+            const button = details.previousElementSibling.querySelector('.expand-btn');
+
+            if (details.classList.contains('expanded')) {
+                details.classList.remove('expanded');
+                button.textContent = '▼';
+            } else {
+                details.classList.add('expanded');
+                button.textContent = '▲';
+            }
+        }
+
+        function toggleSection(sectionId) {
+            const details = document.getElementById(sectionId);
+            const button = details.previousElementSibling.querySelector('.expand-btn');
+
+            if (details.classList.contains('expanded')) {
+                details.classList.remove('expanded');
+                button.textContent = '▼';
+            } else {
+                details.classList.add('expanded');
+                button.textContent = '▲';
+            }
+        }
+
+        // Auto-expand first critic for demo
+        document.addEventListener('DOMContentLoaded', function() {
+            const firstCritic = document.querySelector('.critic-details');
+            if (firstCritic) {
+                firstCritic.classList.add('expanded');
+                const button = firstCritic.previousElementSibling.querySelector('.expand-btn');
+                if (button) button.textContent = '▲';
+            }
+        });
+    </script>
+</body>
+</html>
