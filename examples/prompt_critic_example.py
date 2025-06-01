@@ -16,6 +16,7 @@ Note: This example uses async execution to avoid event loop conflicts with Pydan
 """
 
 import asyncio
+import os
 
 from dotenv import load_dotenv
 from pydantic_ai import Agent
@@ -36,6 +37,10 @@ logger = get_logger(__name__)
 
 async def main():
     """Run the Spanish Translation with Prompt Critic example using PydanticAI."""
+
+    # Ensure API key is available
+    if not os.getenv("GOOGLE_API_KEY") and not os.getenv("GEMINI_API_KEY"):
+        raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY environment variable is required")
 
     logger.info("Creating PydanticAI Spanish translation with prompt critic example")
 
