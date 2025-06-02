@@ -1,8 +1,8 @@
-"""N-Critics critic for Sifaka.
+"""N-Critics critic for Sifaka v0.3.0+
 
-This module implements the N-Critics approach for text improvement, which uses
-an ensemble of specialized critics to provide comprehensive feedback and guide
-the refinement process.
+This module implements the N-Critics approach for text improvement using PydanticAI
+agents with structured output. It uses an ensemble of specialized critics to provide
+comprehensive feedback and guide the refinement process.
 
 Based on "N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics":
 https://arxiv.org/abs/2310.18679
@@ -29,54 +29,58 @@ from the original paper.
 """
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import List
 
-from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
-from sifaka.critics.base import BaseCritic
+from sifaka.critics.base_pydantic import PydanticAICritic
+from sifaka.models.critic_results import (
+    CriticResult,
+    CritiqueFeedback,
+    ConfidenceScore,
+    ViolationReport,
+    ImprovementSuggestion,
+)
 
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
-from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
 
-class NCriticsCritic(BaseCritic):
-    """Critic that uses an ensemble of specialized critics with validation awareness.
+class NCriticsCritic(PydanticAICritic):
+    """Modern N-Critics critic using PydanticAI agents with structured output.
 
     This critic implements the N-Critics technique, which leverages an ensemble
     of specialized critics, each focusing on different aspects of the text,
     to provide comprehensive feedback and guide the refinement process.
 
-    Enhanced with validation context awareness to prioritize validation constraints
-    over conflicting N-Critics suggestions.
+    Key features:
+    - Structured output using CritiqueFeedback model
+    - Ensemble of specialized critics with different roles
+    - Parallel critique generation for comprehensive feedback
+    - Score-based aggregation and consensus building
+    - Multi-perspective text evaluation
     """
 
     def __init__(
         self,
-        model: Optional[Model] = None,
-        model_name: Optional[str] = None,
+        model_name: str,
         num_critics: int = 3,
-        critic_roles: Optional[List[str]] = None,
-        critique_prompt_template: Optional[str] = None,
-        improve_prompt_template: Optional[str] = None,
+        critic_roles: List[str] = None,
         improvement_threshold: float = 7.0,
-        **model_kwargs: Any,
+        **agent_kwargs,
     ):
         """Initialize the N-Critics critic.
 
         Args:
-            model: The language model to use for critique and improvement.
-            model_name: The name of the model to use if model is not provided.
+            model_name: The model name for the PydanticAI agent (e.g., "openai:gpt-4")
             num_critics: Number of specialized critics to use.
             critic_roles: List of specialized critic roles/perspectives.
-            critique_prompt_template: Template for the critique prompt.
-            improve_prompt_template: Template for the improvement prompt.
             improvement_threshold: Score threshold below which improvement is needed (default: 7.0).
-            **model_kwargs: Additional keyword arguments for model creation.
+            **agent_kwargs: Additional arguments passed to the PydanticAI agent.
         """
-        super().__init__(model=model, model_name=model_name, **model_kwargs)
+        # Initialize parent with system prompt
+        super().__init__(model_name=model_name, **agent_kwargs)
 
         self.num_critics = num_critics
         self.improvement_threshold = improvement_threshold
@@ -93,401 +97,424 @@ class NCriticsCritic(BaseCritic):
             ][:num_critics]
         )
 
-        # Set up prompt templates
-        self.critique_prompt_template = critique_prompt_template or (
-            "You are a {role}.\n\n"
-            "Please critique the following text from your specialized perspective.\n\n"
-            "Original task: {prompt}\n\n"
-            "Text to critique:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Provide a structured critique with the following format:\n\n"
-            "PERFORMANCE: [How well does the text perform in your area of expertise?]\n\n"
-            "Issues:\n- [List specific problems you identify]\n\n"
-            "Suggestions:\n- [List specific improvements you recommend]\n\n"
-            "SCORE: [Rate the text from 1-10 in your area of focus]\n\n"
-            "Be specific, constructive, and focus on your area of expertise."
-        )
+        logger.info(f"Initialized NCriticsCritic with {num_critics} specialized critics")
 
-        self.improve_prompt_template = improve_prompt_template or (
-            "Improve the following text based on feedback from multiple specialized critics.\n\n"
-            "Original task: {prompt}\n\n"
-            "Current text:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Critic Feedback:\n{aggregated_feedback}\n\n"
-            "Please provide an improved version that:\n"
-            "1. Addresses all the issues identified by the critics\n"
-            "2. Incorporates the suggestions from each specialist\n"
-            "3. Maintains the core message and purpose\n"
-            "4. Balances the different perspectives and requirements\n"
-            "5. Better incorporates relevant information from the context (if available)\n\n"
-            "Improved text:"
-        )
+    def _get_default_system_prompt(self) -> str:
+        """Get the default system prompt for N-Critics ensemble critique.
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic using N-Critics ensemble approach (async).
+        Returns:
+            The default system prompt string.
+        """
+        return f"""You are an expert evaluator using the N-Critics ensemble approach with {self.num_critics} specialized perspectives.
+
+Your task is to evaluate text from multiple specialized viewpoints and provide structured feedback.
+
+You must return a CritiqueFeedback object with these REQUIRED fields:
+- message: A clear summary of your ensemble evaluation (string)
+- needs_improvement: Whether the text needs improvement (boolean)
+- confidence: ConfidenceScore with overall confidence (object with 'overall' field as float 0.0-1.0)
+- critic_name: Set this to "NCriticsCritic" (string)
+
+And these OPTIONAL fields (can be empty lists or null):
+- violations: List of ViolationReport objects for identified issues
+- suggestions: List of ImprovementSuggestion objects for addressing issues
+- processing_time_ms: Time taken in milliseconds (can be null)
+- critic_version: Version string (can be null)
+- metadata: Additional metadata dictionary (can be empty)
+
+Focus on providing comprehensive feedback from multiple specialized perspectives."""
+
+    async def _create_critique_prompt(self, thought: Thought) -> str:
+        """Create the critique prompt for the given thought.
+
+        Args:
+            thought: The thought to critique.
+
+        Returns:
+            The formatted critique prompt.
+        """
+        # Prepare context from retrieved documents (using mixin)
+        context = self._prepare_context(thought)
+
+        # Get validation context if available
+        validation_text = ""
+        if hasattr(thought, "validation_results") and thought.validation_results:
+            validation_text = f"\nValidation Context:\n{self._format_validation_context(thought.validation_results)}"
+
+        # Create ensemble evaluation prompt
+        roles_text = "\n".join([f"- {role}" for role in self.critic_roles])
+
+        return f"""Evaluate the following text using the N-Critics ensemble approach with multiple specialized perspectives.
+
+Original Task: {thought.prompt}
+
+Text to Evaluate:
+{thought.text}
+
+Context:
+{context}
+{validation_text}
+
+Specialized Critic Roles to Consider:
+{roles_text}
+
+Please provide a comprehensive critique that considers all {self.num_critics} specialized perspectives:
+
+1. Evaluate the text from each specialized viewpoint
+2. Identify issues and problems from multiple angles
+3. Provide improvement suggestions from each perspective
+4. Determine overall improvement need based on ensemble consensus
+5. Assign confidence based on agreement across perspectives
+
+Your evaluation should synthesize feedback from all specialized critics into a cohesive assessment."""
+
+    async def critique_async(self, thought: Thought) -> CriticResult:
+        """Critique text using N-Critics ensemble approach with structured output.
+
+        This method overrides the base implementation to perform ensemble critique
+        using multiple specialized perspectives for comprehensive evaluation.
 
         Args:
             thought: The Thought container with the text to critique.
 
         Returns:
-            A dictionary with critique results (without processing_time_ms).
-        """
-        logger.debug(f"NCriticsCritic: Starting critique for iteration {thought.iteration}")
-
-        # Generate critiques from each specialized critic (async)
-        critic_results = []
-        for role in self.critic_roles:
-            try:
-                result = await self._generate_critic_critique_async(thought, role)
-                critic_results.append(result)
-            except Exception as e:
-                logger.warning(f"Critic role '{role}' failed: {e}")
-                continue
-
-        # Process results
-        valid_critiques = critic_results
-
-        # Aggregate feedback from all critics
-        aggregated_feedback = self._aggregate_critiques(valid_critiques)
-
-        # Extract issues and suggestions from all critics
-        all_issues: List[str] = []
-        all_suggestions: List[str] = []
-        for critique in valid_critiques:
-            if "issues" in critique and isinstance(critique["issues"], list):
-                all_issues.extend(critique["issues"])
-            if "suggestions" in critique and isinstance(critique["suggestions"], list):
-                all_suggestions.extend(critique["suggestions"])
-
-        # Determine if improvement is needed
-        needs_improvement = (
-            aggregated_feedback.get("average_score", 5.0) < self.improvement_threshold
-        )
-
-        logger.debug(f"NCriticsCritic: Async completed with {len(valid_critiques)} critics")
-
-        return {
-            "needs_improvement": needs_improvement,
-            "message": aggregated_feedback["summary"],
-            "issues": all_issues,
-            "suggestions": all_suggestions,
-            "confidence": 0.8,  # Default confidence for N-Critics
-            "metadata": {
-                "critic_feedback": valid_critiques,
-                "aggregated_score": aggregated_feedback["average_score"],
-                "improvement_threshold": self.improvement_threshold,
-                "num_critics": len(valid_critiques),
-            },
-        }
-
-    async def improve_async(self, thought: Thought) -> str:
-        """Improve text based on ensemble critic feedback asynchronously.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-
-        Returns:
-            The improved text based on aggregated critic feedback.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        # Use the enhanced method with validation context from thought
-        validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return await self.improve_with_validation_context_async(thought, validation_context)
-
-    async def improve_with_validation_context_async(
-        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Improve text with validation context awareness asynchronously.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-            validation_context: Optional validation context for constraint awareness.
-
-        Returns:
-            The improved text that prioritizes validation constraints.
-
-        Raises:
-            ImproverError: If the improvement fails.
+            A CriticResult with ensemble feedback from multiple specialized critics.
         """
         start_time = time.time()
 
         with critic_context(
             critic_name="NCriticsCritic",
-            operation="improve",
-            message_prefix="Failed to improve text with N-Critics ensemble",
+            operation="critique",
+            message_prefix="Failed to critique text with N-Critics ensemble approach",
         ):
-            # Check if text is available
-            if not thought.text:
-                raise ImproverError(
-                    message="No text available for improvement",
-                    component="NCriticsCritic",
-                    operation="improve",
-                    suggestions=["Provide text to improve"],
-                )
-
-            # Get critique from thought
-            aggregated_feedback = ""
-            critic_feedback = []
-            if thought.critic_feedback:
-                for feedback in thought.critic_feedback:
-                    if feedback.critic_name == "NCriticsCritic":
-                        critic_feedback = feedback.metadata.get("critic_feedback", [])
-                        aggregated_feedback = self._format_feedback_for_improvement(critic_feedback)
-                        logger.debug(
-                            f"Found existing NCriticsCritic feedback with {len(critic_feedback)} critics"
-                        )
-                        break
-
-            # If no critique available, generate one using async method
-            # This should rarely happen since improve_async is called after critique_async
-            if not aggregated_feedback:
-                logger.warning(
-                    "No NCriticsCritic feedback found in thought, generating new critique (this may indicate a workflow issue)"
-                )
-                critique_result = await self._perform_critique_async(thought)
-                critic_feedback = critique_result["metadata"]["critic_feedback"]
-                aggregated_feedback = self._format_feedback_for_improvement(critic_feedback)
-
-            # Prepare context for improvement (using mixin)
-            context = self._prepare_context(thought)
-
-            # Create improvement prompt with validation awareness
-            if validation_context:
-                # Use enhanced prompt with validation awareness
-                improve_prompt = self._create_enhanced_improvement_prompt(
-                    prompt=thought.prompt,
-                    text=thought.text,
-                    critique=aggregated_feedback,
-                    context=context,
-                    validation_context=validation_context,
-                    critic_suggestions=[],  # NCriticsCritic has complex aggregated suggestions
-                )
-            else:
-                # Use original prompt template
-                improve_prompt = self.improve_prompt_template.format(
-                    prompt=thought.prompt,
-                    text=thought.text,
-                    aggregated_feedback=aggregated_feedback,
-                    context=context,
-                )
-
-            # Generate improved text with error handling (async only)
             try:
-                improved_text = await self.model._generate_async(
-                    prompt=improve_prompt,
-                    system_prompt="You are an expert editor incorporating feedback from multiple specialized critics.",
+                # Generate individual critiques from each specialized critic
+                individual_results = []
+                for role in self.critic_roles:
+                    try:
+                        # Create role-specific critique prompt
+                        role_prompt = await self._create_role_specific_prompt(thought, role)
+
+                        # Run PydanticAI agent with structured output for this role
+                        result = await self.agent.run(role_prompt)
+                        individual_results.append(
+                            {
+                                "role": role,
+                                "feedback": result.output,
+                                "score": self._extract_score_from_feedback(result.output),
+                            }
+                        )
+
+                    except Exception as e:
+                        logger.warning(f"N-Critics role '{role}' failed: {e}")
+                        continue
+
+                if not individual_results:
+                    raise ImproverError(
+                        message="All N-Critics ensemble roles failed",
+                        component="NCriticsCritic",
+                        operation="critique",
+                        suggestions=["Check model availability", "Verify prompt format"],
+                    )
+
+                # Aggregate results using ensemble consensus
+                aggregated_feedback = self._aggregate_ensemble_feedback(individual_results)
+
+                # Calculate processing time
+                processing_time = (time.time() - start_time) * 1000
+
+                # Create CriticResult with aggregated feedback
+                return CriticResult(
+                    feedback=aggregated_feedback,
+                    operation_type="critique",
+                    success=True,
+                    total_processing_time_ms=processing_time,
+                    model_calls=len(individual_results),
+                    input_text_length=len(thought.text),
+                    validation_context=self._get_validation_context_dict(thought),
+                    metadata={
+                        "model_name": self.model_name,
+                        "critic_name": self.__class__.__name__,
+                        "num_critics": self.num_critics,
+                        "successful_roles": len(individual_results),
+                        "improvement_threshold": self.improvement_threshold,
+                        "individual_results": [
+                            {
+                                "role": result["role"],
+                                "message": result["feedback"].message,
+                                "needs_improvement": result["feedback"].needs_improvement,
+                                "confidence": (
+                                    result["feedback"].confidence.overall
+                                    if result["feedback"].confidence
+                                    else 0.0
+                                ),
+                                "score": result["score"],
+                            }
+                            for result in individual_results
+                        ],
+                    },
                 )
+
             except Exception as e:
-                logger.error(f"NCriticsCritic improvement generation failed: {e}")
-                # Fallback: return original text with a note about the failure
-                return f"{thought.text}\n\n[Note: Improvement generation failed due to: {str(e)}]"
+                processing_time = (time.time() - start_time) * 1000
+                logger.error(f"NCriticsCritic critique failed: {e}")
 
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
+                # Return failed result
+                return CriticResult(
+                    feedback=CritiqueFeedback(
+                        message=f"N-Critics ensemble critique failed: {str(e)}",
+                        needs_improvement=True,
+                        confidence=ConfidenceScore(overall=0.0),
+                        critic_name="NCriticsCritic",
+                    ),
+                    operation_type="critique",
+                    success=False,
+                    error_message=str(e),
+                    total_processing_time_ms=processing_time,
+                    model_calls=0,
+                    input_text_length=len(thought.text),
+                    validation_context=self._get_validation_context_dict(thought),
+                    metadata={
+                        "model_name": self.model_name,
+                        "critic_name": self.__class__.__name__,
+                        "error_type": type(e).__name__,
+                    },
+                )
 
-            logger.debug(f"NCriticsCritic: Improvement completed in {processing_time:.2f}ms")
-
-            return improved_text.strip()
-
-    async def _generate_critic_critique_async(self, thought: Thought, role: str) -> Dict[str, Any]:
-        """Generate critique from a single specialized critic (async).
+    async def _create_role_specific_prompt(self, thought: Thought, role: str) -> str:
+        """Create a role-specific critique prompt for a specialized critic.
 
         Args:
-            thought: The Thought container with the text to critique.
-            role: The role/specialty of the critic.
+            thought: The thought to critique.
+            role: The specialized role/perspective for this critic.
 
         Returns:
-            A dictionary with the critic's feedback.
+            The formatted role-specific critique prompt.
         """
         # Prepare context from retrieved documents (using mixin)
         context = self._prepare_context(thought)
 
-        # Create role-specific critique prompt
-        critique_prompt = self.critique_prompt_template.format(
-            role=role,
-            prompt=thought.prompt,
-            text=thought.text,
-            context=context,
-        )
+        # Get validation context if available
+        validation_text = ""
+        if hasattr(thought, "validation_results") and thought.validation_results:
+            validation_text = f"\nValidation Context:\n{self._format_validation_context(thought.validation_results)}"
 
-        # Generate critique with error handling (async only)
-        try:
-            critique_response = await self.model._generate_async(
-                prompt=critique_prompt,
-                system_prompt=f"You are a specialized critic with the role: {role}",
-            )
-        except Exception as e:
-            logger.error(f"NCriticsCritic async generation failed for role '{role}': {e}")
-            # Return a fallback critique
-            critique_response = (
-                f"Error generating critique for {role}: {str(e)}. Please review the text manually."
-            )
+        return f"""You are a specialized critic with the role: {role}
 
-        # Extract score and determine improvement need
-        score = self._extract_score_from_critique(critique_response)
-        needs_improvement = score < 7.0
+Evaluate the following text from your specialized perspective and provide structured feedback.
 
-        # Parse structured feedback from the critique response
-        issues, suggestions = self._parse_structured_feedback(critique_response)
+Original Task: {thought.prompt}
 
-        return {
-            "role": role,
-            "score": score,
-            "needs_improvement": needs_improvement,
-            "issues": issues,
-            "suggestions": suggestions,
-            "critique": critique_response,
-        }
+Text to Evaluate:
+{thought.text}
 
-    def _aggregate_critiques(self, critiques: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Aggregate feedback from multiple critics.
+Context:
+{context}
+{validation_text}
+
+As a {role}, please provide a thorough critique focusing on your area of expertise:
+
+1. Analyze the text quality from your specialized viewpoint
+2. Identify specific issues or problems in your domain
+3. Provide concrete suggestions for improvement
+4. Assess whether improvement is needed from your perspective
+5. Rate your confidence in this evaluation
+
+Focus on your specialized area while providing constructive, actionable feedback."""
+
+    def _extract_score_from_feedback(self, feedback: CritiqueFeedback) -> float:
+        """Extract a numerical score from CritiqueFeedback for ensemble aggregation.
 
         Args:
-            critiques: List of critique dictionaries from individual critics.
+            feedback: The CritiqueFeedback object.
 
         Returns:
-            A dictionary with aggregated feedback.
+            A numerical score (0.0-10.0) for ensemble aggregation.
         """
-        if not critiques:
-            return {
-                "summary": "No critiques available",
-                "average_score": 0.0,
-                "num_critics": 0,
-            }
-
-        # Calculate average score
-        scores = [c.get("score", 0.0) for c in critiques]
-        average_score = sum(scores) / len(scores) if scores else 0.0
-
-        # Create summary
-        summary_parts = []
-        for i, critique in enumerate(critiques, 1):
-            role = critique.get("role", f"Critic {i}")
-            score = critique.get("score", 0.0)
-            summary_parts.append(f"{role}: Score {score}/10")
-
-        summary = (
-            f"Ensemble feedback from {len(critiques)} critics (Average: {average_score:.1f}/10):\n"
-        )
-        summary += "\n".join(summary_parts)
-
-        return {
-            "summary": summary,
-            "average_score": average_score,
-            "num_critics": len(critiques),
-        }
-
-    def _extract_score_from_critique(self, critique: str) -> float:
-        """Extract numerical score from critique text.
-
-        Args:
-            critique: The critique text to analyze.
-
-        Returns:
-            The extracted score (0.0-10.0).
-        """
-        import re
-
-        # Look for "SCORE: X" pattern
-        score_match = re.search(r"SCORE:\s*(\d+(?:\.\d+)?)", critique, re.IGNORECASE)
-        if score_match:
-            try:
-                score = float(score_match.group(1))
-                return max(0.0, min(10.0, score))  # Clamp to [0, 10]
-            except ValueError:
-                pass
-
-        # Look for "X/10" pattern
-        score_match = re.search(r"(\d+(?:\.\d+)?)/10", critique)
-        if score_match:
-            try:
-                score = float(score_match.group(1))
-                return max(0.0, min(10.0, score))
-            except ValueError:
-                pass
-
-        # Default score based on content analysis
-        critique_lower = critique.lower()
-        if any(word in critique_lower for word in ["excellent", "great", "perfect"]):
-            return 8.0
-        elif any(word in critique_lower for word in ["good", "well", "solid"]):
-            return 7.0
-        elif any(word in critique_lower for word in ["poor", "bad", "terrible"]):
-            return 3.0
+        # Use confidence as a proxy for score, scaled to 0-10
+        if feedback.confidence:
+            base_score = feedback.confidence.overall * 10.0
         else:
-            return 5.0  # Default neutral score
+            base_score = 5.0  # Default neutral score
 
-    def _parse_structured_feedback(self, critique: str) -> tuple[List[str], List[str]]:
-        """Parse structured feedback from critique text.
+        # Adjust based on needs_improvement
+        if feedback.needs_improvement:
+            # If improvement is needed, cap the score at 6.0
+            return min(base_score, 6.0)
+        else:
+            # If no improvement needed, ensure score is at least 7.0
+            return max(base_score, 7.0)
 
-        Args:
-            critique: The critique text to parse.
-
-        Returns:
-            A tuple of (issues, suggestions) lists.
-        """
-        issues = []
-        suggestions = []
-
-        # Simple parsing logic
-        in_issues = False
-        in_suggestions = False
-
-        for line in critique.split("\n"):
-            line = line.strip()
-            if line.lower().startswith("issues:"):
-                in_issues = True
-                in_suggestions = False
-                continue
-            elif line.lower().startswith("suggestions:"):
-                in_issues = False
-                in_suggestions = True
-                continue
-            elif line.lower().startswith(("score:", "performance:", "context")):
-                in_issues = False
-                in_suggestions = False
-                continue
-            elif not line or line.startswith("#"):
-                continue
-
-            if in_issues and line.startswith("-"):
-                issues.append(line[1:].strip())
-            elif in_suggestions and line.startswith("-"):
-                suggestions.append(line[1:].strip())
-
-        return issues, suggestions
-
-    def _format_feedback_for_improvement(self, critic_feedback: List[Dict[str, Any]]) -> str:
-        """Format critic feedback for improvement prompt.
+    def _aggregate_ensemble_feedback(self, individual_results: List) -> CritiqueFeedback:
+        """Aggregate feedback from multiple specialized critics using ensemble consensus.
 
         Args:
-            critic_feedback: List of feedback from individual critics.
+            individual_results: List of individual critic results with role, feedback, and score.
 
         Returns:
-            A formatted string with aggregated feedback.
+            Aggregated CritiqueFeedback object with ensemble consensus.
         """
-        if not critic_feedback:
-            return "No specific feedback available."
+        if not individual_results:
+            return CritiqueFeedback(
+                message="No feedback available from ensemble",
+                needs_improvement=False,
+                confidence=ConfidenceScore(overall=0.0),
+                critic_name="NCriticsCritic",
+            )
 
-        feedback_parts = []
-        for i, feedback in enumerate(critic_feedback, 1):
-            role = feedback.get("role", f"Critic {i}")
-            score = feedback.get("score", 0.0)
-            issues = feedback.get("issues", [])
-            suggestions = feedback.get("suggestions", [])
+        # Collect all violations and suggestions
+        all_violations = []
+        all_suggestions = []
+        improvement_votes = []
+        confidence_scores = []
+        scores = []
 
-            part = f"{role} (Score: {score}/10):\n"
-            if issues:
-                part += "Issues:\n" + "\n".join(f"- {issue}" for issue in issues) + "\n"
-            if suggestions:
-                part += (
-                    "Suggestions:\n"
-                    + "\n".join(f"- {suggestion}" for suggestion in suggestions)
-                    + "\n"
-                )
+        for result in individual_results:
+            feedback = result["feedback"]
+            all_violations.extend(feedback.violations)
+            all_suggestions.extend(feedback.suggestions)
+            improvement_votes.append(feedback.needs_improvement)
+            if feedback.confidence:
+                confidence_scores.append(feedback.confidence.overall)
+            scores.append(result["score"])
 
-            feedback_parts.append(part)
+        # Calculate ensemble metrics
+        average_score = sum(scores) / len(scores) if scores else 5.0
+        improvement_ratio = sum(improvement_votes) / len(improvement_votes)
+        needs_improvement = improvement_ratio > 0.5 or average_score < self.improvement_threshold
 
-        return "\n".join(feedback_parts)
+        # Calculate ensemble confidence based on agreement
+        avg_confidence = (
+            sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0.5
+        )
+        agreement_boost = 1.0 - abs(improvement_ratio - 0.5) * 2  # Higher when closer to consensus
+        final_confidence = min(1.0, avg_confidence * (1 + agreement_boost * 0.2))
+
+        # Create ensemble message
+        message = self._create_ensemble_message(
+            individual_results, average_score, improvement_ratio, final_confidence
+        )
+
+        # Find consensus violations and suggestions (simple frequency-based)
+        consensus_violations = self._find_consensus_items(all_violations, "violations")
+        consensus_suggestions = self._find_consensus_items(all_suggestions, "suggestions")
+
+        return CritiqueFeedback(
+            message=message,
+            needs_improvement=needs_improvement,
+            violations=consensus_violations,
+            suggestions=consensus_suggestions,
+            confidence=ConfidenceScore(overall=final_confidence),
+            critic_name="NCriticsCritic",
+            metadata={
+                "num_critics": len(individual_results),
+                "average_score": average_score,
+                "improvement_ratio": improvement_ratio,
+                "improvement_threshold": self.improvement_threshold,
+                "individual_scores": scores,
+                "individual_confidence_scores": confidence_scores,
+            },
+        )
+
+    def _find_consensus_items(self, items: List, item_type: str) -> List:
+        """Find consensus items (violations or suggestions) using frequency-based voting.
+
+        Args:
+            items: List of ViolationReport or ImprovementSuggestion objects.
+            item_type: Type of items ("violations" or "suggestions").
+
+        Returns:
+            List of consensus items.
+        """
+        if not items:
+            return []
+
+        # Group items by description (simple text matching)
+        from collections import Counter
+
+        item_counts = Counter(item.description for item in items)
+        min_frequency = max(1, len(self.critic_roles) // 2)  # At least half the critics
+
+        consensus_items = []
+        for description, count in item_counts.items():
+            if count >= min_frequency:
+                # Find a representative item with this description
+                representative = next(item for item in items if item.description == description)
+
+                # Create new item with consensus metadata
+                if item_type == "violations":
+                    consensus_items.append(
+                        ViolationReport(
+                            description=description,
+                            severity=representative.severity,
+                            location=representative.location,
+                            suggestion=representative.suggestion,
+                            metadata={
+                                "frequency": count,
+                                "consensus_ratio": count / len(self.critic_roles),
+                            },
+                        )
+                    )
+                else:  # suggestions
+                    consensus_items.append(
+                        ImprovementSuggestion(
+                            description=description,
+                            priority=representative.priority,
+                            category=representative.category,
+                            expected_impact=representative.expected_impact,
+                            metadata={
+                                "frequency": count,
+                                "consensus_ratio": count / len(self.critic_roles),
+                            },
+                        )
+                    )
+
+        return consensus_items
+
+    def _create_ensemble_message(
+        self,
+        individual_results: List,
+        average_score: float,
+        improvement_ratio: float,
+        confidence: float,
+    ) -> str:
+        """Create an ensemble message summarizing the aggregated feedback.
+
+        Args:
+            individual_results: List of individual critic results.
+            average_score: Average score across all critics.
+            improvement_ratio: Ratio of critics that suggested improvement.
+            confidence: Final confidence score.
+
+        Returns:
+            Formatted ensemble message.
+        """
+        num_critics = len(individual_results)
+
+        message = f"=== N-Critics Ensemble Evaluation ({num_critics} specialized critics) ===\n\n"
+        message += f"Average Score: {average_score:.1f}/10\n"
+        message += f"Confidence Level: {confidence:.1%}\n"
+        message += f"Improvement Agreement: {improvement_ratio:.1%}\n"
+        message += f"Improvement Threshold: {self.improvement_threshold}/10\n\n"
+
+        message += "INDIVIDUAL CRITIC ASSESSMENTS:\n"
+        for result in individual_results:
+            role = result["role"].split(":")[0]  # Get just the role name
+            score = result["score"]
+            needs_improvement = result["feedback"].needs_improvement
+            status = "Needs Improvement" if needs_improvement else "Satisfactory"
+            message += f"• {role}: {score:.1f}/10 ({status})\n"
+
+        message += f"\nENSEMBLE CONSENSUS:\n"
+        message += f"• Total critics: {num_critics}\n"
+        message += f"• Average score: {average_score:.1f}/10\n"
+        message += f"• Critics suggesting improvement: {int(improvement_ratio * num_critics)}/{num_critics}\n"
+        message += f"• Overall assessment: {'Needs Improvement' if improvement_ratio > 0.5 else 'Satisfactory'}\n"
+
+        message += "\n=== End N-Critics Ensemble Evaluation ==="
+
+        return message
+
+    # Note: The old improve_async and improve_with_validation_context_async methods
+    # are not needed in the PydanticAI approach since improvement is handled
+    # by the chain/agent architecture, not individual critics.

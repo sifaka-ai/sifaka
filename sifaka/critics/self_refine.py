@@ -31,18 +31,17 @@ learning mechanisms that were not part of the original research.
 import time
 from typing import Any, Dict, List, Optional
 
-from sifaka.core.interfaces import Model
-from sifaka.core.thought import Thought
-from sifaka.critics.base import BaseCritic
+from pydantic_ai import Agent
 
+from sifaka.core.thought import Thought
+from sifaka.critics.base_pydantic import PydanticAICritic
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
-from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
 
-class SelfRefineCritic(BaseCritic):
+class SelfRefineCritic(PydanticAICritic):
     """Critic that implements iterative self-refinement with validation awareness.
 
     This critic uses the Self-Refine approach to iteratively improve text through
@@ -55,26 +54,21 @@ class SelfRefineCritic(BaseCritic):
 
     def __init__(
         self,
-        model: Optional[Model] = None,
-        model_name: Optional[str] = None,
+        model_name: str,
         max_iterations: int = 3,
         improvement_criteria: Optional[List[str]] = None,
-        critique_prompt_template: Optional[str] = None,
-        improve_prompt_template: Optional[str] = None,
-        **model_kwargs: Any,
+        **agent_kwargs: Any,
     ):
         """Initialize the Self-Refine critic.
 
         Args:
-            model: The language model to use for critique and improvement.
-            model_name: The name of the model to use if model is not provided.
+            model_name: The model name for the PydanticAI agent (e.g., "openai:gpt-4")
             max_iterations: Maximum number of refinement iterations.
             improvement_criteria: Specific criteria to focus on during improvement.
-            critique_prompt_template: Template for the critique prompt.
-            improve_prompt_template: Template for the improvement prompt.
-            **model_kwargs: Additional keyword arguments for model creation.
+            **agent_kwargs: Additional arguments passed to the PydanticAI agent.
         """
-        super().__init__(model=model, model_name=model_name, **model_kwargs)
+        # Initialize parent with system prompt
+        super().__init__(model_name=model_name, **agent_kwargs)
 
         self.max_iterations = max_iterations
         self.improvement_criteria = improvement_criteria or [
@@ -84,86 +78,83 @@ class SelfRefineCritic(BaseCritic):
             "coherence",
         ]
 
-        # Set up prompt templates
+        logger.info(
+            f"Initialized SelfRefineCritic with max_iterations={max_iterations}, "
+            f"criteria={self.improvement_criteria}"
+        )
+
+    def _get_default_system_prompt(self) -> str:
+        """Get the default system prompt for self-refine evaluation."""
         criteria_text = ", ".join(self.improvement_criteria)
+        return f"""You are an expert self-refine critic that provides iterative feedback for text improvement. Your role is to critique text focusing on {criteria_text} and provide structured feedback.
 
-        self.critique_prompt_template = critique_prompt_template or (
-            f"Please critique the following text focusing on {criteria_text}.\n\n"
-            "Original task: {prompt}\n\n"
-            "Text to critique:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Please provide a detailed critique focusing on:\n"
-            "1. How well does the text address the original task?\n"
-            "2. Are there any factual errors or inconsistencies?\n"
-            "3. Is the text clear and well-structured?\n"
-            "4. What specific improvements could be made?\n"
-            "5. How well does the text use information from the retrieved context (if available)?\n\n"
-            "Format your response as:\n"
-            "Issues:\n- [List specific issues here]\n\n"
-            "Suggestions:\n- [List specific suggestions here]\n\n"
-            "Overall Assessment: [Brief assessment]\n\n"
-            "If the text is already excellent and needs no improvement, please state that clearly."
-        )
+You must return a CritiqueFeedback object with these REQUIRED fields:
+- message: A clear summary of your self-refine evaluation (string)
+- needs_improvement: Whether the text needs improvement based on self-critique (boolean)
+- confidence: ConfidenceScore with overall confidence (object with 'overall' field as float 0.0-1.0)
+- critic_name: Set this to "SelfRefineCritic" (string)
 
-        self.improve_prompt_template = improve_prompt_template or (
-            "Please improve the following text based on the critique provided.\n\n"
-            "Original task: {prompt}\n\n"
-            "Current text:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Critique:\n{critique}\n\n"
-            "Please provide an improved version that addresses the issues identified "
-            "in the critique while maintaining the core message and staying true to "
-            "the original task. Better incorporate relevant information from the context if available.\n\n"
-            "Improved text:"
-        )
+And these OPTIONAL fields (can be empty lists or null):
+- violations: List of ViolationReport objects for identified issues
+- suggestions: List of ImprovementSuggestion objects for addressing issues
+- processing_time_ms: Time taken in milliseconds (can be null)
+- critic_version: Version string (can be null)
+- metadata: Additional metadata dictionary (can be empty)
 
-        # Store the last improvement prompt used for debugging/logging
-        self.last_improvement_prompt = None
+IMPORTANT: Always provide the required fields. For confidence, use a simple object like {{"overall": 0.8}} where the number is between 0.0 and 1.0.
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic using Self-Refine approach (async).
+Focus on:
+1. How well does the text address the original task?
+2. Are there any factual errors or inconsistencies?
+3. Is the text clear and well-structured?
+4. What specific improvements could be made?
+5. How well does the text use information from context?
+
+Use the Self-Refine approach: provide detailed, constructive feedback for iterative improvement."""
+
+    async def _create_critique_prompt(self, thought: Thought) -> str:
+        """Create the critique prompt for self-refine evaluation.
 
         Args:
             thought: The Thought container with the text to critique.
 
         Returns:
-            A dictionary with critique results (without processing_time_ms).
+            The formatted critique prompt.
         """
         # Prepare context from retrieved documents (using mixin)
         context = self._prepare_context(thought)
 
-        # Create critique prompt with context
-        critique_prompt = self.critique_prompt_template.format(
-            prompt=thought.prompt,
-            text=thought.text,
-            context=context,
-        )
+        # Get validation context if available
+        validation_context = self._get_validation_context_dict(thought)
+        validation_text = ""
+        if validation_context:
+            validation_text = f"\n\nValidation Context:\n{validation_context}"
 
-        # Generate critique (async only)
-        critique_response = await self.model._generate_async(
-            prompt=critique_prompt,
-            system_prompt="You are an expert critic providing detailed, constructive feedback.",
-        )
+        criteria_text = ", ".join(self.improvement_criteria)
 
-        # Parse the critique
-        issues, suggestions = self._parse_critique(critique_response)
+        return f"""Please critique the following text focusing on {criteria_text}.
 
-        # Determine if improvement is needed based on critique content
-        needs_improvement = self._needs_improvement(critique_response)
+Original task: {thought.prompt}
 
-        logger.debug("SelfRefineCritic: Async critique completed")
+Text to critique:
+{thought.text}
 
-        return {
-            "needs_improvement": needs_improvement,
-            "message": critique_response,
-            "issues": issues,
-            "suggestions": suggestions,
-            "confidence": 0.8,  # Default confidence for Self-Refine
-            "metadata": {
-                "max_iterations": self.max_iterations,
-                "improvement_criteria": self.improvement_criteria,
-            },
-        }
+Context:
+{context}
+{validation_text}
+
+Please provide a detailed critique focusing on:
+1. How well does the text address the original task?
+2. Are there any factual errors or inconsistencies?
+3. Is the text clear and well-structured?
+4. What specific improvements could be made?
+5. How well does the text use information from the retrieved context (if available)?
+
+Self-Refine Parameters:
+- Max Iterations: {self.max_iterations}
+- Improvement Criteria: {criteria_text}
+
+If the text is already excellent and needs no improvement, please state that clearly in your assessment."""
 
     async def improve_async(self, thought: Thought) -> str:
         """Improve text using iterative Self-Refine approach asynchronously.
@@ -173,25 +164,6 @@ class SelfRefineCritic(BaseCritic):
 
         Returns:
             The improved text after iterative refinement.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        # Use the enhanced method with validation context from thought
-        validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return await self.improve_with_validation_context_async(thought, validation_context)
-
-    async def improve_with_validation_context_async(
-        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Improve text with validation context awareness.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-            validation_context: Optional validation context for constraint awareness.
-
-        Returns:
-            The improved text that prioritizes validation constraints.
 
         Raises:
             ImproverError: If the improvement fails.
@@ -224,59 +196,19 @@ class SelfRefineCritic(BaseCritic):
                 )
 
                 # FEEDBACK: Generate critique for current text
-                critique_prompt = self.critique_prompt_template.format(
-                    prompt=thought.prompt,
-                    text=current_text,
-                    context=context,
-                )
-
-                # Generate critique (async only)
-                critique = await self.model._generate_async(
-                    prompt=critique_prompt,
-                    system_prompt="You are an expert critic providing detailed, constructive feedback.",
-                )
+                critique_result = await self._critique_current_text(thought, current_text)
 
                 # Check if improvement is needed (stopping criteria)
-                if not self._needs_improvement(critique):
+                if not critique_result.feedback.needs_improvement:
                     logger.debug(
                         f"SelfRefineCritic: Stopping early at iteration {iteration + 1} - no improvement needed"
                     )
                     break
 
-                # Parse critique to extract suggestions for filtering
-                _, suggestions = self._parse_critique(critique)
-
-                # REFINE: Generate improved text using validation-aware prompt
-                if validation_context:
-                    # Use enhanced prompt with validation awareness
-                    improve_prompt = self._create_enhanced_improvement_prompt(
-                        prompt=thought.prompt,
-                        text=current_text,
-                        critique=critique,
-                        context=context,
-                        validation_context=validation_context,
-                        critic_suggestions=suggestions,
-                    )
-                else:
-                    # Use original prompt template
-                    improve_prompt = self.improve_prompt_template.format(
-                        prompt=thought.prompt,
-                        text=current_text,
-                        critique=critique,
-                        context=context,
-                    )
-
-                # Store the actual prompt for logging/debugging
-                self.last_improvement_prompt = improve_prompt
-
-                # Generate improved text (async only)
-                improved_text = await self.model._generate_async(
-                    prompt=improve_prompt,
-                    system_prompt="You are an expert editor improving text based on critique.",
+                # REFINE: Generate improved text
+                current_text = await self._refine_text(
+                    thought, current_text, critique_result.feedback.message, context
                 )
-
-                # Update current text for next iteration
-                current_text = improved_text.strip()
 
                 logger.debug(f"SelfRefineCritic: Completed iteration {iteration + 1}")
 
@@ -290,107 +222,41 @@ class SelfRefineCritic(BaseCritic):
 
             return current_text
 
-    def _parse_critique(self, critique: str) -> tuple[List[str], List[str]]:
-        """Parse critique text to extract issues and suggestions.
+    async def _critique_current_text(self, thought: Thought, current_text: str):
+        """Generate critique for current text iteration."""
+        # Create a temporary thought with current text
+        temp_thought = thought.model_copy(update={"text": current_text})
+        return await self.critique_async(temp_thought)
 
-        Args:
-            critique: The critique text to parse.
+    async def _refine_text(
+        self, thought: Thought, current_text: str, critique: str, context: str
+    ) -> str:
+        """Generate improved text based on critique."""
+        # Create improvement agent (returns string, not structured output)
+        improvement_agent = Agent(
+            model=self.model_name,
+            output_type=str,
+            system_prompt="You are an expert editor improving text based on self-critique feedback.",
+        )
 
-        Returns:
-            A tuple of (issues, suggestions) lists.
-        """
-        issues = []
-        suggestions = []
+        # Create improvement prompt
+        improve_prompt = f"""Please improve the following text based on the critique provided.
 
-        # Simple parsing logic
-        in_issues = False
-        in_suggestions = False
+Original task: {thought.prompt}
 
-        for line in critique.split("\n"):
-            line = line.strip()
-            if line.lower().startswith("issues:"):
-                in_issues = True
-                in_suggestions = False
-                continue
-            elif line.lower().startswith("suggestions:"):
-                in_issues = False
-                in_suggestions = True
-                continue
-            elif line.lower().startswith("overall assessment:"):
-                in_issues = False
-                in_suggestions = False
-                continue
-            elif not line or line.startswith("#"):
-                continue
+Current text:
+{current_text}
 
-            if in_issues and line.startswith("-"):
-                issues.append(line[1:].strip())
-            elif in_suggestions and line.startswith("-"):
-                suggestions.append(line[1:].strip())
+Context:
+{context}
 
-        # If no structured format found, extract from general content
-        if not issues and not suggestions:
-            critique_lower = critique.lower()
-            if any(word in critique_lower for word in ["issue", "problem", "error", "unclear"]):
-                issues.append("General issues identified in critique")
-            if any(word in critique_lower for word in ["improve", "suggest", "consider", "should"]):
-                suggestions.append("See critique for improvement suggestions")
+Critique:
+{critique}
 
-        return issues, suggestions
+Please provide an improved version that addresses the issues identified in the critique while maintaining the core message and staying true to the original task. Better incorporate relevant information from the context if available.
 
-    def _needs_improvement(self, critique: str) -> bool:
-        """Determine if text needs improvement based on critique content.
+Improved text:"""
 
-        Args:
-            critique: The critique text to analyze.
-
-        Returns:
-            True if improvement is needed, False otherwise.
-        """
-        # Simple heuristic based on common phrases in critiques
-        no_improvement_phrases = [
-            "no issues",
-            "looks good",
-            "well written",
-            "excellent",
-            "great job",
-            "perfect",
-            "no improvement needed",
-            "already excellent",
-            "no changes needed",
-            "well-structured",
-            "clear and concise",
-            "high quality",
-        ]
-
-        improvement_phrases = [
-            "could be improved",
-            "needs improvement",
-            "issues",
-            "problems",
-            "unclear",
-            "confusing",
-            "missing",
-            "incorrect",
-            "should be",
-            "consider",
-            "suggest",
-            "recommend",
-            "enhance",
-            "revise",
-        ]
-
-        critique_lower = critique.lower()
-
-        # Check for explicit "no improvement" indicators
-        for phrase in no_improvement_phrases:
-            if phrase in critique_lower:
-                return False
-
-        # Check for improvement indicators
-        for phrase in improvement_phrases:
-            if phrase in critique_lower:
-                return True
-
-        # Default to needing improvement if unclear
-        return True
+        # Generate improved text
+        result = await improvement_agent.run(improve_prompt)
+        return result.output.strip()

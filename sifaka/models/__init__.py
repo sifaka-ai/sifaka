@@ -33,10 +33,30 @@ For new code, prefer using PydanticAI agents directly:
 """
 
 from sifaka.models.base import create_model
+from sifaka.models.critic_results import (
+    CriticResult,
+    CritiqueFeedback,
+    ImprovementSuggestion,
+    ViolationReport,
+    ConfidenceScore,
+    SeverityLevel,
+)
+from sifaka.models.pydantic_ai import PydanticAIModel, create_pydantic_ai_model
 
 # Only export the unified factory function and PydanticAI adapter
 __all__ = ["create_model"]
 
 # PydanticAI adapter (for backward compatibility with critics)
-
 __all__.extend(["PydanticAIModel", "create_pydantic_ai_model"])
+
+# Critic result models
+__all__.extend(
+    [
+        "CriticResult",
+        "CritiqueFeedback",
+        "ImprovementSuggestion",
+        "ViolationReport",
+        "ConfidenceScore",
+        "SeverityLevel",
+    ]
+)
