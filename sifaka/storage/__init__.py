@@ -1,12 +1,12 @@
 """Simple, flexible storage system for Sifaka.
 
 By default, everything is stored in memory with no persistence. Users can optionally
-choose to persist data to files, Redis, Milvus, or other backends as needed.
+choose to persist data to files, Redis, or other backends as needed.
 
 The storage system follows a simple protocol:
 - get(key) -> value or None
 - set(key, value) -> None
-- search(query, limit) -> List[results] (for vector search)
+- search(query, limit) -> List[results] (for text search)
 - clear() -> None
 
 Example:
@@ -45,7 +45,6 @@ Example:
 from sifaka.storage.cached import CachedStorage
 from sifaka.storage.file import FileStorage
 from sifaka.storage.memory import MemoryStorage
-from sifaka.storage.milvus import MilvusStorage
 from sifaka.storage.protocol import Storage
 from sifaka.storage.redis import RedisStorage
 
@@ -54,6 +53,5 @@ __all__ = [
     "MemoryStorage",
     "FileStorage",
     "RedisStorage",
-    "MilvusStorage",
     "CachedStorage",
 ]

@@ -46,7 +46,7 @@ class Storage(Protocol):
         """Search for items matching a query asynchronously (internal method).
 
         For simple storage backends, this might just return all values.
-        For vector storage backends, this performs semantic search.
+        For advanced storage backends, this can perform text-based search.
 
         Args:
             query: The search query.
@@ -105,7 +105,7 @@ class Storage(Protocol):
         """Search for items matching a query.
 
         For simple storage backends, this might just return all values.
-        For vector storage backends, this performs semantic search.
+        For advanced storage backends, this can perform text-based search.
 
         Args:
             query: The search query.

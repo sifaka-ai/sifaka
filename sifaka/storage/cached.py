@@ -18,7 +18,7 @@ class CachedStorage:
     """Async layered storage combining memory cache with persistent storage.
 
     This storage implementation combines a fast cache (usually MemoryStorage)
-    with a persistent backend (FileStorage, RedisStorage, or MilvusStorage).
+    with a persistent backend (FileStorage or RedisStorage).
 
     All operations are async to properly handle modern storage backends.
 

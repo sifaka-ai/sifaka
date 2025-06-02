@@ -51,12 +51,9 @@ gemini = [
     "google-generativeai>=0.8.5",
 ]
 
-# Retrievers and vector databases
+# Storage backends
 redis = [
     "redis>=5.0.0",
-]
-milvus = [
-    "pymilvus>=2.4.0",
 ]
 
 # MCP (Model Context Protocol) support
@@ -122,7 +119,7 @@ models = [
     "sifaka[openai,anthropic,ollama,gemini]",
 ]
 retrievers = [
-    "sifaka[redis,milvus]",
+    "sifaka[redis]",
 ]
 all = [
     "sifaka[models,retrievers,classifiers,performance,mcp]",
@@ -231,7 +228,6 @@ module = [
     "redis.*",
     "sklearn.*",
     "guardrails.*",
-    "pymilvus.*",
     "anthropic.*",
     "openai.*",
     "numpy.*",

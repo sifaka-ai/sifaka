@@ -70,8 +70,8 @@ git push origin feature/your-feature-name
 - **Blocker**: Griffe version compatibility
 
 #### **🚀 MCP Storage Restoration**
-- **Goal**: Fix Redis and Milvus storage backends via MCP
-- **Skills**: MCP Protocol, Redis, Milvus, Distributed Systems
+- **Goal**: Fix Redis storage backends via MCP
+- **Skills**: MCP Protocol, Redis, Distributed Systems
 - **Impact**: Production-ready storage
 - **Priority**: High
 

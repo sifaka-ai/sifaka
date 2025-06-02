@@ -702,7 +702,7 @@ def create_actionable_suggestions(error: Exception, component: Optional[str] = N
             )
 
     # Storage-specific errors
-    elif component in ["Storage", "Redis", "Milvus"]:
+    elif component in ["Storage", "Redis"]:
         if "connection" in error_message:
             suggestions.extend(
                 [

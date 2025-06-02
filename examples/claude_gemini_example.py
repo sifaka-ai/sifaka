@@ -7,7 +7,7 @@ This example demonstrates:
 - Reflexion critic using Gemini Flash for self-reflection improvement
 - Length validator to ensure appropriate response length
 - Sentiment classifier validator to ensure positive sentiment
-- Four-tiered storage: Memory → Redis → Milvus → File for optimal performance and semantic search
+- Three-tiered storage: Memory → Redis → File for optimal performance and persistence
 - Chain termination after validation passes
 - Complete observability with thought persistence
 
@@ -35,7 +35,6 @@ from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.models import create_model
 from sifaka.storage import CachedStorage, FileStorage, MemoryStorage, RedisStorage
-from sifaka.storage.milvus import MilvusStorage
 from sifaka.utils.logging import get_logger
 from sifaka.validators import LengthValidator
 
@@ -49,8 +48,8 @@ load_dotenv()
 logger = get_logger(__name__)
 
 
-def setup_storage():
-    """Set up four-tiered storage: Memory → Redis → Milvus → File for optimal performance and persistence."""
+async def setup_storage():
+    """Set up three-tiered storage: Memory → Redis → File for optimal performance and persistence."""
 
     # Create thoughts directory if it doesn't exist
     thoughts_dir = Path("thoughts")
@@ -72,65 +71,24 @@ def setup_storage():
     )
     redis_storage = RedisStorage(redis_mcp_server=redis_mcp_server, key_prefix="sifaka:test")
 
-    # Layer 3: Milvus storage for semantic search (optional - can be None if Milvus not available)
-    try:
-        # Try to create Milvus MCP server (optional)
-        milvus_mcp_server = MCPServerStdio(
-            "uv",
-            args=[
-                "run",
-                "--directory",
-                "/Users/evanvolgas/Documents/not_beam/sifaka/mcp/mcp-server-milvus",  # Correct path
-                "--module",
-                "mcp_server_milvus.server",
-            ],
-            tool_prefix="milvus",
-        )
-        milvus_storage = MilvusStorage(
-            milvus_mcp_server=milvus_mcp_server,
-            collection_name="sifaka_thoughts",
-            key_prefix="sifaka:test",
-        )
-        logger.info("Milvus storage enabled for semantic search")
-    except Exception as e:
-        logger.warning(f"Milvus storage not available: {e}")
-        milvus_storage = None
-
-    # Layer 4: File storage (local debugging and backup)
+    # Layer 3: File storage (local debugging and backup)
     file_storage = FileStorage(
         "thoughts/claude_gemini_example_thoughts.json",
         overwrite=True,  # Overwrite existing file for clean runs
     )
 
-    # Create four-tier cached storage: Memory → Redis → Milvus → File
-    if milvus_storage:
-        # Four-tier: Memory → Redis → Milvus → File
-        milvus_file_storage = CachedStorage(
-            cache=milvus_storage,  # L3: Milvus (semantic search)
-            persistence=file_storage,  # L4: File (backup)
-        )
-        redis_milvus_file_storage = CachedStorage(
-            cache=redis_storage,  # L2: Redis (fast persistence)
-            persistence=milvus_file_storage,  # L3+L4: Milvus + File
-        )
-        cached_storage = CachedStorage(
-            cache=memory_storage,  # L1: Memory (fastest)
-            persistence=redis_milvus_file_storage,  # L2+L3+L4: Redis + Milvus + File
-        )
-        logger.info("Four-tier storage enabled: Memory → Redis → Milvus → File")
-    else:
-        # Three-tier fallback: Memory → Redis → File
-        redis_file_storage = CachedStorage(
-            cache=redis_storage,  # L2: Redis (persistent)
-            persistence=file_storage,  # L3: File (backup)
-        )
-        cached_storage = CachedStorage(
-            cache=memory_storage,  # L1: Memory (fastest)
-            persistence=redis_file_storage,  # L2+L3: Redis + File
-        )
-        logger.info("Three-tier storage fallback: Memory → Redis → File")
+    # Create three-tier cached storage: Memory → Redis → File
+    redis_file_storage = CachedStorage(
+        cache=redis_storage,  # L2: Redis (persistent)
+        persistence=file_storage,  # L3: File (backup)
+    )
+    cached_storage = CachedStorage(
+        cache=memory_storage,  # L1: Memory (fastest)
+        persistence=redis_file_storage,  # L2+L3: Redis + File
+    )
+    logger.info("Three-tier storage enabled: Memory → Redis → File")
 
-    return cached_storage, file_storage, milvus_storage
+    return cached_storage, file_storage
 
 
 async def main():
@@ -144,8 +102,8 @@ async def main():
 
     logger.info("Creating Claude 4 Generator with Gemini Flash Critics example")
 
-    # Set up four-tiered storage: Memory → Redis → Milvus → File
-    cached_storage, file_storage, milvus_storage = setup_storage()
+    # Set up three-tiered storage: Memory → Redis → File
+    cached_storage, file_storage = await setup_storage()
 
     # Create PydanticAI agent with Anthropic Claude 4
     logger.info("Creating PydanticAI agent with Claude 4 (claude-3-5-sonnet-latest)")
@@ -214,7 +172,7 @@ async def main():
         critics=[constitutional_critic, reflexion_critic],  # Both critics provide feedback
         max_improvement_iterations=3,  # Allow up to 3 improvement iterations
         always_apply_critics=False,  # Only apply critics when validation fails (terminate after validation passes)
-        analytics_storage=cached_storage,  # Use four-tiered storage for optimal performance
+        analytics_storage=cached_storage,  # Use three-tiered storage for optimal performance
     )
 
     print(
@@ -234,8 +192,8 @@ async def main():
 
     Target audience: Young professionals and entrepreneurs facing career or business challenges."""
 
-    # Store initial thought in four-tiered storage (Memory → Redis → Milvus → File)
-    logger.info("Storing initial prompt in four-tiered storage")
+    # Store initial thought in three-tiered storage (Memory → Redis → File)
+    logger.info("Storing initial prompt in three-tiered storage")
     try:
         current_timestamp = datetime.now().isoformat()
         await cached_storage.set(
@@ -289,11 +247,7 @@ async def main():
     print(f"  Generator: Claude 4 (claude-3-5-sonnet-latest)")
     print(f"  Critics: Constitutional + Reflexion (OpenAI GPT-4o-mini)")
     print(f"  Validators: Length + Sentiment")
-    storage_description = (
-        "Four-tier (Memory → Redis → Milvus → File)"
-        if milvus_storage
-        else "Three-tier (Memory → Redis → File)"
-    )
+    storage_description = "Three-tier (Memory → Redis → File)"
     print(f"  Storage: {storage_description}")
     print(f"  Termination: After validation passes")
 
@@ -329,10 +283,6 @@ async def main():
     print(f"\nThoughts saved to: {storage_description}")
     print(f"File backup: thoughts/claude_gemini_example_thoughts.json")
     print(f"Redis prefix: sifaka:test")
-    if milvus_storage:
-        print(f"Milvus collection: sifaka_thoughts (semantic search enabled)")
-    else:
-        print(f"Milvus: Not available (semantic search disabled)")
     print("\n" + "=" * 80)
 
 

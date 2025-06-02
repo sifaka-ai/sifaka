@@ -71,9 +71,6 @@ print("✅ Installation successful!")
 ```bash
 # Redis storage
 pip install redis
-
-# Milvus storage
-pip install pymilvus
 ```
 
 ### Text Processing

@@ -186,7 +186,7 @@ This release introduces significant architectural improvements with breaking cha
 #### **Full Retriever Support for PydanticAI Chains**
 - **NEW**: Added `model_retrievers` and `critic_retrievers` parameters to PydanticAI chains
 - **NEW**: Automatic retrieval orchestration (pre-generation and critic-specific retrieval)
-- **NEW**: Full compatibility with Sifaka's retriever system (InMemoryRetriever, Redis, Milvus, etc.)
+- **NEW**: Full compatibility with Sifaka's retriever system (InMemoryRetriever, Redis, etc.)
 
 ### Added
 - **PydanticAI Chain Retrievers**: Full retriever support with same API as Traditional chains
@@ -271,7 +271,7 @@ result = chain.run("Your prompt here")
 - Validators: Length, Regex, Content, Bias, Reading Level
 - Critics: Reflexion, Self-Refine, Constitutional AI, Self-RAG, N-Critics
 - Models: OpenAI, Anthropic, Google Gemini, HuggingFace, Ollama, Mock
-- Storage: Memory, File, Redis (via MCP), Milvus (via MCP)
+- Storage: Memory, File, Redis (via MCP)
 - Retrievers: InMemory, Mock
 - Classifiers: Toxicity, Sentiment, Bias, Language, Profanity, Spam
 - QuickStart utilities for rapid setup

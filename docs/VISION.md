@@ -50,11 +50,11 @@ Most frameworks treat validation as an afterthought. Sifaka makes validation and
 We're building for the future of AI infrastructure using the Model Context Protocol (MCP):
 
 - **Standardized communication** with external services
-- **Unified storage architecture** across Redis, Milvus, and other backends
+- **Unified storage architecture** across Redis and other backends
 - **Cross-process data sharing** for distributed applications
 - **Future-proof integration** with emerging AI infrastructure
 
-> **⚠️ Current Status**: MCP storage integration is currently experiencing issues and is our highest priority to fix. We're actively working on restoring Redis and Milvus backends via MCP. For production use, we recommend Memory or File storage until MCP integration is restored.
+> **⚠️ Current Status**: MCP storage integration is currently experiencing issues and is our highest priority to fix. We're actively working on restoring Redis backends via MCP. For production use, we recommend Memory or File storage until MCP integration is restored.
 
 ### Academic Rigor in Production
 Sifaka bridges the gap between research and production by:
@@ -97,7 +97,7 @@ Exciting developments in active development:
   - **Features**: Configurable T5 model variants (t5-small, t5-base, t5-large)
   - **Timeline**: In active development
 
-- **🚀 MCP Storage Restoration**: Robust Redis and Milvus backends
+- **🚀 MCP Storage Restoration**: Robust Redis backends
   - **Impact**: Production-ready distributed storage
   - **Timeline**: High priority fix in progress
 
