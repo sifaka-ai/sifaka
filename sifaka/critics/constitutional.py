@@ -41,16 +41,16 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
-from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
+
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
-from sifaka.utils.mixins import ContextAwareMixin
+
 from sifaka.validators.validation_context import create_validation_context
 
 logger = get_logger(__name__)
 
 
-class ConstitutionalCritic(BaseCritic, ValidationAwareMixin, ContextAwareMixin):
+class ConstitutionalCritic(BaseCritic):
     """Critic that evaluates text against constitutional principles with validation awareness.
 
     This critic implements the Constitutional AI approach by evaluating text

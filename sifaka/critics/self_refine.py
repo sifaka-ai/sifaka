@@ -34,7 +34,7 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
-from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
+
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
 from sifaka.validators.validation_context import create_validation_context
@@ -42,7 +42,7 @@ from sifaka.validators.validation_context import create_validation_context
 logger = get_logger(__name__)
 
 
-class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
+class SelfRefineCritic(BaseCritic):
     """Critic that implements iterative self-refinement with validation awareness.
 
     This critic uses the Self-Refine approach to iteratively improve text through

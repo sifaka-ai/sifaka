@@ -9,7 +9,6 @@ import json
 from datetime import datetime
 from typing import Any, List, Optional
 
-from sifaka.mcp import MCPClient, MCPServerConfig
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -24,30 +23,32 @@ class MilvusStorage:
     - Large-scale text storage and retrieval
     - AI-powered search capabilities
 
-    Attributes:
-        mcp_client: MCP client for Milvus communication.
-        collection_name: Name of the Milvus collection.
+    Uses PydanticAI's MCP client for compatibility with the rest of the Sifaka ecosystem.
     """
 
     def __init__(
         self,
-        mcp_config: MCPServerConfig,
+        milvus_mcp_server: Optional[Any] = None,
         collection_name: str = "sifaka_storage",
         dimension: int = 384,
         max_text_length: int = 65535,
+        key_prefix: str = "sifaka",
     ):
         """Initialize Milvus storage.
 
         Args:
-            mcp_config: MCP server configuration for Milvus.
+            milvus_mcp_server: PydanticAI MCPServerStdio instance for Milvus (optional).
             collection_name: Name of the Milvus collection.
             dimension: Vector dimension for embeddings.
             max_text_length: Maximum text length before truncation.
+            key_prefix: Prefix for all Milvus keys.
         """
-        self.mcp_client = MCPClient(mcp_config)
+        self.milvus_mcp_server = milvus_mcp_server
         self.collection_name = collection_name
         self.dimension = dimension
         self.max_text_length = max_text_length
+        self.key_prefix = key_prefix
+        self._milvus_enabled = milvus_mcp_server is not None
         self._connected = False
 
         # Hybrid approach: Store metadata separately due to MCP validation limitations
@@ -55,8 +56,54 @@ class MilvusStorage:
         self._metadata_store = {}
 
         logger.debug(
-            f"Initialized MilvusStorage with collection '{collection_name}', dimension {dimension}"
+            f"Initialized MilvusStorage with collection '{collection_name}', dimension {dimension}, Milvus enabled: {self._milvus_enabled}"
         )
+
+    def _make_key(self, key: str) -> str:
+        """Create a prefixed Milvus key."""
+        return f"{self.key_prefix}:{key}"
+
+    def _serialize_value(self, value: Any) -> str:
+        """Serialize a value for Milvus storage."""
+        if hasattr(value, "model_dump"):
+            # Pydantic model - serialize to JSON
+            return json.dumps(value.model_dump(), default=str)
+        elif isinstance(value, (dict, list)):
+            # Dict or list - serialize to JSON
+            return json.dumps(value, default=str)
+        else:
+            # Other types - convert to string
+            return str(value)
+
+    def _deserialize_value(self, data: str) -> Any:
+        """Deserialize a value from Milvus storage."""
+        if not data or "does not exist" in data:
+            return None
+
+        # Try to parse as JSON if it looks like structured data
+        if data.startswith("{") or data.startswith("[") or data.startswith('"'):
+            try:
+                decoded_value = json.loads(data)
+
+                # If the value is a dictionary and looks like a Thought, try to reconstruct it
+                if (
+                    isinstance(decoded_value, dict)
+                    and "id" in decoded_value
+                    and "prompt" in decoded_value
+                ):
+                    try:
+                        from sifaka.core.thought import Thought
+
+                        return Thought.from_dict(decoded_value)
+                    except Exception as e:
+                        logger.debug(f"Failed to reconstruct Thought from dict: {e}")
+                        return decoded_value
+
+                return decoded_value
+            except json.JSONDecodeError:
+                return data
+
+        return data
 
     def _generate_timestamp_key(self, thought: Any) -> str:
         """Generate a timestamp-based key for a thought.
@@ -275,11 +322,11 @@ class MilvusStorage:
 
     async def _ensure_connected(self) -> None:
         """Ensure MCP client is connected and collection exists."""
+        if not self._milvus_enabled:
+            return
+
         if not self._connected:
             try:
-                # Connect to the Milvus MCP server
-                await self.mcp_client.connect()
-
                 # Check if collection exists, create if it doesn't
                 await self._ensure_collection_exists()
 
@@ -292,15 +339,17 @@ class MilvusStorage:
     async def _ensure_collection_exists(self) -> None:
         """Ensure the collection exists, create it if it doesn't."""
         try:
-            # List collections to check if ours exists
-            result = await self.mcp_client.call_tool("milvus_list_collections", {})
+            # Use MCP server directly with Milvus tools
+            async with self.milvus_mcp_server as mcp_client:
+                # List collections to check if ours exists
+                result = await mcp_client.call_tool("milvus_list_collections", arguments={})
 
-            # Parse the response to check if our collection exists
-            if result and "content" in result and result["content"]:
-                collections_text = result["content"][0].get("text", "")
-                if self.collection_name not in collections_text:
-                    # Collection doesn't exist, create it
-                    await self._create_collection()
+                # Parse the response to check if our collection exists
+                if result and hasattr(result, "content") and result.content:
+                    collections_text = str(result.content[0].text) if result.content else ""
+                    if self.collection_name not in collections_text:
+                        # Collection doesn't exist, create it
+                        await self._create_collection()
 
         except Exception as e:
             logger.warning(f"Failed to check/create collection: {e}")
@@ -325,15 +374,19 @@ class MilvusStorage:
                 ],
             }
 
-            await self.mcp_client.call_tool(
-                "milvus_create_collection",
-                {"collection_name": self.collection_name, "collection_schema": schema},
-            )
+            async with self.milvus_mcp_server as mcp_client:
+                await mcp_client.call_tool(
+                    "milvus_create_collection",
+                    arguments={
+                        "collection_name": self.collection_name,
+                        "collection_schema": schema,
+                    },
+                )
 
-            # Load the collection into memory
-            await self.mcp_client.call_tool(
-                "milvus_load_collection", {"collection_name": self.collection_name}
-            )
+                # Load the collection into memory
+                await mcp_client.call_tool(
+                    "milvus_load_collection", arguments={"collection_name": self.collection_name}
+                )
 
             logger.info(f"Created and loaded collection: {self.collection_name}")
 
@@ -351,27 +404,33 @@ class MilvusStorage:
         Returns:
             The stored value, or None if not found.
         """
+        if not self._milvus_enabled:
+            return None
+
         await self._ensure_connected()
 
         try:
-            logger.debug(f"Milvus get: {key}")
+            milvus_key = self._make_key(key)
+            logger.debug(f"Milvus get: {key} -> {milvus_key}")
 
             # Check if we have a metadata mapping for this key (original -> timestamp)
-            search_key = key
+            search_key = milvus_key
             if key in self._metadata_store:
-                search_key = self._metadata_store[key]
+                search_key = self._make_key(self._metadata_store[key])
                 logger.debug(f"Using mapped key: {key} -> {search_key}")
 
-            # Use Milvus query for exact key match via MCP
-            result = await self.mcp_client.call_tool(
-                "milvus_query",
-                {
-                    "collection_name": self.collection_name,
-                    "filter_expr": f"key == '{search_key}'",  # Key is stored as direct string
-                    "output_fields": ["key", "content"],
-                    "limit": 1,
-                },
-            )
+            # Use MCP server directly with Milvus tools
+            async with self.milvus_mcp_server as mcp_client:
+                # Use Milvus query for exact key match via MCP
+                result = await mcp_client.call_tool(
+                    "milvus_query",
+                    arguments={
+                        "collection_name": self.collection_name,
+                        "filter_expr": f"key == '{search_key}'",  # Key is stored as direct string
+                        "output_fields": ["key", "content"],
+                        "limit": 1,
+                    },
+                )
 
             logger.debug(f"Milvus query result: {result}")
 
@@ -438,24 +497,43 @@ class MilvusStorage:
             key: The storage key.
             value: The value to store.
         """
+        if not self._milvus_enabled:
+            return
+
         await self._ensure_connected()
 
         try:
+            milvus_key = self._make_key(key)
+            logger.debug(f"Milvus set: {key} -> {milvus_key}")
+
+            # Convert value to JSON-compatible format
+            if hasattr(value, "model_dump"):
+                # Pydantic model - use model_dump for JSON compatibility
+                json_value = value.model_dump()
+            elif isinstance(value, (dict, list, str, int, float, bool)) or value is None:
+                # Already JSON-compatible
+                json_value = value
+            else:
+                # Convert to dict representation
+                json_value = {"data": str(value), "type": type(value).__name__}
+
+            logger.debug(f"JSON value type: {type(json_value)}")
+
             # Use timestamp-based key for thoughts, original key for other data
             if hasattr(value, "id") and hasattr(value, "iteration") and hasattr(value, "timestamp"):
                 # This looks like a thought - use timestamp-based key
                 timestamp_key = self._generate_timestamp_key(value)
-                milvus_key = timestamp_key
-                logger.debug(f"Milvus set (thought): {milvus_key}")
+                final_milvus_key = self._make_key(timestamp_key)
+                logger.debug(f"Milvus set (thought): {key} -> {final_milvus_key}")
 
                 # Also store metadata for original key lookup
                 original_key = key
                 logger.debug(f"Milvus set (original): {original_key}")
             else:
-                # Regular data - use original key
-                milvus_key = key
+                # Regular data - use prefixed key
+                final_milvus_key = milvus_key
                 original_key = None
-                logger.debug(f"Milvus set: {milvus_key}")
+                logger.debug(f"Milvus set: {final_milvus_key}")
 
             # Handle different value types - extract only essential fields for Milvus
             if hasattr(value, "model_dump"):
@@ -488,32 +566,34 @@ class MilvusStorage:
                 milvus_key, "key", max_length=512
             )  # Keys should be shorter
 
-            # First, delete any existing entry with this key
-            try:
-                await self.mcp_client.call_tool(
-                    "milvus_delete_entities",
-                    {
-                        "collection_name": self.collection_name,
-                        "filter_expr": f"key == '{milvus_key}'",
-                    },
-                )
-            except Exception:  # nosec
-                # Ignore errors if entity doesn't exist
-                pass
-
-            # Also delete by original key if this is a thought (for updates)
-            if original_key:
+            # Use MCP server directly with Milvus tools
+            async with self.milvus_mcp_server as mcp_client:
+                # First, delete any existing entry with this key
                 try:
-                    await self.mcp_client.call_tool(
+                    await mcp_client.call_tool(
                         "milvus_delete_entities",
-                        {
+                        arguments={
                             "collection_name": self.collection_name,
-                            "filter_expr": f"key == '{original_key}'",
+                            "filter_expr": f"key == '{final_milvus_key}'",
                         },
                     )
                 except Exception:  # nosec
                     # Ignore errors if entity doesn't exist
                     pass
+
+                # Also delete by original key if this is a thought (for updates)
+                if original_key:
+                    try:
+                        await mcp_client.call_tool(
+                            "milvus_delete_entities",
+                            arguments={
+                                "collection_name": self.collection_name,
+                                "filter_expr": f"key == '{original_key}'",
+                            },
+                        )
+                    except Exception:  # nosec
+                        # Ignore errors if entity doesn't exist
+                        pass
 
             # Insert new data using Milvus insert_data via MCP
             # Generate a simple vector from the text content for search
@@ -554,8 +634,9 @@ class MilvusStorage:
                 }
             ]
 
-            result = await self.mcp_client.call_tool(
-                "milvus_insert_data", {"collection_name": self.collection_name, "data": data}
+            result = await mcp_client.call_tool(
+                "milvus_insert_data",
+                arguments={"collection_name": self.collection_name, "data": data},
             )
 
             # Check for errors in response
@@ -587,21 +668,26 @@ class MilvusStorage:
         Returns:
             List of matching values, ranked by relevance.
         """
+        if not self._milvus_enabled:
+            return []
+
         await self._ensure_connected()
 
         try:
             logger.debug(f"Milvus search: '{query}', limit {limit}")
 
-            # Use Milvus text search via MCP
-            result = await self.mcp_client.call_tool(
-                "milvus_text_search",
-                {
-                    "collection_name": self.collection_name,
-                    "query_text": query,
-                    "limit": limit,
-                    "output_fields": ["key", "content", "text"],
-                },
-            )
+            # Use MCP server directly with Milvus tools
+            async with self.milvus_mcp_server as mcp_client:
+                # Use Milvus text search via MCP
+                result = await mcp_client.call_tool(
+                    "milvus_text_search",
+                    arguments={
+                        "collection_name": self.collection_name,
+                        "query_text": query,
+                        "limit": limit,
+                        "output_fields": ["key", "content", "text"],
+                    },
+                )
 
             values = []
             if result and not result.get("isError", False) and "content" in result:
@@ -653,19 +739,24 @@ class MilvusStorage:
 
     async def _clear_async(self) -> None:
         """Clear all data from the Milvus collection asynchronously (internal method)."""
+        if not self._milvus_enabled:
+            return
+
         await self._ensure_connected()
 
         try:
             logger.debug(f"Milvus clear: collection '{self.collection_name}'")
 
-            # Call Milvus delete_entities to clear all data via MCP
-            result = await self.mcp_client.call_tool(
-                "milvus_delete_entities",
-                {
-                    "collection_name": self.collection_name,
-                    "filter_expr": "key != ''",  # Delete all entities with keys
-                },
-            )
+            # Use MCP server directly with Milvus tools
+            async with self.milvus_mcp_server as mcp_client:
+                # Call Milvus delete_entities to clear all data via MCP
+                result = await mcp_client.call_tool(
+                    "milvus_delete_entities",
+                    arguments={
+                        "collection_name": self.collection_name,
+                        "filter_expr": "key != ''",  # Delete all entities with keys
+                    },
+                )
 
             # Check for errors in response
             if result and result.get("isError", False):
@@ -687,16 +778,25 @@ class MilvusStorage:
         Returns:
             True if the key was deleted, False if it didn't exist.
         """
+        if not self._milvus_enabled:
+            return False
+
         await self._ensure_connected()
 
         try:
-            logger.debug(f"Milvus delete: {key}")
+            milvus_key = self._make_key(key)
+            logger.debug(f"Milvus delete: {key} -> {milvus_key}")
 
-            # Call Milvus delete_entities for specific key via MCP
-            result = await self.mcp_client.call_tool(
-                "milvus_delete_entities",
-                {"collection_name": self.collection_name, "filter_expr": f"key == '{key}'"},
-            )
+            # Use MCP server directly with Milvus tools
+            async with self.milvus_mcp_server as mcp_client:
+                # Call Milvus delete_entities for specific key via MCP
+                result = await mcp_client.call_tool(
+                    "milvus_delete_entities",
+                    arguments={
+                        "collection_name": self.collection_name,
+                        "filter_expr": f"key == '{milvus_key}'",
+                    },
+                )
 
             # Handle MCP response format
             if result and not result.get("isError", False) and "content" in result:
@@ -718,21 +818,26 @@ class MilvusStorage:
         Returns:
             List of all storage keys.
         """
+        if not self._milvus_enabled:
+            return []
+
         await self._ensure_connected()
 
         try:
             logger.debug(f"Milvus keys: collection '{self.collection_name}'")
 
-            # Use Milvus query to get all entities and extract keys via MCP
-            result = await self.mcp_client.call_tool(
-                "milvus_query",
-                {
-                    "collection_name": self.collection_name,
-                    "filter_expr": "key != ''",  # Get all entities with non-empty keys
-                    "output_fields": ["key"],
-                    "limit": 10000,  # Large limit to get all keys
-                },
-            )
+            # Use MCP server directly with Milvus tools
+            async with self.milvus_mcp_server as mcp_client:
+                # Use Milvus query to get all entities and extract keys via MCP
+                result = await mcp_client.call_tool(
+                    "milvus_query",
+                    arguments={
+                        "collection_name": self.collection_name,
+                        "filter_expr": "key != ''",  # Get all entities with non-empty keys
+                        "output_fields": ["key"],
+                        "limit": 10000,  # Large limit to get all keys
+                    },
+                )
 
             keys = []
             if result and not result.get("isError", False) and "content" in result:

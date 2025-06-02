@@ -35,7 +35,7 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
-from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
+
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
 from sifaka.validators.validation_context import create_validation_context
@@ -43,7 +43,7 @@ from sifaka.validators.validation_context import create_validation_context
 logger = get_logger(__name__)
 
 
-class MetaRewardingCritic(BaseCritic, ValidationAwareMixin):
+class MetaRewardingCritic(BaseCritic):
     """Critic that implements Meta-Rewarding with two-stage judgment process and validation awareness.
 
     This critic uses the Meta-Rewarding approach which first judges the response

@@ -32,7 +32,7 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.interfaces import Model
 from sifaka.core.thought import Thought
 from sifaka.critics.base import BaseCritic
-from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
+
 from sifaka.utils.error_handling import ImproverError, critic_context
 from sifaka.utils.logging import get_logger
 from sifaka.validators.validation_context import create_validation_context
@@ -45,7 +45,7 @@ logger = get_logger(__name__)
 # This leverages the existing Thought infrastructure instead of duplicating it
 
 
-class ReflexionCritic(BaseCritic, ValidationAwareMixin):
+class ReflexionCritic(BaseCritic):
     """Critic that uses self-reflection to improve text quality with validation awareness.
 
     This critic implements the Reflexion approach for improving text through

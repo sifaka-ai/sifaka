@@ -14,16 +14,18 @@ from sifaka.models.base import create_model
 from sifaka.utils.error_handling import critic_context
 from sifaka.utils.logging import get_logger
 from sifaka.utils.mixins import ContextAwareMixin
+from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
 
 logger = get_logger(__name__)
 
 
-class BaseCritic(ContextAwareMixin, ABC):
+class BaseCritic(ContextAwareMixin, ValidationAwareMixin, ABC):
     """Base class for all critics.
 
     This class provides common functionality for critics including:
     - Standard critique/improve interface
     - Context handling via ContextAwareMixin
+    - Validation awareness via ValidationAwareMixin
     - Async-under-the-hood implementation
     - Consistent error handling
     - Standard return schema

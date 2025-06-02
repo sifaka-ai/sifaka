@@ -7,7 +7,7 @@ This example demonstrates:
 - Reflexion critic using Gemini Flash for self-reflection improvement
 - Length validator to ensure appropriate response length
 - Sentiment classifier validator to ensure positive sentiment
-- Hybrid storage: File storage for thoughts directory + MCP Redis for cross-process sharing
+- Four-tiered storage: Memory → Redis → Milvus → File for optimal performance and semantic search
 - Chain termination after validation passes
 - Complete observability with thought persistence
 
@@ -35,6 +35,7 @@ from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.models import create_model
 from sifaka.storage import CachedStorage, FileStorage, MemoryStorage, RedisStorage
+from sifaka.storage.milvus import MilvusStorage
 from sifaka.utils.logging import get_logger
 from sifaka.validators import LengthValidator
 
@@ -49,7 +50,7 @@ logger = get_logger(__name__)
 
 
 def setup_storage():
-    """Set up layered storage: Memory → Redis → File for optimal performance and persistence."""
+    """Set up four-tiered storage: Memory → Redis → Milvus → File for optimal performance and persistence."""
 
     # Create thoughts directory if it doesn't exist
     thoughts_dir = Path("thoughts")
@@ -71,25 +72,65 @@ def setup_storage():
     )
     redis_storage = RedisStorage(redis_mcp_server=redis_mcp_server, key_prefix="sifaka:test")
 
-    # Layer 3: File storage (local debugging and backup)
+    # Layer 3: Milvus storage for semantic search (optional - can be None if Milvus not available)
+    try:
+        # Try to create Milvus MCP server (optional)
+        milvus_mcp_server = MCPServerStdio(
+            "uv",
+            args=[
+                "run",
+                "--directory",
+                "/Users/evanvolgas/Documents/not_beam/sifaka/mcp/mcp-server-milvus",  # Correct path
+                "--module",
+                "mcp_server_milvus.server",
+            ],
+            tool_prefix="milvus",
+        )
+        milvus_storage = MilvusStorage(
+            milvus_mcp_server=milvus_mcp_server,
+            collection_name="sifaka_thoughts",
+            key_prefix="sifaka:test",
+        )
+        logger.info("Milvus storage enabled for semantic search")
+    except Exception as e:
+        logger.warning(f"Milvus storage not available: {e}")
+        milvus_storage = None
+
+    # Layer 4: File storage (local debugging and backup)
     file_storage = FileStorage(
         "thoughts/claude_gemini_example_thoughts.json",
         overwrite=True,  # Overwrite existing file for clean runs
     )
 
-    # Create two-tier cached storage: Redis and Filesystem
-    cached_storage_persistent = CachedStorage(
-        cache=redis_storage,  # L1: Redis (persistent)
-        persistence=file_storage,  # L2: Disk (persistent)
-    )
+    # Create four-tier cached storage: Memory → Redis → Milvus → File
+    if milvus_storage:
+        # Four-tier: Memory → Redis → Milvus → File
+        milvus_file_storage = CachedStorage(
+            cache=milvus_storage,  # L3: Milvus (semantic search)
+            persistence=file_storage,  # L4: File (backup)
+        )
+        redis_milvus_file_storage = CachedStorage(
+            cache=redis_storage,  # L2: Redis (fast persistence)
+            persistence=milvus_file_storage,  # L3+L4: Milvus + File
+        )
+        cached_storage = CachedStorage(
+            cache=memory_storage,  # L1: Memory (fastest)
+            persistence=redis_milvus_file_storage,  # L2+L3+L4: Redis + Milvus + File
+        )
+        logger.info("Four-tier storage enabled: Memory → Redis → Milvus → File")
+    else:
+        # Three-tier fallback: Memory → Redis → File
+        redis_file_storage = CachedStorage(
+            cache=redis_storage,  # L2: Redis (persistent)
+            persistence=file_storage,  # L3: File (backup)
+        )
+        cached_storage = CachedStorage(
+            cache=memory_storage,  # L1: Memory (fastest)
+            persistence=redis_file_storage,  # L2+L3: Redis + File
+        )
+        logger.info("Three-tier storage fallback: Memory → Redis → File")
 
-    # Create three-tier cached storage: Memory → Redis → File
-    cached_storage = CachedStorage(
-        cache=memory_storage,  # L1: Memory (fastest)
-        persistence=cached_storage_persistent,  # L2+L3: Redis + File (persistent)
-    )
-
-    return cached_storage, file_storage
+    return cached_storage, file_storage, milvus_storage
 
 
 async def main():
@@ -103,8 +144,8 @@ async def main():
 
     logger.info("Creating Claude 4 Generator with Gemini Flash Critics example")
 
-    # Set up layered storage: Memory → Redis → File
-    cached_storage, file_storage = setup_storage()
+    # Set up four-tiered storage: Memory → Redis → Milvus → File
+    cached_storage, file_storage, milvus_storage = setup_storage()
 
     # Create PydanticAI agent with Anthropic Claude 4
     logger.info("Creating PydanticAI agent with Claude 4 (claude-3-5-sonnet-latest)")
@@ -124,12 +165,12 @@ async def main():
         Your writing should be professional yet warm, evidence-based yet accessible.""",
     )
 
-    # Create Gemini Flash model for critics
-    logger.info("Creating Gemini Flash model for critics")
-    critic_model = create_model("google-gla:gemini-1.5-flash")
+    # Create OpenAI model for critics (Gemini Flash is overloaded)
+    logger.info("Creating OpenAI model for critics")
+    critic_model = create_model("openai:gpt-4o-mini")
 
-    # Create Constitutional critic with Gemini Flash
-    logger.info("Creating Constitutional critic with Gemini Flash")
+    # Create Constitutional critic with OpenAI
+    logger.info("Creating Constitutional critic with OpenAI")
     constitutional_critic = ConstitutionalCritic(
         model=critic_model,
         principles=[
@@ -142,8 +183,8 @@ async def main():
         strict_mode=False,  # Allow some flexibility in interpretation
     )
 
-    # Create Reflexion critic with Gemini Flash
-    logger.info("Creating Reflexion critic with Gemini Flash")
+    # Create Reflexion critic with OpenAI
+    logger.info("Creating Reflexion critic with OpenAI")
     reflexion_critic = ReflexionCritic(
         model=critic_model,
         max_memory_size=15,  # Keep more reflections in memory for learning
@@ -173,7 +214,7 @@ async def main():
         critics=[constitutional_critic, reflexion_critic],  # Both critics provide feedback
         max_improvement_iterations=3,  # Allow up to 3 improvement iterations
         always_apply_critics=False,  # Only apply critics when validation fails (terminate after validation passes)
-        analytics_storage=cached_storage,  # Use layered storage for optimal performance
+        analytics_storage=cached_storage,  # Use four-tiered storage for optimal performance
     )
 
     print(
@@ -193,8 +234,8 @@ async def main():
 
     Target audience: Young professionals and entrepreneurs facing career or business challenges."""
 
-    # Store initial thought in layered storage (Memory → Redis)
-    logger.info("Storing initial prompt in layered storage")
+    # Store initial thought in four-tiered storage (Memory → Redis → Milvus → File)
+    logger.info("Storing initial prompt in four-tiered storage")
     try:
         current_timestamp = datetime.now().isoformat()
         await cached_storage.set(
@@ -208,9 +249,9 @@ async def main():
                 "validators": ["length", "sentiment"],
             },
         )
-        logger.info("Successfully stored initial prompt in layered storage")
+        logger.info("Successfully stored initial prompt in four-tiered storage")
     except Exception as e:
-        logger.warning(f"Failed to store in layered storage: {e}")
+        logger.warning(f"Failed to store in four-tiered storage: {e}")
 
     # Run the chain
     logger.info("Running PydanticAI chain with Claude 4 generator and Gemini Flash critics...")
@@ -229,9 +270,9 @@ async def main():
                 "success": True,
             },
         )
-        logger.info("Successfully stored final result in layered storage")
+        logger.info("Successfully stored final result in four-tiered storage")
     except Exception as e:
-        logger.warning(f"Failed to store final result in layered storage: {e}")
+        logger.warning(f"Failed to store final result in four-tiered storage: {e}")
 
     # Display results
     print("\n" + "=" * 80)
@@ -246,9 +287,14 @@ async def main():
     print(f"  Iterations: {result.iteration}")
     print(f"  Chain ID: {result.chain_id}")
     print(f"  Generator: Claude 4 (claude-3-5-sonnet-latest)")
-    print(f"  Critics: Constitutional + Reflexion (Gemini Flash)")
+    print(f"  Critics: Constitutional + Reflexion (OpenAI GPT-4o-mini)")
     print(f"  Validators: Length + Sentiment")
-    print(f"  Storage: Layered (Memory → Redis → File)")
+    storage_description = (
+        "Four-tier (Memory → Redis → Milvus → File)"
+        if milvus_storage
+        else "Three-tier (Memory → Redis → File)"
+    )
+    print(f"  Storage: {storage_description}")
     print(f"  Termination: After validation passes")
 
     # Show validation results
@@ -280,9 +326,13 @@ async def main():
                 f"  {i}. {critic_result.get('critic_name', 'Unknown')}: Improvement needed: {improvement_needed}"
             )
 
-    print(f"\nThoughts saved to: Layered storage (Memory → Redis → File)")
+    print(f"\nThoughts saved to: {storage_description}")
     print(f"File backup: thoughts/claude_gemini_example_thoughts.json")
     print(f"Redis prefix: sifaka:test")
+    if milvus_storage:
+        print(f"Milvus collection: sifaka_thoughts (semantic search enabled)")
+    else:
+        print(f"Milvus: Not available (semantic search disabled)")
     print("\n" + "=" * 80)
 
 
