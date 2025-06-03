@@ -72,10 +72,9 @@ classifiers = [
     "spacy>=3.7.0",  # Industrial-strength NLP library
 ]
 
-# Validation and guardrails (disabled due to dependency conflicts with PydanticAI)
+# Validation and guardrails (removed due to griffe version conflicts)
 # guardrails = [
-#     "guardrails-ai>=0.5.0,<0.6.0",  # Disabled: griffe version conflict with pydantic-ai
-#     "guardrails-api-client>=0.4.0a1", # Disabled: dependency of guardrails-ai
+#     "guardrails-ai==0.1.8",  # Conflicts with PydanticAI griffe requirements
 # ]
 
 # Performance and utilities
