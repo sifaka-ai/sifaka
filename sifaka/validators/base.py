@@ -1,232 +1,285 @@
-"""Base validator implementations for Sifaka.
+"""Base validator classes for Sifaka.
 
-This module provides base validator implementations that can be used to validate
-text against specific criteria. Validators check if text meets certain requirements
-and return a validation result with information about whether the validation passed,
-any issues found, and suggestions for improvement.
+This module provides the base validator interface and common functionality
+for all validators in the new PydanticAI-based Sifaka architecture.
 
-Validators are used in the Sifaka chain to ensure that generated text meets
-specified criteria before it is returned to the user or passed to the next stage
-of the chain.
-
-The validators support both sync and async implementations internally, with sync
-methods wrapping async implementations using asyncio.run() for backward compatibility.
+Key features:
+- Async-first design compatible with PydanticAI
+- Rich validation results with detailed feedback
+- Integration with Sifaka's logging and error handling
+- Support for both sync and async validation
 """
 
-from typing import List, Optional
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Union
+import asyncio
+import time
 
-from sifaka.core.thought import Thought, ValidationResult
+from sifaka.core.thought import SifakaThought
+from sifaka.utils.errors import ValidationError
 from sifaka.utils.logging import get_logger
-from sifaka.validators.shared import LengthValidatorBase, RegexValidatorBase
 
-# Configure logger
 logger = get_logger(__name__)
 
 
-class LengthValidator(LengthValidatorBase):
-    """Validator that checks if text meets length requirements.
-
-    This validator checks if text meets minimum and maximum length requirements
-    in terms of character count. It extends the shared LengthValidatorBase to
-    reduce code duplication.
-
+@dataclass
+class ValidationResult:
+    """Result of a validation operation.
+    
+    This class encapsulates the result of validating text against specific criteria.
+    It provides detailed information about whether validation passed, any issues found,
+    and suggestions for improvement.
+    
     Attributes:
-        min_length: Minimum required length in characters.
-        max_length: Maximum allowed length in characters.
+        passed: Whether the validation passed
+        message: Human-readable message describing the result
+        score: Numeric score (0.0 to 1.0) indicating validation quality
+        issues: List of specific issues found
+        suggestions: List of suggestions for improvement
+        metadata: Additional metadata about the validation
+        validator_name: Name of the validator that produced this result
+        processing_time_ms: Time taken to perform validation in milliseconds
     """
-
-    def __init__(
-        self,
-        min_length: int = 0,
-        max_length: int = 10000,
-        min_words: Optional[int] = None,
-        max_words: Optional[int] = None,
-        unit: str = "characters",
-        name: Optional[str] = None,
-    ):
-        """Initialize the validator.
-
-        Args:
-            min_length: Minimum required length in characters.
-            max_length: Maximum allowed length in characters.
-            min_words: Minimum required length in words (overrides min_length if set).
-            max_words: Maximum allowed length in words (overrides max_length if set).
-            unit: Unit of measurement ("characters" or "words").
-        """
-        # If word-based parameters are provided, use them
-        if min_words is not None or max_words is not None:
-            unit = "words"
-            min_length = min_words if min_words is not None else 0
-            max_length = max_words if max_words is not None else 10000
-
-        super().__init__(
-            min_length=min_length if min_length > 0 else None,
-            max_length=max_length if max_length < 10000 else None,
-            unit=unit,
-            name=name or "length",
-        )
-
-    async def _validate_async(self, thought: Thought) -> ValidationResult:
-        """Validate text against length requirements asynchronously.
-
-        This is the internal async implementation that provides the same functionality
-        as the sync validate method but can be called concurrently with other validators.
-
-        Args:
-            thought: The Thought container with the text to validate.
-
-        Returns:
-            A ValidationResult with information about whether the validation passed,
-            any issues found, and suggestions for improvement.
-        """
-        # Length validation is CPU-bound and fast, so we can just call the sync version
-        # In a real implementation, you might want to run this in a thread pool for consistency
-        return self.validate(thought)
+    passed: bool
+    message: str
+    score: float = 0.0
+    issues: List[str] = None
+    suggestions: List[str] = None
+    metadata: Dict[str, Any] = None
+    validator_name: str = "unknown"
+    processing_time_ms: float = 0.0
+    
+    def __post_init__(self):
+        """Initialize default values for mutable fields."""
+        if self.issues is None:
+            self.issues = []
+        if self.suggestions is None:
+            self.suggestions = []
+        if self.metadata is None:
+            self.metadata = {}
 
 
-class RegexValidator(RegexValidatorBase):
-    """Validator that checks if text matches or doesn't match regex patterns.
-
-    This validator checks if text matches required patterns and doesn't match
-    forbidden patterns. It extends the shared RegexValidatorBase to reduce
-    code duplication.
-
+class BaseValidator(ABC):
+    """Base class for all validators in Sifaka.
+    
+    This abstract base class defines the interface that all validators must implement.
+    It provides common functionality for validation operations and integrates with
+    Sifaka's logging and error handling systems.
+    
+    Validators should be async-first but also support sync operations for backward
+    compatibility. The base class handles the sync/async coordination.
+    
     Attributes:
-        required_patterns: List of regex patterns that text must match.
-        forbidden_patterns: List of regex patterns that text must not match.
+        name: Human-readable name of the validator
+        description: Description of what the validator checks
     """
-
-    def __init__(
-        self,
-        required_patterns: Optional[List[str]] = None,
-        forbidden_patterns: Optional[List[str]] = None,
-        prohibited_patterns: Optional[List[str]] = None,
-        case_sensitive: bool = True,
-        name: Optional[str] = None,
-    ):
-        """Initialize the validator.
-
+    
+    def __init__(self, name: str, description: str = ""):
+        """Initialize the base validator.
+        
         Args:
-            required_patterns: List of regex patterns that text must match.
-            forbidden_patterns: List of regex patterns that text must not match.
-            prohibited_patterns: Alias for forbidden_patterns.
-            case_sensitive: Whether pattern matching should be case-sensitive.
+            name: Human-readable name of the validator
+            description: Description of what the validator checks
         """
-        # Handle prohibited_patterns as alias for forbidden_patterns
-        if prohibited_patterns is not None:
-            if forbidden_patterns is not None:
-                forbidden_patterns.extend(prohibited_patterns)
-            else:
-                forbidden_patterns = prohibited_patterns
-        # Convert to the format expected by the base class
-        patterns = {}
-
-        if required_patterns:
-            for i, pattern in enumerate(required_patterns):
-                patterns[f"required_{i}"] = pattern
-
-        if forbidden_patterns:
-            for i, pattern in enumerate(forbidden_patterns):
-                patterns[f"forbidden_{i}"] = pattern
-
-        # Determine mode based on what patterns we have
-        if required_patterns and forbidden_patterns:
-            # Need to check both - use require_all for required patterns
-            # We'll override _validate_content to handle forbidden patterns
-            mode = "require_all"
-        elif required_patterns:
-            mode = "require_all"
-        elif forbidden_patterns:
-            mode = "forbid_all"
-        else:
-            mode = "require_all"  # Default, though no patterns means always pass
-
-        super().__init__(patterns=patterns, mode=mode, name=name or "regex")
-
-        # Store original patterns for backward compatibility
-        self.required_patterns = required_patterns or []
-        self.forbidden_patterns = forbidden_patterns or []
-        self.case_sensitive = case_sensitive
-
-    def _validate_content(self, thought: Thought) -> ValidationResult:
-        """Override to handle both required and forbidden patterns.
-
+        self.name = name
+        self.description = description
+    
+    @abstractmethod
+    async def validate_async(self, thought: SifakaThought) -> ValidationResult:
+        """Validate a thought asynchronously.
+        
+        This is the main validation method that all validators must implement.
+        It should be async-first and return a detailed ValidationResult.
+        
         Args:
-            thought: The Thought container with the text to validate.
-
+            thought: The SifakaThought to validate
+            
         Returns:
-            A ValidationResult with the regex validation outcome.
+            ValidationResult with detailed validation information
+            
+        Raises:
+            ValidationError: If validation cannot be performed
         """
-        text = thought.text
-        if text is None:
-            return self.create_empty_text_result(self.name)
-
-        issues = []
-        suggestions = []
-
-        # Check required patterns
-        for pattern_str in self.required_patterns:
-            import re
-
-            flags = 0 if self.case_sensitive else re.IGNORECASE
-            pattern = re.compile(pattern_str, flags)
-            if not pattern.search(text):
-                issues.append(f"Text does not match required pattern: {pattern_str}")
-                suggestions.append(f"Modify the text to include content matching: {pattern_str}")
-
-        # Check forbidden patterns
-        for pattern_str in self.forbidden_patterns:
-            import re
-
-            flags = 0 if self.case_sensitive else re.IGNORECASE
-            try:
-                pattern = re.compile(pattern_str, flags)
-                if pattern.search(text):
-                    issues.append(f"Text matches forbidden pattern: {pattern_str}")
-                    suggestions.append(f"Remove content matching: {pattern_str}")
-            except re.error as e:
-                issues.append(f"Invalid forbidden pattern '{pattern_str}': {e}")
-                suggestions.append(f"Fix the regex pattern: {pattern_str}")
-
-        # Determine if validation passed
-        passed = len(issues) == 0
-
-        if passed:
-            message = "Text matches all required patterns and no forbidden patterns"
-        else:
-            # Create more specific error messages
-            if any("required pattern" in issue for issue in issues):
-                if any("forbidden pattern" in issue for issue in issues):
-                    message = "Text missing required patterns and contains forbidden patterns"
-                else:
-                    message = "Text missing required patterns"
-            elif any("forbidden pattern" in issue for issue in issues):
-                message = "Text contains forbidden patterns"
+        pass
+    
+    def validate(self, thought: SifakaThought) -> ValidationResult:
+        """Validate a thought synchronously.
+        
+        This method provides sync compatibility by running the async validation
+        in an event loop. Use validate_async() when possible for better performance.
+        
+        Args:
+            thought: The SifakaThought to validate
+            
+        Returns:
+            ValidationResult with detailed validation information
+            
+        Raises:
+            ValidationError: If validation cannot be performed
+        """
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # We're already in an async context, create a new task
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, self.validate_async(thought))
+                    return future.result()
             else:
-                message = "Text does not meet pattern requirements"
-
-        return self.create_validation_result(
+                # No running loop, we can use asyncio.run
+                return asyncio.run(self.validate_async(thought))
+        except Exception as e:
+            logger.error(
+                f"Sync validation failed for {self.name}",
+                extra={
+                    "validator": self.name,
+                    "thought_id": thought.id,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+                exc_info=True
+            )
+            raise ValidationError(
+                f"Validation failed for {self.name}: {str(e)}",
+                error_code="validation_execution_error",
+                context={
+                    "validator": self.name,
+                    "thought_id": thought.id,
+                    "error_type": type(e).__name__,
+                },
+                suggestions=[
+                    "Check validator configuration",
+                    "Verify input text is valid",
+                    "Check system resources",
+                ]
+            ) from e
+    
+    def create_validation_result(
+        self,
+        passed: bool,
+        message: str,
+        score: float = None,
+        issues: List[str] = None,
+        suggestions: List[str] = None,
+        metadata: Dict[str, Any] = None,
+        processing_time_ms: float = 0.0,
+    ) -> ValidationResult:
+        """Create a ValidationResult with consistent formatting.
+        
+        This helper method creates a ValidationResult with the validator's name
+        and ensures consistent formatting across all validators.
+        
+        Args:
+            passed: Whether validation passed
+            message: Human-readable message
+            score: Numeric score (defaults to 1.0 if passed, 0.0 if failed)
+            issues: List of specific issues
+            suggestions: List of suggestions
+            metadata: Additional metadata
+            processing_time_ms: Processing time in milliseconds
+            
+        Returns:
+            Properly formatted ValidationResult
+        """
+        if score is None:
+            score = 1.0 if passed else 0.0
+        
+        return ValidationResult(
             passed=passed,
             message=message,
-            score=1.0 if passed else 0.0,
-            issues=issues,
-            suggestions=suggestions,
+            score=score,
+            issues=issues or [],
+            suggestions=suggestions or [],
+            metadata=metadata or {},
             validator_name=self.name,
+            processing_time_ms=processing_time_ms,
         )
-
-    async def _validate_async(self, thought: Thought) -> ValidationResult:
-        """Validate text against regex patterns asynchronously.
-
-        This is the internal async implementation that provides the same functionality
-        as the sync validate method but can be called concurrently with other validators.
-
-        Args:
-            thought: The Thought container with the text to validate.
-
+    
+    def create_empty_text_result(self) -> ValidationResult:
+        """Create a result for empty or None text.
+        
         Returns:
-            A ValidationResult with information about whether the validation passed,
-            any issues found, and suggestions for improvement.
+            ValidationResult indicating empty text failure
         """
-        # Regex validation is CPU-bound and fast, so we can just call the sync version
-        # In a real implementation, you might want to run this in a thread pool for consistency
-        return self.validate(thought)
+        return self.create_validation_result(
+            passed=False,
+            message="No text available for validation",
+            score=0.0,
+            issues=["Text is empty or None"],
+            suggestions=["Provide non-empty text for validation"],
+            metadata={"reason": "empty_text"},
+        )
+    
+    def __str__(self) -> str:
+        """String representation of the validator."""
+        return f"{self.__class__.__name__}(name='{self.name}')"
+    
+    def __repr__(self) -> str:
+        """Detailed string representation of the validator."""
+        return f"{self.__class__.__name__}(name='{self.name}', description='{self.description}')"
+
+
+class TextLengthMixin:
+    """Mixin for validators that need text length utilities."""
+    
+    @staticmethod
+    def get_text_length(text: str, unit: str = "characters") -> int:
+        """Get text length in specified units.
+        
+        Args:
+            text: Text to measure
+            unit: Unit of measurement ("characters" or "words")
+            
+        Returns:
+            Length in specified units
+            
+        Raises:
+            ValueError: If unit is not supported
+        """
+        if unit == "characters":
+            return len(text)
+        elif unit == "words":
+            return len(text.split())
+        else:
+            raise ValueError(f"Unsupported unit: {unit}. Use 'characters' or 'words'.")
+    
+    @staticmethod
+    def format_length_message(length: int, unit: str, min_val: int = None, max_val: int = None) -> str:
+        """Format a length-related message.
+        
+        Args:
+            length: Current length
+            unit: Unit of measurement
+            min_val: Minimum required length
+            max_val: Maximum allowed length
+            
+        Returns:
+            Formatted message string
+        """
+        unit_name = unit.rstrip('s')  # Remove plural 's' if present
+        
+        if min_val is not None and max_val is not None:
+            return f"Text has {length} {unit} (required: {min_val}-{max_val} {unit})"
+        elif min_val is not None:
+            return f"Text has {length} {unit} (minimum: {min_val} {unit})"
+        elif max_val is not None:
+            return f"Text has {length} {unit} (maximum: {max_val} {unit})"
+        else:
+            return f"Text has {length} {unit}"
+
+
+class TimingMixin:
+    """Mixin for validators that need performance timing."""
+    
+    def time_operation(self, operation_name: str = "validation"):
+        """Context manager for timing operations.
+        
+        Args:
+            operation_name: Name of the operation being timed
+            
+        Returns:
+            Context manager that tracks timing
+        """
+        return logger.performance_timer(operation_name, validator=getattr(self, 'name', 'unknown'))

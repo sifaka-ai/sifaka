@@ -1,206 +1,254 @@
+"""Core interfaces and protocols for Sifaka.
+
+This module defines the core protocols and interfaces that components must implement
+to work with the Sifaka graph-based workflow system.
+
+Key interfaces:
+- Validator: For content validation
+- Critic: For iterative improvement feedback
+- Storage: For thought persistence
+- Retriever: For context retrieval
 """
-Core interfaces for Sifaka.
 
-This module defines the core interfaces that all Sifaka components must implement.
-These interfaces ensure consistent behavior across different implementations and
-enable components to work together seamlessly.
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional, Protocol
 
-The interfaces are defined as Protocols with abstract methods that must be implemented
-by concrete classes. The sync methods are implemented by the concrete classes.
-"""
-
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol, runtime_checkable
-
-if TYPE_CHECKING:
-    from sifaka.core.thought import Thought, ValidationResult
+from sifaka.core.thought import SifakaThought
 
 
-@runtime_checkable
-class Model(Protocol):
-    """Protocol defining the interface for language model providers.
-
-    This protocol defines the minimum interface that all language model
-    implementations must follow. It requires methods for generating text
-    from a prompt and counting tokens in text.
-
-    All model implementations in Sifaka must implement this protocol.
-    """
-
-    def generate(self, prompt: str, **options: Any) -> str:
-        """Generate text from a prompt.
-
-        Args:
-            prompt: The prompt to generate text from.
-            **options: Additional options for generation.
-
-        Returns:
-            The generated text.
-        """
-        ...
-
-    def generate_with_thought(self, thought: "Thought", **options: Any) -> tuple[str, str]:
-        """Generate text using a Thought container.
-
-        This method allows models to access the full context in the Thought container,
-        including any retrieved documents, when generating text.
-
-        Args:
-            thought: The Thought container with context for generation.
-            **options: Additional options for generation.
-
-        Returns:
-            A tuple of (generated_text, actual_prompt_used).
-        """
-        ...
-
-    def count_tokens(self, text: str) -> int:
-        """Count the number of tokens in text.
-
-        Args:
-            text: The text to count tokens in.
-
-        Returns:
-            The number of tokens in the text.
-        """
-        ...
-
-    async def _generate_async(self, prompt: str, **options: Any) -> str:
-        """Generate text from a prompt asynchronously (internal method).
-
-        Args:
-            prompt: The prompt to generate text from.
-            **options: Additional options for generation.
-
-        Returns:
-            The generated text.
-        """
-        ...
-
-    async def _generate_with_thought_async(
-        self, thought: "Thought", **options: Any
-    ) -> tuple[str, str]:
-        """Generate text using a Thought container asynchronously (internal method).
-
-        Args:
-            thought: The Thought container with context for generation.
-            **options: Additional options for generation.
-
-        Returns:
-            A tuple of (generated_text, actual_prompt_used).
-        """
-        ...
-
-
-@runtime_checkable
 class Validator(Protocol):
-    """Protocol defining the interface for validators.
+    """Protocol for content validators.
 
-    This protocol defines the minimum interface that all validator
-    implementations must follow. It requires an async validate method that
-    checks if text meets certain criteria.
+    Validators check generated content against specific criteria and return
+    structured results indicating whether the content passes validation.
     """
 
-    async def validate_async(self, thought: "Thought") -> "ValidationResult":
-        """Validate text against specific criteria asynchronously.
+    async def validate_async(self, text: str) -> Dict[str, Any]:
+        """Validate text content asynchronously.
 
         Args:
-            thought: The Thought container with the text to validate.
+            text: The text to validate
 
         Returns:
-            A ValidationResult with validation results.
+            Dictionary containing:
+            - passed: bool indicating if validation passed
+            - details: Dict with validation details
+            - score: Optional float score (0.0-1.0)
         """
         ...
 
+    @property
+    def name(self) -> str:
+        """Get the validator name for identification."""
+        ...
 
-@runtime_checkable
+
 class Critic(Protocol):
-    """Protocol defining the interface for critics.
+    """Protocol for critics that provide improvement feedback.
 
-    This protocol defines the minimum interface that all critic
-    implementations must follow. It requires async methods for critiquing
-    and improving text.
+    Critics analyze generated content and provide structured feedback
+    for iterative improvement.
     """
 
-    async def critique_async(self, thought: "Thought") -> Dict[str, Any]:
-        """Critique text and provide feedback asynchronously.
+    async def critique_async(self, thought: SifakaThought) -> Dict[str, Any]:
+        """Provide critique feedback for a thought.
 
         Args:
-            thought: The Thought container with the text to critique.
+            thought: The thought to critique
 
         Returns:
-            A dictionary with critique results.
+            Dictionary containing:
+            - feedback: str with critique feedback
+            - suggestions: List[str] with improvement suggestions
+            - needs_improvement: bool indicating if improvement is needed
         """
         ...
 
-    async def improve_async(self, thought: "Thought") -> str:
-        """Improve text based on critique asynchronously.
+    async def improve_async(self, thought: SifakaThought) -> str:
+        """Generate improved text based on critique.
 
         Args:
-            thought: The Thought container with the text to improve and critique.
+            thought: The thought to improve
 
         Returns:
-            The improved text.
+            Improved text string
         """
         ...
 
+    @property
+    def name(self) -> str:
+        """Get the critic name for identification."""
+        ...
 
-@runtime_checkable
-class ValidationAwareCritic(Critic, Protocol):
-    """Extended critic protocol that supports validation context awareness.
 
-    This protocol extends the base Critic protocol to support validation context
-    in the improve method, enabling critics to prioritize validation constraints
-    over conflicting suggestions.
+class Storage(Protocol):
+    """Protocol for thought storage backends.
+
+    Storage implementations persist thoughts for analytics, debugging,
+    and resumable workflows.
     """
 
-    async def improve_with_validation_context_async(
-        self, thought: "Thought", validation_context: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Improve text with validation context awareness asynchronously.
+    async def store_thought(self, thought: SifakaThought) -> None:
+        """Store a thought.
 
         Args:
-            thought: The Thought container with the text to improve and critique.
-            validation_context: Optional validation context for constraint awareness.
+            thought: The thought to store
+        """
+        ...
+
+    async def retrieve_thought(self, thought_id: str) -> Optional[SifakaThought]:
+        """Retrieve a thought by ID.
+
+        Args:
+            thought_id: The thought ID to retrieve
 
         Returns:
-            The improved text that prioritizes validation constraints.
+            The thought if found, None otherwise
+        """
+        ...
+
+    async def list_thoughts(
+        self, conversation_id: Optional[str] = None, limit: Optional[int] = None
+    ) -> List[SifakaThought]:
+        """List thoughts, optionally filtered by conversation.
+
+        Args:
+            conversation_id: Optional conversation ID to filter by
+            limit: Optional limit on number of thoughts to return
+
+        Returns:
+            List of thoughts
         """
         ...
 
 
-@runtime_checkable
 class Retriever(Protocol):
-    """Protocol defining the interface for retrievers.
+    """Protocol for context retrievers.
 
-    This protocol defines the minimum interface that all retriever
-    implementations must follow. It requires async retrieve methods that
-    find relevant documents for a query.
+    Retrievers provide relevant context for generation and critique operations.
     """
 
-    async def retrieve_async(self, query: str) -> List[str]:
-        """Retrieve relevant documents for a query asynchronously.
+    async def retrieve(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+        """Retrieve relevant context for a query.
 
         Args:
-            query: The query to retrieve documents for.
+            query: The query to retrieve context for
+            top_k: Maximum number of results to return
 
         Returns:
-            A list of relevant document texts.
+            List of context documents with metadata
         """
         ...
 
-    async def retrieve_for_thought_async(
-        self, thought: "Thought", is_pre_generation: bool = True
-    ) -> "Thought":
-        """Retrieve documents and add them to a thought asynchronously.
-
-        Args:
-            thought: The thought to add documents to.
-            is_pre_generation: Whether this is pre-generation or post-generation retrieval.
-
-        Returns:
-            The thought with retrieved documents added.
-        """
+    @property
+    def name(self) -> str:
+        """Get the retriever name for identification."""
         ...
 
 
-# Chain protocol removed to avoid circular imports with the concrete Chain class
+class BaseValidator(ABC):
+    """Abstract base class for validators.
+
+    Provides common functionality for validator implementations.
+    """
+
+    def __init__(self, name: Optional[str] = None):
+        self._name = name or self.__class__.__name__
+
+    @property
+    def name(self) -> str:
+        """Get the validator name."""
+        return self._name
+
+    @abstractmethod
+    async def validate_async(self, text: str) -> Dict[str, Any]:
+        """Validate text content asynchronously.
+
+        Must be implemented by subclasses.
+        """
+        pass
+
+    def validate_sync(self, text: str) -> Dict[str, Any]:
+        """Synchronous validation (not recommended for new code).
+
+        This is provided for backward compatibility but should not be used
+        in new implementations. Use validate_async instead.
+        """
+        import asyncio
+
+        return asyncio.run(self.validate_async(text))
+
+
+class BaseCritic(ABC):
+    """Abstract base class for critics.
+
+    Provides common functionality for critic implementations.
+    """
+
+    def __init__(self, name: Optional[str] = None):
+        self._name = name or self.__class__.__name__
+
+    @property
+    def name(self) -> str:
+        """Get the critic name."""
+        return self._name
+
+    @abstractmethod
+    async def critique_async(self, thought: SifakaThought) -> Dict[str, Any]:
+        """Provide critique feedback for a thought.
+
+        Must be implemented by subclasses.
+        """
+        pass
+
+    async def improve_async(self, thought: SifakaThought) -> str:
+        """Generate improved text based on critique.
+
+        Default implementation raises NotImplementedError.
+        Subclasses can override to provide improvement functionality.
+        """
+        raise NotImplementedError(f"{self.name} does not support improvement")
+
+
+class BaseStorage(ABC):
+    """Abstract base class for storage implementations.
+
+    Provides common functionality for storage backends.
+    """
+
+    @abstractmethod
+    async def store_thought(self, thought: SifakaThought) -> None:
+        """Store a thought."""
+        pass
+
+    @abstractmethod
+    async def retrieve_thought(self, thought_id: str) -> Optional[SifakaThought]:
+        """Retrieve a thought by ID."""
+        pass
+
+    @abstractmethod
+    async def list_thoughts(
+        self, conversation_id: Optional[str] = None, limit: Optional[int] = None
+    ) -> List[SifakaThought]:
+        """List thoughts."""
+        pass
+
+
+class BaseRetriever(ABC):
+    """Abstract base class for retrievers.
+
+    Provides common functionality for retriever implementations.
+    """
+
+    def __init__(self, name: Optional[str] = None):
+        self._name = name or self.__class__.__name__
+
+    @property
+    def name(self) -> str:
+        """Get the retriever name."""
+        return self._name
+
+    @abstractmethod
+    async def retrieve(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+        """Retrieve relevant context for a query."""
+        pass

@@ -1,7 +1,8 @@
-"""Self-RAG inspired critic for Sifaka.
+"""Self-RAG critic for Sifaka.
 
-This module implements a Self-RAG inspired approach for text critique and improvement,
-which combines smart retrieval decisions with reflection-style quality assessment.
+This module implements the Self-RAG (Self-Reflective Retrieval-Augmented Generation)
+approach for evaluating text quality and determining when additional retrieval
+would improve content accuracy and completeness.
 
 Based on "Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection":
 https://arxiv.org/abs/2310.11511
@@ -16,307 +17,257 @@ https://arxiv.org/abs/2310.11511
       url={https://arxiv.org/abs/2310.11511},
 }
 
-The SelfRAGCritic implements Self-RAG inspired concepts:
-1. Smart retrieval decisions based on task analysis
-2. Reflection-style tokens for quality assessment
-3. Retrieval relevance and factual support evaluation
-4. Utility-based scoring for overall text quality
+The SelfRAGCritic implements key Self-RAG concepts:
+1. Self-reflective evaluation of content quality and factuality
+2. Retrieval need assessment for knowledge gaps
+3. Evidence-based critique with source evaluation
+4. Adaptive retrieval recommendations
 
-IMPORTANT IMPLEMENTATION CAVEAT:
-This is a simplified, production-focused implementation that is approximately 30-40%
-faithful to the original Self-RAG paper. Key differences from the original:
+IMPORTANT IMPLEMENTATION NOTES AND CAVEATS:
 
-WHAT THIS IMPLEMENTATION DOES:
-- ✅ Uses Self-RAG reflection token format ([Retrieve], [Relevant], etc.)
-- ✅ Makes smart retrieval decisions based on task analysis
-- ✅ Provides structured quality assessment with utility scoring
-- ✅ Works with any existing language model (no training required)
-- ✅ Offers practical production value for RAG applications
+This implementation adapts the Self-RAG approach for text critique and retrieval
+guidance. The original Self-RAG paper focuses on training models to learn when
+to retrieve, what to retrieve, and how to use retrieved information during
+generation. Our implementation focuses on the critique and retrieval assessment
+aspects without the full training pipeline.
 
-WHAT THE ORIGINAL SELF-RAG DOES (that we don't):
-- ❌ Requires fine-tuning models with reflection tokens during training
-- ❌ Generates reflection tokens inline during text generation (not post-hoc)
-- ❌ Uses segment-level beam search with reflection token probabilities
-- ❌ Employs separate critic model training on GPT-4 generated data
-- ❌ Processes text in segments with retrieval decisions at each step
+The original Self-RAG introduces special tokens ([Retrieve], [IsRel], [IsSup], [IsUse])
+to control retrieval and generation behavior. Our implementation translates these
+concepts into natural language critique and suggestions.
 
-This implementation prioritizes practical deployment and production value over
-research fidelity. It captures the useful aspects of Self-RAG (smart retrieval,
-structured assessment) without requiring custom model training or complex inference.
+CAVEATS AND LIMITATIONS:
+1. This is a critique-only implementation that provides retrieval recommendations
+   without the full Self-RAG training and generation pipeline.
+2. We simulate the retrieval need assessment through prompting rather than
+   learned retrieval triggers as in the original paper.
+3. The factuality assessment is based on the model's internal knowledge rather
+   than the sophisticated evidence evaluation in the original work.
+4. We don't implement the special token system for retrieval control, instead
+   providing natural language guidance.
+5. Performance depends on the underlying model's ability to assess its own
+   knowledge limitations and identify retrieval needs.
+6. The approach may be conservative in retrieval recommendations, potentially
+   missing subtle knowledge gaps that would benefit from external information.
+
+RETRIEVAL ASSESSMENT FOCUS:
+This implementation evaluates:
+1. Factual accuracy and potential knowledge gaps
+2. Currency of information and need for updates
+3. Completeness of coverage for the given topic
+4. Evidence quality and source reliability needs
+5. Domain-specific knowledge requirements
+
+RETRIEVAL AUGMENTATION:
+This critic is designed to work with retrieval tools and can provide specific
+guidance on what types of information should be retrieved to improve content
+quality and factual accuracy.
 """
 
-import time
 from typing import Any, Dict, List, Optional
 
-from pydantic_ai import Agent
-
-from sifaka.core.interfaces import Retriever
-from sifaka.core.thought import Thought
-from sifaka.critics.base_pydantic import PydanticAICritic
-from sifaka.utils.error_handling import ImproverError, critic_context
-from sifaka.utils.logging import get_logger
-
-logger = get_logger(__name__)
+from sifaka.core.thought import SifakaThought
+from sifaka.critics.base import BaseCritic
 
 
-class SelfRAGCritic(PydanticAICritic):
-    """Critic that implements Self-RAG inspired approach with retrieval and self-reflection and validation awareness.
+class SelfRAGCritic(BaseCritic):
+    """Self-RAG critic implementing Asai et al. 2023 methodology.
 
-    This critic uses a Self-RAG inspired approach which combines retrieval-augmented
-    generation with self-reflection tokens to critique and improve text quality.
-    It evaluates whether retrieval is needed, assesses relevance of retrieved
-    content, and provides self-reflective feedback.
+    This critic evaluates text from a retrieval-augmented perspective,
+    assessing factual accuracy, identifying knowledge gaps, and providing
+    guidance on when and what to retrieve for improved content quality.
 
-    IMPLEMENTATION NOTE: This is a simplified, production-focused implementation
-    that captures the practical value of Self-RAG without requiring model training.
-    It is approximately 30-40% faithful to the original Self-RAG paper, prioritizing
-    ease of deployment and practical utility over research fidelity.
-
-    Enhanced with validation context awareness to prioritize validation constraints
-    over conflicting Self-RAG suggestions.
-
-    See module docstring for detailed comparison with the original Self-RAG approach.
+    Enhanced with validation context awareness to ensure retrieval recommendations
+    align with validation requirements and task objectives.
     """
 
     def __init__(
         self,
-        model_name: str,
-        retriever: Optional[Retriever] = None,
-        use_reflection_tokens: bool = True,
-        max_retrieved_docs: int = 5,
-        reflection_tokens: Optional[Dict[str, List[str]]] = None,
+        model_name: str = "groq:mixtral-8x7b-32768",
+        retrieval_focus_areas: Optional[List[str]] = None,
+        retrieval_tools: Optional[List[Any]] = None,
         **agent_kwargs: Any,
     ):
         """Initialize the Self-RAG critic.
 
         Args:
-            model_name: The model name for the PydanticAI agent (e.g., "openai:gpt-4")
-            retriever: The retriever to use for finding relevant documents.
-            use_reflection_tokens: Whether to use Self-RAG reflection tokens.
-            max_retrieved_docs: Maximum number of documents to retrieve.
-            reflection_tokens: Custom reflection tokens. If None, uses default Self-RAG tokens.
-                Expected format: {
-                    "retrieve": ["[Retrieve]", "[No Retrieve]"],
-                    "relevance": ["[Relevant]", "[Partially Relevant]", "[Irrelevant]"],
-                    "support": ["[Fully Supported]", "[Partially Supported]", "[No Support]"],
-                    "utility": ["[Utility:5]", "[Utility:4]", "[Utility:3]", "[Utility:2]", "[Utility:1]"]
-                }
-            **agent_kwargs: Additional arguments passed to the PydanticAI agent.
+            model_name: The model name for the PydanticAI agent
+            retrieval_focus_areas: Specific areas to assess for retrieval needs (uses defaults if None)
+            retrieval_tools: Optional list of retrieval tools for RAG support
+            **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
-        # Initialize parent with system prompt
-        super().__init__(model_name=model_name, **agent_kwargs)
-
-        self.retriever = retriever
-        self.use_reflection_tokens = use_reflection_tokens
-        self.max_retrieved_docs = max_retrieved_docs
-
-        # Self-RAG reflection tokens (customizable)
-        self.reflection_tokens = reflection_tokens or {
-            "retrieve": ["[Retrieve]", "[No Retrieve]"],
-            "relevance": ["[Relevant]", "[Partially Relevant]", "[Irrelevant]"],
-            "support": ["[Fully Supported]", "[Partially Supported]", "[No Support]"],
-            "utility": ["[Utility:5]", "[Utility:4]", "[Utility:3]", "[Utility:2]", "[Utility:1]"],
-        }
-
-        logger.info(
-            f"Initialized SelfRAGCritic with retriever={retriever is not None}, "
-            f"reflection_tokens={use_reflection_tokens}, max_docs={max_retrieved_docs}"
+        self.retrieval_focus_areas = retrieval_focus_areas or self._get_default_focus_areas()
+        
+        system_prompt = self._create_system_prompt()
+        paper_reference = (
+            "Asai, A., Wu, Z., Wang, Y., Sil, A., & Hajishirzi, H. (2023). "
+            "Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection. "
+            "arXiv preprint arXiv:2310.11511. https://arxiv.org/abs/2310.11511"
+        )
+        methodology = (
+            "Self-RAG methodology: Self-reflective evaluation with retrieval need assessment. "
+            "Evaluates factual accuracy, identifies knowledge gaps, and provides retrieval guidance. "
+            "Adapted for critique without full training pipeline."
         )
 
-    def _get_default_system_prompt(self) -> str:
-        """Get the default system prompt for Self-RAG evaluation."""
-        return """You are a Self-RAG inspired critic that evaluates text using retrieval and self-reflection. Your role is to provide structured feedback using Self-RAG principles.
+        super().__init__(
+            model_name=model_name,
+            system_prompt=system_prompt,
+            paper_reference=paper_reference,
+            methodology=methodology,
+            retrieval_tools=retrieval_tools,
+            **agent_kwargs,
+        )
 
-You must return a CritiqueFeedback object with these REQUIRED fields:
-- message: A clear summary of your Self-RAG evaluation (string)
-- needs_improvement: Whether the text needs improvement based on Self-RAG assessment (boolean)
-- confidence: ConfidenceScore with overall confidence (object with 'overall' field as float 0.0-1.0)
-- critic_name: Set this to "SelfRAGCritic" (string)
+    def _get_default_focus_areas(self) -> List[str]:
+        """Get the default retrieval assessment focus areas."""
+        return [
+            "Factual Accuracy: Verify claims, statistics, and factual statements for correctness",
+            "Currency: Assess if information is up-to-date and current for time-sensitive topics",
+            "Completeness: Identify missing information or knowledge gaps that external sources could fill",
+            "Evidence Quality: Evaluate the strength of evidence and need for authoritative sources",
+            "Domain Expertise: Assess need for specialized knowledge from domain-specific sources",
+        ]
 
-And these OPTIONAL fields (can be empty lists or null):
-- violations: List of ViolationReport objects for identified issues
-- suggestions: List of ImprovementSuggestion objects for addressing issues
-- processing_time_ms: Time taken in milliseconds (can be null)
-- critic_version: Version string (can be null)
-- metadata: Additional metadata dictionary (can be empty)
+    def _create_system_prompt(self) -> str:
+        """Create the system prompt for the Self-RAG critic."""
+        focus_text = "\n".join([f"- {area}" for area in self.retrieval_focus_areas])
+        
+        return f"""You are a Self-RAG critic implementing the methodology from Asai et al. 2023.
 
-IMPORTANT: Always provide the required fields. For confidence, use a simple object like {"overall": 0.8} where the number is between 0.0 and 1.0.
+Your role is to evaluate text from a retrieval-augmented perspective, assessing
+factual accuracy, identifying knowledge gaps, and determining when additional
+retrieval would improve content quality and reliability.
 
-Focus on Self-RAG principles:
-1. RETRIEVAL ASSESSMENT: Was retrieval needed for this task?
-2. RELEVANCE ASSESSMENT: How relevant is the retrieved context?
-3. SUPPORT ASSESSMENT: How well does the text use the retrieved context?
-4. UTILITY ASSESSMENT: Rate the overall utility (1-5)
+SELF-RAG METHODOLOGY:
+1. Self-reflect on the content's factual accuracy and completeness
+2. Assess knowledge gaps that could benefit from external retrieval
+3. Evaluate evidence quality and source reliability needs
+4. Determine retrieval necessity and specify what should be retrieved
+5. Provide confidence based on knowledge certainty and gap identification
 
-Use Self-RAG reflection tokens and provide structured, actionable feedback."""
+RETRIEVAL ASSESSMENT FOCUS:
+{focus_text}
 
-    async def _create_critique_prompt(self, thought: Thought) -> str:
-        """Create the critique prompt for Self-RAG evaluation.
+RESPONSE FORMAT:
+- needs_improvement: boolean indicating if retrieval would improve content
+- message: detailed analysis of factual accuracy and retrieval needs
+- suggestions: 1-3 specific retrieval recommendations or content improvements
+- confidence: float 0.0-1.0 based on knowledge certainty and gap assessment
+- reasoning: explanation of retrieval need assessment and knowledge gap analysis
 
-        Args:
-            thought: The Thought container with the text to critique.
+SELF-REFLECTION PROCESS:
+- Evaluate factual claims against internal knowledge
+- Identify areas of uncertainty or potential knowledge gaps
+- Assess currency and completeness of information
+- Determine specific retrieval needs and sources
+- Consider evidence quality and authoritative source requirements
 
-        Returns:
-            The formatted critique prompt.
-        """
-        # Step 1: Determine if retrieval would be beneficial
-        retrieval_needed = self._should_retrieve(thought)
+If the content is factually sound and complete without retrieval needs,
+set needs_improvement to false and explain the adequacy of current information."""
 
-        # Step 2: Retrieve documents if needed using multiple retriever sources
-        context = ""
-        retrieved_docs = []
-        retriever_used = None
+    async def _build_critique_prompt(self, thought: SifakaThought) -> str:
+        """Build the critique prompt for Self-RAG methodology."""
+        if not thought.current_text:
+            return "No text available for Self-RAG critique."
 
-        if retrieval_needed:
-            # Try critic-specific retriever first (highest precedence)
-            if self.retriever:
-                try:
-                    query = f"{thought.prompt} {thought.text or ''}".strip()
-                    retrieved_docs = self._retrieve_documents(query, self.retriever)
-                    retriever_used = "critic_specific"
-                    if retrieved_docs:
-                        context = "\n\n".join(retrieved_docs[: self.max_retrieved_docs])
-                        logger.debug(
-                            f"SelfRAGCritic: Retrieved {len(retrieved_docs)} documents using critic-specific retriever"
-                        )
-                except Exception as e:
-                    logger.warning(f"SelfRAGCritic: Critic-specific retrieval failed: {e}")
+        prompt_parts = [
+            "SELF-RAG CRITIQUE REQUEST",
+            "=" * 50,
+            "",
+            f"Original Task: {thought.prompt}",
+            f"Current Iteration: {thought.iteration}",
+            "",
+            "TEXT TO EVALUATE:",
+            thought.current_text,
+            "",
+        ]
 
-            # Fallback to chain-level context if no critic-specific retriever or it failed
-            if not retrieved_docs:
-                chain_context = self._prepare_context(thought)
-                if chain_context and chain_context != "No retrieved context available.":
-                    context = chain_context
-                    retriever_used = "chain_level"
-                    logger.debug("SelfRAGCritic: Using chain-level retrieved context")
+        # Add retrieval context if tools are available
+        if self.retrieval_tools:
+            prompt_parts.extend([
+                "AVAILABLE RETRIEVAL TOOLS:",
+                "=" * 30,
+                f"Number of retrieval tools available: {len(self.retrieval_tools)}",
+                "These tools can be used to gather additional information if needed.",
+                "",
+            ])
 
-        # Get validation context if available
-        validation_context = self._get_validation_context_dict(thought)
-        validation_text = ""
+        # Add validation context
+        validation_context = self._get_validation_context(thought)
         if validation_context:
-            validation_text = f"\n\nValidation Context:\n{validation_context}"
+            prompt_parts.extend([
+                "VALIDATION REQUIREMENTS:",
+                "=" * 25,
+                validation_context,
+                "",
+                "NOTE: Retrieval recommendations should prioritize addressing validation failures",
+                "and improving factual accuracy to meet validation requirements.",
+                "",
+            ])
 
-        # Build Self-RAG style prompt
-        retrieval_token = self.reflection_tokens["retrieve"][0 if retrieval_needed else 1]
+        # Add previous retrieval assessments
+        if thought.iteration > 0:
+            prev_rag_critiques = [
+                c for c in thought.critiques 
+                if c.iteration == thought.iteration - 1 and c.critic == "SelfRAGCritic"
+            ]
+            if prev_rag_critiques:
+                prompt_parts.extend([
+                    "PREVIOUS RETRIEVAL ASSESSMENT:",
+                    "=" * 35,
+                ])
+                for critique in prev_rag_critiques[-1:]:  # Last RAG critique
+                    prompt_parts.extend([
+                        f"Previous Assessment: {critique.feedback[:150]}{'...' if len(critique.feedback) > 150 else ''}",
+                        f"Previous Retrieval Needs: {', '.join(critique.suggestions)}",
+                        "",
+                    ])
 
-        if self.use_reflection_tokens:
-            return f"""Evaluate the following text using Self-RAG principles and reflection tokens.
+        # Add current focus areas
+        prompt_parts.extend([
+            "RETRIEVAL ASSESSMENT FOCUS:",
+            "=" * 35,
+        ])
+        for area in self.retrieval_focus_areas:
+            prompt_parts.append(f"- {area}")
+        
+        prompt_parts.extend([
+            "",
+            "SELF-RAG EVALUATION INSTRUCTIONS:",
+            "=" * 40,
+            "1. Self-reflect on factual accuracy and knowledge certainty",
+            "2. Identify specific claims that may need verification",
+            "3. Assess completeness and potential knowledge gaps",
+            "4. Evaluate currency of information for time-sensitive topics",
+            "5. Determine specific retrieval needs and recommended sources",
+            "6. Consider evidence quality and authoritative source requirements",
+            "",
+            "RETRIEVAL DECISION CRITERIA:",
+            "- Are there factual claims that need verification?",
+            "- Is the information current and up-to-date?",
+            "- Are there knowledge gaps that external sources could fill?",
+            "- Would additional evidence strengthen the content?",
+            "- Are authoritative sources needed for credibility?",
+            "",
+            "Provide specific, actionable retrieval recommendations if needed.",
+        ])
 
-Original task: {thought.prompt}
+        return "\n".join(prompt_parts)
 
-Text to evaluate:
-{thought.text}
-
-Retrieved context:
-{context or "No context retrieved"}
-{validation_text}
-
-Provide your assessment using these Self-RAG reflection tokens:
-- Retrieval: {retrieval_token}
-- Relevance: [Relevant], [Partially Relevant], or [Irrelevant]
-- Support: [Fully Supported], [Partially Supported], or [No Support]
-- Utility: [Utility:1] through [Utility:5]
-
-Self-RAG Assessment Guidelines:
-1. RETRIEVAL: Was retrieval needed for this task? ({retrieval_token})
-2. RELEVANCE: How relevant is the retrieved context to the task?
-3. SUPPORT: How well does the text use the available context?
-4. UTILITY: Rate overall utility from 1 (poor) to 5 (excellent)
-
-Please provide structured feedback with specific issues and suggestions for improvement."""
-        else:
-            return f"""Evaluate this text for quality and factual accuracy using Self-RAG principles.
-
-Original task: {thought.prompt}
-
-Text to evaluate:
-{thought.text}
-
-Retrieved context:
-{context or "No context retrieved"}
-{validation_text}
-
-Please provide structured feedback focusing on:
-1. How well the text addresses the original task
-2. Use of available context and factual accuracy
-3. Overall quality and utility
-4. Specific improvements needed
-
-Retrieval Assessment: {retrieval_token}"""
-
-    def _should_retrieve(self, thought: Thought) -> bool:
-        """Determine if retrieval would be beneficial for this task.
-
-        Args:
-            thought: The thought to assess.
-
-        Returns:
-            True if retrieval would be beneficial, False otherwise.
-        """
-        prompt_lower = thought.prompt.lower()
-        text_lower = (thought.text or "").lower()
-        combined = f"{prompt_lower} {text_lower}"
-
-        # Strong indicators that retrieval would help
-        factual_indicators = [
-            "fact",
-            "data",
-            "statistic",
-            "research",
-            "study",
-            "evidence",
-            "current",
-            "recent",
-            "latest",
-            "when",
-            "where",
-            "who",
-            "what",
-            "explain",
-            "define",
-            "compare",
-            "how many",
-            "specific",
-        ]
-
-        # Strong indicators that retrieval is not needed
-        creative_indicators = [
-            "opinion",
-            "creative",
-            "story",
-            "poem",
-            "fiction",
-            "imagine",
-            "personal",
-            "feeling",
-            "think",
-            "believe",
-            "prefer",
-            "write a",
-        ]
-
-        factual_score = sum(1 for indicator in factual_indicators if indicator in combined)
-        creative_score = sum(1 for indicator in creative_indicators if indicator in combined)
-
-        # Default to retrieval if unclear, but prefer no retrieval for clearly creative tasks
-        if creative_score > factual_score:
-            return False
-        return factual_score > 0 or creative_score == 0
-
-    def _retrieve_documents(self, query: str, retriever: Retriever) -> List[str]:
-        """Retrieve documents using the provided retriever.
-
-        Args:
-            query: The query to search for.
-            retriever: The retriever to use.
-
-        Returns:
-            List of retrieved document texts.
-        """
-        try:
-            # Use the retriever's retrieve method
-            results = retriever.retrieve(query, limit=self.max_retrieved_docs)
-            return [doc.content for doc in results if hasattr(doc, "content")]
-        except Exception as e:
-            logger.warning(f"SelfRAGCritic: Document retrieval failed: {e}")
-            return []
+    def _get_critic_specific_metadata(self, feedback) -> Dict[str, Any]:
+        """Extract Self-RAG-specific metadata."""
+        base_metadata = super()._get_critic_specific_metadata(feedback)
+        
+        # Add Self-RAG-specific metadata
+        self_rag_metadata = {
+            "methodology": "self_rag_retrieval_assessment",
+            "retrieval_recommended": feedback.needs_improvement,
+            "knowledge_certainty": feedback.confidence,
+            "retrieval_focus_areas": len(self.retrieval_focus_areas),
+            "factual_assessment": "uncertain" if feedback.needs_improvement else "confident",
+            "retrieval_tools_available": len(self.retrieval_tools) > 0,
+            "gap_identification": feedback.needs_improvement and len(feedback.suggestions) > 0,
+        }
+        
+        base_metadata.update(self_rag_metadata)
+        return base_metadata

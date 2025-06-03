@@ -1,202 +1,308 @@
-"""In-memory storage implementation.
+"""In-memory persistence implementation for Sifaka.
 
-This is the default storage backend that keeps everything in memory with no persistence.
-Perfect for development, testing, and simple use cases.
+This module provides a simple in-memory storage implementation for development
+and testing. Data is not persisted across process restarts.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from sifaka.core.thought import SifakaThought
+
+from .base import SifakaBasePersistence
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-class MemoryStorage:
-    """Simple in-memory storage with no persistence.
+class MemoryPersistence(SifakaBasePersistence):
+    """Simple in-memory persistence with no durability.
 
-    This is the default storage backend for Sifaka. It stores everything in a
-    Python dictionary and provides no persistence across process restarts.
+    This implementation stores all data in Python dictionaries and provides
+    no persistence across process restarts. Perfect for:
 
-    Perfect for:
     - Development and testing
     - Simple scripts and experiments
     - Cases where persistence is not needed
+    - Fast prototyping
 
     Attributes:
-        data: Dictionary storing all key-value pairs.
+        data: Dictionary storing all key-value pairs
+        indexes: Dictionary storing index data
     """
 
-    def __init__(self) -> None:
-        """Initialize empty memory storage."""
-        self.data: Dict[str, Any] = {}
-        logger.debug("Initialized MemoryStorage")
-
-    # Async methods (required by Storage protocol)
-    async def _get_async(self, key: str) -> Optional[Any]:
-        """Get a value by key asynchronously."""
-        return self.get(key)
-
-    async def _set_async(self, key: str, value: Any) -> None:
-        """Set a value for a key asynchronously."""
-        self.set(key, value)
-
-    async def _search_async(self, query: str, limit: int = 10) -> List[Any]:
-        """Search for items matching a query asynchronously."""
-        return self.search(query, limit)
-
-    async def _clear_async(self) -> None:
-        """Clear all stored data asynchronously."""
-        self.clear()
-
-    async def _delete_async(self, key: str) -> bool:
-        """Delete a value by key asynchronously."""
-        return self.delete(key)
-
-    async def _keys_async(self) -> List[str]:
-        """Get all keys asynchronously."""
-        return self.keys()
-
-    def get(self, key: str) -> Optional[Any]:
-        """Get a value by key.
+    def __init__(self, key_prefix: str = "sifaka"):
+        """Initialize memory persistence.
 
         Args:
-            key: The storage key.
+            key_prefix: Prefix for all storage keys
+        """
+        super().__init__(key_prefix)
+        self.data: Dict[str, str] = {}
+        self.indexes: Dict[str, List[str]] = {}
+        logger.debug("Initialized MemoryPersistence")
+
+    async def _store_raw(self, key: str, data: str) -> None:
+        """Store raw data at the given key.
+
+        Args:
+            key: Storage key
+            data: Raw data to store
+        """
+        self.data[key] = data
+        logger.debug(f"Memory stored key: {key}")
+
+    async def _retrieve_raw(self, key: str) -> Optional[str]:
+        """Retrieve raw data from the given key.
+
+        Args:
+            key: Storage key
 
         Returns:
-            The stored value, or None if not found.
+            Raw data if found, None otherwise
         """
-        value = self.data.get(key)
-        logger.debug(f"Memory get: {key} -> {'found' if value is not None else 'not found'}")
+        data = self.data.get(key)
+        logger.debug(f"Memory retrieved key: {key} -> {'found' if data else 'not found'}")
+        return data
 
-        # If the value is a dictionary and looks like a Thought, try to reconstruct it
-        if value is not None and isinstance(value, dict) and "id" in value and "prompt" in value:
-            try:
-                from sifaka.core.thought import Thought
-
-                return Thought.from_dict(value)
-            except Exception as e:
-                logger.debug(f"Failed to reconstruct Thought from dict: {e}")
-                # Return the raw dict if reconstruction fails
-                return value
-
-        return value
-
-    def set(self, key: str, value: Any) -> None:
-        """Set a value for a key.
+    async def _delete_raw(self, key: str) -> bool:
+        """Delete data at the given key.
 
         Args:
-            key: The storage key.
-            value: The value to store.
-        """
-        # If the value is a Thought object, convert it to a dict for consistency
-        if hasattr(value, "model_dump"):
-            # This is likely a Pydantic model (like Thought)
-            stored_value = value.model_dump()
-        else:
-            stored_value = value
-
-        self.data[key] = stored_value
-        logger.debug(f"Memory set: {key} -> stored")
-
-    def search(self, query: str, limit: int = 10) -> List[Any]:
-        """Search for items matching a query.
-
-        For memory storage, this just returns all values (no semantic search).
-
-        Args:
-            query: The search query (ignored for memory storage).
-            limit: Maximum number of results to return.
+            key: Storage key
 
         Returns:
-            List of all stored values, limited by the limit parameter.
-        """
-        values = list(self.data.values())[:limit]
-        logger.debug(f"Memory search: '{query}' -> {len(values)} results")
-        return values
-
-    def delete(self, key: str) -> bool:
-        """Delete a value by key.
-
-        Args:
-            key: The storage key to delete.
-
-        Returns:
-            True if the key was deleted, False if it didn't exist.
+            True if deleted, False if key didn't exist
         """
         if key in self.data:
             del self.data[key]
-            logger.debug(f"Memory delete: {key} -> deleted")
+            logger.debug(f"Memory deleted key: {key}")
             return True
         else:
-            logger.debug(f"Memory delete: {key} -> not found")
+            logger.debug(f"Memory key not found for deletion: {key}")
             return False
 
-    def clear(self) -> None:
-        """Clear all stored data."""
-        count = len(self.data)
+    async def _list_keys(self, pattern: str) -> List[str]:
+        """List all keys matching the given pattern.
+
+        Args:
+            pattern: Key pattern to match (supports * wildcard)
+
+        Returns:
+            List of matching keys
+        """
+        import fnmatch
+
+        matching_keys = [key for key in self.data.keys() if fnmatch.fnmatch(key, pattern)]
+
+        logger.debug(f"Memory listed {len(matching_keys)} keys matching pattern: {pattern}")
+        return matching_keys
+
+    async def clear(self) -> None:
+        """Clear all stored data.
+
+        This removes all thoughts and indexes from memory.
+        """
         self.data.clear()
-        logger.debug(f"Memory clear: removed {count} items")
+        self.indexes.clear()
+        logger.debug("Memory storage cleared")
 
-    def keys(self) -> List[str]:
-        """Get all keys in storage.
-
-        Returns:
-            List of all storage keys.
-        """
-        return list(self.data.keys())
-
-    def list_keys(self, prefix: Optional[str] = None) -> List[str]:
-        """List all keys in storage, optionally filtered by prefix.
-
-        Args:
-            prefix: Optional prefix to filter keys.
+    async def get_stats(self) -> Dict[str, int]:
+        """Get storage statistics.
 
         Returns:
-            List of keys matching the prefix (or all keys if no prefix).
+            Dictionary with storage statistics
         """
-        if prefix is None:
-            keys = list(self.data.keys())
-        else:
-            keys = [key for key in self.data.keys() if key.startswith(prefix)]
+        thought_keys = await self._list_keys(f"{self.key_prefix}:thought:*")
+        conversation_keys = await self._list_keys(f"{self.key_prefix}:conversation:*")
+        index_keys = await self._list_keys(f"{self.key_prefix}:index:*")
 
-        logger.debug(f"Memory list_keys: {len(keys)} keys found (prefix: {prefix})")
-        return keys
+        return {
+            "total_keys": len(self.data),
+            "thoughts": len(thought_keys),
+            "conversations": len(conversation_keys),
+            "indexes": len(index_keys),
+        }
 
-    def __len__(self) -> int:
-        """Return number of stored items."""
-        return len(self.data)
-
-    def __contains__(self, key: str) -> bool:
-        """Check if key exists in storage."""
-        return key in self.data
-
-    def save(self, key: str, value: Any) -> None:
-        """Save a value for a key (alias for set).
+    # PydanticAI BaseStatePersistence interface implementation
+    async def record_run(self, run_id: str, state: "SifakaThought") -> None:
+        """Record a run with its final state.
 
         Args:
-            key: The storage key.
-            value: The value to store.
+            run_id: Unique identifier for the run
+            state: Final state of the run
         """
-        self.set(key, value)
+        try:
+            run_key = f"{self.key_prefix}:run:{run_id}"
+            data = await self.serialize_state(state)
+            await self._store_raw(run_key, data)
+            logger.debug(f"Recorded run {run_id}")
+        except Exception as e:
+            logger.error(f"Failed to record run {run_id}: {e}")
+            raise
 
-    def exists(self, key: str) -> bool:
-        """Check if key exists in storage (alias for __contains__).
+    async def load_all(self, run_id: str) -> List["SifakaThought"]:
+        """Load all states for a given run.
 
         Args:
-            key: The storage key to check.
+            run_id: The run ID to load states for
 
         Returns:
-            True if the key exists, False otherwise.
+            List of all states for the run
         """
-        return key in self.data
+        try:
+            # Load the final run state
+            run_key = f"{self.key_prefix}:run:{run_id}"
+            data = await self._retrieve_raw(run_key)
 
-    def load(self, key: str) -> Optional[Any]:
-        """Load a value by key (alias for get).
+            if data is None:
+                return []
+
+            state = await self.deserialize_state(data)
+            return [state]
+
+        except Exception as e:
+            logger.error(f"Failed to load all states for run {run_id}: {e}")
+            return []
+
+    async def load_next(self, run_id: str) -> Optional["SifakaThought"]:
+        """Load the next state for a given run.
 
         Args:
-            key: The storage key.
+            run_id: The run ID to load the next state for
 
         Returns:
-            The stored value, or None if not found.
+            The next state if available, None otherwise
         """
-        return self.get(key)
+        try:
+            run_key = f"{self.key_prefix}:run:{run_id}"
+            data = await self._retrieve_raw(run_key)
+
+            if data is None:
+                return None
+
+            return await self.deserialize_state(data)
+
+        except Exception as e:
+            logger.error(f"Failed to load next state for run {run_id}: {e}")
+            return None
+
+    async def snapshot_end(self, state: "SifakaThought") -> None:
+        """Snapshot the final state at the end of execution.
+
+        Args:
+            state: Final state to snapshot
+        """
+        try:
+            # Store as final snapshot
+            end_key = f"{self.key_prefix}:end:{state.id}"
+            data = await self.serialize_state(state)
+            await self._store_raw(end_key, data)
+
+            # Also store as regular thought
+            await self.store_thought(state)
+
+            logger.debug(f"Snapshotted end state for thought {state.id}")
+
+        except Exception as e:
+            logger.error(f"Failed to snapshot end state for thought {state.id}: {e}")
+            raise
+
+    async def snapshot_node_if_new(self, state: "SifakaThought", next_node: str) -> None:
+        """Snapshot the state if it's new (not already snapshotted).
+
+        Args:
+            state: Current state
+            next_node: Name of the next node to execute
+        """
+        try:
+            snapshot_key = f"{self.key_prefix}:snapshot:{state.id}:{next_node}"
+
+            # Check if snapshot already exists
+            existing = await self._retrieve_raw(snapshot_key)
+            if existing is None:
+                # Only snapshot if new
+                await self.snapshot_node(state, next_node)
+            else:
+                logger.debug(
+                    f"Snapshot already exists for thought {state.id} before node {next_node}"
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to check/snapshot state for thought {state.id}: {e}")
+            raise
+
+    async def snapshot_node(self, state: "SifakaThought", next_node: str) -> None:
+        """Snapshot the current state before executing a node.
+
+        This is called by PydanticAI's graph execution to save state
+        at each node transition for resumability.
+
+        Args:
+            state: Current thought state
+            next_node: Name of the next node to execute
+        """
+        try:
+            # Store the thought with a snapshot key
+            snapshot_key = f"{self.key_prefix}:snapshot:{state.id}:{next_node}"
+            data = await self.serialize_state(state)
+            await self._store_raw(snapshot_key, data)
+
+            # Also store as regular thought
+            await self.store_thought(state)
+
+            logger.debug(f"Snapshotted state for thought {state.id} before node {next_node}")
+
+        except Exception as e:
+            logger.error(f"Failed to snapshot state for thought {state.id}: {e}")
+            raise
+
+    async def load_state(self, state_id: str) -> Optional["SifakaThought"]:
+        """Load a previously saved state.
+
+        Args:
+            state_id: The state ID to load
+
+        Returns:
+            The loaded state if found, None otherwise
+        """
+        return await self.retrieve_thought(state_id)
+
+    async def list_snapshots(self, state_id: str) -> List[str]:
+        """List all snapshots for a given state.
+
+        Args:
+            state_id: The state ID to list snapshots for
+
+        Returns:
+            List of snapshot keys
+        """
+        pattern = f"{self.key_prefix}:snapshot:{state_id}:*"
+        return await self._list_keys(pattern)
+
+    async def resume_from_snapshot(
+        self, state_id: str, node_name: str
+    ) -> Optional["SifakaThought"]:
+        """Resume execution from a specific snapshot.
+
+        Args:
+            state_id: The state ID to resume
+            node_name: The node name to resume from
+
+        Returns:
+            The state to resume from if found, None otherwise
+        """
+        try:
+            snapshot_key = f"{self.key_prefix}:snapshot:{state_id}:{node_name}"
+            data = await self._retrieve_raw(snapshot_key)
+
+            if data is None:
+                return None
+
+            state = await self.deserialize_state(data)
+            logger.debug(f"Resumed state {state_id} from node {node_name}")
+            return state
+
+        except Exception as e:
+            logger.error(f"Failed to resume state {state_id} from node {node_name}: {e}")
+            return None

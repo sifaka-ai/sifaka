@@ -1,105 +1,53 @@
-"""Validators for Sifaka.
+"""Validators for content validation in Sifaka.
 
-This package provides validator classes that check if text meets specific criteria.
-Validators are used in the Sifaka chain to ensure that generated text meets
-specified requirements before it is returned to the user or passed to the next
-stage of the chain.
-
-Available validators:
-- LengthValidator: Checks text length requirements
-- RegexValidator: Validates text against regex patterns
-- ContentValidator: Checks for prohibited content
-- FormatValidator: Validates text format (JSON, Markdown, custom)
-- ClassifierValidator: Uses ML classifiers for validation
-- GuardrailsValidator: Integrates with GuardrailsAI
-
-Example:
-    ```python
-    from sifaka.validators import (
-        LengthValidator,
-        ContentValidator,
-        FormatValidator,
-        ClassifierValidator,
-        GuardrailsValidator,
-    )
-    from sifaka.core.thought import Thought
-
-    # Create validators
-    length_validator = LengthValidator(min_length=10, max_length=1000)
-    content_validator = ContentValidator(prohibited=["spam", "harmful"])
-    format_validator = FormatValidator(format_type="json")
-
-    # Create a thought with text
-    thought = Thought(prompt="Test prompt", text="This is test text.")
-
-    # Validate
-    length_result = length_validator.validate(thought)
-    content_result = content_validator.validate(thought)
-    format_result = format_validator.validate(thought)
-
-    # Check results
-    if length_result.passed and content_result.passed and format_result.passed:
-        print("All validations passed!")
-    ```
+This module provides various content validators designed for the new
+PydanticAI-based architecture:
+- Length validation (character and word-based)
+- Content validation (prohibited/required patterns)
+- Format validation (JSON, Markdown, etc.)
 """
 
-# Import base validators
-from sifaka.validators.base import LengthValidator, RegexValidator
-
-# Import classifier validator
-from sifaka.validators.classifier import (
-    Classifier,
-    ClassifierValidator,
-    classifier_validator,
-    create_classifier_validator,
+from .base import BaseValidator, ValidationResult
+from .length import (
+    LengthValidator,
+    create_length_validator,
+    min_length_validator,
+    max_length_validator,
 )
-
-# Import content validator
-from sifaka.validators.content import ContentValidator, create_content_validator, prohibited_content
-
-# Import format validator
-from sifaka.validators.format import (
-    FormatValidator,
-    create_format_validator,
-    custom_format,
-    json_format,
-    markdown_format,
+from .content import (
+    ContentValidator,
+    create_content_validator,
+    prohibited_content_validator,
+    required_content_validator,
 )
-
-# Import guardrails validator
-from sifaka.validators.guardrails import (
-    GuardrailsValidator,
-    create_guardrails_validator,
-    guardrails_validator,
-)
-
-# Import validation context utilities
-from sifaka.validators.validation_context import ValidationContext, create_validation_context
+from .format import FormatValidator, create_format_validator, json_validator, markdown_validator
+from .classifier import ClassifierValidator, create_classifier_validator, sentiment_validator
+from .coherence import CoherenceValidator, create_coherence_validator
 
 __all__ = [
-    # Base validators
+    # Base classes
+    "BaseValidator",
+    "ValidationResult",
+    # Length validation
     "LengthValidator",
-    "RegexValidator",
-    # Content validator
+    "create_length_validator",
+    "min_length_validator",
+    "max_length_validator",
+    # Content validation
     "ContentValidator",
     "create_content_validator",
-    "prohibited_content",
-    # Format validator
+    "prohibited_content_validator",
+    "required_content_validator",
+    # Format validation
     "FormatValidator",
     "create_format_validator",
-    "json_format",
-    "markdown_format",
-    "custom_format",
-    # Classifier validator
+    "json_validator",
+    "markdown_validator",
+    # Classifier-based validation
     "ClassifierValidator",
-    "Classifier",
     "create_classifier_validator",
-    "classifier_validator",
-    # Guardrails validator
-    "GuardrailsValidator",
-    "create_guardrails_validator",
-    "guardrails_validator",
-    # Validation context utilities
-    "ValidationContext",
-    "create_validation_context",
+    "sentiment_validator",
+    # Coherence validation
+    "CoherenceValidator",
+    "create_coherence_validator",
 ]

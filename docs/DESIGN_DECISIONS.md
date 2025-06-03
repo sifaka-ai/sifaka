@@ -4,115 +4,145 @@ This document captures the key architectural and design decisions made in Sifaka
 
 ## 🏗️ Architectural Decisions
 
-### **Decision 1: PydanticAI-Only Architecture (v0.3.0)**
+### **Decision 1: PydanticAI Graph-Based Architecture (v0.4.0)**
 
-**Decision**: Remove Traditional Chain completely and adopt PydanticAI-only architecture.
+**Decision**: Adopt PydanticAI's graph-based workflow orchestration as the core architecture, replacing chain-based approaches.
 
 **Rationale**:
-- **Simplicity**: Single chain implementation reduces complexity and maintenance burden
-- **Modern Patterns**: PydanticAI represents the future of AI agent frameworks
-- **Tool Integration**: Native tool calling provides better extensibility than pipeline-based approaches
-- **Type Safety**: Full Pydantic integration ensures type safety throughout the system
-- **Community Alignment**: Aligns with PydanticAI's development and ecosystem
+- **Graph Orchestration**: PydanticAI graphs provide clear, resumable workflow execution with state persistence
+- **Node-Based Design**: Separate nodes for Generate, Validate, and Critique operations enable better separation of concerns
+- **State Management**: Built-in state persistence and snapshotting for resumable workflows
+- **Parallel Execution**: Validators and critics can run concurrently within their respective nodes
+- **Type Safety**: Full Pydantic integration with structured state containers (`SifakaThought`)
+- **Modern Patterns**: Aligns with PydanticAI's evolution toward graph-based agent workflows
 
 **Alternatives Considered**:
-1. **Dual Architecture**: Maintain both Traditional and PydanticAI chains
-   - *Rejected*: Increased complexity, maintenance burden, and user confusion
-2. **Gradual Migration**: Slowly deprecate Traditional Chain over multiple versions
-   - *Rejected*: Prolonged complexity and unclear migration path
-3. **Traditional Chain as Primary**: Keep Traditional Chain as the main implementation
-   - *Rejected*: Would miss benefits of modern agent patterns and tool calling
+1. **Chain-Based Architecture**: Continue with sequential chain execution
+   - *Rejected*: Less flexible, no built-in state persistence, harder to resume workflows
+2. **Custom Workflow Engine**: Build our own workflow orchestration
+   - *Rejected*: Reinventing the wheel, maintenance burden, less integration with PydanticAI
+3. **Event-Driven Architecture**: Use event streams for workflow coordination
+   - *Rejected*: More complex, harder to debug, less alignment with PydanticAI patterns
 
 **Trade-offs**:
-- ✅ **Pros**: Simplified codebase, modern patterns, better extensibility, type safety
-- ❌ **Cons**: Breaking change for existing users, temporary loss of some features during transition
+- ✅ **Pros**: Better workflow control, state persistence, parallel execution, resumable workflows
+- ❌ **Cons**: More complex setup, requires understanding of graph concepts, breaking API changes
 
-**Impact**: Major breaking change requiring user migration, but provides cleaner foundation for future development.
+**Impact**: Enables sophisticated workflow orchestration with state persistence and resumability, setting foundation for advanced features.
 
 ---
 
-### **Decision 2: Thought-First Architecture**
+### **Decision 2: SifakaThought as Central State Container**
 
-**Decision**: Center the entire system around the Thought container as the primary state management mechanism.
+**Decision**: Use `SifakaThought` as the central state container that flows through the entire graph workflow, capturing complete audit trails.
 
 **Rationale**:
-- **Complete Observability**: Every step of the AI generation process is captured and traceable
-- **Immutable State**: Each iteration creates an immutable snapshot, ensuring audit trail integrity
-- **Debugging**: Exact prompts, responses, and intermediate states are preserved for debugging
-- **Serialization**: Complete state can be serialized for storage, analysis, and compliance
-- **Research Alignment**: Matches academic research patterns for AI system evaluation
+- **Complete Observability**: Every generation, validation, critique, and tool call is captured with full context
+- **Immutable History**: Each iteration preserves complete history while allowing state updates during processing
+- **Graph Integration**: Seamlessly integrates with PydanticAI's graph state management
+- **Debugging Excellence**: Exact prompts, responses, feedback, and decision points are preserved
+- **Serialization**: Complete state can be persisted and restored for analysis and compliance
+- **Research Alignment**: Matches academic research patterns for AI system evaluation and reproducibility
 
 **Alternatives Considered**:
-1. **Chain-Centric Architecture**: Focus on chain operations with minimal state tracking
-   - *Rejected*: Poor observability and debugging capabilities
-2. **Event-Driven Architecture**: Use events to track system state changes
-   - *Rejected*: More complex to implement and reason about
-3. **Database-Centric**: Store all state in external database
-   - *Rejected*: Performance overhead and external dependencies
+1. **Separate State Objects**: Different state objects for each node type
+   - *Rejected*: Fragmented state, complex data flow, loss of complete audit trail
+2. **Event Sourcing**: Track state changes as events
+   - *Rejected*: More complex to implement, harder to query current state
+3. **External State Store**: Store state in external database during execution
+   - *Rejected*: Performance overhead, network dependencies, complexity
 
 **Trade-offs**:
-- ✅ **Pros**: Complete observability, excellent debugging, audit trails, research alignment
-- ❌ **Cons**: Memory overhead for complex workflows, serialization complexity
+- ✅ **Pros**: Complete observability, excellent debugging, audit trails, graph integration
+- ❌ **Cons**: Memory overhead for complex workflows, large serialized objects
 
-**Impact**: Enables unprecedented observability and debugging capabilities for AI text generation.
+**Impact**: Enables unprecedented observability and debugging capabilities while integrating seamlessly with PydanticAI graphs.
 
 ---
 
-### **Decision 3: Feedback Integration in Agent Prompts**
+### **Decision 3: Context-Aware Generation with Feedback Integration**
 
-**Decision**: Pass validation results and critic feedback directly to PydanticAI agents in subsequent iterations.
+**Decision**: Build rich context from validation results and critic feedback in the GenerateNode for subsequent iterations.
 
 **Rationale**:
-- **Iterative Improvement**: Agents can learn from previous failures and feedback
-- **Context Preservation**: Complete context is available for improvement decisions
-- **Research Fidelity**: Matches academic research on iterative AI improvement
+- **Iterative Improvement**: Agents receive specific feedback about what failed and how to improve
+- **Context Preservation**: Complete history of previous attempts and feedback is available
+- **Research Fidelity**: Matches academic research on iterative AI improvement (Reflexion, Self-Refine)
 - **Transparency**: Clear understanding of how feedback influences generation
+- **Graph Integration**: Context building happens within the graph workflow naturally
 
 **Alternatives Considered**:
-1. **External Feedback Processing**: Process feedback outside the agent
-   - *Rejected*: Loses context and reduces improvement effectiveness
-2. **Implicit Feedback**: Modify agent behavior without explicit feedback
+1. **External Feedback Processing**: Process feedback outside the graph workflow
+   - *Rejected*: Loses integration with graph state, reduces improvement effectiveness
+2. **Implicit Feedback**: Modify agent behavior without explicit feedback context
    - *Rejected*: Reduces transparency and debugging capabilities
-3. **Separate Improvement Agent**: Use a dedicated agent for improvements
-   - *Rejected*: Adds complexity and potential context loss
+3. **Separate Improvement Node**: Use a dedicated node for processing improvements
+   - *Rejected*: Adds complexity, breaks natural generation flow
 
 **Trade-offs**:
-- ✅ **Pros**: Effective iterative improvement, transparency, research alignment
-- ❌ **Cons**: Longer prompts, potential context window limitations
+- ✅ **Pros**: Effective iterative improvement, transparency, research alignment, graph integration
+- ❌ **Cons**: Longer prompts, potential context window limitations, complex context building
 
-**Impact**: Enables effective iterative improvement while maintaining complete transparency.
+**Impact**: Enables effective iterative improvement while maintaining complete transparency and graph workflow integration.
 
 ---
 
-### **Decision 4: Guaranteed Completion Pattern**
+### **Decision 4: Guaranteed Completion with Graph Termination**
 
-**Decision**: Always return a final Thought, either from successful validation or after reaching maximum iterations.
+**Decision**: Always return a final `SifakaThought` through proper graph termination, either from successful validation/critique or after reaching maximum iterations.
 
 **Rationale**:
 - **Reliability**: Users always get a result, even if not perfect
-- **Production Readiness**: Systems can handle edge cases gracefully
-- **Debugging**: Failed attempts are preserved for analysis
+- **Production Readiness**: Systems can handle edge cases gracefully through graph flow control
+- **Debugging**: Failed attempts are preserved in the thought's complete audit trail
 - **User Experience**: Predictable behavior reduces user frustration
+- **Graph Integration**: Natural termination through `End` nodes maintains graph workflow integrity
 
 **Alternatives Considered**:
 1. **Exception on Failure**: Throw exceptions when validation fails
-   - *Rejected*: Poor user experience and production reliability
+   - *Rejected*: Poor user experience, breaks graph workflow, production reliability issues
 2. **Optional Results**: Return None or Optional types for failures
-   - *Rejected*: Complicates user code and error handling
+   - *Rejected*: Complicates user code, doesn't align with graph patterns
 3. **Infinite Retries**: Continue until validation passes
-   - *Rejected*: Risk of infinite loops and resource exhaustion
+   - *Rejected*: Risk of infinite loops, resource exhaustion, poor graph termination
 
 **Trade-offs**:
-- ✅ **Pros**: Reliable behavior, graceful degradation, better debugging
+- ✅ **Pros**: Reliable behavior, graceful degradation, better debugging, graph workflow integrity
 - ❌ **Cons**: Users must check validation status, potential for low-quality outputs
 
-**Impact**: Provides reliable, production-ready behavior while preserving debugging information.
+**Impact**: Provides reliable, production-ready behavior while preserving debugging information and maintaining proper graph workflow patterns.
+
+---
+
+### **Decision 5: Parallel Execution within Nodes**
+
+**Decision**: Execute all validators in parallel within ValidateNode and all critics in parallel within CritiqueNode.
+
+**Rationale**:
+- **Performance**: Concurrent execution reduces total processing time for multiple validators/critics
+- **Independence**: Validators and critics are designed to be independent and can run concurrently
+- **Scalability**: Better resource utilization for I/O-bound operations (API calls)
+- **Graph Efficiency**: Maximizes throughput within each node while maintaining clear workflow structure
+
+**Alternatives Considered**:
+1. **Sequential Execution**: Run validators and critics one after another
+   - *Rejected*: Poor performance, unnecessary waiting for independent operations
+2. **Cross-Node Parallelism**: Run validation and critique in parallel
+   - *Rejected*: Breaks logical workflow (critique should happen after validation passes)
+3. **User-Configurable**: Allow users to choose parallel vs sequential
+   - *Rejected*: Adds complexity without significant benefit
+
+**Trade-offs**:
+- ✅ **Pros**: Better performance, efficient resource usage, maintains workflow logic
+- ❌ **Cons**: More complex error handling, potential resource contention
+
+**Impact**: Significantly improves performance for workflows with multiple validators or critics while maintaining clear execution semantics.
 
 ---
 
 ## 🔧 Implementation Decisions
 
-### **Decision 5: Async-First Design**
+### **Decision 6: Async-First Design**
 
 **Decision**: Use async/await patterns throughout the system by default.
 
@@ -138,7 +168,7 @@ This document captures the key architectural and design decisions made in Sifaka
 
 ---
 
-### **Decision 6: Composition Over Inheritance**
+### **Decision 7: Composition Over Inheritance**
 
 **Decision**: Use composition patterns rather than inheritance for PydanticAI integration.
 
@@ -164,7 +194,7 @@ This document captures the key architectural and design decisions made in Sifaka
 
 ---
 
-### **Decision 7: Research-Backed Implementation Priority**
+### **Decision 8: Research-Backed Implementation Priority**
 
 **Decision**: Prioritize implementing proven academic research over novel techniques.
 
@@ -192,7 +222,7 @@ This document captures the key architectural and design decisions made in Sifaka
 
 ## 🎯 Feature Decisions
 
-### **Decision 8: Configurable Critic Thresholds**
+### **Decision 9: Configurable Critic Thresholds**
 
 **Decision**: Allow users to configure quality thresholds and critic sensitivity.
 
@@ -218,7 +248,7 @@ This document captures the key architectural and design decisions made in Sifaka
 
 ---
 
-### **Decision 9: Immutable Iteration Snapshots**
+### **Decision 10: Immutable Iteration Snapshots**
 
 **Decision**: Create immutable snapshots of Thoughts at each iteration boundary.
 

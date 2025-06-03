@@ -19,7 +19,8 @@ from pydantic_ai import Agent
 
 from sifaka.agents import create_pydantic_chain
 from sifaka.critics.constitutional import ConstitutionalCritic
-from sifaka.retrievers.memory import InMemoryRetriever
+
+# Note: Retrievers replaced with PydanticAI tools
 from sifaka.storage import FileStorage
 from sifaka.utils.logging import get_logger
 
@@ -35,33 +36,8 @@ logging.getLogger("sifaka.core.chain.executor").setLevel(logging.DEBUG)
 logging.getLogger("sifaka.agents.chain").setLevel(logging.DEBUG)
 
 
-def setup_privacy_retriever():
-    """Set up in-memory retriever with digital privacy context documents."""
-
-    # Create in-memory retriever and populate with privacy context
-    retriever = InMemoryRetriever()
-
-    # Add digital privacy context documents
-    privacy_documents = [
-        "Digital privacy is the right of individuals to control how their personal information is collected, used, and shared in digital environments.",
-        "Data minimization principle states that organizations should only collect personal data that is necessary for specific, legitimate purposes.",
-        "The General Data Protection Regulation (GDPR) gives individuals rights including access, rectification, erasure, and data portability.",
-        "End-to-end encryption ensures that only communicating users can read messages, protecting against surveillance and data breaches.",
-        "Privacy by design integrates privacy considerations into system development from the earliest stages rather than as an afterthought.",
-        "Consent must be freely given, specific, informed, and unambiguous for lawful processing of personal data under privacy regulations.",
-        "Data controllers are responsible for implementing appropriate technical and organizational measures to ensure data security.",
-        "Anonymization and pseudonymization techniques help protect individual privacy while enabling data analysis and research.",
-        "Cross-border data transfers require adequate protection levels or appropriate safeguards to maintain privacy rights.",
-        "Privacy impact assessments help organizations identify and mitigate privacy risks before implementing new systems or processes.",
-    ]
-
-    # Store documents in retriever
-    logger.info("Setting up privacy context documents in memory...")
-    for i, doc in enumerate(privacy_documents):
-        doc_id = f"privacy_doc_{i}"
-        retriever.add_document(doc_id, doc)
-
-    logger.info(f"Loaded {len(privacy_documents)} privacy documents into in-memory retriever")
+def setup_storage():
+    """Set up file storage for thoughts."""
 
     # Create simple file storage for thoughts
     storage = FileStorage(
@@ -69,7 +45,8 @@ def setup_privacy_retriever():
         overwrite=True,  # Append to preserve all iterations with critic feedback
     )
 
-    return retriever, storage
+    logger.info("Set up file storage for thoughts")
+    return storage
 
 
 def setup_constitutional_principles():
@@ -98,17 +75,16 @@ async def main():
     # Use Gemini model directly for the critic
     logger.info("Using Gemini model for constitutional critic")
 
-    # Set up in-memory retriever with privacy context and file storage
-    privacy_retriever, storage = setup_privacy_retriever()
+    # Set up file storage for thoughts
+    storage = setup_storage()
 
     # Get constitutional principles
     constitutional_principles = setup_constitutional_principles()
 
-    # Create constitutional critic with in-memory retrieval using Gemini
+    # Create constitutional critic using Gemini (no retriever - use tools instead)
     critic = ConstitutionalCritic(
-        model="google-gla:gemini-1.5-flash",
+        model_name="google-gla:gemini-1.5-flash",
         principles=constitutional_principles,
-        retriever=privacy_retriever,  # Constitutional critic uses in-memory retrieval for principled evaluation
         name="Digital Privacy Constitutional Critic",
     )
 
@@ -127,12 +103,10 @@ async def main():
     # Define the prompt
     prompt = "Write a comprehensive analysis of digital privacy rights in the modern internet age, covering the challenges individuals face, the role of technology companies, government regulations, and practical steps people can take to protect their privacy online."
 
-    # Create PydanticAI chain with constitutional critic and in-memory retrieval
+    # Create PydanticAI chain with constitutional critic (no retrievers - use tools instead)
     chain = create_pydantic_chain(
         agent=agent,
-        critics=[critic],  # Constitutional critic with in-memory retrieval
-        model_retrievers=[privacy_retriever],  # In-memory context for pre-generation
-        critic_retrievers=[privacy_retriever],  # Same in-memory context for critic evaluation
+        critics=[critic],  # Constitutional critic (tools-based retrieval)
         max_improvement_iterations=2,  # Allow 2 retries
         always_apply_critics=True,
         analytics_storage=storage,  # Use file storage for thoughts

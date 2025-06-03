@@ -1,15 +1,15 @@
 """Meta-Rewarding critic for Sifaka.
 
-This module implements a Meta-Rewarding approach for text critique and improvement,
-where the model judges its own responses and then judges its own judgments to
-improve both response quality and judgment capabilities.
+This module implements the Meta-Rewarding approach for evaluating and improving
+the quality of feedback and critique itself, creating a meta-level assessment
+of critique quality and reliability.
 
 Based on "Meta-Rewarding Language Models: Self-Improving Alignment with LLM-as-a-Meta-Judge":
 https://arxiv.org/abs/2407.19594
 
-@misc{wu2024metarewardinglanguagemodels,
+@misc{wu2024metarewardinglanguagemodelsself,
       title={Meta-Rewarding Language Models: Self-Improving Alignment with LLM-as-a-Meta-Judge},
-      author={Tianhao Wu and Weizhe Yuan and Olga Golovneva and Jing Xu and Yuandong Tian and Jiantao Jiao and Jason E Weston and Sainbayar Sukhbaatar},
+      author={Tianhao Wu and Weizhe Yuan and Olga Golovneva and Jing Xu and Yuandong Tian and Jiantao Jiao and Jason Weston and Sainbayar Sukhbaatar},
       year={2024},
       eprint={2407.19594},
       archivePrefix={arXiv},
@@ -17,405 +17,272 @@ https://arxiv.org/abs/2407.19594
       url={https://arxiv.org/abs/2407.19594},
 }
 
-The MetaRewardingCritic implements core Meta-Rewarding concepts:
-1. Two-stage judgment process (judge responses, then judge judgments)
-2. Self-improving alignment through meta-evaluation
-3. Feedback loop for improving both responses and judgment capabilities
-4. Unsupervised self-improvement without human supervision
+The MetaRewardingCritic implements key Meta-Rewarding concepts:
+1. Meta-level evaluation of critique quality and reliability
+2. Assessment of feedback usefulness and actionability
+3. Evaluation of critique consistency and coherence
+4. Self-improving feedback through meta-judging
 
-Note: This implementation adapts the core Meta-Rewarding two-stage judgment process
-for text critique. The original Meta-Rewarding paper focuses on training methodology
-for improving model alignment, while this implementation applies the judgment
-concepts to single-text improvement scenarios.
+IMPORTANT IMPLEMENTATION NOTES AND CAVEATS:
+
+This implementation adapts the Meta-Rewarding approach for critique evaluation
+rather than the full reward model training described in the original paper.
+The original Meta-Rewarding paper focuses on training language models to
+evaluate and improve their own reward models through meta-judging.
+
+Our implementation focuses on the meta-evaluation aspects, using the model
+to assess the quality of critique and feedback rather than training reward
+models. This provides a meta-level perspective on critique quality that can
+help improve the overall feedback process.
+
+CAVEATS AND LIMITATIONS:
+1. This is a meta-critique implementation that evaluates feedback quality
+   without the full Meta-Rewarding training pipeline for reward models.
+2. The meta-judging is based on the model's assessment of critique quality
+   rather than learned reward model evaluation as in the original paper.
+3. Self-evaluation bias may affect the quality of meta-assessments, as the
+   model is evaluating critique that may come from similar models.
+4. The approach may be more computationally expensive as it requires
+   meta-level reasoning about critique quality.
+5. Performance depends on the model's ability to understand and evaluate
+   the characteristics of high-quality feedback and critique.
+6. The meta-evaluation may be influenced by the model's own biases about
+   what constitutes good critique.
+
+META-EVALUATION FOCUS:
+This implementation evaluates critique across several dimensions:
+1. Actionability: How specific and implementable are the suggestions?
+2. Relevance: How well does the critique address the actual content issues?
+3. Consistency: Is the critique internally coherent and non-contradictory?
+4. Constructiveness: Does the feedback help improve rather than just criticize?
+5. Evidence-based: Is the critique supported by clear reasoning and examples?
+
+RETRIEVAL AUGMENTATION:
+This critic supports optional retrieval augmentation to enhance meta-evaluation
+by providing external examples of high-quality critique, feedback guidelines,
+or domain-specific evaluation criteria.
 """
 
-import time
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
-from pydantic_ai import Agent
-
-from sifaka.core.thought import Thought
-from sifaka.critics.base_pydantic import PydanticAICritic
-from sifaka.utils.error_handling import critic_context
-from sifaka.utils.logging import get_logger
-
-logger = get_logger(__name__)
+from sifaka.core.thought import SifakaThought
+from sifaka.critics.base import BaseCritic
 
 
-class MetaRewardingCritic(PydanticAICritic):
-    """Critic that implements Meta-Rewarding with two-stage judgment process and validation awareness.
+class MetaRewardingCritic(BaseCritic):
+    """Meta-Rewarding critic implementing Wu et al. 2024 methodology.
 
-    This critic uses the Meta-Rewarding approach which first judges the response
-    quality, then judges the quality of that judgment itself (meta-judgment).
-    This creates a feedback loop that can improve both response quality and
-    judgment capabilities.
+    This critic evaluates the quality of critique and feedback itself,
+    providing meta-level assessment of how useful, actionable, and reliable
+    the feedback is for improving text quality.
 
-    Enhanced with validation context awareness to prioritize validation constraints
-    over conflicting meta-rewarding suggestions.
+    Enhanced with validation context awareness to ensure meta-evaluation
+    considers how well critique addresses validation requirements.
     """
 
     def __init__(
         self,
-        model_name: str,
-        meta_judge_model_name: Optional[str] = None,
-        judgment_criteria: Optional[List[str]] = None,
-        meta_judgment_criteria: Optional[List[str]] = None,
-        use_scoring: bool = True,
-        score_range: tuple[int, int] = (1, 10),
+        model_name: str = "gemini-1.5-flash",
+        meta_evaluation_criteria: Optional[List[str]] = None,
+        retrieval_tools: Optional[List[Any]] = None,
         **agent_kwargs: Any,
     ):
         """Initialize the Meta-Rewarding critic.
 
         Args:
-            model_name: The model name for the PydanticAI agent (e.g., "openai:gpt-4")
-            meta_judge_model_name: Optional separate model for meta-judgment.
-            judgment_criteria: Criteria for judging response quality.
-            meta_judgment_criteria: Criteria for judging judgment quality.
-            use_scoring: Whether to use numerical scoring in judgments.
-            score_range: Range for numerical scores (min, max).
-            **agent_kwargs: Additional arguments passed to the PydanticAI agent.
+            model_name: The model name for the PydanticAI agent
+            meta_evaluation_criteria: Custom criteria for meta-evaluation (uses defaults if None)
+            retrieval_tools: Optional list of retrieval tools for RAG support
+            **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
-        # Initialize parent with system prompt
-        super().__init__(model_name=model_name, **agent_kwargs)
+        self.meta_evaluation_criteria = meta_evaluation_criteria or self._get_default_criteria()
+        
+        system_prompt = self._create_system_prompt()
+        paper_reference = (
+            "Wu, T., Yuan, W., Golovneva, O., Xu, J., Tian, Y., Jiao, J., Weston, J., & Sukhbaatar, S. (2024). "
+            "Meta-Rewarding Language Models: Self-Improving Alignment with LLM-as-a-Meta-Judge. "
+            "arXiv preprint arXiv:2407.19594. https://arxiv.org/abs/2407.19594"
+        )
+        methodology = (
+            "Meta-Rewarding methodology: Meta-level evaluation of critique quality and reliability. "
+            "Assesses feedback usefulness, actionability, and consistency through meta-judging. "
+            "Adapted for critique evaluation without full reward model training."
+        )
 
-        # Set up meta-judge model (can be same as main model or different)
-        self.meta_judge_model_name = meta_judge_model_name or model_name
+        super().__init__(
+            model_name=model_name,
+            system_prompt=system_prompt,
+            paper_reference=paper_reference,
+            methodology=methodology,
+            retrieval_tools=retrieval_tools,
+            **agent_kwargs,
+        )
 
-        # Set up judgment criteria
-        self.judgment_criteria = judgment_criteria or [
-            "Accuracy and factual correctness",
-            "Helpfulness and relevance to the task",
-            "Clarity and coherence of expression",
-            "Completeness of the response",
-            "Appropriateness of tone and style",
+    def _get_default_criteria(self) -> List[str]:
+        """Get the default meta-evaluation criteria."""
+        return [
+            "Actionability: Are the suggestions specific, clear, and implementable?",
+            "Relevance: Does the critique address actual issues in the content?",
+            "Consistency: Is the feedback internally coherent and non-contradictory?",
+            "Constructiveness: Does the critique help improve rather than just criticize?",
+            "Evidence-based: Is the feedback supported by clear reasoning and examples?",
         ]
 
-        self.meta_judgment_criteria = meta_judgment_criteria or [
-            "Quality and thoroughness of the evaluation",
-            "Accuracy of identified strengths and weaknesses",
-            "Constructiveness and specificity of feedback",
-            "Consistency with stated evaluation criteria",
-            "Fairness and objectivity of the judgment",
-        ]
+    def _create_system_prompt(self) -> str:
+        """Create the system prompt for the Meta-Rewarding critic."""
+        criteria_text = "\n".join([f"- {criterion}" for criterion in self.meta_evaluation_criteria])
+        
+        return f"""You are a Meta-Rewarding critic implementing the methodology from Wu et al. 2024.
 
-        self.use_scoring = use_scoring
-        self.score_range = score_range
+Your role is to evaluate the quality of critique and feedback itself, providing
+meta-level assessment of how useful, actionable, and reliable the feedback is
+for improving text quality.
 
-        # Create meta-judge agent with structured output
-        from sifaka.models.critic_results import CritiqueFeedback
+META-REWARDING METHODOLOGY:
+1. Analyze existing critique and feedback for quality and usefulness
+2. Assess the actionability and specificity of suggestions
+3. Evaluate the consistency and coherence of feedback
+4. Determine the constructiveness and helpfulness of critique
+5. Provide meta-feedback on how to improve the critique process
 
-        self.meta_judge_agent = Agent(
-            model=self.meta_judge_model_name,
-            output_type=CritiqueFeedback,  # Meta-judgment now returns structured output
-            system_prompt=self._get_meta_judge_system_prompt(),
-        )
-
-        logger.info(
-            f"Initialized MetaRewardingCritic with model={model_name}, "
-            f"meta_judge={self.meta_judge_model_name}, scoring={use_scoring}"
-        )
-
-    def _get_default_system_prompt(self) -> str:
-        """Get the default system prompt for initial judgment."""
-        scoring_instruction = ""
-        if self.use_scoring:
-            min_score, max_score = self.score_range
-            scoring_instruction = f" Include a numerical score from {min_score} to {max_score}."
-
-        return f"""You are an expert evaluator providing detailed, fair assessment of text quality using Meta-Rewarding principles. Your role is to provide structured feedback for the initial judgment stage.
-
-You must return a CritiqueFeedback object with these REQUIRED fields:
-- message: A clear summary of your meta-rewarding evaluation (string)
-- needs_improvement: Whether the text needs improvement based on initial judgment (boolean)
-- confidence: ConfidenceScore with overall confidence (object with 'overall' field as float 0.0-1.0)
-- critic_name: Set this to "MetaRewardingCritic" (string)
-
-And these OPTIONAL fields (can be empty lists or null):
-- violations: List of ViolationReport objects for identified issues
-- suggestions: List of ImprovementSuggestion objects for addressing issues
-- processing_time_ms: Time taken in milliseconds (can be null)
-- critic_version: Version string (can be null)
-- metadata: Additional metadata dictionary (can be empty)
-
-IMPORTANT: Always provide the required fields. For confidence, use a simple object like {{"overall": 0.8}} where the number is between 0.0 and 1.0.
-
-Focus on Meta-Rewarding principles:
-1. Thorough evaluation against specified criteria
-2. Identification of specific strengths and weaknesses
-3. Constructive feedback for improvement
-4. Fair and objective assessment{scoring_instruction}
-
-This is the initial judgment stage - be thorough and specific in your evaluation."""
-
-    def _get_meta_judge_system_prompt(self) -> str:
-        """Get the system prompt for the meta-judge."""
-        return """You are a meta-judge evaluating the quality of evaluations. Your role is to assess how well the previous judgment was conducted and provide improved assessment.
-
-You must return a CritiqueFeedback object with these REQUIRED fields:
-- message: A clear summary of your meta-judgment evaluation (string)
-- needs_improvement: Whether the original text needs improvement based on meta-analysis (boolean)
-- confidence: ConfidenceScore with overall confidence (object with 'overall' field as float 0.0-1.0)
-- critic_name: Set this to "MetaRewardingCritic" (string)
-
-And these OPTIONAL fields (can be empty lists or null):
-- violations: List of ViolationReport objects for identified issues in the original text
-- suggestions: List of ImprovementSuggestion objects for addressing issues in the original text
-- processing_time_ms: Time taken in milliseconds (can be null)
-- critic_version: Version string (can be null)
-- metadata: Additional metadata dictionary (can be empty)
-
-IMPORTANT: Always provide the required fields. For confidence, use a simple object like {{"overall": 0.8}} where the number is between 0.0 and 1.0.
-
-Focus on:
-1. Quality and thoroughness of the evaluation
-2. Accuracy of identified strengths and weaknesses
-3. Constructiveness and specificity of feedback
-4. Consistency with stated evaluation criteria
-5. Fairness and objectivity of the judgment
-
-Be critical and thorough in evaluating the judgment process itself. Identify what the judgment did well and how it could be improved. Your assessment should focus on the original text quality, not just the judgment quality."""
-
-    async def _create_critique_prompt(self, thought: Thought) -> str:
-        """Create the critique prompt for Meta-Rewarding evaluation.
-
-        This implements the two-stage judgment process:
-        1. Initial judgment of the text
-        2. Meta-judgment of the judgment quality
-
-        Args:
-            thought: The Thought container with the text to critique.
-
-        Returns:
-            The formatted critique prompt for initial judgment.
-        """
-        # Format criteria for the prompt
-        criteria_text = "\n".join(
-            f"{i + 1}. {criterion}" for i, criterion in enumerate(self.judgment_criteria)
-        )
-
-        # Prepare context from retrieved documents (using mixin)
-        context = self._prepare_context(thought)
-
-        # Get validation context if available
-        validation_context = self._get_validation_context_dict(thought)
-        validation_text = ""
-        if validation_context:
-            validation_text = f"\n\nValidation Context:\n{validation_context}"
-
-        scoring_instruction = ""
-        if self.use_scoring:
-            min_score, max_score = self.score_range
-            scoring_instruction = (
-                f"\nScore: [Provide a numerical score from {min_score} to {max_score}]"
-            )
-
-        return f"""Evaluate the following response against the specified criteria using Meta-Rewarding principles.
-
-Original task: {thought.prompt}
-
-Response to evaluate:
-{thought.text}
-
-Retrieved context:
-{context}
-{validation_text}
-
-Evaluation Criteria:
+META-EVALUATION CRITERIA:
 {criteria_text}
 
-Please provide a thorough evaluation including:
+RESPONSE FORMAT:
+- needs_improvement: boolean indicating if the critique process needs improvement
+- message: meta-analysis of critique quality and feedback effectiveness
+- suggestions: 1-3 recommendations for improving the critique process
+- confidence: float 0.0-1.0 based on meta-assessment certainty
+- reasoning: explanation of meta-evaluation process and quality assessment
 
-Strengths:
-- [List specific strengths of the response]
+META-JUDGING PROCESS:
+- Evaluate the quality of existing feedback and suggestions
+- Assess how well critique addresses the actual content issues
+- Determine the actionability and implementability of suggestions
+- Consider the consistency and coherence of feedback
+- Provide recommendations for improving the critique process
 
-Weaknesses:
-- [List specific areas for improvement]
+If the existing critique is high-quality and effective, set needs_improvement
+to false and explain why the feedback meets quality standards."""
 
-Overall Assessment: [Detailed assessment of response quality]{scoring_instruction}
+    async def _build_critique_prompt(self, thought: SifakaThought) -> str:
+        """Build the critique prompt for Meta-Rewarding methodology."""
+        if not thought.current_text:
+            return "No text available for meta-critique evaluation."
 
-Meta-Rewarding Stage: This is the initial judgment stage. Be specific, constructive, and fair in your evaluation. Your judgment will be evaluated by a meta-judge."""
+        prompt_parts = [
+            "META-REWARDING CRITIQUE REQUEST",
+            "=" * 50,
+            "",
+            f"Original Task: {thought.prompt}",
+            f"Current Iteration: {thought.iteration}",
+            "",
+            "TEXT BEING CRITIQUED:",
+            thought.current_text,
+            "",
+        ]
 
-    async def critique_async(self, thought: Thought):
-        """Perform Meta-Rewarding critique with two-stage judgment process.
+        # Add existing critique and feedback for meta-evaluation
+        current_critiques = thought.get_current_iteration_critiques()
+        if current_critiques:
+            prompt_parts.extend([
+                "EXISTING CRITIQUE AND FEEDBACK TO META-EVALUATE:",
+                "=" * 55,
+            ])
+            
+            for i, critique in enumerate(current_critiques, 1):
+                prompt_parts.extend([
+                    f"Critique {i} - {critique.critic}:",
+                    f"Feedback: {critique.feedback}",
+                    f"Suggestions: {', '.join(critique.suggestions) if critique.suggestions else 'None'}",
+                    f"Confidence: {getattr(critique, 'confidence', 'N/A')}",
+                    "",
+                ])
+        else:
+            prompt_parts.extend([
+                "NO EXISTING CRITIQUE AVAILABLE",
+                "=" * 30,
+                "This appears to be the first critique iteration.",
+                "Meta-evaluation will focus on the need for critique process establishment.",
+                "",
+            ])
 
-        Args:
-            thought: The Thought container with the text to critique.
+        # Add validation context
+        validation_context = self._get_validation_context(thought)
+        if validation_context:
+            prompt_parts.extend([
+                "VALIDATION CONTEXT:",
+                "=" * 20,
+                validation_context,
+                "",
+                "NOTE: Meta-evaluation should assess how well existing critique",
+                "addresses validation requirements and provides actionable guidance.",
+                "",
+            ])
 
-        Returns:
-            A CriticResult with structured feedback from both judgment stages.
-        """
-        start_time = time.time()
+        # Add previous meta-evaluations
+        if thought.iteration > 0:
+            prev_meta_critiques = [
+                c for c in thought.critiques 
+                if c.iteration == thought.iteration - 1 and c.critic == "MetaRewardingCritic"
+            ]
+            if prev_meta_critiques:
+                prompt_parts.extend([
+                    "PREVIOUS META-EVALUATION:",
+                    "=" * 30,
+                ])
+                for critique in prev_meta_critiques[-1:]:  # Last meta-critique
+                    prompt_parts.extend([
+                        f"Previous Meta-Assessment: {critique.feedback[:150]}{'...' if len(critique.feedback) > 150 else ''}",
+                        f"Previous Meta-Suggestions: {', '.join(critique.suggestions)}",
+                        "",
+                    ])
 
-        with critic_context(
-            critic_name=self.__class__.__name__,
-            operation="critique_async",
-            message_prefix=f"Failed to critique text with {self.__class__.__name__}",
-        ):
-            try:
-                # Stage 1: Initial judgment using the main agent
-                initial_result = await super().critique_async(thought)
-                initial_judgment = initial_result.feedback.message
+        # Add meta-evaluation criteria
+        prompt_parts.extend([
+            "META-EVALUATION CRITERIA:",
+            "=" * 30,
+        ])
+        for criterion in self.meta_evaluation_criteria:
+            prompt_parts.append(f"- {criterion}")
+        
+        prompt_parts.extend([
+            "",
+            "META-JUDGING INSTRUCTIONS:",
+            "=" * 35,
+            "1. Evaluate the quality and usefulness of existing critique",
+            "2. Assess the actionability and specificity of suggestions",
+            "3. Determine the consistency and coherence of feedback",
+            "4. Consider the constructiveness and helpfulness of critique",
+            "5. Identify gaps or weaknesses in the critique process",
+            "6. Provide recommendations for improving feedback quality",
+            "",
+            "META-EVALUATION QUESTIONS:",
+            "- Are the suggestions specific and implementable?",
+            "- Does the critique address the actual content issues?",
+            "- Is the feedback consistent and non-contradictory?",
+            "- Does the critique help improve rather than just criticize?",
+            "- Is the feedback supported by clear reasoning?",
+            "",
+            "Focus on improving the critique process for better text improvement outcomes.",
+        ])
 
-                # Stage 2: Meta-judgment (judge the quality of the initial judgment)
-                meta_judgment_feedback = await self._generate_meta_judgment(
-                    thought, initial_judgment
-                )
+        return "\n".join(prompt_parts)
 
-                # Stage 3: Combine judgments into final assessment
-                combined_feedback = self._combine_judgments(
-                    initial_result.feedback, initial_judgment, meta_judgment_feedback
-                )
-
-                # Calculate total processing time
-                processing_time = (time.time() - start_time) * 1000
-
-                # Create final result with combined feedback
-                from sifaka.models.critic_results import CriticResult
-
-                return CriticResult(
-                    feedback=combined_feedback,
-                    operation_type="critique_async",
-                    success=True,
-                    total_processing_time_ms=processing_time,
-                    model_calls=2,  # Initial judgment + meta-judgment
-                    input_text_length=len(thought.text or ""),
-                    validation_context=self._get_validation_context_dict(thought),
-                )
-
-            except Exception as e:
-                processing_time = (time.time() - start_time) * 1000
-                logger.error(f"MetaRewardingCritic critique failed: {e}")
-
-                # Return error result
-                from sifaka.models.critic_results import CriticResult, CritiqueFeedback
-
-                error_feedback = CritiqueFeedback(
-                    message=f"Critique failed: {str(e)}",
-                    needs_improvement=True,
-                    confidence={"overall": 0.0},
-                    critic_name=self.__class__.__name__,
-                )
-
-                return CriticResult(
-                    feedback=error_feedback,
-                    operation_type="critique_async",
-                    success=False,
-                    error_message=str(e),
-                    error_type=type(e).__name__,
-                    total_processing_time_ms=processing_time,
-                    model_calls=0,
-                    input_text_length=len(thought.text or ""),
-                )
-
-    async def _generate_meta_judgment(self, thought: Thought, initial_judgment: str):
-        """Generate the meta-judgment (judgment of the judgment).
-
-        Args:
-            thought: The Thought container with the original text.
-            initial_judgment: The initial judgment to evaluate.
-
-        Returns:
-            The meta-judgment CritiqueFeedback object.
-        """
-        # Format meta-criteria for the prompt
-        meta_criteria_text = "\n".join(
-            f"{i + 1}. {criterion}" for i, criterion in enumerate(self.meta_judgment_criteria)
-        )
-
-        # Create meta-judgment prompt
-        meta_judgment_prompt = f"""Now evaluate the quality of the judgment itself. You are acting as a meta-judge, assessing how well the previous evaluation was conducted.
-
-Original task: {thought.prompt}
-
-Original response: {thought.text}
-
-Previous judgment: {initial_judgment}
-
-Meta-evaluation Criteria:
-{meta_criteria_text}
-
-Please provide a structured meta-judgment that includes:
-
-1. Assessment of the judgment quality (what it did well and how it could be improved)
-2. Missing aspects the judgment overlooked
-3. Your improved evaluation of the original response
-4. Overall assessment of whether the original text needs improvement
-
-Focus on providing a comprehensive evaluation of the original text quality based on your meta-analysis of the judgment process."""
-
-        # Generate meta-judgment using meta-judge agent with structured output
-        result = await self.meta_judge_agent.run(meta_judgment_prompt)
-        return result.output
-
-    def _combine_judgments(self, initial_feedback, initial_judgment: str, meta_judgment_feedback):
-        """Combine initial judgment and meta-judgment into final assessment.
-
-        Args:
-            initial_feedback: The initial CritiqueFeedback object.
-            initial_judgment: The initial judgment text.
-            meta_judgment_feedback: The meta-judgment CritiqueFeedback object.
-
-        Returns:
-            Combined CritiqueFeedback object.
-        """
-        # Create comprehensive feedback message
-        combined_message = f"""Meta-Rewarding Assessment:
-
-Initial Judgment:
-{initial_judgment}
-
-Meta-Judgment (Evaluation of the Judgment):
-{meta_judgment_feedback.message}
-
-This assessment uses the Meta-Rewarding approach with two-stage judgment process for improved evaluation quality."""
-
-        # Use meta-judgment confidence as it's based on deeper analysis
-        confidence = (
-            meta_judgment_feedback.confidence.overall if meta_judgment_feedback.confidence else 0.5
-        )
-
-        # Create enhanced metadata
-        enhanced_metadata = dict(initial_feedback.metadata or {})
-        enhanced_metadata.update(
-            {
-                "initial_judgment": initial_judgment,
-                "meta_judgment": meta_judgment_feedback.message,
-                "meta_judgment_confidence": (
-                    meta_judgment_feedback.confidence.overall
-                    if meta_judgment_feedback.confidence
-                    else None
-                ),
-                "judgment_criteria": self.judgment_criteria,
-                "meta_judgment_criteria": self.meta_judgment_criteria,
-                "meta_judge_model": self.meta_judge_model_name,
-                "two_stage_process": True,
-            }
-        )
-
-        # Create new feedback with combined information
-        from sifaka.models.critic_results import CritiqueFeedback
-
-        # Combine violations and suggestions from both judgments
-        combined_violations = list(initial_feedback.violations or [])
-        if meta_judgment_feedback.violations:
-            combined_violations.extend(meta_judgment_feedback.violations)
-
-        combined_suggestions = list(initial_feedback.suggestions or [])
-        if meta_judgment_feedback.suggestions:
-            combined_suggestions.extend(meta_judgment_feedback.suggestions)
-
-        # Use meta-judgment's needs_improvement as it's based on deeper analysis
-        needs_improvement = meta_judgment_feedback.needs_improvement
-
-        return CritiqueFeedback(
-            message=combined_message,
-            needs_improvement=needs_improvement,
-            violations=combined_violations,
-            suggestions=combined_suggestions,
-            confidence={"overall": confidence},
-            critic_name=self.__class__.__name__,
-            critic_version=initial_feedback.critic_version,
-            processing_time_ms=initial_feedback.processing_time_ms,
-            timestamp=initial_feedback.timestamp,
-            metadata=enhanced_metadata,
-        )
+    def _get_critic_specific_metadata(self, feedback) -> Dict[str, Any]:
+        """Extract Meta-Rewarding-specific metadata."""
+        base_metadata = super()._get_critic_specific_metadata(feedback)
+        
+        # Add Meta-Rewarding-specific metadata
+        meta_rewarding_metadata = {
+            "methodology": "meta_rewarding_critique_evaluation",
+            "meta_evaluation_performed": True,
+            "critique_quality_assessment": "needs_improvement" if feedback.needs_improvement else "satisfactory",
+            "meta_criteria_count": len(self.meta_evaluation_criteria),
+            "meta_confidence": feedback.confidence,
+            "feedback_improvement_focus": feedback.needs_improvement,
+            "meta_judging_quality": "high" if feedback.confidence > 0.7 else "medium" if feedback.confidence > 0.4 else "low",
+        }
+        
+        base_metadata.update(meta_rewarding_metadata)
+        return base_metadata

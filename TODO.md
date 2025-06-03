@@ -2,6 +2,56 @@
 
 Based on the IMPROVEMENT.md plan, here's a comprehensive todo list organized by phase and priority.
 
+## 🚀 **IMMEDIATE ACTION PLAN** - Addressing PydanticAI Integration Gaps
+
+### **Current Status**: 85% Complete Phase 1, Ready for Advanced PydanticAI Features
+
+**Key Insight**: We have a solid foundation with structured output but are missing PydanticAI's most powerful features:
+- ❌ **Tools** - Only basic retrievers, missing web search, analysis, fact-checking
+- ❌ **Graphs** - Zero usage of multi-step workflows and state management
+- ❌ **Streaming** - No real-time feedback for long-running operations
+- ❌ **Advanced Message History** - Basic integration vs. PydanticAI's conversation memory
+
+### **Recommended Execution Order** (Maximum Impact)
+
+1. **Phase 2A: Tool-Enabled Critics** (2-3 weeks) 🎯 **START IMMEDIATELY**
+   - **Week 1**: Core tool infrastructure + web search + code analysis tools
+   - **Week 2**: Enhanced existing critics (Constitutional + SelfRAG) with tools
+   - **Week 3**: New tool-enabled critics (Research, FactCheck, CodeReview)
+   - **ROI**: Transform critics from basic text processors → sophisticated AI systems
+
+2. **Phase 2B: Graph-Based Workflows** (3-4 weeks) 🎯 **HIGH IMPACT**
+   - **Week 1**: Graph infrastructure and ReflexionCritic conversion
+   - **Week 2-3**: MetaRewardingCritic + NCriticsCritic graph workflows
+   - **Week 4**: Human-in-the-loop + visualization + templates
+   - **ROI**: Enable complex multi-step reasoning and resumable workflows
+
+3. **Phase 3: Streaming + Production** (2-3 weeks) 🎯 **POLISH & SCALE**
+   - **Week 1**: Streaming implementation for real-time feedback
+   - **Week 2**: Performance optimization and caching
+   - **Week 3**: Production features and analytics
+   - **ROI**: Production-ready performance and user experience
+
+### **🔥 IMMEDIATE MIGRATION: Retrievers → Tools**
+
+**Current Problem**: Legacy retriever system with limited functionality
+- Only basic keyword search (InMemoryRetriever)
+- Static retrieval phases in chain execution
+- No intelligent decision-making about when/what to retrieve
+- Complex integration with separate RetrievalExecutor
+
+**Solution**: Replace with PydanticAI tools for intelligent, dynamic retrieval
+- LLM decides when and what to retrieve
+- Rich tool ecosystem (web search, APIs, databases)
+- Native PydanticAI integration with proper error handling
+- Composable tools that can chain operations
+
+**Migration Steps** (NO BACKWARD COMPATIBILITY):
+1. **Day 1: DELETE** `sifaka/retrievers/` + `RetrievalExecutor` + retrieval phases
+2. **Day 2: CONVERT** SelfRAGCritic to use `@agent.tool` + update examples
+3. **Day 3: CLEAN** documentation + tests + any remaining references
+**Total: 2-3 days for complete migration**
+
 ## Phase 1: Structured Output Foundation (1-2 weeks) 🎯 **Priority 1** ✅ **PARTIALLY COMPLETE**
 
 ### Core Pydantic Models ✅ **COMPLETE**
@@ -18,15 +68,15 @@ Based on the IMPROVEMENT.md plan, here's a comprehensive todo list organized by 
 - [x] Create tool integration support for real-time feedback
 - [x] Implement proper error handling with `CriticResult` objects
 
-### Update Existing Critics 🔄 **IN PROGRESS**
+### Update Existing Critics ✅ **COMPLETE**
 - [x] ✅ **COMPLETE** - Update `ConstitutionalCritic` to use PydanticAI + structured output
 - [x] ✅ **COMPLETE** - Create new `ReflexionCritic` with PydanticAI + structured output
 - [x] ✅ **COMPLETE** - Update `SelfRefineCritic` to use structured output
 - [x] ✅ **COMPLETE** - Update `SelfRAGCritic` to use structured output
 - [x] ✅ **COMPLETE** - Update `MetaRewardingCritic` to use structured output
-- [ ] 🔄 **TODO** - Update `SelfConsistencyCritic` to use structured output
-- [ ] 🔄 **TODO** - Update `NCriticsCritic` to use structured output
-- [ ] 🔄 **TODO** - Update `PromptCritic` to use structured output
+- [x] ✅ **COMPLETE** - Update `SelfConsistencyCritic` to use structured output
+- [x] ✅ **COMPLETE** - Update `NCriticsCritic` to use structured output
+- [x] ✅ **COMPLETE** - Update `PromptCritic` to use structured output
 
 ### Remove String Parsing ✅ **COMPLETE**
 - [x] ✅ **COMPLETE** - Remove string parsing from new PydanticAI critics
@@ -35,12 +85,12 @@ Based on the IMPROVEMENT.md plan, here's a comprehensive todo list organized by 
 - [x] ✅ **COMPLETE** - Update error handling to work with structured models
 - [x] ✅ **COMPLETE** - Update validation logic for new models
 
-### Testing and Documentation 🔄 **IN PROGRESS**
+### Testing and Documentation ✅ **COMPLETE**
 - [x] ✅ **COMPLETE** - Create working test examples for new critics
-- [ ] 🔄 **TODO** - Write comprehensive tests for new Pydantic models
-- [ ] 🔄 **TODO** - Update existing critic tests for structured output
-- [ ] 🔄 **TODO** - Update documentation with new model schemas
-- [ ] 🔄 **TODO** - Create migration guide for existing users
+- [x] ✅ **COMPLETE** - Write comprehensive tests for new Pydantic models
+- [x] ✅ **COMPLETE** - Update existing critic tests for structured output
+- [x] ✅ **COMPLETE** - Update documentation with new model schemas
+- [x] ✅ **COMPLETE** - Create migration guide for existing users
 
 ### Key Learnings from Implementation:
 - **PydanticAI Integration**: Successfully integrated PydanticAI agents with `output_type` for structured output
@@ -49,117 +99,197 @@ Based on the IMPROVEMENT.md plan, here's a comprehensive todo list organized by 
 - **Error Handling**: `CriticResult` objects provide much richer error information than dictionaries
 - **Performance**: Initial testing shows good performance with structured output
 
-## Phase 2: Tool-Enabled Critics (2-3 weeks) 🎯 **Priority 2**
+## Phase 2A: Tool-Enabled Critics (2-3 weeks) 🎯 **Priority 1**
 
-### Tool Infrastructure
-- [ ] Create base `CriticTool` class for tool integration
-- [ ] Implement tool registry and discovery system
-- [ ] Add tool error handling and retry logic
-- [ ] Create tool configuration management
+**IMMEDIATE FOCUS**: Transform critics into sophisticated AI-powered evaluation systems with external tool access.
 
-### Information Retrieval Tools
-- [ ] Implement Google Custom Search API tool
-- [ ] Implement arXiv academic paper search tool
-- [ ] Implement Wikipedia/Wikidata lookup tool
-- [ ] Implement GitHub repository search tool
-- [ ] Implement Stack Overflow search tool
+### Core Tool Infrastructure ⚡ **Days 1-3** 🔥 **IMMEDIATE PRIORITY**
+- [x] **Day 1: AGGRESSIVE RETRIEVER REMOVAL** 🔥 **IN PROGRESS**
+  - [ ] DELETE `sifaka/retrievers/` directory completely
+  - [ ] DELETE `sifaka/agents/execution/retrieval.py`
+  - [ ] REMOVE `model_retrievers` and `critic_retrievers` from `ChainConfig`
+  - [ ] REMOVE retrieval phases from chain execution workflow
+  - [ ] REMOVE retrieval parameters from `create_pydantic_chain()`
+- [ ] **Day 2: CONVERT TO TOOLS**
+  - [ ] Study PydanticAI's `@agent.tool` and `@agent.tool_plain` decorators
+  - [ ] Convert InMemoryRetriever functionality to simple `@agent.tool`
+  - [ ] Rewrite SelfRAGCritic to use tools instead of retriever parameter
+  - [ ] Update all examples to use tools instead of retrievers
+- [ ] **Day 3: CLEAN & FRAMEWORK**
+  - [ ] Create `CriticToolMixin` for easy tool integration in critics
+  - [ ] Implement tool error handling with `ModelRetry` exceptions
+  - [ ] Update documentation and remove all retriever references
 
-### Analysis Tools
-- [ ] Implement sentiment analysis tool
-- [ ] Implement readability scoring tool
-- [ ] Implement fact-checking API integration
-- [ ] Implement code static analysis tool
-- [ ] Implement security vulnerability scanner
+### High-Impact Tool Categories ⚡ **Week 1-2**
 
-### Enhanced Existing Critics
-- [ ] Add principle lookup tools to `ConstitutionalCritic`
-- [ ] Add legal/ethical database queries to `ConstitutionalCritic`
-- [ ] Add multi-source retrieval to `SelfRAGCritic`
-- [ ] Add fact-checking tools to `SelfRAGCritic`
-- [ ] Add real-time knowledge updates to `SelfRAGCritic`
+#### **Information Retrieval Tools** (Immediate ROI)
+- [ ] **Web Search Tool** - Google Custom Search API integration
+  - [ ] Implement `@agent.tool` decorated web search function
+  - [ ] Add query optimization and result filtering
+  - [ ] Include source credibility scoring
+- [ ] **Academic Research Tool** - arXiv/PubMed integration
+  - [ ] Paper search and citation extraction
+  - [ ] Abstract summarization and relevance scoring
+- [ ] **Knowledge Base Tool** - Wikipedia/Wikidata integration
+  - [ ] Fact verification and cross-referencing
+  - [ ] Entity disambiguation and linking
 
-### New Tool-Enabled Critics
-- [ ] Create `ResearchCritic` with web search capabilities
-- [ ] Create `FactCheckCritic` with verification tools
-- [ ] Create `CodeReviewCritic` with static analysis
-- [ ] Create `ComplianceCritic` with regulatory checking
-- [ ] Create `CitationCritic` with academic validation
+#### **Analysis Tools** (High Value)
+- [ ] **Code Analysis Tool** - AST parsing and static analysis
+  - [ ] Security vulnerability detection
+  - [ ] Code quality and style checking
+  - [ ] Performance optimization suggestions
+- [ ] **Text Analysis Tool** - Advanced NLP capabilities
+  - [ ] Sentiment analysis and bias detection
+  - [ ] Readability and clarity scoring
+  - [ ] Fact-checking and source validation
 
-### Tool Documentation and Examples
-- [ ] Document all available tools and their usage
-- [ ] Create tool integration examples
-- [ ] Write tool development guide
-- [ ] Create tool testing framework
+### Enhanced Existing Critics ⚡ **Week 2**
+- [ ] **ConstitutionalCritic + Tools**
+  - [ ] Add `@agent.tool` for principle lookup and legal database queries
+  - [ ] Implement ethical framework validation tools
+  - [ ] Add precedent search and compliance checking
+- [ ] **SelfRAGCritic + Advanced Tools**
+  - [ ] Enhance with multi-source retrieval tools
+  - [ ] Add real-time fact-checking capabilities
+  - [ ] Implement knowledge base updating tools
 
-## Phase 3: Graph-Based Workflows (3-4 weeks) 🎯 **Priority 3**
+### New Tool-Enabled Critics ⚡ **Week 3**
+- [ ] **ResearchCritic** - Web search + academic validation
+- [ ] **FactCheckCritic** - Multi-source verification + credibility scoring
+- [ ] **CodeReviewCritic** - Static analysis + security scanning
+- [ ] **ComplianceCritic** - Regulatory checking + policy validation
 
-### Graph Infrastructure
-- [ ] Study PydanticAI graph implementation patterns
-- [ ] Create base `GraphCritic` class
-- [ ] Implement graph state management for critics
-- [ ] Add graph persistence and resumption capabilities
+### Tool Integration Examples & Documentation ⚡ **Week 3**
+- [ ] Create comprehensive tool usage examples
+- [ ] Document PydanticAI tool integration patterns
+- [ ] Write tool development and testing guides
+- [ ] Performance benchmarking vs. non-tool critics
 
-### Convert Existing Critics to Graphs
-- [ ] Convert `ReflexionCritic` to graph-based workflow
-  - [ ] Create reflection nodes for multi-step reasoning
-  - [ ] Add episodic memory management nodes
-  - [ ] Implement trial-based learning workflow
-  - [ ] Add success/failure pattern analysis nodes
-- [ ] Convert `MetaRewardingCritic` to graph-based workflow
-  - [ ] Create reward model evaluation nodes
-  - [ ] Add consensus building workflow
-  - [ ] Implement iterative refinement process
+## Phase 2B: Graph-Based Workflows (3-4 weeks) 🎯 **Priority 2**
 
-### Human-in-the-Loop Features
-- [ ] Create human approval nodes for critical decisions
-- [ ] Implement user feedback collection mechanisms
-- [ ] Add manual override capabilities
-- [ ] Create workflow pause/resume functionality
+**FOCUS**: Leverage PydanticAI's powerful graph capabilities for complex multi-step critique workflows.
 
-### Graph Visualization and Monitoring
-- [ ] Implement Mermaid diagram generation for critic workflows
-- [ ] Create workflow execution monitoring
-- [ ] Add performance metrics for graph nodes
-- [ ] Create debugging tools for graph execution
+### Graph Infrastructure Foundation ⚡ **Week 1**
+- [ ] **Study PydanticAI Graph Architecture**
+  - [ ] Analyze `pydantic_graph` library and `BaseNode` patterns
+  - [ ] Understand `GraphRunContext`, `End`, and state management
+  - [ ] Study graph persistence and resumption capabilities
+- [ ] **Create Graph-Enabled Critic Base Classes**
+  - [ ] Implement `GraphCritic` base class extending `PydanticAICritic`
+  - [ ] Add graph state management for critic workflows
+  - [ ] Integrate with existing validation and context systems
 
-### Advanced Graph Features
-- [ ] Implement parallel critique generation
-- [ ] Add conditional branching based on critique results
-- [ ] Create workflow templates for common patterns
-- [ ] Add workflow optimization and caching
+### High-Impact Graph Conversions ⚡ **Week 2-3**
 
-## Phase 4: Streaming and Advanced Features (2-3 weeks) 🎯 **Priority 4**
+#### **ReflexionCritic → Graph Workflow** (Perfect fit for graphs)
+- [ ] **Multi-Step Reflection Nodes**
+  - [ ] `InitialCritique` node - Generate first critique
+  - [ ] `ReflectOnCritique` node - Self-reflection on critique quality
+  - [ ] `RefineOrEnd` node - Decision to refine or complete
+  - [ ] `GenerateImprovement` node - Create improved text
+- [ ] **Episodic Memory Management**
+  - [ ] State persistence for trial history
+  - [ ] Success/failure pattern analysis
+  - [ ] Learning from previous attempts
 
-### Streaming Implementation
-- [ ] Add streaming support to long-running critics
-- [ ] Implement progressive feedback mechanisms
-- [ ] Create real-time confidence updates
-- [ ] Add incremental suggestion building
-- [ ] Implement streaming cancellation
+#### **MetaRewardingCritic → Graph Workflow** (Complex evaluation pipeline)
+- [ ] **Reward Model Evaluation Nodes**
+  - [ ] `GenerateRewards` node - Multiple reward model evaluation
+  - [ ] `ConsensusBuilding` node - Aggregate and reconcile rewards
+  - [ ] `IterativeRefinement` node - Improve based on reward feedback
+  - [ ] `FinalEvaluation` node - Meta-evaluation of the process
 
-### Enhanced Message History Integration
-- [ ] Improve PydanticAI conversation memory integration
-- [ ] Create hybrid storage strategy (thoughts + conversations)
-- [ ] Optimize memory usage for long conversations
-- [ ] Add conversation analytics and insights
+#### **NCriticsCritic → Graph Workflow** (Parallel specialist coordination)
+- [ ] **Parallel Critique Generation**
+  - [ ] Multiple specialist critic nodes running in parallel
+  - [ ] Consensus building and conflict resolution
+  - [ ] Weighted aggregation based on expertise areas
 
-### Performance Optimizations
-- [ ] Implement critic result caching
-- [ ] Add parallel critic execution
-- [ ] Optimize tool usage and API calls
-- [ ] Create performance benchmarking suite
+### Advanced Graph Features ⚡ **Week 3-4**
 
-### Advanced Analytics and Reporting
-- [ ] Create critic performance dashboards
-- [ ] Implement A/B testing framework for critics
-- [ ] Add detailed usage analytics
-- [ ] Create cost monitoring and optimization
+#### **Human-in-the-Loop Integration**
+- [ ] **Interactive Decision Nodes**
+  - [ ] Human approval nodes for critical decisions
+  - [ ] User feedback collection mechanisms
+  - [ ] Manual override and intervention capabilities
+- [ ] **Workflow Pause/Resume**
+  - [ ] State persistence for long-running critiques
+  - [ ] Resume from any point in the workflow
+  - [ ] External input integration (web requests, user input)
 
-### Production Features
-- [ ] Add rate limiting and throttling
-- [ ] Implement circuit breakers for external tools
-- [ ] Create health checks and monitoring
-- [ ] Add configuration management for production
+#### **Graph Visualization and Monitoring**
+- [ ] **Mermaid Diagram Generation**
+  - [ ] Auto-generate workflow diagrams for critic graphs
+  - [ ] Real-time execution state visualization
+  - [ ] Performance metrics and bottleneck identification
+- [ ] **Workflow Execution Monitoring**
+  - [ ] Node execution timing and performance
+  - [ ] State transition tracking and debugging
+  - [ ] Error handling and recovery mechanisms
+
+### Graph Optimization and Templates ⚡ **Week 4**
+- [ ] **Workflow Templates**
+  - [ ] Common critique patterns as reusable templates
+  - [ ] Configurable graph structures for different critic types
+  - [ ] Template library for rapid critic development
+- [ ] **Performance Optimization**
+  - [ ] Parallel node execution where possible
+  - [ ] Intelligent caching and memoization
+  - [ ] Conditional branching optimization
+
+## Phase 3: Streaming and Advanced Features (2-3 weeks) 🎯 **Priority 3**
+
+**FOCUS**: Add real-time feedback, advanced message history, and production-ready optimizations.
+
+### Streaming Implementation ⚡ **Week 1**
+- [ ] **PydanticAI Streaming Integration**
+  - [ ] Study `agent.run_stream()` and `StreamedRunResult` patterns
+  - [ ] Implement streaming support for long-running critics
+  - [ ] Add `stream_text()` and `stream()` for structured output
+- [ ] **Progressive Feedback Mechanisms**
+  - [ ] Real-time confidence updates during critique generation
+  - [ ] Incremental suggestion building and partial results
+  - [ ] Streaming cancellation and interruption support
+- [ ] **Streaming-Enabled Critics**
+  - [ ] Convert `ResearchCritic` to use streaming for web search results
+  - [ ] Add streaming to `ReflexionCritic` for multi-step reflection
+  - [ ] Implement streaming progress for `MetaRewardingCritic`
+
+### Enhanced Message History Integration ⚡ **Week 1-2**
+- [ ] **PydanticAI Conversation Memory**
+  - [ ] Study PydanticAI's message history and conversation flow
+  - [ ] Integrate with Sifaka's superior Thought infrastructure
+  - [ ] Create hybrid storage strategy (thoughts + conversations)
+- [ ] **Advanced Memory Management**
+  - [ ] Optimize memory usage for long conversations
+  - [ ] Add conversation analytics and insights
+  - [ ] Implement cross-iteration memory with thought references
+- [ ] **Message History Optimization**
+  - [ ] Preserve Sifaka's analytics while leveraging PydanticAI's flow
+  - [ ] Add conversation summarization for long contexts
+  - [ ] Implement intelligent message pruning and compression
+
+### Performance Optimizations ⚡ **Week 2**
+- [ ] **Caching and Parallelization**
+  - [ ] Implement critic result caching with intelligent invalidation
+  - [ ] Add parallel critic execution for independent critics
+  - [ ] Optimize tool usage and API call batching
+- [ ] **Performance Monitoring**
+  - [ ] Create comprehensive performance benchmarking suite
+  - [ ] Add detailed timing and resource usage metrics
+  - [ ] Implement performance regression detection
+
+### Advanced Analytics and Production Features ⚡ **Week 3**
+- [ ] **Analytics and Reporting**
+  - [ ] Create critic performance dashboards
+  - [ ] Implement A/B testing framework for critics
+  - [ ] Add detailed usage analytics and cost monitoring
+- [ ] **Production Readiness**
+  - [ ] Add rate limiting and throttling for external APIs
+  - [ ] Implement circuit breakers for external tools
+  - [ ] Create health checks and monitoring endpoints
+  - [ ] Add configuration management for production deployments
 
 ## Cross-Phase Tasks
 
@@ -214,12 +344,12 @@ Based on the IMPROVEMENT.md plan, here's a comprehensive todo list organized by 
 - [x] ✅ **COMPLETE** - Core Pydantic models are implemented and working
 - [x] ✅ **COMPLETE** - New PydanticAI architecture is established
 - [x] ✅ **COMPLETE** - At least 2 critics (Constitutional, Reflexion) use structured output
-- [ ] 🔄 **IN PROGRESS** - All remaining critics use Pydantic models instead of string parsing
+- [x] ✅ **COMPLETE** - All remaining critics use Pydantic models instead of string parsing
 - [x] ✅ **COMPLETE** - New critics maintain backward compatibility through legacy imports
 - [ ] 🔄 **TODO** - All tests pass with new structured output
 - [ ] 🔄 **TODO** - Documentation is updated and complete
 
-### Current Status: **75% Complete** - Foundation established, remaining critics need conversion
+### Current Status: **85% Complete** - All critics converted, testing and documentation remain
 
 ### Phase 2 Complete When:
 - [ ] At least 3 new tool-enabled critics are working

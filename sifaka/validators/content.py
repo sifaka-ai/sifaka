@@ -1,41 +1,38 @@
 """Content validator for Sifaka.
 
-This module provides a ContentValidator that checks if text contains prohibited
-content, words, phrases, or patterns. It supports case-sensitive/insensitive
-matching, whole word matching, and regular expression patterns.
-
-The ContentValidator is designed to prevent generation of harmful, inappropriate,
-or unwanted content by checking against a list of prohibited items.
+This module provides validators for checking text content against prohibited
+and required patterns, words, or phrases. Supports regex patterns, case sensitivity,
+and whole word matching.
 """
 
 import re
-import time
-from typing import List, Optional, Pattern
+from typing import List, Optional, Pattern, Dict, Any
+import asyncio
 
-from sifaka.core.thought import Thought, ValidationResult
-from sifaka.utils.error_handling import ValidationError
+from sifaka.core.thought import SifakaThought
+from sifaka.utils.errors import ValidationError
 from sifaka.utils.logging import get_logger
-from sifaka.validators.shared import BaseValidator
+from sifaka.validators.base import BaseValidator, ValidationResult, TimingMixin
 
-# Configure logger
 logger = get_logger(__name__)
 
 
-class ContentValidator(BaseValidator):
-    """Validator that checks if text contains prohibited content.
-
-    This validator checks if text contains prohibited words, phrases, or patterns.
-    It supports various matching modes including case sensitivity, whole word matching,
-    and regular expression patterns.
-
+class ContentValidator(BaseValidator, TimingMixin):
+    """Validator that checks text content against prohibited and required patterns.
+    
+    This validator can check for:
+    - Prohibited content that must not appear in text
+    - Required content that must appear in text
+    - Support for regex patterns, case sensitivity, and whole word matching
+    
     Attributes:
-        prohibited: List of prohibited words, phrases, or patterns.
-        case_sensitive: Whether the matching should be case-sensitive.
-        whole_word: Whether to match whole words only.
-        regex: Whether the prohibited items are regular expressions.
-        name: The name of the validator.
+        prohibited: List of prohibited patterns/words
+        required: List of required patterns/words
+        case_sensitive: Whether matching is case-sensitive
+        whole_word: Whether to match whole words only
+        regex: Whether patterns are regular expressions
     """
-
+    
     def __init__(
         self,
         prohibited: Optional[List[str]] = None,
@@ -43,219 +40,263 @@ class ContentValidator(BaseValidator):
         case_sensitive: bool = False,
         whole_word: bool = False,
         regex: bool = False,
-        name: str = "ContentValidator",
+        name: Optional[str] = None,
+        description: Optional[str] = None,
     ):
-        """Initialize the validator.
-
+        """Initialize the content validator.
+        
         Args:
-            prohibited: List of prohibited words, phrases, or patterns.
-            required: List of required words, phrases, or patterns.
-            case_sensitive: Whether the matching should be case-sensitive.
-            whole_word: Whether to match whole words only.
-            regex: Whether the prohibited/required items are regular expressions.
-            name: The name of the validator.
-
+            prohibited: List of prohibited patterns/words
+            required: List of required patterns/words
+            case_sensitive: Whether matching is case-sensitive
+            whole_word: Whether to match whole words only
+            regex: Whether patterns are regular expressions
+            name: Custom name for the validator
+            description: Custom description for the validator
+            
         Raises:
-            ValidationError: If both prohibited and required lists are empty or invalid.
+            ValidationError: If configuration is invalid
         """
         if not prohibited and not required:
             raise ValidationError(
-                message="Either prohibited or required list must be provided",
-                component="ContentValidator",
-                operation="initialization",
+                "Either prohibited or required patterns must be provided",
+                error_code="invalid_config",
                 suggestions=[
-                    "Provide at least one prohibited or required word, phrase, or pattern"
-                ],
+                    "Provide at least one prohibited pattern",
+                    "Provide at least one required pattern",
+                    "Provide both prohibited and required patterns",
+                ]
             )
-
-        # Initialize the base class
-        super().__init__(name=name)
-
+        
+        # Set default name and description
+        if name is None:
+            parts = []
+            if prohibited:
+                parts.append(f"{len(prohibited)} prohibited")
+            if required:
+                parts.append(f"{len(required)} required")
+            name = f"content_{'_'.join(parts)}"
+        
+        if description is None:
+            parts = []
+            if prohibited:
+                parts.append(f"checks for {len(prohibited)} prohibited patterns")
+            if required:
+                parts.append(f"requires {len(required)} patterns")
+            description = f"Content validator that {' and '.join(parts)}"
+        
+        super().__init__(name=name, description=description)
+        
         self.prohibited = prohibited or []
         self.required = required or []
         self.case_sensitive = case_sensitive
         self.whole_word = whole_word
         self.regex = regex
-
+        
         # Compile patterns for efficiency
-        self._compiled_prohibited_patterns: List[Pattern[str]] = []
-        self._compiled_required_patterns: List[Pattern[str]] = []
+        self._compiled_prohibited: List[Pattern[str]] = []
+        self._compiled_required: List[Pattern[str]] = []
         self._compile_patterns()
-
+        
+        logger.debug(
+            f"Created ContentValidator",
+            extra={
+                "validator_name": self.name,
+                "prohibited_count": len(self.prohibited),
+                "required_count": len(self.required),
+                "case_sensitive": self.case_sensitive,
+                "whole_word": self.whole_word,
+                "regex": self.regex,
+            }
+        )
+    
     def _compile_patterns(self) -> None:
-        """Compile prohibited and required items into regex patterns for efficient matching."""
-        self._compiled_prohibited_patterns = []
-        self._compiled_required_patterns = []
-
+        """Compile patterns into regex objects for efficient matching."""
+        flags = 0 if self.case_sensitive else re.IGNORECASE
+        
         # Compile prohibited patterns
-        for item in self.prohibited:
+        for i, pattern in enumerate(self.prohibited):
             try:
-                pattern = self._create_pattern(item)
-                flags = 0 if self.case_sensitive else re.IGNORECASE
-                compiled_pattern = re.compile(pattern, flags)
-                self._compiled_prohibited_patterns.append(compiled_pattern)
+                regex_pattern = self._create_regex_pattern(pattern)
+                compiled = re.compile(regex_pattern, flags)
+                self._compiled_prohibited.append(compiled)
             except re.error as e:
-                logger.warning(f"Invalid prohibited regex pattern '{item}': {e}")
-
+                logger.warning(
+                    f"Invalid prohibited pattern '{pattern}': {e}",
+                    extra={"validator": self.name, "pattern_index": i}
+                )
+                # Skip invalid patterns rather than failing completely
+        
         # Compile required patterns
-        for item in self.required:
+        for i, pattern in enumerate(self.required):
             try:
-                pattern = self._create_pattern(item)
-                flags = 0 if self.case_sensitive else re.IGNORECASE
-                compiled_pattern = re.compile(pattern, flags)
-                self._compiled_required_patterns.append(compiled_pattern)
+                regex_pattern = self._create_regex_pattern(pattern)
+                compiled = re.compile(regex_pattern, flags)
+                self._compiled_required.append(compiled)
             except re.error as e:
-                logger.warning(f"Invalid required regex pattern '{item}': {e}")
-
-    def _create_pattern(self, item: str) -> str:
-        """Create a regex pattern from an item."""
+                logger.warning(
+                    f"Invalid required pattern '{pattern}': {e}",
+                    extra={"validator": self.name, "pattern_index": i}
+                )
+                # Skip invalid patterns rather than failing completely
+    
+    def _create_regex_pattern(self, pattern: str) -> str:
+        """Create a regex pattern from a string pattern.
+        
+        Args:
+            pattern: Input pattern string
+            
+        Returns:
+            Regex pattern string
+        """
         if self.regex:
-            # Item is already a regex pattern
-            return item
+            # Pattern is already a regex
+            return pattern
         else:
             # Escape special regex characters
-            escaped_item = re.escape(item)
+            escaped = re.escape(pattern)
             if self.whole_word:
                 # Add word boundaries
-                return rf"\b{escaped_item}\b"
+                return rf"\b{escaped}\b"
             else:
-                return escaped_item
-
-    def _validate_content(self, thought: Thought) -> ValidationResult:
-        """Validate text against prohibited and required content.
-
+                return escaped
+    
+    async def validate_async(self, thought: SifakaThought) -> ValidationResult:
+        """Validate text content asynchronously.
+        
         Args:
-            thought: The Thought container with the text to validate.
-
+            thought: The SifakaThought to validate
+            
         Returns:
-            A ValidationResult with information about whether the validation passed,
-            any issues found, and suggestions for improvement.
+            ValidationResult with content validation information
         """
-        # Check for None text
-        if thought.text is None:
-            return self.create_empty_text_result(self.name)
-
-        start_time = time.time()
-        issues = []
-        suggestions = []
-
-        # Check prohibited content
-        prohibited_matches = []
-        for i, pattern in enumerate(self._compiled_prohibited_patterns):
-            for match in pattern.finditer(thought.text):
-                prohibited_matches.append(
-                    {
+        # Check if we have text to validate
+        text = thought.current_text
+        if not text:
+            logger.debug(
+                f"Content validation failed: no text",
+                extra={"validator": self.name, "thought_id": thought.id}
+            )
+            return self.create_empty_text_result()
+        
+        with self.time_operation("content_validation") as timer:
+            # Check prohibited content
+            prohibited_matches = []
+            for i, pattern in enumerate(self._compiled_prohibited):
+                matches = list(pattern.finditer(text))
+                for match in matches:
+                    prohibited_matches.append({
                         "match": match.group(),
                         "start": match.start(),
                         "end": match.end(),
-                        "prohibited_item": self.prohibited[i],
+                        "pattern": self.prohibited[i],
                         "pattern_index": i,
-                    }
-                )
-
-        # Check required content
-        missing_required = []
-        for i, pattern in enumerate(self._compiled_required_patterns):
-            if not pattern.search(thought.text):
-                missing_required.append(self.required[i])
-
-        # Calculate processing time
-        processing_time = (time.time() - start_time) * 1000
-
-        # Determine if validation passed
-        passed = len(prohibited_matches) == 0 and len(missing_required) == 0
-
-        if passed:
-            # All validations passed
-            logger.debug(f"{self.name}: Content validation passed in {processing_time:.2f}ms")
-            return self.create_validation_result(
-                passed=True,
-                message="Text meets all content requirements",
-                score=1.0,
+                    })
+            
+            # Check required content
+            missing_required = []
+            for i, pattern in enumerate(self._compiled_required):
+                if not pattern.search(text):
+                    missing_required.append(self.required[i])
+            
+            # Determine validation result
+            violations = len(prohibited_matches) + len(missing_required)
+            passed = violations == 0
+            
+            # Create issues and suggestions
+            issues = []
+            suggestions = []
+            
+            if prohibited_matches:
+                unique_matches = set(match["match"] for match in prohibited_matches)
+                unique_patterns = set(match["pattern"] for match in prohibited_matches)
+                issues.append(f"Text contains prohibited content: {', '.join(unique_matches)}")
+                suggestions.extend([
+                    f"Remove or rephrase: {', '.join(unique_matches)}",
+                    f"Avoid patterns like: {', '.join(unique_patterns)}",
+                ])
+            
+            if missing_required:
+                issues.append(f"Text missing required content: {', '.join(missing_required)}")
+                suggestions.append(f"Include the following: {', '.join(missing_required)}")
+            
+            # Calculate score
+            if passed:
+                score = 1.0
+            else:
+                # Score based on proportion of violations
+                total_checks = len(self.prohibited) + len(self.required)
+                score = max(0.0, 1.0 - (violations / max(1, total_checks)))
+            
+            # Create result message
+            if passed:
+                message = "Content validation passed: all requirements met"
+            else:
+                message = f"Content validation failed: {violations} violation(s)"
+            
+            # Get processing time from timer context
+            processing_time = getattr(timer, 'duration_ms', 0.0)
+            
+            result = self.create_validation_result(
+                passed=passed,
+                message=message,
+                score=score,
+                issues=issues,
+                suggestions=suggestions,
+                metadata={
+                    "prohibited_matches": len(prohibited_matches),
+                    "missing_required": len(missing_required),
+                    "total_violations": violations,
+                    "prohibited_patterns": len(self.prohibited),
+                    "required_patterns": len(self.required),
+                    "case_sensitive": self.case_sensitive,
+                    "whole_word": self.whole_word,
+                    "regex_mode": self.regex,
+                    "text_length": len(text),
+                },
+                processing_time_ms=processing_time,
             )
-
-        # Handle prohibited content violations
-        if prohibited_matches:
-            match_items = [str(m["match"]) for m in prohibited_matches]
-            prohibited_items = [str(m["prohibited_item"]) for m in prohibited_matches]
-            unique_matches = set(match_items)
-            unique_prohibited = set(prohibited_items)
-            issues.append(f"Text contains prohibited content: {', '.join(unique_matches)}")
-            suggestions.extend(
-                [
-                    f"Remove or rephrase the following prohibited content: {', '.join(unique_matches)}",
-                    f"Avoid using terms like: {', '.join(unique_prohibited)}",
-                ]
+            
+            logger.debug(
+                f"Content validation completed",
+                extra={
+                    "validator": self.name,
+                    "thought_id": thought.id,
+                    "passed": passed,
+                    "violations": violations,
+                    "prohibited_matches": len(prohibited_matches),
+                    "missing_required": len(missing_required),
+                    "score": score,
+                }
             )
-
-        # Handle missing required content
-        if missing_required:
-            issues.append(f"Text is missing required content: {', '.join(missing_required)}")
-            suggestions.append(
-                f"Include the following required content: {', '.join(missing_required)}"
-            )
-
-        # Calculate score based on violations
-        total_violations = len(prohibited_matches) + len(missing_required)
-        total_checks = len(self.prohibited) + len(self.required)
-        score = max(0.0, 1.0 - (total_violations / max(1, total_checks)))
-
-        logger.debug(
-            f"{self.name}: Validation failed with {total_violations} violations in {processing_time:.2f}ms"
-        )
-
-        return self.create_validation_result(
-            passed=False,
-            message=f"Text has {total_violations} content violation(s)",
-            score=score,
-            issues=issues,
-            suggestions=suggestions,
-        )
-
-    async def _validate_async(self, thought: Thought) -> ValidationResult:
-        """Validate text against prohibited content asynchronously.
-
-        This is the internal async implementation that provides the same functionality
-        as the sync validate method but can be called concurrently with other validators.
-
-        Args:
-            thought: The Thought container with the text to validate.
-
-        Returns:
-            A ValidationResult with information about whether the validation passed,
-            any issues found, and suggestions for improvement.
-        """
-        # Content validation is CPU-bound and fast, so we can just call the sync version
-        # In a real implementation, you might want to run this in a thread pool for consistency
-        return self.validate(thought)
+            
+            return result
 
 
 def create_content_validator(
-    prohibited: List[str],
+    prohibited: Optional[List[str]] = None,
+    required: Optional[List[str]] = None,
     case_sensitive: bool = False,
     whole_word: bool = False,
     regex: bool = False,
-    name: str = "ContentValidator",
+    name: Optional[str] = None,
 ) -> ContentValidator:
-    """Create a content validator.
-
-    This factory function creates a ContentValidator with the specified parameters.
-
+    """Create a content validator with the specified parameters.
+    
     Args:
-        prohibited: List of prohibited words, phrases, or patterns.
-        case_sensitive: Whether the matching should be case-sensitive.
-        whole_word: Whether to match whole words only.
-        regex: Whether the prohibited items are regular expressions.
-        name: The name of the validator.
-
+        prohibited: List of prohibited patterns/words
+        required: List of required patterns/words
+        case_sensitive: Whether matching is case-sensitive
+        whole_word: Whether to match whole words only
+        regex: Whether patterns are regular expressions
+        name: Custom name for the validator
+        
     Returns:
-        A ContentValidator instance.
-
-    Raises:
-        ValidationError: If the prohibited list is empty or invalid.
+        Configured ContentValidator instance
     """
     return ContentValidator(
         prohibited=prohibited,
+        required=required,
         case_sensitive=case_sensitive,
         whole_word=whole_word,
         regex=regex,
@@ -263,29 +304,53 @@ def create_content_validator(
     )
 
 
-def prohibited_content(
+def prohibited_content_validator(
     prohibited: List[str],
     case_sensitive: bool = False,
     whole_word: bool = False,
     regex: bool = False,
 ) -> ContentValidator:
-    """Create a content validator for prohibited content.
-
-    This is a convenience function for creating a ContentValidator.
-
+    """Create a validator that checks for prohibited content only.
+    
     Args:
-        prohibited: List of prohibited words, phrases, or patterns.
-        case_sensitive: Whether the matching should be case-sensitive.
-        whole_word: Whether to match whole words only.
-        regex: Whether the prohibited items are regular expressions.
-
+        prohibited: List of prohibited patterns/words
+        case_sensitive: Whether matching is case-sensitive
+        whole_word: Whether to match whole words only
+        regex: Whether patterns are regular expressions
+        
     Returns:
-        A ContentValidator instance.
+        ContentValidator configured for prohibited content checking
     """
     return create_content_validator(
         prohibited=prohibited,
         case_sensitive=case_sensitive,
         whole_word=whole_word,
         regex=regex,
-        name="ProhibitedContentValidator",
+        name="prohibited_content",
+    )
+
+
+def required_content_validator(
+    required: List[str],
+    case_sensitive: bool = False,
+    whole_word: bool = False,
+    regex: bool = False,
+) -> ContentValidator:
+    """Create a validator that checks for required content only.
+    
+    Args:
+        required: List of required patterns/words
+        case_sensitive: Whether matching is case-sensitive
+        whole_word: Whether to match whole words only
+        regex: Whether patterns are regular expressions
+        
+    Returns:
+        ContentValidator configured for required content checking
+    """
+    return create_content_validator(
+        required=required,
+        case_sensitive=case_sensitive,
+        whole_word=whole_word,
+        regex=regex,
+        name="required_content",
     )

@@ -1,246 +1,282 @@
-"""Simple Redis storage implementation via MCP.
+"""Redis persistence implementation for Sifaka using MCP.
 
-Redis-based storage for cross-process sharing and caching. Uses PydanticAI's
-native MCP client to communicate with the MCP Redis server.
+This module provides Redis-based storage via MCP server integration,
+offering production-ready persistence with cross-process sharing.
 """
 
 import json
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
-from sifaka.utils.logging import get_logger
+from pydantic_ai.mcp import MCPServerStdio
+
+from .base import SifakaBasePersistence
+from sifaka.utils import get_logger
 
 logger = get_logger(__name__)
 
 
-class RedisStorage:
-    """Simple Redis-based storage via MCP.
-
-    Stores data directly in Redis using MCP tools for persistence and cross-process sharing.
+class RedisPersistence(SifakaBasePersistence):
+    """Redis-based persistence via MCP server.
+    
+    This implementation uses the Redis MCP server for production-ready
+    storage with features like:
+    
+    - Cross-process data sharing
+    - Configurable TTL for automatic cleanup
+    - Redis-specific optimizations (key patterns, indexing)
+    - JSON-based storage for complex objects
+    - Atomic operations
+    
+    Attributes:
+        mcp_server: The Redis MCP server instance
+        ttl_seconds: Time-to-live for stored data (None for no expiration)
     """
-
-    def __init__(self, redis_mcp_server: Optional[Any] = None, key_prefix: str = "sifaka"):
-        """Initialize Redis storage.
-
+    
+    def __init__(
+        self, 
+        mcp_server: MCPServerStdio,
+        key_prefix: str = "sifaka",
+        ttl_seconds: Optional[int] = None
+    ):
+        """Initialize Redis persistence.
+        
         Args:
-            redis_mcp_server: PydanticAI MCPServerStdio instance for Redis (optional).
-            key_prefix: Prefix for all Redis keys.
+            mcp_server: Redis MCP server instance
+            key_prefix: Prefix for all Redis keys
+            ttl_seconds: Time-to-live for stored data (None for no expiration)
         """
-        self.redis_mcp_server = redis_mcp_server
-        self.key_prefix = key_prefix
-        self._redis_enabled = redis_mcp_server is not None
-
-        logger.debug(
-            f"Initialized RedisStorage with prefix '{key_prefix}', Redis enabled: {self._redis_enabled}"
-        )
-
-    def _make_key(self, key: str) -> str:
-        """Create a prefixed Redis key."""
-        return f"{self.key_prefix}:{key}"
-
-    def _serialize_value(self, value: Any) -> str:
-        """Serialize a value for Redis storage."""
-        if hasattr(value, "model_dump"):
-            # Pydantic model - serialize to JSON
-            return json.dumps(value.model_dump(), default=str)
-        elif isinstance(value, (dict, list)):
-            # Dict or list - serialize to JSON
-            return json.dumps(value, default=str)
-        else:
-            # Other types - convert to string
-            return str(value)
-
-    def _deserialize_value(self, data: str) -> Any:
-        """Deserialize a value from Redis storage."""
-        if not data or "does not exist" in data:
-            return None
-
-        # Try to parse as JSON if it looks like structured data
-        if data.startswith("{") or data.startswith("[") or data.startswith('"'):
-            try:
-                decoded_value = json.loads(data)
-
-                # If the value is a dictionary and looks like a Thought, try to reconstruct it
-                if (
-                    isinstance(decoded_value, dict)
-                    and "id" in decoded_value
-                    and "prompt" in decoded_value
-                ):
-                    try:
-                        from sifaka.core.thought import Thought
-
-                        return Thought.from_dict(decoded_value)
-                    except Exception as e:
-                        logger.debug(f"Failed to reconstruct Thought from dict: {e}")
-                        return decoded_value
-
-                return decoded_value
-            except json.JSONDecodeError:
-                return data
-
-        return data
-
-    # Internal async methods (required by Storage protocol)
-    async def _get_async(self, key: str) -> Optional[Any]:
-        """Get a value by key from Redis asynchronously."""
-        if not self._redis_enabled:
-            return None
-
+        super().__init__(key_prefix)
+        self.mcp_server = mcp_server
+        self.ttl_seconds = ttl_seconds
+        logger.debug(f"Initialized RedisPersistence with TTL: {ttl_seconds}")
+    
+    async def _store_raw(self, key: str, data: str) -> None:
+        """Store raw data at the given key using Redis JSON.
+        
+        Args:
+            key: Storage key
+            data: Raw data to store (JSON string)
+        """
         try:
-            redis_key = self._make_key(key)
-
-            # Use MCP server directly with JSON tools
-            async with self.redis_mcp_server as mcp_client:
-                # Call json_get tool for complex objects
+            # Parse JSON data for Redis JSON storage
+            json_data = json.loads(data)
+            
+            async with self.mcp_server as mcp_client:
+                # Use json_set tool for complex objects
                 result = await mcp_client.call_tool(
-                    "json_get", arguments={"name": redis_key, "path": "$"}
+                    "json_set", 
+                    arguments={
+                        "name": key, 
+                        "path": "$", 
+                        "value": json_data
+                    }
                 )
-
+                
+                # Set TTL if configured
+                if self.ttl_seconds:
+                    await mcp_client.call_tool(
+                        "expire",
+                        arguments={
+                            "name": key,
+                            "seconds": self.ttl_seconds
+                        }
+                    )
+                
+                logger.debug(f"Redis stored key: {key} (TTL: {self.ttl_seconds})")
+                
+        except Exception as e:
+            logger.error(f"Failed to store Redis key {key}: {e}")
+            raise
+    
+    async def _retrieve_raw(self, key: str) -> Optional[str]:
+        """Retrieve raw data from the given key using Redis JSON.
+        
+        Args:
+            key: Storage key
+            
+        Returns:
+            Raw data if found, None otherwise
+        """
+        try:
+            async with self.mcp_server as mcp_client:
+                # Use json_get tool for complex objects
+                result = await mcp_client.call_tool(
+                    "json_get", 
+                    arguments={
+                        "name": key, 
+                        "path": "$"
+                    }
+                )
+                
                 if not result or not hasattr(result, "content"):
                     return None
-
+                
                 # Extract the JSON value from the result
                 data = str(result.content[0].text) if result.content else None
-
+                
                 if not data:
                     return None
-
+                
                 # Check if key doesn't exist
                 if "No data found" in data or "does not exist" in data:
                     return None
-
-                # For JSON tools, the data is already deserialized
+                
+                # Parse and re-serialize to ensure consistent format
                 try:
-                    import json
-
                     json_data = json.loads(data) if isinstance(data, str) else data
-
-                    # If it's a Thought object, try to reconstruct it
-                    if isinstance(json_data, dict) and "id" in json_data and "prompt" in json_data:
-                        try:
-                            from sifaka.core.thought import Thought
-
-                            return Thought.from_dict(json_data)
-                        except Exception as e:
-                            logger.debug(f"Failed to reconstruct Thought from dict: {e}")
-                            return json_data
-
-                    return json_data
+                    serialized = json.dumps(json_data)
+                    logger.debug(f"Redis retrieved key: {key}")
+                    return serialized
                 except (json.JSONDecodeError, TypeError):
-                    return data
-
+                    logger.warning(f"Invalid JSON data for key {key}: {data}")
+                    return None
+                    
         except Exception as e:
-            logger.warning(f"Failed to get from Redis for key {key}: {e}")
+            logger.warning(f"Failed to retrieve Redis key {key}: {e}")
             return None
-
-    async def _set_async(self, key: str, value: Any) -> None:
-        """Set a value for a key in Redis asynchronously."""
-        print(f"🔥 REDIS _set_async called with key={key}, value type={type(value)}")
-
-        if not self._redis_enabled:
-            print(f"🔥 REDIS not enabled, returning")
-            return
-
+    
+    async def _delete_raw(self, key: str) -> bool:
+        """Delete data at the given key using Redis JSON.
+        
+        Args:
+            key: Storage key
+            
+        Returns:
+            True if deleted, False if key didn't exist
+        """
         try:
-            redis_key = self._make_key(key)
-
-            logger.debug(f"Setting Redis JSON key: {redis_key}")
-            logger.debug(f"Original value type: {type(value)}")
-
-            # Convert value to JSON-compatible format
-            if hasattr(value, "model_dump"):
-                # Pydantic model - use model_dump for JSON compatibility
-                json_value = value.model_dump()
-            elif isinstance(value, (dict, list, str, int, float, bool)) or value is None:
-                # Already JSON-compatible
-                json_value = value
-            else:
-                # Convert to dict representation
-                json_value = {"data": str(value), "type": type(value).__name__}
-
-            logger.debug(f"JSON value type: {type(json_value)}")
-
-            # Use MCP server directly with JSON tools
-            async with self.redis_mcp_server as mcp_client:
-                # Call json_set tool for complex objects
+            async with self.mcp_server as mcp_client:
+                # Use json_del tool
                 result = await mcp_client.call_tool(
-                    "json_set", arguments={"name": redis_key, "path": "$", "value": json_value}
+                    "json_del", 
+                    arguments={
+                        "name": key, 
+                        "path": "$"
+                    }
                 )
-                logger.debug(f"Redis JSON set result for {key}: {result}")
-
-        except Exception as e:
-            logger.warning(f"Failed to set Redis key {key}: {e}")
-            raise
-
-    # Public sync methods (required by Storage protocol)
-    def get(self, key: str) -> Optional[Any]:
-        """Get a value by key (sync wrapper)."""
-        import asyncio
-
-        try:
-            return asyncio.run(self._get_async(key))
-        except RuntimeError:
-            # Already in an event loop, use run_until_complete
-            loop = asyncio.get_event_loop()
-            return loop.run_until_complete(self._get_async(key))
-
-    def set(self, key: str, value: Any) -> None:
-        """Set a value for a key (sync wrapper)."""
-        import asyncio
-
-        try:
-            asyncio.run(self._set_async(key, value))
-        except RuntimeError:
-            # Already in an event loop, use run_until_complete
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(self._set_async(key, value))
-
-    def __contains__(self, key: str) -> bool:
-        """Check if key exists (sync)."""
-        result = self.get(key)
-        return result is not None
-
-    def __len__(self) -> int:
-        """Return number of stored items (placeholder)."""
-        return 0  # Redis doesn't easily support counting all keys
-
-    def __bool__(self) -> bool:
-        """Return True if the storage is available/configured."""
-        return self._redis_enabled
-
-    # Async methods
-    async def exists(self, key: str) -> bool:
-        """Check if a key exists in Redis."""
-        result = await self._get_async(key)
-        return result is not None
-
-    async def delete(self, key: str) -> bool:
-        """Delete a key from Redis."""
-        if not self._redis_enabled:
-            return False
-
-        try:
-            redis_key = self._make_key(key)
-
-            # Use MCP server directly with JSON tools
-            async with self.redis_mcp_server as mcp_client:
-                # Call json_del tool
-                result = await mcp_client.call_tool(
-                    "json_del", arguments={"name": redis_key, "path": "$"}
-                )
-                logger.debug(f"Redis JSON delete result for {key}: {result}")
+                
+                logger.debug(f"Redis deleted key: {key}")
                 return True
-
+                
         except Exception as e:
             logger.warning(f"Failed to delete Redis key {key}: {e}")
             return False
-
-    # Placeholder methods for compatibility
-    async def _search_async(self, query: str, limit: int = 10) -> List[Any]:
-        """Search not implemented for Redis storage."""
-        logger.warning("Search is not implemented for Redis storage")
-        return []
-
-    async def list_keys(self, pattern: str = "*") -> List[str]:
-        """List keys not fully implemented for Redis storage."""
-        logger.warning("list_keys is not fully implemented for Redis storage")
-        return []
+    
+    async def _list_keys(self, pattern: str) -> List[str]:
+        """List all keys matching the given pattern.
+        
+        Args:
+            pattern: Key pattern to match (Redis pattern syntax)
+            
+        Returns:
+            List of matching keys
+        """
+        try:
+            async with self.mcp_server as mcp_client:
+                # Use keys command to list matching keys
+                result = await mcp_client.call_tool(
+                    "keys",
+                    arguments={"pattern": pattern}
+                )
+                
+                if not result or not hasattr(result, "content"):
+                    return []
+                
+                # Parse the result to get key list
+                keys_data = str(result.content[0].text) if result.content else "[]"
+                
+                try:
+                    keys = json.loads(keys_data) if isinstance(keys_data, str) else keys_data
+                    if isinstance(keys, list):
+                        logger.debug(f"Redis listed {len(keys)} keys matching pattern: {pattern}")
+                        return keys
+                    else:
+                        return []
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Invalid keys data: {keys_data}")
+                    return []
+                    
+        except Exception as e:
+            logger.warning(f"Failed to list Redis keys with pattern {pattern}: {e}")
+            return []
+    
+    async def clear_namespace(self) -> None:
+        """Clear all data in this persistence namespace.
+        
+        This removes all keys with the configured prefix.
+        """
+        try:
+            pattern = f"{self.key_prefix}:*"
+            keys = await self._list_keys(pattern)
+            
+            if not keys:
+                logger.debug("No keys to clear in Redis namespace")
+                return
+            
+            async with self.mcp_server as mcp_client:
+                # Delete all keys in batches
+                for key in keys:
+                    await self._delete_raw(key)
+            
+            logger.debug(f"Cleared {len(keys)} keys from Redis namespace")
+            
+        except Exception as e:
+            logger.error(f"Failed to clear Redis namespace: {e}")
+            raise
+    
+    async def get_redis_info(self) -> Dict[str, Any]:
+        """Get Redis server information.
+        
+        Returns:
+            Dictionary with Redis server info
+        """
+        try:
+            async with self.mcp_server as mcp_client:
+                result = await mcp_client.call_tool("info", arguments={})
+                
+                if result and hasattr(result, "content"):
+                    info_data = str(result.content[0].text) if result.content else "{}"
+                    try:
+                        return json.loads(info_data) if isinstance(info_data, str) else info_data
+                    except (json.JSONDecodeError, TypeError):
+                        return {"raw_info": info_data}
+                
+                return {}
+                
+        except Exception as e:
+            logger.warning(f"Failed to get Redis info: {e}")
+            return {"error": str(e)}
+    
+    # PydanticAI BaseStatePersistence interface implementation
+    async def snapshot_node(self, state: "SifakaThought", next_node: str) -> None:
+        """Snapshot the current state before executing a node.
+        
+        Args:
+            state: Current thought state
+            next_node: Name of the next node to execute
+        """
+        try:
+            # Store the thought with a snapshot key
+            snapshot_key = f"{self.key_prefix}:snapshot:{state.id}:{next_node}"
+            data = await self.serialize_state(state)
+            await self._store_raw(snapshot_key, data)
+            
+            # Also store as regular thought
+            await self.store_thought(state)
+            
+            logger.debug(f"Redis snapshotted state for thought {state.id} before node {next_node}")
+            
+        except Exception as e:
+            logger.error(f"Failed to snapshot state for thought {state.id}: {e}")
+            raise
+    
+    async def load_state(self, state_id: str) -> Optional["SifakaThought"]:
+        """Load a previously saved state.
+        
+        Args:
+            state_id: The state ID to load
+            
+        Returns:
+            The loaded state if found, None otherwise
+        """
+        return await self.retrieve_thought(state_id)

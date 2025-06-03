@@ -1,45 +1,41 @@
-"""Critics module for Sifaka v0.3.0+
+"""Critics for iterative improvement in Sifaka.
 
-This module provides various critics for evaluating and improving generated text.
-All critics use PydanticAI agents with structured output and return CriticResult objects.
+This module provides research-based critics implemented as PydanticAI agents
+with structured output and optional retrieval augmentation support.
 
-Key improvements in v0.3.0:
-- PydanticAI agents with structured output
-- CriticResult objects with rich metadata
-- Pure async implementation
-- No backward compatibility code
+Available Critics:
+- ReflexionCritic: Implements Shinn et al. 2023 verbal reinforcement learning
+- ConstitutionalCritic: Implements Bai et al. 2022 Constitutional AI principles
+- SelfRefineCritic: Implements Madaan et al. 2023 iterative self-refinement
+- NCriticsCritic: Implements ensemble critique approach from Tian et al. 2023
+- SelfRAGCritic: Implements Asai et al. 2023 retrieval-augmented critique
+- MetaRewardingCritic: Implements Wu et al. 2024 meta-judging approach
+- SelfConsistencyCritic: Implements Wang et al. 2022 self-consistency sampling
+- PromptCritic: Configurable prompt-based critic for custom evaluation criteria
 """
 
-# New PydanticAI-based critics
-from sifaka.critics.base_pydantic import PydanticAICritic
+from sifaka.critics.base import BaseCritic, CritiqueFeedback
 from sifaka.critics.constitutional import ConstitutionalCritic
-from sifaka.critics.meta_rewarding import MetaRewardingCritic
-from sifaka.critics.reflexion import ReflexionCritic
-from sifaka.critics.self_refine import SelfRefineCritic
-from sifaka.critics.self_rag import SelfRAGCritic
-
-# Legacy critics (deprecated - will be removed in future versions)
-from sifaka.critics.base import BaseCritic
-from sifaka.critics.feedback_summarizer import FeedbackSummarizer
 from sifaka.critics.meta_rewarding import MetaRewardingCritic
 from sifaka.critics.n_critics import NCriticsCritic
 from sifaka.critics.prompt import PromptCritic
+from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.critics.self_consistency import SelfConsistencyCritic
 from sifaka.critics.self_rag import SelfRAGCritic
 from sifaka.critics.self_refine import SelfRefineCritic
 
 __all__ = [
-    # New PydanticAI-based critics (recommended)
-    "PydanticAICritic",
-    "ConstitutionalCritic",
-    "MetaRewardingCritic",
-    "ReflexionCritic",
-    "SelfRefineCritic",
-    "SelfRAGCritic",
-    # Legacy critics (deprecated)
+    # Base classes
     "BaseCritic",
-    "SelfConsistencyCritic",
+    "CritiqueFeedback",
+    # Research-based critics
+    "ReflexionCritic",
+    "ConstitutionalCritic",
+    "SelfRefineCritic",
     "NCriticsCritic",
+    "SelfRAGCritic",
+    "MetaRewardingCritic",
+    "SelfConsistencyCritic",
+    # Configurable critics
     "PromptCritic",
-    "FeedbackSummarizer",
 ]
