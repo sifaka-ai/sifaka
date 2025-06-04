@@ -10,7 +10,7 @@ Sifaka is built on PydanticAI with a simple graph-based workflow:
 - **SifakaThought**: Core state container with complete audit trails
 - **SifakaDependencies**: Dependency injection system for agents, validators, and critics
 - **Graph Nodes**: Generate, Validate, and Critique operations
-- **Storage**: Pluggable backends (memory, file, Redis, PostgreSQL)
+- **Storage**: Production-ready backends (memory, file, Redis MCP, PostgreSQL, hybrid)
 
 ### Key Features
 
@@ -34,8 +34,8 @@ from sifaka.graph import SifakaDependencies
 engine = SifakaEngine()
 
 # Create with custom dependencies
-dependencies = SifakaDependencies.create_custom(
-    generator_model="openai:gpt-4",
+dependencies = SifakaDependencies(
+    generator="openai:gpt-4",
     validation_weight=0.6,  # 60% weight for validation feedback
     critic_weight=0.4,      # 40% weight for critic feedback
 )
@@ -77,10 +77,10 @@ from sifaka.validators import LengthValidator
 from sifaka.critics import ReflexionCritic
 
 # Create custom configuration
-dependencies = SifakaDependencies.create_custom(
-    generator_model="openai:gpt-4",
+dependencies = SifakaDependencies(
+    generator="openai:gpt-4",
     validators=[LengthValidator(min_length=50, max_length=500)],
-    critic_models={
+    critics={
         "reflexion": "openai:gpt-3.5-turbo",
         "constitutional": "anthropic:claude-3-haiku"
     },
@@ -92,6 +92,107 @@ dependencies = SifakaDependencies.create_custom(
     never_apply_critics=False,   # Allow critics to run
     always_include_validation_results=True  # Include validation in context
 )
+```
+
+## Storage and Persistence
+
+Sifaka provides multiple storage backends for production use with automatic failover and hybrid configurations.
+
+### Storage Backends
+
+```python
+from sifaka.storage import (
+    MemoryPersistence,
+    SifakaFilePersistence,
+    RedisPersistence,
+    PostgreSQLPersistence,
+    FlexibleHybridPersistence,
+    BackendConfig,
+    BackendRole
+)
+
+# Memory storage (default, no persistence)
+memory_storage = MemoryPersistence(key_prefix="sifaka")
+
+# File storage with indexing and search
+file_storage = SifakaFilePersistence(
+    storage_dir="./thoughts",
+    auto_backup=True,
+    max_backup_count=10
+)
+
+# Redis storage via MCP (production-ready)
+from pydantic_ai.mcp import MCPServerStdio
+redis_mcp = MCPServerStdio("redis-mcp-server")
+redis_storage = RedisPersistence(
+    mcp_server=redis_mcp,
+    key_prefix="sifaka",
+    ttl_seconds=3600  # Optional TTL
+)
+
+# PostgreSQL storage (enterprise-grade)
+postgres_storage = PostgreSQLPersistence(
+    connection_string="postgresql://user:pass@localhost/sifaka",
+    key_prefix="sifaka"
+)
+```
+
+### Hybrid Storage
+
+Combine multiple backends with automatic failover:
+
+```python
+# Create hybrid storage with cache → primary → backup → search
+hybrid_storage = FlexibleHybridPersistence([
+    BackendConfig(
+        backend=MemoryPersistence(),
+        role=BackendRole.CACHE,
+        priority=0,  # Highest priority
+        read_enabled=True,
+        write_enabled=True
+    ),
+    BackendConfig(
+        backend=redis_storage,
+        role=BackendRole.PRIMARY,
+        priority=1
+    ),
+    BackendConfig(
+        backend=file_storage,
+        role=BackendRole.BACKUP,
+        priority=2
+    ),
+    BackendConfig(
+        backend=postgres_storage,
+        role=BackendRole.SEARCH,
+        priority=3,
+        read_enabled=True,
+        write_enabled=False  # Read-only for search
+    )
+])
+
+# Use with engine
+engine = SifakaEngine(persistence=hybrid_storage)
+```
+
+### Storage Operations
+
+```python
+# Store and retrieve thoughts
+thought = await engine.think("Your prompt")
+await storage.store_thought(thought)
+
+# Retrieve by ID
+retrieved = await storage.retrieve_thought(thought.id)
+
+# List thoughts with filtering
+thoughts = await storage.list_thoughts(
+    conversation_id="conv_123",
+    limit=10
+)
+
+# Search thoughts (PostgreSQL backend)
+if hasattr(storage, 'search_thoughts_by_text'):
+    results = await storage.search_thoughts_by_text("renewable energy")
 ```
 
 ## Utilities
@@ -488,8 +589,8 @@ Sifaka v0.4.0 represents a complete rewrite built on PydanticAI:
 from sifaka import SifakaEngine
 from sifaka.graph import SifakaDependencies
 
-dependencies = SifakaDependencies.create_custom(
-    generator_model="openai:gpt-4",
+dependencies = SifakaDependencies(
+    generator="openai:gpt-4",
     validation_weight=0.6,  # New: configurable weighting
     critic_weight=0.4
 )

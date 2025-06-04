@@ -66,6 +66,8 @@ class BaseCritic(ValidationAwareMixin, Critic, ABC):
         paper_reference: str,
         methodology: str,
         retrieval_tools: Optional[List[Any]] = None,
+        auto_discover_tools: bool = False,
+        tool_categories: Optional[List[str]] = None,
         **agent_kwargs: Any,
     ):
         """Initialize the base critic.
@@ -76,13 +78,25 @@ class BaseCritic(ValidationAwareMixin, Critic, ABC):
             paper_reference: Full citation of the research paper this critic implements
             methodology: Description of the methodology being implemented
             retrieval_tools: Optional list of retrieval tools for RAG support
+            auto_discover_tools: If True, automatically discover and use all available tools
+            tool_categories: Optional list of tool categories to include when auto-discovering
+                           (e.g., ["retrieval", "web_search"]). If None with auto_discover_tools=True,
+                           includes all categories.
             **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
         self.model_name = model_name
         self.system_prompt = system_prompt
         self.paper_reference = paper_reference
         self.methodology = methodology
-        self.retrieval_tools = retrieval_tools or []
+
+        # Handle tool discovery
+        if auto_discover_tools:
+            from sifaka.tools import discover_all_tools
+
+            discovered_tools = discover_all_tools(categories=tool_categories)
+            self.retrieval_tools = (retrieval_tools or []) + discovered_tools
+        else:
+            self.retrieval_tools = retrieval_tools or []
 
         # Create PydanticAI agent with structured output
         self.agent = Agent(

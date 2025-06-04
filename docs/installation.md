@@ -2,9 +2,9 @@
 
 ## Requirements
 
-- Python 3.9+
-- PydanticAI
-- At least one model provider (OpenAI, Anthropic, Google, etc.)
+- Python 3.11+ (required for PydanticAI compatibility)
+- PydanticAI 0.2.0+
+- At least one model provider (OpenAI, Anthropic, Google, Groq, Ollama)
 
 ## Install Sifaka
 
@@ -22,9 +22,18 @@ pip install sifaka[openai]
 pip install sifaka[anthropic]
 
 # Google Gemini support
-pip install sifaka[google]
+pip install sifaka[gemini]
 
-# All providers
+# Groq support (included in core)
+pip install sifaka
+
+# Ollama support
+pip install sifaka[ollama]
+
+# All model providers
+pip install sifaka[models]
+
+# Everything (models + storage + classifiers)
 pip install sifaka[all]
 ```
 
@@ -47,8 +56,14 @@ export OPENAI_API_KEY="your-openai-key"
 # Anthropic
 export ANTHROPIC_API_KEY="your-anthropic-key"
 
-# Google
+# Google Gemini
 export GOOGLE_API_KEY="your-google-key"
+
+# Groq
+export GROQ_API_KEY="your-groq-key"
+
+# Ollama (local models, no API key needed)
+# Just ensure Ollama is running locally
 ```
 
 ### Verify Installation
@@ -69,14 +84,23 @@ print("✅ Installation successful!")
 
 ### Storage Backends
 ```bash
-# Redis storage
-pip install redis
+# Redis storage (production-ready with MCP)
+pip install sifaka[redis]
+
+# PostgreSQL storage (enterprise-grade with full-text search)
+pip install asyncpg  # Required for PostgreSQL backend
+
+# All storage backends
+pip install sifaka[retrievers]
 ```
 
-### Text Processing
+### Text Processing and Classifiers
 ```bash
-# Advanced text analysis
-pip install textblob scikit-learn
+# Advanced text analysis and classifiers
+pip install sifaka[classifiers]
+
+# Performance utilities
+pip install sifaka[performance]
 ```
 
 ## Troubleshooting

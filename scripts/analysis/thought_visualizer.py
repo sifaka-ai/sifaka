@@ -60,11 +60,14 @@ class HTMLThoughtVisualizer:
             status_icon = "✅" if passed else "❌"
             status_class = "passed" if passed else "failed"
 
+            # Format score safely
+            score_display = f"{score:.1f}" if isinstance(score, (int, float)) else str(score)
+
             html += f"""
             <div class="validation-result {status_class}">
                 <div class="validator-header">
                     <strong>{status_icon} {self._escape_html(validator_name)}</strong>
-                    <span class="score">Score: {score:.1f}</span>
+                    <span class="score">Score: {score_display}</span>
                 </div>
                 <div class="validator-message">{self._escape_html(message)}</div>
                 {f'<div class="validator-issues"><strong>Issues:</strong><ul>{"".join(f"<li>{self._escape_html(issue)}</li>" for issue in issues)}</ul></div>' if issues else ''}
@@ -79,6 +82,202 @@ class HTMLThoughtVisualizer:
         critic_name = critic.get("critic_name", "Unknown")
         formatter = CriticFormatterFactory.get_formatter(critic_name)
         return formatter.format_details(critic, iteration, critic_index)
+
+    def _is_sifaka_thought_format(self) -> bool:
+        """Check if the data is in the new SifakaThought format"""
+        required_keys = ["id", "prompt", "generations", "validations", "critiques"]
+        return all(key in self.data for key in required_keys[:3])
+
+    def _parse_thoughts_for_visualization(self) -> list:
+        """Parse thoughts for visualization - supports both old and new formats"""
+        if self._is_sifaka_thought_format():
+            return self._parse_sifaka_thought_for_visualization()
+        else:
+            return self._parse_old_format_for_visualization()
+
+    def _parse_old_format_for_visualization(self) -> list:
+        """Parse old format thoughts for visualization"""
+        thoughts = []
+        for thought_id, thought_data in self.data.items():
+            # Filter out metadata entries that aren't actual thought iterations
+            if thought_id in ["initial_prompt", "final_result"]:
+                continue
+            # Only include entries that have the required thought fields
+            if not isinstance(thought_data, dict) or "iteration" not in thought_data:
+                continue
+
+            thought_data["id"] = thought_id
+            thoughts.append(thought_data)
+        return thoughts
+
+    def _parse_sifaka_thought_for_visualization(self) -> list:
+        """Parse new SifakaThought format for visualization"""
+        thoughts = []
+
+        # Extract basic info
+        thought_id = self.data.get("id", "unknown")
+        prompt = self.data.get("prompt", "")
+
+        # Get all generations, validations, and critiques
+        generations = self.data.get("generations", [])
+        validations = self.data.get("validations", [])
+        critiques = self.data.get("critiques", [])
+
+        # Group by iteration
+        iterations = {}
+
+        # Process generations
+        for gen in generations:
+            iteration = gen.get("iteration", 0)
+            if iteration not in iterations:
+                iterations[iteration] = {
+                    "iteration": iteration,
+                    "id": f"{thought_id}_iter_{iteration}",
+                    "prompt": prompt,
+                    "text": gen.get("text", ""),
+                    "model_name": gen.get("model", "Unknown"),
+                    "timestamp": gen.get("timestamp", ""),
+                    "model_prompt": self._extract_model_prompt(gen),
+                    "validation_results": {},
+                    "critic_feedback": [],
+                }
+            else:
+                # Update with generation data
+                iterations[iteration].update(
+                    {
+                        "text": gen.get("text", ""),
+                        "model_name": gen.get("model", "Unknown"),
+                        "timestamp": gen.get("timestamp", ""),
+                        "model_prompt": self._extract_model_prompt(gen),
+                    }
+                )
+
+        # Process validations
+        for val in validations:
+            iteration = val.get("iteration", 0)
+            if iteration not in iterations:
+                iterations[iteration] = {
+                    "iteration": iteration,
+                    "id": f"{thought_id}_iter_{iteration}",
+                    "prompt": prompt,
+                    "text": "",
+                    "model_name": "Unknown",
+                    "timestamp": val.get("timestamp", ""),
+                    "model_prompt": "",
+                    "validation_results": {},
+                    "critic_feedback": [],
+                }
+
+            # Add validation result
+            validator_name = val.get("validator", "Unknown")
+            iterations[iteration]["validation_results"][validator_name] = {
+                "passed": val.get("passed", False),
+                "message": str(val.get("details", {})),
+                "score": 1.0 if val.get("passed", False) else 0.0,
+                "issues": [],
+                "suggestions": [],
+            }
+
+        # Process critiques
+        for crit in critiques:
+            iteration = crit.get("iteration", 0)
+            if iteration not in iterations:
+                iterations[iteration] = {
+                    "iteration": iteration,
+                    "id": f"{thought_id}_iter_{iteration}",
+                    "prompt": prompt,
+                    "text": "",
+                    "model_name": "Unknown",
+                    "timestamp": crit.get("timestamp", ""),
+                    "model_prompt": "",
+                    "validation_results": {},
+                    "critic_feedback": [],
+                }
+
+            # Convert critique to old format for compatibility
+            critic_feedback = {
+                "critic_name": crit.get("critic", "Unknown"),
+                "needs_improvement": crit.get("needs_improvement", True),
+                "confidence": crit.get("confidence", 0.0),
+                "violations": [],  # Extract from feedback if needed
+                "suggestions": crit.get("suggestions", []),
+                "metadata": crit.get("critic_metadata", {}),
+                "processing_time_ms": crit.get("processing_time_ms"),
+            }
+            iterations[iteration]["critic_feedback"].append(critic_feedback)
+
+        # Convert to list
+        for iteration_data in iterations.values():
+            thoughts.append(iteration_data)
+
+        return thoughts
+
+    def _extract_model_prompt(self, generation: dict) -> str:
+        """Extract model prompt from generation conversation history"""
+        conversation_history = generation.get("conversation_history", [])
+        if not conversation_history:
+            return ""
+
+        # Try to extract from the conversation history
+        model_prompt_parts = []
+        for msg in conversation_history:
+            if isinstance(msg, str):
+                # Parse string representation of PydanticAI objects
+                extracted_text = self._extract_text_from_pydantic_string(msg)
+                if extracted_text:
+                    model_prompt_parts.append(extracted_text)
+            elif isinstance(msg, dict):
+                # Try to extract content
+                if "content" in msg:
+                    model_prompt_parts.append(msg["content"])
+                else:
+                    model_prompt_parts.append(str(msg))
+
+        return "\n\n".join(model_prompt_parts)
+
+    def _extract_text_from_pydantic_string(self, pydantic_str: str) -> str:
+        """Extract actual text content from PydanticAI object string representations"""
+        if not pydantic_str:
+            return ""
+
+        # Look for content patterns in PydanticAI object strings
+        import re
+
+        # Pattern for SystemPromptPart and UserPromptPart content
+        content_patterns = [
+            r"content='([^']*)'",  # Single quotes
+            r'content="([^"]*)"',  # Double quotes
+            r"content=([^,)]+)",  # Unquoted content
+        ]
+
+        extracted_parts = []
+        for pattern in content_patterns:
+            matches = re.findall(pattern, pydantic_str)
+            extracted_parts.extend(matches)
+
+        if extracted_parts:
+            return "\n".join(extracted_parts)
+
+        # If no patterns match, try to extract readable text
+        # Remove object type prefixes and clean up
+        cleaned = pydantic_str
+        for prefix in [
+            "ModelRequest(",
+            "ModelResponse(",
+            "SystemPromptPart(",
+            "UserPromptPart(",
+            "TextPart(",
+        ]:
+            cleaned = cleaned.replace(prefix, "")
+
+        # Remove trailing parentheses and brackets
+        cleaned = re.sub(r"[)\]]+$", "", cleaned)
+
+        # If it's still too object-like, return a summary
+        if len(cleaned) > 500 or "datetime.datetime" in cleaned:
+            return f"[PydanticAI conversation object - {len(pydantic_str)} chars]"
+
+        return cleaned
 
     def generate_html(self, output_file: str = None):
         """Generate interactive HTML visualization"""
@@ -96,19 +295,8 @@ class HTMLThoughtVisualizer:
         output_path = Path(output_file)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Sort thoughts by iteration and show all critic feedback for each iteration
-        thoughts = []
-        for thought_id, thought_data in self.data.items():
-            # Filter out metadata entries that aren't actual thought iterations
-            if thought_id in ["initial_prompt", "final_result"]:
-                continue
-            # Only include entries that have the required thought fields
-            if not isinstance(thought_data, dict) or "iteration" not in thought_data:
-                continue
-
-            thought_data["id"] = thought_id
-            # Show all critic feedback for this iteration (no filtering needed)
-            thoughts.append(thought_data)
+        # Parse thoughts based on format (old vs new SifakaThought)
+        thoughts = self._parse_thoughts_for_visualization()
         thoughts.sort(key=lambda t: t.get("iteration", 0))
 
         html_content = f"""
@@ -699,8 +887,10 @@ class HTMLThoughtVisualizer:
                 # Get score based on critic type
                 if critic_name == "NCriticsCritic":
                     score = metadata.get("aggregated_score", "N/A")
-                    if score != "N/A":
+                    if score != "N/A" and isinstance(score, (int, float)):
                         score = f"{score:.1f}/10"
+                    else:
+                        score = str(score)
                 else:
                     score = metadata.get("initial_score", "N/A")
 

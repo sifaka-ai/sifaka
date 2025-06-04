@@ -81,6 +81,8 @@ class ReflexionCritic(BaseCritic):
         self,
         model_name: str = "openai:gpt-4o-mini",
         retrieval_tools: Optional[List[Any]] = None,
+        auto_discover_tools: bool = False,
+        tool_categories: Optional[List[str]] = None,
         **agent_kwargs: Any,
     ):
         """Initialize the Reflexion critic.
@@ -88,6 +90,8 @@ class ReflexionCritic(BaseCritic):
         Args:
             model_name: The model name for the PydanticAI agent
             retrieval_tools: Optional list of retrieval tools for RAG support
+            auto_discover_tools: If True, automatically discover and use all available tools
+            tool_categories: Optional list of tool categories to include when auto-discovering
             **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
         system_prompt = self._create_system_prompt()
@@ -108,6 +112,8 @@ class ReflexionCritic(BaseCritic):
             paper_reference=paper_reference,
             methodology=methodology,
             retrieval_tools=retrieval_tools,
+            auto_discover_tools=auto_discover_tools,
+            tool_categories=tool_categories,
             **agent_kwargs,
         )
 

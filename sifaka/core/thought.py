@@ -415,6 +415,20 @@ class SifakaThought(BaseModel):
         """
         return [t for t in self.tool_calls if t.iteration == self.iteration]
 
+    def validation_passed(self) -> bool:
+        """Check if all validations passed for the current iteration.
+
+        Returns:
+            True if all current iteration validations passed, False otherwise
+        """
+        current_validations = self.get_current_iteration_validations()
+        if not current_validations:
+            # No validations means we can't say they passed
+            return False
+
+        # All validations must pass
+        return all(v.passed for v in current_validations)
+
     def finalize(self) -> None:
         """Finalize the thought by setting final_text and marking as complete.
 
@@ -480,23 +494,6 @@ class SifakaThought(BaseModel):
             List of conversation messages from the current iteration (includes both requests and responses)
         """
         return self.get_conversation_messages_for_iteration(self.iteration)
-
-    # Backward compatibility methods (deprecated but maintained for existing code)
-    def get_model_prompts_for_iteration(self, iteration: int) -> List[str]:
-        """DEPRECATED: Use get_conversation_messages_for_iteration() instead.
-
-        This method name was misleading since it returns both requests TO the model
-        and responses FROM the model, not just prompts.
-        """
-        return self.get_conversation_messages_for_iteration(iteration)
-
-    def get_latest_model_prompts(self) -> List[str]:
-        """DEPRECATED: Use get_latest_conversation_messages() instead.
-
-        This method name was misleading since it returns both requests TO the model
-        and responses FROM the model, not just prompts.
-        """
-        return self.get_latest_conversation_messages()
 
     def print_iteration_details(self, iteration: int = None) -> None:
         """Print detailed information for a specific iteration or current iteration.

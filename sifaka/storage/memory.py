@@ -125,21 +125,57 @@ class MemoryPersistence(SifakaBasePersistence):
         }
 
     # PydanticAI BaseStatePersistence interface implementation
-    async def record_run(self, run_id: str, state: "SifakaThought") -> None:
-        """Record a run with its final state.
+    def record_run(self, snapshot_id: str):
+        """Record the run of a node.
 
         Args:
-            run_id: Unique identifier for the run
-            state: Final state of the run
+            snapshot_id: The ID of the snapshot to record
+
+        Returns:
+            An async context manager that records the run of the node
         """
-        try:
-            run_key = f"{self.key_prefix}:run:{run_id}"
-            data = await self.serialize_state(state)
-            await self._store_raw(run_key, data)
-            logger.debug(f"Recorded run {run_id}")
-        except Exception as e:
-            logger.error(f"Failed to record run {run_id}: {e}")
-            raise
+        return self._RunRecorder(self, snapshot_id)
+
+    class _RunRecorder:
+        """Async context manager for recording node runs."""
+
+        def __init__(self, persistence: "MemoryPersistence", snapshot_id: str):
+            self.persistence = persistence
+            self.snapshot_id = snapshot_id
+            self.start_time = None
+
+        async def __aenter__(self):
+            """Start recording the run."""
+            import time
+
+            self.start_time = time.time()
+
+            # Mark the run as started
+            run_key = f"{self.persistence.key_prefix}:run_status:{self.snapshot_id}"
+            await self.persistence._store_raw(run_key, "running")
+
+            logger.debug(f"Started recording run for snapshot {self.snapshot_id}")
+            return self
+
+        async def __aexit__(self, exc_type, _exc_val, _exc_tb):
+            """Finish recording the run."""
+            import time
+
+            duration = time.time() - self.start_time if self.start_time else 0
+
+            # Mark the run as completed (success or error)
+            status = "error" if exc_type else "success"
+            run_key = f"{self.persistence.key_prefix}:run_status:{self.snapshot_id}"
+            await self.persistence._store_raw(run_key, status)
+
+            # Store duration
+            duration_key = f"{self.persistence.key_prefix}:run_duration:{self.snapshot_id}"
+            await self.persistence._store_raw(duration_key, str(duration))
+
+            logger.debug(
+                f"Finished recording run for snapshot {self.snapshot_id}: {status} ({duration:.2f}s)"
+            )
+            return False  # Don't suppress exceptions
 
     async def load_all(self, run_id: str) -> List["SifakaThought"]:
         """Load all states for a given run.
@@ -187,11 +223,12 @@ class MemoryPersistence(SifakaBasePersistence):
             logger.error(f"Failed to load next state for run {run_id}: {e}")
             return None
 
-    async def snapshot_end(self, state: "SifakaThought") -> None:
+    async def snapshot_end(self, state: "SifakaThought", end) -> None:
         """Snapshot the final state at the end of execution.
 
         Args:
             state: Final state to snapshot
+            end: End node information
         """
         try:
             # Store as final snapshot
@@ -208,28 +245,36 @@ class MemoryPersistence(SifakaBasePersistence):
             logger.error(f"Failed to snapshot end state for thought {state.id}: {e}")
             raise
 
-    async def snapshot_node_if_new(self, state: "SifakaThought", next_node: str) -> None:
+    async def snapshot_node_if_new(
+        self, snapshot_id: str, state: "SifakaThought", next_node
+    ) -> None:
         """Snapshot the state if it's new (not already snapshotted).
 
         Args:
+            snapshot_id: Unique identifier for this snapshot
             state: Current state
-            next_node: Name of the next node to execute
+            next_node: The next node to execute (BaseNode instance)
         """
         try:
-            snapshot_key = f"{self.key_prefix}:snapshot:{state.id}:{next_node}"
+            # Use the provided snapshot_id or create one from state and node
+            if snapshot_id:
+                snapshot_key = f"{self.key_prefix}:snapshot:{snapshot_id}"
+            else:
+                # Fallback to our original key format
+                node_name = getattr(next_node, "name", str(next_node))
+                snapshot_key = f"{self.key_prefix}:snapshot:{state.id}:{node_name}"
 
             # Check if snapshot already exists
             existing = await self._retrieve_raw(snapshot_key)
             if existing is None:
                 # Only snapshot if new
-                await self.snapshot_node(state, next_node)
+                node_name = getattr(next_node, "name", str(next_node))
+                await self.snapshot_node(state, node_name)
             else:
-                logger.debug(
-                    f"Snapshot already exists for thought {state.id} before node {next_node}"
-                )
+                logger.debug(f"Snapshot already exists for snapshot_id {snapshot_id}")
 
         except Exception as e:
-            logger.error(f"Failed to check/snapshot state for thought {state.id}: {e}")
+            logger.error(f"Failed to check/snapshot state for snapshot_id {snapshot_id}: {e}")
             raise
 
     async def snapshot_node(self, state: "SifakaThought", next_node: str) -> None:

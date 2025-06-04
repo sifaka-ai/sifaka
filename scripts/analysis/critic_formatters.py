@@ -437,18 +437,64 @@ class NCriticsCriticFormatter(BaseCriticFormatter):
             <strong>🎯 N Critics Ensemble Analysis:</strong><br>
         """
 
+        # Check if this is an error case
+        if "error" in metadata:
+            error_msg = metadata.get("error", "Unknown error")
+            error_type = metadata.get("error_type", "Unknown")
+            mode = metadata.get("mode", "Unknown")
+
+            html += f"""
+            <div style="background: #ffebee; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #f44336;">
+                <strong>❌ Critic Failed</strong><br>
+                <strong>🔧 Error Type:</strong> {error_type}<br>
+                <strong>🎯 Mode:</strong> {mode}<br>
+                <strong>📝 Error:</strong> {"API Function call failed (likely model/tool issue)" if "Failed to call a function" in error_msg else error_msg[:200] + "..."}
+            </div>
+            """
+            html += "</div>"
+            return html
+
         # Aggregated score information prominently displayed
         aggregated_score = metadata.get("aggregated_score", "N/A")
         improvement_threshold = metadata.get("improvement_threshold", "N/A")
         num_critics = metadata.get("num_critics", "N/A")
 
+        # Try alternative field names for the new format
+        if aggregated_score == "N/A":
+            aggregated_score = metadata.get("average_perspective_confidence", "N/A")
+        if num_critics == "N/A":
+            num_critics = metadata.get("num_perspectives", "N/A")
+
+        # Format score safely
+        score_display = (
+            f"{aggregated_score:.1f}/10"
+            if isinstance(aggregated_score, (int, float))
+            else str(aggregated_score)
+        )
+
         html += f"""
         <div style="background: #e3f2fd; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #2196f3;">
-            <strong>📊 Ensemble Score: {aggregated_score:.1f}/10</strong><br>
+            <strong>📊 Ensemble Score: {score_display}</strong><br>
             <strong>🎯 Improvement Threshold: {improvement_threshold}</strong><br>
             <strong>👥 Number of Critics: {num_critics}</strong>
         </div>
         """
+
+        # Show consensus information if available
+        consensus_strength = metadata.get("consensus_strength", "N/A")
+        perspective_agreement = metadata.get("perspective_agreement", "N/A")
+        if consensus_strength != "N/A" or perspective_agreement != "N/A":
+            agreement_display = (
+                f"{perspective_agreement:.1%}"
+                if isinstance(perspective_agreement, (int, float))
+                else str(perspective_agreement)
+            )
+            html += f"""
+            <div style="background: #f3e5f5; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #9c27b0;">
+                <strong>🤝 Consensus Strength:</strong> {consensus_strength}<br>
+                <strong>📊 Perspective Agreement:</strong> {agreement_display}
+            </div>
+            """
 
         # Individual critic feedback
         critic_feedback = metadata.get("critic_feedback", [])

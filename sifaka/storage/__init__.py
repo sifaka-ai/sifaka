@@ -12,7 +12,7 @@ Key Features:
 
 Example:
     ```python
-    from sifaka.storage import RedisPersistence, HybridPersistence
+    from sifaka.storage import RedisPersistence, FlexibleHybridPersistence
     from sifaka import SifakaEngine
 
     # Redis persistence
@@ -20,10 +20,10 @@ Example:
     engine = SifakaEngine(persistence=redis_persistence)
 
     # Hybrid persistence with failover
-    hybrid_persistence = HybridPersistence(
-        primary=redis_persistence,
-        backup=file_persistence
-    )
+    hybrid_persistence = FlexibleHybridPersistence([
+        BackendConfig(redis_persistence, BackendRole.PRIMARY, priority=0),
+        BackendConfig(file_persistence, BackendRole.BACKUP, priority=1)
+    ])
     engine = SifakaEngine(persistence=hybrid_persistence)
     ```
 """
@@ -33,12 +33,9 @@ from .memory import MemoryPersistence
 from .file import SifakaFilePersistence
 from .redis import RedisPersistence
 from .flexible_hybrid import FlexibleHybridPersistence, BackendConfig, BackendRole
-from .migration import StorageMigrator, migrate_legacy_file_to_persistence
 
 # from .tools import ThoughtRetrievalTools, create_retrieval_tools  # Temporarily disabled due to pydantic_ai tool import issue
 
-# Backward compatibility alias
-HybridPersistence = FlexibleHybridPersistence
 
 # Optional backends (may require additional dependencies)
 try:
@@ -61,11 +58,8 @@ __all__ = [
     "SifakaFilePersistence",
     "RedisPersistence",
     "FlexibleHybridPersistence",
-    "HybridPersistence",  # Backward compatibility alias
     "BackendConfig",
     "BackendRole",
-    "StorageMigrator",
-    "migrate_legacy_file_to_persistence",
     "ThoughtRetrievalTools",
     "create_retrieval_tools",
 ]

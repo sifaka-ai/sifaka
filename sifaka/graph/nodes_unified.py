@@ -314,6 +314,10 @@ class ValidateNode(SifakaNode):
             task = self._run_validator(validator, text, ctx.state)
             validation_tasks.append(task)
 
+        # Initialize validation results
+        all_passed = True
+        failed_validators = []
+
         # Wait for all validations to complete
         if validation_tasks:
             with logger.performance_timer(
@@ -322,8 +326,6 @@ class ValidateNode(SifakaNode):
                 results = await asyncio.gather(*validation_tasks, return_exceptions=True)
 
             # Process results and update thought
-            all_passed = True
-            failed_validators = []
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     # Handle validator exceptions
@@ -343,9 +345,6 @@ class ValidateNode(SifakaNode):
                     if not passed:
                         all_passed = False
                         failed_validators.append(validator_name)
-        else:
-            # No validators configured - consider as passed
-            all_passed = True
 
         logger.log_thought_event(
             "validation_complete",

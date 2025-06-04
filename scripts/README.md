@@ -60,7 +60,7 @@ The analysis tools support specialized formatting for different critic types:
 - **ConstitutionalCritic**: Shows principle violations, compliance rates, and constitutional analysis
 - **SelfConsistencyCritic**: Displays consensus statistics and agreement ratios
 - **ReflexionCritic**: Shows memory sessions, trial numbers, and self-reflection content
-- **MetaRewardingCritic**: Displays initial scores, judgment criteria, and meta-evaluation
+- **MetaEvaluationCritic**: Displays initial scores, judgment criteria, and meta-evaluation
 - **GenericCritic**: Fallback formatting for any other critic types
 
 ## Output Directory

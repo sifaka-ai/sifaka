@@ -4,7 +4,7 @@ This module provides utilities to inspect SifakaThought objects and extract
 detailed information about model prompts, critic feedback, and validation results.
 """
 
-from typing import List, Optional
+from typing import List
 from sifaka.core.thought import SifakaThought
 
 
@@ -45,25 +45,6 @@ def get_latest_conversation_messages(thought: SifakaThought) -> List[str]:
         List of conversation messages from the current iteration (includes both requests and responses)
     """
     return get_conversation_messages_for_iteration(thought, thought.iteration)
-
-
-# Backward compatibility functions (deprecated but maintained for existing code)
-def get_model_prompts_for_iteration(thought: SifakaThought, iteration: int) -> List[str]:
-    """DEPRECATED: Use get_conversation_messages_for_iteration() instead.
-
-    This function name was misleading since it returns both requests TO the model
-    and responses FROM the model, not just prompts.
-    """
-    return get_conversation_messages_for_iteration(thought, iteration)
-
-
-def get_latest_model_prompts(thought: SifakaThought) -> List[str]:
-    """DEPRECATED: Use get_latest_conversation_messages() instead.
-
-    This function name was misleading since it returns both requests TO the model
-    and responses FROM the model, not just prompts.
-    """
-    return get_latest_conversation_messages(thought)
 
 
 def print_iteration_details(thought: SifakaThought, iteration: int = None) -> None:
@@ -236,18 +217,6 @@ def print_conversation_messages(
                 else:
                     print(message)
             print("-" * 30)
-
-
-# Backward compatibility function (deprecated but maintained for existing code)
-def print_model_prompts(
-    thought: SifakaThought, iteration: int = None, full_prompts: bool = False
-) -> None:
-    """DEPRECATED: Use print_conversation_messages() instead.
-
-    This function name was misleading since it prints both requests TO the model
-    and responses FROM the model, not just prompts.
-    """
-    print_conversation_messages(thought, iteration, full_prompts)
 
 
 def get_thought_overview(thought: SifakaThought) -> dict:

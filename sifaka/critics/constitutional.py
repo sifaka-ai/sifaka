@@ -86,6 +86,8 @@ class ConstitutionalCritic(BaseCritic):
         model_name: str = "anthropic:claude-3-5-haiku-20241022",
         constitutional_principles: Optional[List[str]] = None,
         retrieval_tools: Optional[List[Any]] = None,
+        auto_discover_tools: bool = False,
+        tool_categories: Optional[List[str]] = None,
         **agent_kwargs: Any,
     ):
         """Initialize the Constitutional AI critic.
@@ -94,10 +96,12 @@ class ConstitutionalCritic(BaseCritic):
             model_name: The model name for the PydanticAI agent
             constitutional_principles: Custom constitutional principles (uses defaults if None)
             retrieval_tools: Optional list of retrieval tools for RAG support
+            auto_discover_tools: If True, automatically discover and use all available tools
+            tool_categories: Optional list of tool categories to include when auto-discovering
             **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
         self.constitutional_principles = constitutional_principles or self._get_default_principles()
-        
+
         system_prompt = self._create_system_prompt()
         paper_reference = (
             "Bai, Y., Jones, A., Ndousse, K., Askell, A., Chen, A., DasSarma, N., ... & Kaplan, J. (2022). "
@@ -116,6 +120,8 @@ class ConstitutionalCritic(BaseCritic):
             paper_reference=paper_reference,
             methodology=methodology,
             retrieval_tools=retrieval_tools,
+            auto_discover_tools=auto_discover_tools,
+            tool_categories=tool_categories,
             **agent_kwargs,
         )
 
@@ -131,8 +137,10 @@ class ConstitutionalCritic(BaseCritic):
 
     def _create_system_prompt(self) -> str:
         """Create the system prompt for the Constitutional AI critic."""
-        principles_text = "\n".join([f"{i+1}. {principle}" for i, principle in enumerate(self.constitutional_principles)])
-        
+        principles_text = "\n".join(
+            [f"{i+1}. {principle}" for i, principle in enumerate(self.constitutional_principles)]
+        )
+
         return f"""You are a Constitutional AI critic implementing the methodology from Bai et al. 2022.
 
 Your role is to evaluate text against constitutional principles and provide structured feedback
@@ -153,6 +161,11 @@ RESPONSE FORMAT:
 - message: detailed analysis of principle adherence and violations
 - suggestions: 1-3 specific suggestions to address constitutional concerns
 - confidence: float 0.0-1.0 based on violation clarity and assessment certainty
+  * 0.9-1.0: Clear, severe violations or perfect compliance
+  * 0.7-0.8: Moderate violations or good compliance with minor issues
+  * 0.5-0.6: Unclear violations or mixed compliance
+  * 0.3-0.4: Uncertain assessment or conflicting evidence
+  * 0.0-0.2: Very uncertain or insufficient information
 - reasoning: explanation of constitutional analysis and principle application
 
 FOCUS AREAS:
@@ -186,67 +199,94 @@ set needs_improvement to false and explain the constitutional compliance."""
         # Add constitutional principles
         for i, principle in enumerate(self.constitutional_principles, 1):
             prompt_parts.append(f"{i}. {principle}")
-        
+
         prompt_parts.append("")
 
         # Add validation context if available
         validation_context = self._get_validation_context(thought)
         if validation_context:
-            prompt_parts.extend([
-                "VALIDATION CONTEXT:",
-                "=" * 20,
-                validation_context,
-                "",
-                "NOTE: Constitutional evaluation should consider validation requirements",
-                "and prioritize suggestions that address both constitutional and validation concerns.",
-                "",
-            ])
+            prompt_parts.extend(
+                [
+                    "VALIDATION CONTEXT:",
+                    "=" * 20,
+                    validation_context,
+                    "",
+                    "NOTE: Constitutional evaluation should consider validation requirements",
+                    "and prioritize suggestions that address both constitutional and validation concerns.",
+                    "",
+                ]
+            )
 
         # Add previous constitutional feedback if available
         if thought.iteration > 0:
             prev_constitutional_critiques = [
-                c for c in thought.critiques 
+                c
+                for c in thought.critiques
                 if c.iteration == thought.iteration - 1 and c.critic == "ConstitutionalCritic"
             ]
             if prev_constitutional_critiques:
-                prompt_parts.extend([
-                    "PREVIOUS CONSTITUTIONAL FEEDBACK:",
-                    "=" * 35,
-                ])
+                prompt_parts.extend(
+                    [
+                        "PREVIOUS CONSTITUTIONAL FEEDBACK:",
+                        "=" * 35,
+                    ]
+                )
                 for critique in prev_constitutional_critiques[-1:]:  # Last constitutional critique
-                    prompt_parts.extend([
-                        f"Previous Assessment: {critique.feedback}",
-                        f"Previous Suggestions: {', '.join(critique.suggestions)}",
-                        "",
-                    ])
+                    prompt_parts.extend(
+                        [
+                            f"Previous Assessment: {critique.feedback}",
+                            f"Previous Suggestions: {', '.join(critique.suggestions)}",
+                            "",
+                        ]
+                    )
 
         # Add evaluation instructions
-        prompt_parts.extend([
-            "CONSTITUTIONAL EVALUATION INSTRUCTIONS:",
-            "=" * 40,
-            "1. Evaluate the text against each constitutional principle",
-            "2. Identify specific violations or areas of concern",
-            "3. Assess the severity and potential impact of violations",
-            "4. Generate targeted suggestions to improve constitutional compliance",
-            "5. Consider the balance between principles if conflicts exist",
-            "",
-            "Provide a thorough constitutional analysis with specific, actionable feedback.",
-        ])
+        prompt_parts.extend(
+            [
+                "CONSTITUTIONAL EVALUATION INSTRUCTIONS:",
+                "=" * 40,
+                "1. Evaluate the text against each constitutional principle",
+                "2. Identify specific violations or areas of concern",
+                "3. Assess the severity and potential impact of violations",
+                "4. Generate targeted suggestions to improve constitutional compliance",
+                "5. Consider the balance between principles if conflicts exist",
+                "6. Adjust confidence based on:",
+                "   - Clarity of violations (clear violations = higher confidence)",
+                "   - Number of principles affected (more violations = higher confidence)",
+                "   - Severity of impact (severe issues = higher confidence)",
+                "   - Assessment uncertainty (unclear cases = lower confidence)",
+                "",
+                "CONFIDENCE SCORING REQUIREMENTS:",
+                "- Use the FULL range 0.0-1.0, not just 0.8!",
+                "- High confidence (0.9-1.0): Clear, severe violations or perfect compliance",
+                "- Medium confidence (0.6-0.8): Moderate violations or good compliance with minor issues",
+                "- Low confidence (0.3-0.5): Unclear violations or mixed compliance",
+                "- Very low confidence (0.0-0.2): Very uncertain or insufficient information",
+                "",
+                "Provide a thorough constitutional analysis with specific, actionable feedback.",
+            ]
+        )
 
         return "\n".join(prompt_parts)
 
     def _get_critic_specific_metadata(self, feedback) -> Dict[str, Any]:
         """Extract Constitutional AI-specific metadata."""
         base_metadata = super()._get_critic_specific_metadata(feedback)
-        
+
         # Add Constitutional AI-specific metadata
         constitutional_metadata = {
             "methodology": "constitutional_ai_principles",
             "num_principles": len(self.constitutional_principles),
             "constitutional_compliance": not feedback.needs_improvement,
-            "violation_severity": "high" if feedback.needs_improvement and feedback.confidence > 0.8 else "medium" if feedback.needs_improvement else "none",
-            "principles_evaluated": [p.split(":")[0] for p in self.constitutional_principles],  # Extract principle names
+            "violation_severity": (
+                "high"
+                if feedback.needs_improvement and feedback.confidence > 0.8
+                else "medium" if feedback.needs_improvement else "none"
+            ),
+            "principles_evaluated": [
+                p.split(":")[0] for p in self.constitutional_principles
+            ],  # Extract principle names
         }
-        
+
         base_metadata.update(constitutional_metadata)
         return base_metadata

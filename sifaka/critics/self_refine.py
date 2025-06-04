@@ -81,6 +81,8 @@ class SelfRefineCritic(BaseCritic):
         model_name: str = "gemini-1.5-flash",
         refinement_focus: Optional[List[str]] = None,
         retrieval_tools: Optional[List[Any]] = None,
+        auto_discover_tools: bool = False,
+        tool_categories: Optional[List[str]] = None,
         **agent_kwargs: Any,
     ):
         """Initialize the Self-Refine critic.
@@ -89,10 +91,12 @@ class SelfRefineCritic(BaseCritic):
             model_name: The model name for the PydanticAI agent
             refinement_focus: Specific areas to focus refinement on (uses defaults if None)
             retrieval_tools: Optional list of retrieval tools for RAG support
+            auto_discover_tools: If True, automatically discover and use all available tools
+            tool_categories: Optional list of tool categories to include when auto-discovering
             **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
         self.refinement_focus = refinement_focus or self._get_default_focus_areas()
-        
+
         system_prompt = self._create_system_prompt()
         paper_reference = (
             "Madaan, A., Tandon, N., Gupta, P., Hallinan, S., Gao, L., Wiegreffe, S., ... & Hajishirzi, H. (2023). "
@@ -111,6 +115,8 @@ class SelfRefineCritic(BaseCritic):
             paper_reference=paper_reference,
             methodology=methodology,
             retrieval_tools=retrieval_tools,
+            auto_discover_tools=auto_discover_tools,
+            tool_categories=tool_categories,
             **agent_kwargs,
         )
 
@@ -127,7 +133,7 @@ class SelfRefineCritic(BaseCritic):
     def _create_system_prompt(self) -> str:
         """Create the system prompt for the Self-Refine critic."""
         focus_text = "\n".join([f"- {area}" for area in self.refinement_focus])
-        
+
         return f"""You are a Self-Refine critic implementing the methodology from Madaan et al. 2023.
 
 Your role is to provide self-feedback on text and suggest iterative refinements
@@ -148,6 +154,11 @@ RESPONSE FORMAT:
 - message: detailed self-critique with specific areas for improvement
 - suggestions: 1-3 concrete, actionable refinement suggestions
 - confidence: float 0.0-1.0 based on self-assessment certainty
+  * 0.9-1.0: Very confident in refinement needs or text quality
+  * 0.7-0.8: Moderately confident in assessment
+  * 0.5-0.6: Somewhat uncertain about refinement direction
+  * 0.3-0.4: Low confidence in assessment
+  * 0.0-0.2: Very uncertain or conflicting self-assessment
 - reasoning: explanation of the self-refinement analysis process
 
 SELF-REFINEMENT PRINCIPLES:
@@ -180,70 +191,96 @@ set needs_improvement to false and explain why no further refinement is benefici
 
         # Add refinement history from previous iterations
         if thought.iteration > 0:
-            prompt_parts.extend([
-                "REFINEMENT HISTORY:",
-                "=" * 20,
-                "Previous refinement attempts and outcomes:",
-                "",
-            ])
+            prompt_parts.extend(
+                [
+                    "REFINEMENT HISTORY:",
+                    "=" * 20,
+                    "Previous refinement attempts and outcomes:",
+                    "",
+                ]
+            )
 
             # Show progression through iterations
             for i in range(min(thought.iteration, 3)):  # Limit to last 3 iterations
                 iteration_generations = [g for g in thought.generations if g.iteration == i]
-                iteration_critiques = [c for c in thought.critiques if c.iteration == i and c.critic == "SelfRefineCritic"]
-                
+                iteration_critiques = [
+                    c
+                    for c in thought.critiques
+                    if c.iteration == i and c.critic == "SelfRefineCritic"
+                ]
+
                 if iteration_generations and iteration_critiques:
                     gen = iteration_generations[-1]
                     critique = iteration_critiques[-1]
-                    
-                    prompt_parts.extend([
-                        f"Iteration {i}:",
-                        f"Text: {gen.text[:150]}{'...' if len(gen.text) > 150 else ''}",
-                        f"Self-Critique: {critique.feedback[:100]}{'...' if len(critique.feedback) > 100 else ''}",
-                        f"Suggestions Applied: {len(critique.suggestions)} suggestions",
-                        "",
-                    ])
+
+                    prompt_parts.extend(
+                        [
+                            f"Iteration {i}:",
+                            f"Text: {gen.text[:150]}{'...' if len(gen.text) > 150 else ''}",
+                            f"Self-Critique: {critique.feedback[:100]}{'...' if len(critique.feedback) > 100 else ''}",
+                            f"Suggestions Applied: {len(critique.suggestions)} suggestions",
+                            "",
+                        ]
+                    )
 
         # Add validation context
         validation_context = self._get_validation_context(thought)
         if validation_context:
-            prompt_parts.extend([
-                "VALIDATION REQUIREMENTS:",
-                "=" * 25,
-                validation_context,
-                "",
-                "NOTE: Self-refinement should prioritize addressing validation failures",
-                "while also improving overall text quality.",
-                "",
-            ])
+            prompt_parts.extend(
+                [
+                    "VALIDATION REQUIREMENTS:",
+                    "=" * 25,
+                    validation_context,
+                    "",
+                    "NOTE: Self-refinement should prioritize addressing validation failures",
+                    "while also improving overall text quality.",
+                    "",
+                ]
+            )
 
         # Add current refinement focus
-        prompt_parts.extend([
-            "CURRENT REFINEMENT FOCUS:",
-            "=" * 30,
-        ])
+        prompt_parts.extend(
+            [
+                "CURRENT REFINEMENT FOCUS:",
+                "=" * 30,
+            ]
+        )
         for area in self.refinement_focus:
             prompt_parts.append(f"- {area}")
-        
-        prompt_parts.extend([
-            "",
-            "SELF-REFINEMENT INSTRUCTIONS:",
-            "=" * 35,
-            "1. Critically analyze the current text from a self-improvement perspective",
-            "2. Identify specific areas where refinement would add value",
-            "3. Consider the refinement history to avoid repetitive suggestions",
-            "4. Generate concrete, implementable improvement suggestions",
-            "5. Assess whether further refinement is beneficial or if the text is sufficiently refined",
-            "",
-            "Focus on iterative improvement that builds on previous refinement rounds.",
-        ])
+
+        prompt_parts.extend(
+            [
+                "",
+                "SELF-REFINEMENT INSTRUCTIONS:",
+                "=" * 35,
+                "1. Critically analyze the current text from a self-improvement perspective",
+                "2. Identify specific areas where refinement would add value",
+                "3. Consider the refinement history to avoid repetitive suggestions",
+                "4. Generate concrete, implementable improvement suggestions",
+                "5. Assess whether further refinement is beneficial or if the text is sufficiently refined",
+                "6. Set confidence based on:",
+                "   - Clarity of refinement needs (clear needs = higher confidence)",
+                "   - Quality of current text (poor quality = higher confidence in improvement)",
+                "   - Certainty of suggestions (specific improvements = higher confidence)",
+                "   - Assessment ambiguity (unclear cases = lower confidence)",
+                "",
+                "CONFIDENCE SCORING REQUIREMENTS:",
+                "- Use the FULL range 0.0-1.0, not just 0.8!",
+                "- High confidence (0.9-1.0): Very clear refinement needs or excellent text quality",
+                "- Medium confidence (0.6-0.8): Moderate refinement needs or good text quality",
+                "- Low confidence (0.3-0.5): Uncertain refinement direction or mixed quality",
+                "- Very low confidence (0.0-0.2): Highly uncertain or conflicting assessment",
+                "",
+                "Focus on iterative improvement that builds on previous refinement rounds.",
+            ]
+        )
 
         return "\n".join(prompt_parts)
 
     def _get_critic_specific_metadata(self, feedback) -> Dict[str, Any]:
         """Extract Self-Refine-specific metadata."""
         base_metadata = super()._get_critic_specific_metadata(feedback)
-        
+
         # Add Self-Refine-specific metadata
         self_refine_metadata = {
             "methodology": "self_refine_iterative",
@@ -251,8 +288,12 @@ set needs_improvement to false and explain why no further refinement is benefici
             "refinement_needed": feedback.needs_improvement,
             "refinement_confidence": feedback.confidence,
             "iterative_improvement": True,  # Always true for Self-Refine
-            "self_critique_quality": "high" if feedback.confidence > 0.7 else "medium" if feedback.confidence > 0.4 else "low",
+            "self_critique_quality": (
+                "high"
+                if feedback.confidence > 0.7
+                else "medium" if feedback.confidence > 0.4 else "low"
+            ),
         }
-        
+
         base_metadata.update(self_refine_metadata)
         return base_metadata

@@ -9,14 +9,14 @@ Available Critics:
 - SelfRefineCritic: Implements Madaan et al. 2023 iterative self-refinement
 - NCriticsCritic: Implements ensemble critique approach from Tian et al. 2023
 - SelfRAGCritic: Implements Asai et al. 2023 retrieval-augmented critique
-- MetaRewardingCritic: Implements Wu et al. 2024 meta-judging approach
+- MetaEvaluationCritic: Inspired by Wu et al. 2024 meta-judging approach
 - SelfConsistencyCritic: Implements Wang et al. 2022 self-consistency sampling
 - PromptCritic: Configurable prompt-based critic for custom evaluation criteria
 """
 
 from sifaka.critics.base import BaseCritic, CritiqueFeedback
 from sifaka.critics.constitutional import ConstitutionalCritic
-from sifaka.critics.meta_rewarding import MetaRewardingCritic
+from sifaka.critics.meta_rewarding import MetaEvaluationCritic
 from sifaka.critics.n_critics import NCriticsCritic
 from sifaka.critics.prompt import PromptCritic
 from sifaka.critics.reflexion import ReflexionCritic
@@ -34,7 +34,7 @@ __all__ = [
     "SelfRefineCritic",
     "NCriticsCritic",
     "SelfRAGCritic",
-    "MetaRewardingCritic",
+    "MetaEvaluationCritic",
     "SelfConsistencyCritic",
     # Configurable critics
     "PromptCritic",

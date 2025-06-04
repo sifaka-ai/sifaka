@@ -71,6 +71,8 @@ class PromptCritic(BaseCritic):
         evaluation_guidelines: Optional[str] = None,
         domain_context: Optional[str] = None,
         retrieval_tools: Optional[List[Any]] = None,
+        auto_discover_tools: bool = False,
+        tool_categories: Optional[List[str]] = None,
         **agent_kwargs: Any,
     ):
         """Initialize the Prompt-based critic.
@@ -81,6 +83,8 @@ class PromptCritic(BaseCritic):
             evaluation_guidelines: Specific guidelines for evaluation process
             domain_context: Domain-specific context and terminology
             retrieval_tools: Optional list of retrieval tools for RAG support
+            auto_discover_tools: If True, automatically discover and use all available tools
+            tool_categories: Optional list of tool categories to include when auto-discovering
             **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
         self.custom_criteria = custom_criteria or self._get_default_criteria()
@@ -105,6 +109,8 @@ class PromptCritic(BaseCritic):
             paper_reference=paper_reference,
             methodology=methodology,
             retrieval_tools=retrieval_tools,
+            auto_discover_tools=auto_discover_tools,
+            tool_categories=tool_categories,
             **agent_kwargs,
         )
 
@@ -149,6 +155,13 @@ RESPONSE FORMAT:
 - suggestions: 1-3 specific suggestions based on the custom guidelines
 - confidence: float 0.0-1.0 based on assessment certainty using the given criteria
 - reasoning: explanation of evaluation process and application of custom criteria
+
+CONFIDENCE SCORING REQUIREMENTS:
+- Use the FULL range 0.0-1.0, not just 0.8!
+- High confidence (0.9-1.0): Clear assessment using well-defined criteria
+- Medium confidence (0.6-0.8): Moderate assessment with some uncertainty
+- Low confidence (0.3-0.5): Unclear criteria application or mixed results
+- Very low confidence (0.0-0.2): Insufficient criteria or highly uncertain assessment
 
 EVALUATION PROCESS:
 1. Apply the custom evaluation criteria systematically

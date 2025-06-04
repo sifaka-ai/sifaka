@@ -61,9 +61,14 @@ class ThoughtAnalyzer:
             raise ValueError(f"Failed to load JSON file: {e}")
 
     def _parse_thoughts(self) -> List[ThoughtSummary]:
-        """Parse thoughts from JSON data and show all critic feedback for each iteration"""
+        """Parse thoughts from JSON data - supports both old and new SifakaThought format"""
         thoughts = []
 
+        # Check if this is a single SifakaThought object or old format
+        if self._is_sifaka_thought_format():
+            return self._parse_sifaka_thought()
+
+        # Old format - multiple thoughts in a single file
         for thought_id, thought_data in self.data.items():
             # Parse critic feedback - show ALL feedback for this iteration
             critics = []
@@ -94,6 +99,103 @@ class ThoughtAnalyzer:
                 critics=critics,
                 chain_id=thought_data.get("chain_id", ""),
                 parent_id=thought_data.get("parent_id"),
+            )
+            thoughts.append(thought)
+
+        # Sort by iteration
+        thoughts.sort(key=lambda t: t.iteration)
+        return thoughts
+
+    def _is_sifaka_thought_format(self) -> bool:
+        """Check if the data is in the new SifakaThought format"""
+        # New format has these top-level keys
+        required_keys = ["id", "prompt", "generations", "validations", "critiques"]
+        return all(key in self.data for key in required_keys[:3])  # Check first 3 as minimum
+
+    def _parse_sifaka_thought(self) -> List[ThoughtSummary]:
+        """Parse a single SifakaThought object into multiple ThoughtSummary objects (one per iteration)"""
+        thoughts = []
+
+        # Extract basic info
+        thought_id = self.data.get("id", "unknown")
+        prompt = self.data.get("prompt", "")
+        parent_id = self.data.get("parent_thought_id")
+        conversation_id = self.data.get("conversation_id", "")
+
+        # Get all generations (iterations)
+        generations = self.data.get("generations", [])
+        validations = self.data.get("validations", [])
+        critiques = self.data.get("critiques", [])
+
+        # Group data by iteration
+        iterations = {}
+
+        # Process generations
+        for gen in generations:
+            iteration = gen.get("iteration", 0)
+            if iteration not in iterations:
+                iterations[iteration] = {"generation": gen, "validations": [], "critiques": []}
+            else:
+                iterations[iteration]["generation"] = gen
+
+        # Process validations
+        for val in validations:
+            iteration = val.get("iteration", 0)
+            if iteration not in iterations:
+                iterations[iteration] = {"generation": None, "validations": [val], "critiques": []}
+            else:
+                iterations[iteration]["validations"].append(val)
+
+        # Process critiques
+        for crit in critiques:
+            iteration = crit.get("iteration", 0)
+            if iteration not in iterations:
+                iterations[iteration] = {"generation": None, "validations": [], "critiques": [crit]}
+            else:
+                iterations[iteration]["critiques"].append(crit)
+
+        # Create ThoughtSummary for each iteration
+        for iteration, data in iterations.items():
+            generation = data.get("generation")
+            iteration_validations = data.get("validations", [])
+            iteration_critiques = data.get("critiques", [])
+
+            # Parse critics from critiques
+            critics = []
+            for critique in iteration_critiques:
+                critic = CriticAnalysis(
+                    name=critique.get("critic", "Unknown"),
+                    needs_improvement=critique.get("needs_improvement", True),
+                    confidence=critique.get("confidence", 0.0),
+                    violations=[],  # New format stores this differently
+                    suggestions=critique.get("suggestions", []),
+                    metadata=critique.get("critic_metadata", {}),
+                    processing_time_ms=critique.get("processing_time_ms"),
+                )
+                critics.append(critic)
+
+            # Get model name and timestamp from generation
+            model_name = "Unknown"
+            timestamp = ""
+            text_length = 0
+
+            if generation:
+                model_name = generation.get("model", "Unknown")
+                timestamp = generation.get("timestamp", "")
+                text_length = len(generation.get("text", ""))
+
+            thought = ThoughtSummary(
+                id=f"{thought_id}_iter_{iteration}",
+                iteration=iteration,
+                timestamp=timestamp,
+                model_name=model_name,
+                prompt=prompt,
+                text_length=text_length,
+                has_validation_results=len(iteration_validations) > 0,
+                critic_count=len(critics),
+                critics=critics,
+                chain_id=conversation_id,
+                parent_id=parent_id,
             )
             thoughts.append(thought)
 
@@ -139,8 +241,14 @@ class ThoughtAnalyzer:
             chain_thoughts.sort(key=lambda t: t.iteration)
             iterations = [t.iteration for t in chain_thoughts]
             timestamps = [t.timestamp for t in chain_thoughts if t.timestamp]
+
+            # Handle empty chain_id
+            chain_display = (
+                chain_id[:8] + "..." if chain_id and len(chain_id) > 8 else (chain_id or "unknown")
+            )
+
             print(
-                f"🔗 Chain {i} ({chain_id[:8]}...): {len(chain_thoughts)} thoughts, iterations {min(iterations)}-{max(iterations)}"
+                f"🔗 Chain {i} ({chain_display}): {len(chain_thoughts)} thoughts, iterations {min(iterations)}-{max(iterations)}"
             )
             if timestamps:
                 print(f"   ⏰ {min(timestamps)} to {max(timestamps)}")
@@ -162,7 +270,11 @@ class ThoughtAnalyzer:
             chains[chain_id].append(thought)
 
         for i, (chain_id, chain_thoughts) in enumerate(chains.items(), 1):
-            print(f"\n🔗 Chain {i} ({chain_id[:8]}...):")
+            # Handle empty chain_id
+            chain_display = (
+                chain_id[:8] + "..." if chain_id and len(chain_id) > 8 else (chain_id or "unknown")
+            )
+            print(f"\n🔗 Chain {i} ({chain_display}):")
             print("-" * 40)
 
             chain_thoughts.sort(key=lambda t: t.iteration)
@@ -199,7 +311,11 @@ class ThoughtAnalyzer:
             chains[chain_id].append(thought)
 
         for i, (chain_id, chain_thoughts) in enumerate(chains.items(), 1):
-            print(f"\n🔗 Chain {i} ({chain_id[:8]}...):")
+            # Handle empty chain_id
+            chain_display = (
+                chain_id[:8] + "..." if chain_id and len(chain_id) > 8 else (chain_id or "unknown")
+            )
+            print(f"\n🔗 Chain {i} ({chain_display}):")
             print("=" * 40)
 
             chain_thoughts.sort(key=lambda t: t.iteration)
@@ -438,14 +554,51 @@ class ThoughtAnalyzer:
         """Print detailed analysis of NCriticsCritic feedback"""
         print("   👥 N Critics Ensemble Analysis:")
 
+        # Check if this is an error case
+        if "error" in critic.metadata:
+            print("      ❌ Critic Failed:")
+            error_msg = critic.metadata.get("error", "Unknown error")
+            # Extract the actual error message if it's buried in the API response
+            if "Failed to call a function" in error_msg:
+                print("      📝 API Error: Function call failed (likely model/tool issue)")
+            else:
+                print(f"      📝 Error: {error_msg[:200]}...")
+
+            error_type = critic.metadata.get("error_type", "Unknown")
+            print(f"      🔧 Error Type: {error_type}")
+
+            mode = critic.metadata.get("mode", "Unknown")
+            print(f"      🎯 Mode: {mode}")
+            return
+
         # Show ensemble score prominently
         aggregated_score = critic.metadata.get("aggregated_score", "N/A")
         improvement_threshold = critic.metadata.get("improvement_threshold", "N/A")
         num_critics = critic.metadata.get("num_critics", "N/A")
 
-        print(f"      📊 Ensemble Score: {aggregated_score:.1f}/10")
+        # Try alternative field names for the new format
+        if aggregated_score == "N/A":
+            aggregated_score = critic.metadata.get("average_perspective_confidence", "N/A")
+        if num_critics == "N/A":
+            num_critics = critic.metadata.get("num_perspectives", "N/A")
+
+        # Format score safely
+        score_display = (
+            f"{aggregated_score:.1f}/10"
+            if isinstance(aggregated_score, (int, float))
+            else str(aggregated_score)
+        )
+        print(f"      📊 Ensemble Score: {score_display}")
         print(f"      🎯 Improvement Threshold: {improvement_threshold}")
         print(f"      👥 Number of Critics: {num_critics}")
+
+        # Show consensus information if available
+        consensus_strength = critic.metadata.get("consensus_strength", "N/A")
+        perspective_agreement = critic.metadata.get("perspective_agreement", "N/A")
+        if consensus_strength != "N/A":
+            print(f"      🤝 Consensus Strength: {consensus_strength}")
+        if perspective_agreement != "N/A" and isinstance(perspective_agreement, (int, float)):
+            print(f"      📊 Perspective Agreement: {perspective_agreement:.1%}")
 
         # Show individual critic feedback
         critic_feedback = critic.metadata.get("critic_feedback", [])
@@ -702,7 +855,21 @@ class ThoughtAnalyzer:
                 print(wrapped_prompt)
 
             # Show model prompt if different and available
-            model_prompt = self.data[thought.id].get("model_prompt", "")
+            # Handle both old and new format
+            model_prompt = ""
+            if self._is_sifaka_thought_format():
+                # For new format, extract from generations
+                generations = self.data.get("generations", [])
+                for gen in generations:
+                    if gen.get("iteration") == thought.iteration:
+                        conversation_history = gen.get("conversation_history", [])
+                        if conversation_history:
+                            model_prompt = str(conversation_history)
+                        break
+            else:
+                # Old format
+                model_prompt = self.data.get(thought.id, {}).get("model_prompt", "")
+
             if model_prompt and model_prompt != thought.prompt:
                 # Extract just the user part for brevity
                 if "User:" in model_prompt:
