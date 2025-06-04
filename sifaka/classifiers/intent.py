@@ -363,7 +363,25 @@ class CachedIntentClassifier(CachedClassifier):
 
     def _classify_uncached(self, text: str) -> ClassificationResult:
         """Perform intent classification without caching."""
-        return asyncio.run(self._classifier.classify_async(text))
+        # Use a new event loop in a thread to avoid "asyncio.run() cannot be called from a running event loop"
+        import asyncio
+        import concurrent.futures
+
+        def run_in_thread():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(self._classifier.classify_async(text))
+            finally:
+                loop.close()
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_in_thread)
+            return future.result()
+
+    def get_classes(self) -> list[str]:
+        """Get the list of possible class labels."""
+        return self._classifier.get_classes()
 
 
 # Factory function for easy creation

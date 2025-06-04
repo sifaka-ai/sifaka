@@ -7,14 +7,14 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
-from .base import SifakaBasePersistence
+from pydantic_graph.persistence import BaseStatePersistence
 from sifaka.core.thought import SifakaThought
 from sifaka.utils import get_logger
 
 logger = get_logger(__name__)
 
 
-class SifakaFilePersistence(SifakaBasePersistence):
+class SifakaFilePersistence(BaseStatePersistence[SifakaThought, str]):
     """Simple file-based persistence.
 
     Just saves thoughts as JSON files in a directory.
@@ -27,86 +27,71 @@ class SifakaFilePersistence(SifakaBasePersistence):
             storage_dir: Directory to save thoughts in
             file_prefix: Optional prefix for thought files (e.g., "n_critics_")
         """
-        super().__init__("sifaka")
         self.storage_dir = Path(storage_dir)
         self.file_prefix = file_prefix
         self.storage_dir.mkdir(exist_ok=True)
-        logger.debug(
-            f"Initialized SifakaFilePersistence at {self.storage_dir} with prefix '{file_prefix}'"
-        )
+        logger.info(f"Saving thoughts to: {self.storage_dir.absolute()}")
 
-    async def _store_raw(self, key: str, data: str) -> None:
-        """Store raw data at the given key."""
-        # For thoughts, save to {prefix}{thought_id}.json
-        if ":thought:" in key:
-            thought_id = key.split(":")[-1]
-            filename = f"{self.file_prefix}{thought_id}.json"
-            file_path = self.storage_dir / filename
+    def _get_file_path(self, thought_id: str) -> Path:
+        """Get the file path for a thought ID."""
+        filename = f"{self.file_prefix}{thought_id}.json"
+        return self.storage_dir / filename
+
+    async def store_thought(self, thought: SifakaThought) -> None:
+        """Store a thought as a JSON file."""
+        try:
+            file_path = self._get_file_path(thought.id)
+
+            # Convert to dict and handle numpy types
+            thought_dict = thought.model_dump()
+
+            # Convert any numpy types and datetime objects to JSON-serializable types
+            def convert_types(obj):
+                import datetime
+
+                if hasattr(obj, "item"):  # numpy scalar
+                    return obj.item()
+                elif hasattr(obj, "tolist"):  # numpy array
+                    return obj.tolist()
+                elif isinstance(obj, datetime.datetime):
+                    return obj.isoformat()
+                elif isinstance(obj, datetime.date):
+                    return obj.isoformat()
+                elif isinstance(obj, dict):
+                    return {k: convert_types(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_types(item) for item in obj]
+                return obj
+
+            thought_dict = convert_types(thought_dict)
 
             with open(file_path, "w", encoding="utf-8") as f:
-                # Try to pretty-print JSON if possible
-                try:
-                    json_data = json.loads(data)
-                    json.dump(json_data, f, indent=2, ensure_ascii=False)
-                except json.JSONDecodeError:
-                    f.write(data)
+                json.dump(thought_dict, f, indent=2, ensure_ascii=False)
 
-            logger.debug(f"Saved thought to {file_path}")
-        else:
-            # For other data (run status, etc.), just ignore it
-            # We only care about saving actual thoughts
-            pass
+            logger.info(f"Saved thought {thought.id} to {file_path}")
 
-    async def _retrieve_raw(self, key: str) -> Optional[str]:
-        """Retrieve raw data from the given key."""
-        if ":thought:" in key:
-            thought_id = key.split(":")[-1]
-            filename = f"{self.file_prefix}{thought_id}.json"
-            file_path = self.storage_dir / filename
+        except Exception as e:
+            logger.error(f"Failed to save thought {thought.id}: {e}")
+            raise
 
-            if file_path.exists():
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    # Try to parse as JSON and re-serialize
-                    try:
-                        data = json.loads(content)
-                        return json.dumps(data)
-                    except json.JSONDecodeError:
-                        return content
+    async def retrieve_thought(self, thought_id: str) -> Optional[SifakaThought]:
+        """Retrieve a thought from a JSON file."""
+        try:
+            file_path = self._get_file_path(thought_id)
 
-        return None
+            if not file_path.exists():
+                return None
 
-    async def _delete_raw(self, key: str) -> bool:
-        """Delete data at the given key."""
-        if ":thought:" in key:
-            thought_id = key.split(":")[-1]
-            filename = f"{self.file_prefix}{thought_id}.json"
-            file_path = self.storage_dir / filename
+            with open(file_path, "r", encoding="utf-8") as f:
+                thought_dict = json.load(f)
 
-            if file_path.exists():
-                file_path.unlink()
-                return True
+            return SifakaThought.model_validate(thought_dict)
 
-        return False
+        except Exception as e:
+            logger.error(f"Failed to load thought {thought_id}: {e}")
+            return None
 
-    async def _list_keys(self, pattern: str) -> List[str]:
-        """List all keys matching the given pattern."""
-        keys = []
-
-        if ":thought:" in pattern:
-            # Look for files with our prefix
-            search_pattern = f"{self.file_prefix}*.json"
-            for file_path in self.storage_dir.glob(search_pattern):
-                # Remove prefix to get thought_id
-                filename = file_path.stem
-                if filename.startswith(self.file_prefix):
-                    thought_id = filename[len(self.file_prefix) :]
-                    key = f"{self.key_prefix}:thought:{thought_id}"
-                    keys.append(key)
-
-        return keys
-
-    # Required BaseStatePersistence methods - minimal implementation
+    # Required BaseStatePersistence methods - just save thoughts when needed
     def record_run(self, snapshot_id: str):
         """Record the run of a node."""
         return self._RunRecorder()
@@ -129,17 +114,17 @@ class SifakaFilePersistence(SifakaBasePersistence):
         return None
 
     async def snapshot_end(self, state: "SifakaThought", end) -> None:
-        """Snapshot the final state at the end of execution."""
+        """Save the final thought."""
         await self.store_thought(state)
 
     async def snapshot_node_if_new(
         self, snapshot_id: str, state: "SifakaThought", next_node
     ) -> None:
-        """Snapshot the state if it's new."""
+        """Save the thought."""
         await self.store_thought(state)
 
     async def snapshot_node(self, state: "SifakaThought", next_node: str) -> None:
-        """Snapshot the current state before executing a node."""
+        """Save the thought."""
         await self.store_thought(state)
 
     async def load_state(self, state_id: str) -> Optional["SifakaThought"]:

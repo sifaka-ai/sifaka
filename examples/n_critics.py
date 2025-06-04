@@ -29,7 +29,7 @@ async def main():
     prompt = "Write a balanced analysis of AI's impact on healthcare, covering both benefits and potential risks."
 
     # Set up storage for thoughts
-    storage = SifakaFilePersistence("thoughts", file_prefix="n_critics_")
+    storage = SifakaFilePersistence("../thoughts", file_prefix="n_critics_")
 
     # Example 1: Single-model N-Critics with full generation workflow
     print("\n📝 Single-Model N-Critics with Full Generation")

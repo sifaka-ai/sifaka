@@ -119,7 +119,7 @@ async def main():
     validators = create_comprehensive_validators()
 
     # Set up storage for thoughts
-    storage = SifakaFilePersistence("thoughts")
+    storage = SifakaFilePersistence("../thoughts", file_prefix="self_refine_")
 
     # Create dependencies with Self-Refine critic focus
     dependencies = SifakaDependencies(
