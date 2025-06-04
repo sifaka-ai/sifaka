@@ -1,19 +1,19 @@
-"""Constitutional critic for Sifaka.
+"""Constitutional AI critic for Sifaka.
 
-This module implements a Constitutional AI approach for critics, which evaluates
-responses against a set of human-written principles (a "constitution") and provides
-natural language feedback when violations are detected.
+This module implements a Constitutional AI approach for evaluating and improving
+text based on a set of constitutional principles focused on helpfulness,
+harmlessness, and honesty.
 
 Based on "Constitutional AI: Harmlessness from AI Feedback":
 https://arxiv.org/abs/2212.08073
 
-@misc{bai2022constitutionalaiharmlessnessai,
+@misc{bai2022constitutionalai,
       title={Constitutional AI: Harmlessness from AI Feedback},
-      author={Yuntao Bai and Saurav Kadavath and Sandipan Kundu and Amanda Askell and Jackson Kernion and Andy Jones and Anna Chen and Anna Goldie and Azalia Mirhoseini and Cameron McKinnon and Carol Chen and Catherine Olsson and Christopher Olah and Danny Hernandez and Dawn Drain and Deep Ganguli and Dustin Li and Eli Tran-Johnson and Ethan Perez and Jamie Kerr and Jared Mueller and Jeffrey Ladish and Joshua Landau and Kamal Ndousse and Kamile Lukosuite and Liane Lovitt and Michael Sellitto and Nelson Elhage and Nicholas Schiefer and Noemi Mercado and Nova DasSarma and Robert Lasenby and Robin Larson and Sam Ringer and Scott Johnston and Shauna Kravec and Sheer El Showk and Stanislav Fort and Tamera Lanham and Timothy Telleen-Lawton and Tom Conerly and Tom Henighan and Tristan Hume and Samuel R. Bowman and Zac Hatfield-Dodds and Ben Mann and Dario Amodei and Nicholas Joseph and Sam McCandlish and Tom Brown and Jared Kaplan},
+      author={Yuntao Bai and Andy Jones and Kamal Ndousse and Amanda Askell and Anna Chen and Nova DasSarma and Dawn Drain and Stanislav Fort and Deep Ganguli and Tom Henighan and Nicholas Joseph and Saurav Kadavath and Jackson Kernion and Tom Conerly and Sheer El-Showk and Nelson Elhage and Zac Hatfield-Dodds and Danny Hernandez and Tristan Hume and Scott Johnston and Shauna Kravec and Liane Lovitt and Neel Nanda and Catherine Olsson and Dario Amodei and Tom Brown and Jack Clark and Sam McCandlish and Chris Olah and Ben Mann and Jared Kaplan},
       year={2022},
       eprint={2212.08073},
       archivePrefix={arXiv},
-      primaryClass={cs.CL},
+      primaryClass={cs.AI},
       url={https://arxiv.org/abs/2212.08073},
 }
 
@@ -23,371 +23,270 @@ The ConstitutionalCritic implements core Constitutional AI concepts:
 3. Iterative improvement through constitutional critique
 4. Harmlessness assessment through AI feedback
 
-IMPORTANT IMPLEMENTATION CAVEAT:
+IMPORTANT IMPLEMENTATION NOTES AND CAVEATS:
+
 This implementation adapts the core Constitutional AI principle-based evaluation
 for text critique. The original Constitutional AI paper focuses on training methodology
 for creating more aligned models through two phases:
 1. Supervised Learning: Generate → Critique → Revise → Train on revisions
 2. RL from AI Feedback: Generate multiple responses → AI evaluation → RL training
 
-This implementation extracts the "Critique → Revise" component for single-text
-improvement scenarios, providing practical value for content moderation and
-ethical AI applications without requiring model training.
+Our implementation focuses on the critique and revision guidance aspects without
+the model training component, making it suitable for real-time text improvement
+rather than model alignment training.
+
+CAVEATS AND LIMITATIONS:
+1. This is an evaluation-only implementation that provides critique and suggestions
+   without the full Constitutional AI training pipeline.
+2. The constitutional principles are simplified and focused on general text quality
+   rather than the comprehensive safety principles in the original paper.
+3. We use a fixed set of principles rather than the iterative principle refinement
+   process described in the original work.
+4. The harmlessness assessment is adapted for general text rather than the
+   specific safety concerns addressed in the original research.
+5. Performance depends heavily on the underlying model's ability to understand
+   and apply constitutional principles consistently.
+
+CONSTITUTIONAL PRINCIPLES:
+This implementation uses 5 core principles focused on:
+1. Helpfulness: Content should be useful and informative
+2. Harmlessness: Content should avoid harmful or misleading information
+3. Honesty: Content should be accurate and truthful
+4. Clarity: Content should be clear and understandable
+5. Completeness: Content should adequately address the given task
+
+RETRIEVAL AUGMENTATION:
+This critic supports optional retrieval augmentation to enhance constitutional
+evaluation by providing external context, fact-checking resources, or
+domain-specific guidelines during the critique process.
 """
 
-import time
 from typing import Any, Dict, List, Optional
 
-from sifaka.core.interfaces import Model
-from sifaka.core.thought import Thought
+from sifaka.core.thought import SifakaThought
 from sifaka.critics.base import BaseCritic
-from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
-from sifaka.utils.error_handling import ImproverError, critic_context
-from sifaka.utils.logging import get_logger
-from sifaka.utils.mixins import ContextAwareMixin
-from sifaka.validators.validation_context import create_validation_context
-
-logger = get_logger(__name__)
 
 
-class ConstitutionalCritic(BaseCritic, ValidationAwareMixin, ContextAwareMixin):
-    """Critic that evaluates text against constitutional principles with validation awareness.
+class ConstitutionalCritic(BaseCritic):
+    """Constitutional AI critic implementing Bai et al. 2022 methodology.
 
-    This critic implements the Constitutional AI approach by evaluating text
-    against a set of predefined principles (a "constitution"). It provides
-    detailed feedback on principle violations and suggests improvements.
+    This critic evaluates text against constitutional principles and provides
+    structured feedback with violations, suggestions, and confidence scores.
 
-    Enhanced with validation context awareness to prioritize validation constraints
-    over conflicting constitutional suggestions.
+    Key features:
+    - Structured output using CritiqueFeedback model
+    - Constitutional principle evaluation
+    - Detailed violation reporting
+    - Improvement suggestions with priorities
+    - Validation context awareness
     """
 
     def __init__(
         self,
-        model: Optional[Model] = None,
-        model_name: Optional[str] = None,
-        principles: Optional[List[str]] = None,
-        strict_mode: bool = False,
-        critique_prompt_template: Optional[str] = None,
-        improve_prompt_template: Optional[str] = None,
-        **model_kwargs: Any,
+        model_name: str = "anthropic:claude-3-5-haiku-20241022",
+        constitutional_principles: Optional[List[str]] = None,
+        retrieval_tools: Optional[List[Any]] = None,
+        auto_discover_tools: bool = False,
+        tool_categories: Optional[List[str]] = None,
+        **agent_kwargs: Any,
     ):
-        """Initialize the Constitutional critic.
+        """Initialize the Constitutional AI critic.
 
         Args:
-            model: The language model to use for critique and improvement.
-            model_name: The name of the model to use if model is not provided.
-            principles: List of constitutional principles to evaluate against.
-            strict_mode: Whether to require all principles to be satisfied.
-            critique_prompt_template: Template for the critique prompt.
-            improve_prompt_template: Template for the improvement prompt.
-            **model_kwargs: Additional keyword arguments for model creation.
+            model_name: The model name for the PydanticAI agent
+            constitutional_principles: Custom constitutional principles (uses defaults if None)
+            retrieval_tools: Optional list of retrieval tools for RAG support
+            auto_discover_tools: If True, automatically discover and use all available tools
+            tool_categories: Optional list of tool categories to include when auto-discovering
+            **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
-        super().__init__(model=model, model_name=model_name, **model_kwargs)
+        self.constitutional_principles = constitutional_principles or self._get_default_principles()
 
-        # Set up principles (constitution)
-        self.principles = principles or [
-            "Do not provide harmful, offensive, or biased content.",
-            "Explain reasoning in a clear and truthful manner.",
-            "Respect user autonomy and avoid manipulative language.",
-            "Provide accurate and factual information.",
-            "Be helpful and constructive in responses.",
+        system_prompt = self._create_system_prompt()
+        paper_reference = (
+            "Bai, Y., Jones, A., Ndousse, K., Askell, A., Chen, A., DasSarma, N., ... & Kaplan, J. (2022). "
+            "Constitutional AI: Harmlessness from AI Feedback. "
+            "arXiv preprint arXiv:2212.08073. https://arxiv.org/abs/2212.08073"
+        )
+        methodology = (
+            "Constitutional AI methodology: Principle-based evaluation against written constitution. "
+            "Focuses on helpfulness, harmlessness, and honesty through structured critique. "
+            "Adapted for text evaluation without full training pipeline."
+        )
+
+        super().__init__(
+            model_name=model_name,
+            system_prompt=system_prompt,
+            paper_reference=paper_reference,
+            methodology=methodology,
+            retrieval_tools=retrieval_tools,
+            auto_discover_tools=auto_discover_tools,
+            tool_categories=tool_categories,
+            **agent_kwargs,
+        )
+
+    def _get_default_principles(self) -> List[str]:
+        """Get the default constitutional principles."""
+        return [
+            "Helpfulness: Content should be useful, informative, and directly address the user's needs and questions.",
+            "Harmlessness: Content should avoid harmful, misleading, or dangerous information that could cause harm to individuals or society.",
+            "Honesty: Content should be accurate, truthful, and acknowledge uncertainty when appropriate rather than making false claims.",
+            "Clarity: Content should be clear, well-structured, and understandable to the intended audience.",
+            "Completeness: Content should adequately address the given task and provide sufficient detail without being unnecessarily verbose.",
         ]
 
-        self.strict_mode = strict_mode
-
-        # Set up prompt templates
-        self.critique_prompt_template = critique_prompt_template or (
-            "Evaluate the following text against the constitutional principles provided.\n\n"
-            "Constitutional Principles:\n{principles}\n\n"
-            "Original task: {prompt}\n\n"
-            "Text to evaluate:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Please analyze the text against each principle and provide:\n\n"
-            "Issues:\n- [List any principle violations here]\n\n"
-            "Suggestions:\n- [List specific suggestions for addressing violations]\n\n"
-            "Overall Assessment: [Brief assessment of constitutional compliance]\n\n"
-            "If the text adheres to all principles, please state that clearly.\n"
-            "Be specific and constructive in your feedback."
-        )
-
-        self.improve_prompt_template = improve_prompt_template or (
-            "Improve the following text to better align with the constitutional principles.\n\n"
-            "Constitutional Principles:\n{principles}\n\n"
-            "Original task: {prompt}\n\n"
-            "Current text:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Constitutional critique:\n{critique}\n\n"
-            "Please provide an improved version that:\n"
-            "1. Addresses all principle violations identified in the critique\n"
-            "2. Maintains the core message and usefulness of the response\n"
-            "3. Fully adheres to all constitutional principles\n"
-            "4. Remains helpful and relevant to the original task\n"
-            "5. Better incorporates factual information from the context (if available)\n\n"
-            "Improved text:"
-        )
-
-        # Store the last improvement prompt used for debugging/logging
-        self.last_improvement_prompt = None
-
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic using Constitutional AI approach asynchronously.
-
-        Args:
-            thought: The Thought container with the text to critique.
-
-        Returns:
-            A dictionary with critique results (without processing_time_ms).
-        """
-        # Format principles for the prompt
+    def _create_system_prompt(self) -> str:
+        """Create the system prompt for the Constitutional AI critic."""
         principles_text = "\n".join(
-            f"{i + 1}. {principle}" for i, principle in enumerate(self.principles)
+            [f"{i+1}. {principle}" for i, principle in enumerate(self.constitutional_principles)]
         )
 
-        # Prepare context from retrieved documents (using mixin)
-        context = self._prepare_context(thought)
+        return f"""You are a Constitutional AI critic implementing the methodology from Bai et al. 2022.
 
-        # Create critique prompt
-        critique_prompt = self.critique_prompt_template.format(
-            principles=principles_text,
-            prompt=thought.prompt,
-            text=thought.text,
-            context=context,
-        )
+Your role is to evaluate text against constitutional principles and provide structured feedback
+on principle violations and improvements needed.
 
-        # Generate critique asynchronously (async only)
-        critique_response = await self.model._generate_async(
-            prompt=critique_prompt,
-            system_prompt="You are an expert constitutional AI evaluator. Assess text against constitutional principles.",
-        )
+CONSTITUTIONAL PRINCIPLES:
+{principles_text}
 
-        # Parse the critique
-        issues, suggestions = self._parse_critique(critique_response)
-        violations = self._extract_violations(critique_response)
+EVALUATION METHODOLOGY:
+1. Assess the text against each constitutional principle
+2. Identify specific violations or areas of concern
+3. Evaluate the severity and impact of any violations
+4. Generate specific improvement suggestions to address violations
+5. Provide confidence assessment based on principle clarity and violation severity
 
-        # Determine if improvement is needed
-        needs_improvement = len(violations) > 0 or len(issues) > 0
-        if self.strict_mode:
-            needs_improvement = needs_improvement or "concern" in critique_response.lower()
+RESPONSE FORMAT:
+- needs_improvement: boolean indicating if constitutional violations exist
+- message: detailed analysis of principle adherence and violations
+- suggestions: 1-3 specific suggestions to address constitutional concerns
+- confidence: float 0.0-1.0 based on violation clarity and assessment certainty
+  * 0.9-1.0: Clear, severe violations or perfect compliance
+  * 0.7-0.8: Moderate violations or good compliance with minor issues
+  * 0.5-0.6: Unclear violations or mixed compliance
+  * 0.3-0.4: Uncertain assessment or conflicting evidence
+  * 0.0-0.2: Very uncertain or insufficient information
+- reasoning: explanation of constitutional analysis and principle application
 
-        # Calculate confidence based on violations found
-        confidence = 1.0 - (len(violations) / len(self.principles)) if self.principles else 1.0
-        confidence = max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
+FOCUS AREAS:
+- Adherence to each constitutional principle
+- Severity and impact of any violations
+- Specific actionable improvements to enhance constitutional compliance
+- Balance between principles when they may conflict
 
-        logger.debug(
-            f"ConstitutionalCritic: Async critique found {len(violations)} violations, confidence: {confidence:.2f}"
-        )
+Be thorough in constitutional analysis. If the text adheres to all principles,
+set needs_improvement to false and explain the constitutional compliance."""
 
-        return {
-            "needs_improvement": needs_improvement,
-            "message": critique_response,
-            "issues": issues,
-            "suggestions": suggestions,
-            "confidence": confidence,
-            "metadata": {
-                "principle_violations": violations,
-                "principles_evaluated": len(self.principles),
-                "strict_mode": self.strict_mode,
-            },
-        }
+    async def _build_critique_prompt(self, thought: SifakaThought) -> str:
+        """Build the critique prompt for Constitutional AI methodology."""
+        if not thought.current_text:
+            return "No text available for constitutional critique."
 
-    async def improve_async(self, thought: Thought) -> str:
-        """Improve text to align with constitutional principles asynchronously.
+        prompt_parts = [
+            "CONSTITUTIONAL AI CRITIQUE REQUEST",
+            "=" * 50,
+            "",
+            f"Original Task: {thought.prompt}",
+            f"Current Iteration: {thought.iteration}",
+            "",
+            "TEXT TO EVALUATE:",
+            thought.current_text,
+            "",
+            "CONSTITUTIONAL PRINCIPLES TO EVALUATE AGAINST:",
+            "=" * 45,
+        ]
 
-        Args:
-            thought: The Thought container with the text to improve and critique.
+        # Add constitutional principles
+        for i, principle in enumerate(self.constitutional_principles, 1):
+            prompt_parts.append(f"{i}. {principle}")
 
-        Returns:
-            The improved text that better aligns with constitutional principles.
+        prompt_parts.append("")
 
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        # Use the enhanced method with validation context from thought
-        validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return await self.improve_with_validation_context_async(thought, validation_context)
-
-    async def improve_with_validation_context_async(
-        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Improve text with validation context awareness.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-            validation_context: Optional validation context for constraint awareness.
-
-        Returns:
-            The improved text that prioritizes validation constraints.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name="ConstitutionalCritic",
-            operation="improve",
-            message_prefix="Failed to improve text with Constitutional principles",
-        ):
-            # Check if text is available
-            if not thought.text:
-                raise ImproverError(
-                    message="No text available for improvement",
-                    component="ConstitutionalCritic",
-                    operation="improve",
-                    suggestions=["Provide text to improve"],
-                )
-
-            # Get critique from thought
-            critique = ""
-            if thought.critic_feedback:
-                for feedback in thought.critic_feedback:
-                    if feedback.critic_name == "ConstitutionalCritic":
-                        critique = feedback.feedback
-                        break
-
-            # If no critique available, generate one using async method
-            if not critique:
-                logger.debug("No critique found in thought, generating new critique")
-                critique_result = await self._perform_critique_async(thought)
-                critique = critique_result["message"]
-
-            # Format principles for the prompt
-            principles_text = "\n".join(
-                f"{i + 1}. {principle}" for i, principle in enumerate(self.principles)
-            )
-
-            # Prepare context for improvement (using mixin)
-            context = self._prepare_context(thought)
-
-            # Parse critique to extract suggestions for filtering
-            _, suggestions = self._parse_critique(critique)
-
-            # Create improvement prompt with validation awareness
-            if validation_context:
-                # Use enhanced prompt with validation awareness
-                improve_prompt = self._create_enhanced_improvement_prompt(
-                    prompt=thought.prompt,
-                    text=thought.text,
-                    critique=critique,
-                    context=context,
-                    validation_context=validation_context,
-                    critic_suggestions=suggestions,
-                )
-            else:
-                # Use original prompt template
-                improve_prompt = self.improve_prompt_template.format(
-                    principles=principles_text,
-                    prompt=thought.prompt,
-                    text=thought.text,
-                    critique=critique,
-                    context=context,
-                )
-
-            # Store the actual prompt for logging/debugging
-            self.last_improvement_prompt = improve_prompt
-
-            # Generate improved text (async only)
-            improved_text = await self.model._generate_async(
-                prompt=improve_prompt,
-                system_prompt="You are an expert editor improving text to align with constitutional principles.",
-            )
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(f"ConstitutionalCritic: Improvement completed in {processing_time:.2f}ms")
-
-            return improved_text.strip()
-
-    def _parse_critique(self, critique: str) -> tuple[List[str], List[str]]:
-        """Parse critique text to extract issues and suggestions.
-
-        Args:
-            critique: The critique text to parse.
-
-        Returns:
-            A tuple of (issues, suggestions) lists.
-        """
-        issues = []
-        suggestions = []
-
-        # Simple parsing logic
-        in_issues = False
-        in_suggestions = False
-
-        for line in critique.split("\n"):
-            line = line.strip()
-            if line.lower().startswith("issues:"):
-                in_issues = True
-                in_suggestions = False
-                continue
-            elif line.lower().startswith("suggestions:"):
-                in_issues = False
-                in_suggestions = True
-                continue
-            elif line.lower().startswith("overall assessment:"):
-                in_issues = False
-                in_suggestions = False
-                continue
-            elif not line or line.startswith("#"):
-                continue
-
-            if in_issues and line.startswith("-"):
-                issues.append(line[1:].strip())
-            elif in_suggestions and line.startswith("-"):
-                suggestions.append(line[1:].strip())
-
-        # If no structured format found, extract from general content
-        if not issues and not suggestions:
-            critique_lower = critique.lower()
-            if any(
-                word in critique_lower for word in ["violation", "violates", "fails to", "does not"]
-            ):
-                issues.append("Constitutional principle violations identified")
-            if any(word in critique_lower for word in ["improve", "suggest", "should", "consider"]):
-                suggestions.append("See critique for constitutional improvement suggestions")
-
-        return issues, suggestions
-
-    def _extract_violations(self, critique: str) -> List[Dict[str, Any]]:
-        """Extract principle violations from critique text.
-
-        Args:
-            critique: The critique text to analyze.
-
-        Returns:
-            A list of violation dictionaries.
-        """
-        violations = []
-        lines = critique.split("\n")
-
-        for line in lines:
-            line_clean = line.strip().lower()
-            if not line_clean:
-                continue
-
-            # Look for lines that clearly indicate violations
-            if any(
-                phrase in line_clean
-                for phrase in [
-                    "violation:",
-                    "violates principle",
-                    "does not adhere to",
-                    "fails to meet",
-                    "principle violated",
+        # Add validation context if available
+        validation_context = self._get_validation_context(thought)
+        if validation_context:
+            prompt_parts.extend(
+                [
+                    "VALIDATION CONTEXT:",
+                    "=" * 20,
+                    validation_context,
+                    "",
+                    "NOTE: Constitutional evaluation should consider validation requirements",
+                    "and prioritize suggestions that address both constitutional and validation concerns.",
+                    "",
                 ]
-            ):
-                # Skip obvious non-violations
-                if not any(
-                    phrase in line_clean
-                    for phrase in ["no violation", "violation: none", "no violations found"]
-                ):
-                    violations.append(
-                        {
-                            "type": "principle_violation",
-                            "description": line.strip(),
-                            "severity": "medium",
-                        }
+            )
+
+        # Add previous constitutional feedback if available
+        if thought.iteration > 0:
+            prev_constitutional_critiques = [
+                c
+                for c in thought.critiques
+                if c.iteration == thought.iteration - 1 and c.critic == "ConstitutionalCritic"
+            ]
+            if prev_constitutional_critiques:
+                prompt_parts.extend(
+                    [
+                        "PREVIOUS CONSTITUTIONAL FEEDBACK:",
+                        "=" * 35,
+                    ]
+                )
+                for critique in prev_constitutional_critiques[-1:]:  # Last constitutional critique
+                    prompt_parts.extend(
+                        [
+                            f"Previous Assessment: {critique.feedback}",
+                            f"Previous Suggestions: {', '.join(critique.suggestions)}",
+                            "",
+                        ]
                     )
 
-        return violations
+        # Add evaluation instructions
+        prompt_parts.extend(
+            [
+                "CONSTITUTIONAL EVALUATION INSTRUCTIONS:",
+                "=" * 40,
+                "1. Evaluate the text against each constitutional principle",
+                "2. Identify specific violations or areas of concern",
+                "3. Assess the severity and potential impact of violations",
+                "4. Generate targeted suggestions to improve constitutional compliance",
+                "5. Consider the balance between principles if conflicts exist",
+                "6. Adjust confidence based on:",
+                "   - Clarity of violations (clear violations = higher confidence)",
+                "   - Number of principles affected (more violations = higher confidence)",
+                "   - Severity of impact (severe issues = higher confidence)",
+                "   - Assessment uncertainty (unclear cases = lower confidence)",
+                "",
+                "CONFIDENCE SCORING REQUIREMENTS:",
+                "- Use the FULL range 0.0-1.0, not just 0.8!",
+                "- High confidence (0.9-1.0): Clear, severe violations or perfect compliance",
+                "- Medium confidence (0.6-0.8): Moderate violations or good compliance with minor issues",
+                "- Low confidence (0.3-0.5): Unclear violations or mixed compliance",
+                "- Very low confidence (0.0-0.2): Very uncertain or insufficient information",
+                "",
+                "Provide a thorough constitutional analysis with specific, actionable feedback.",
+            ]
+        )
+
+        return "\n".join(prompt_parts)
+
+    def _get_critic_specific_metadata(self, feedback) -> Dict[str, Any]:
+        """Extract Constitutional AI-specific metadata."""
+        base_metadata = super()._get_critic_specific_metadata(feedback)
+
+        # Add Constitutional AI-specific metadata
+        constitutional_metadata = {
+            "methodology": "constitutional_ai_principles",
+            "num_principles": len(self.constitutional_principles),
+            "constitutional_compliance": not feedback.needs_improvement,
+            "violation_severity": (
+                "high"
+                if feedback.needs_improvement and feedback.confidence > 0.8
+                else "medium" if feedback.needs_improvement else "none"
+            ),
+            "principles_evaluated": [
+                p.split(":")[0] for p in self.constitutional_principles
+            ],  # Extract principle names
+        }
+
+        base_metadata.update(constitutional_metadata)
+        return base_metadata

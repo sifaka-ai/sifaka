@@ -1,15 +1,14 @@
 """Self-Consistency critic for Sifaka.
 
-This module implements a Self-Consistency approach for text critique and improvement,
-where multiple critiques are generated for the same text and majority voting is used to
-determine the most reliable feedback.
+This module implements the Self-Consistency approach for improving text evaluation
+reliability through multiple critique attempts and consensus building.
 
 Based on "Self-Consistency Improves Chain of Thought Reasoning in Language Models":
 https://arxiv.org/abs/2203.11171
 
-@misc{wang2022selfconsistency,
+@misc{wang2022selfconsistencyimproveschainofthought,
       title={Self-Consistency Improves Chain of Thought Reasoning in Language Models},
-      author={Xuezhi Wang and Jason Wei and Dale Schuurmans and Quoc Le and Ed Chi and Sharan Narang and Aakanksha Chowdhery and Denny Zhou},
+      author={Xuezhi Wang and Jason Wei and Dale Schuurmans and Quoc V. Le and Ed H. Chi and Sharan Narang and Aakanksha Chowdhery and Denny Zhou},
       year={2022},
       eprint={2203.11171},
       archivePrefix={arXiv},
@@ -17,690 +16,274 @@ https://arxiv.org/abs/2203.11171
       url={https://arxiv.org/abs/2203.11171},
 }
 
-The SelfConsistencyCritic implements the core Self-Consistency algorithm:
-1. Multiple critique generation for the same text using chain-of-thought reasoning
-2. Majority voting to select the most consistent feedback
-3. Confidence scoring based on agreement level
+The SelfConsistencyCritic implements key Self-Consistency concepts:
+1. Multiple independent critique attempts
+2. Consensus building across different reasoning paths
+3. Reliability assessment through consistency analysis
+4. Aggregated feedback from diverse perspectives
 
-Note: This implementation follows the original Self-Consistency paper closely,
-using simple majority voting over multiple reasoning paths without additional
-learning mechanisms that were not part of the original research.
+IMPORTANT IMPLEMENTATION NOTES AND CAVEATS:
+
+This implementation adapts the Self-Consistency approach from chain-of-thought
+reasoning to text critique. The original Self-Consistency paper focuses on
+improving reasoning accuracy by generating multiple reasoning paths and
+selecting the most consistent answer through majority voting.
+
+Our implementation applies this concept to critique by generating multiple
+independent assessments and building consensus around the most reliable
+feedback. This helps reduce the variance and improve the reliability of
+critique compared to single-shot evaluation.
+
+CAVEATS AND LIMITATIONS:
+1. This is an adaptation of Self-Consistency from reasoning tasks to critique
+   tasks, which may not capture all the benefits of the original approach.
+2. The consensus building is simplified compared to the sophisticated voting
+   mechanisms described in the original paper for reasoning tasks.
+3. Multiple critique attempts increase computational cost compared to single
+   evaluations, which may not always be justified by quality improvements.
+4. The approach assumes that consistency indicates correctness, which may not
+   always hold for subjective critique tasks.
+5. Self-consistency may reinforce model biases if the same biases appear
+   consistently across multiple attempts.
+6. The quality of consensus depends on the diversity of reasoning paths,
+   which may be limited when using the same model and prompt.
+
+CONSISTENCY METHODOLOGY:
+This implementation uses multiple critique perspectives to build consensus:
+1. Generate multiple independent critique assessments
+2. Analyze consistency across different evaluation attempts
+3. Identify areas of agreement and disagreement
+4. Build consensus around the most reliable feedback
+5. Provide confidence based on consistency strength
+
+RETRIEVAL AUGMENTATION:
+This critic supports optional retrieval augmentation to enhance consistency
+evaluation by providing external context or examples that can inform
+multiple critique perspectives.
 """
 
-import time
-from collections import Counter
 from typing import Any, Dict, List, Optional
 
-from sifaka.core.interfaces import Model
-from sifaka.core.thought import Thought
+from sifaka.core.thought import SifakaThought
 from sifaka.critics.base import BaseCritic
-from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
-from sifaka.utils.error_handling import ImproverError, critic_context
-from sifaka.utils.logging import get_logger
-from sifaka.validators.validation_context import create_validation_context
-
-logger = get_logger(__name__)
 
 
-class SelfConsistencyCritic(BaseCritic, ValidationAwareMixin):
-    """Critic that implements Self-Consistency with multiple critique generation and validation awareness.
+class SelfConsistencyCritic(BaseCritic):
+    """Self-Consistency critic implementing Wang et al. 2022 methodology.
 
-    This critic uses the Self-Consistency approach which generates multiple critiques
-    of the same text and uses consensus to determine the most reliable feedback.
-    This improves critique reliability by reducing the impact of single inconsistent
-    or low-quality critiques.
+    This critic generates multiple independent critique assessments and builds
+    consensus around the most consistent and reliable feedback to improve
+    critique quality and reliability.
 
-    Enhanced with validation context awareness to prioritize validation constraints
-    over conflicting consistency suggestions.
+    Enhanced with validation context awareness to ensure consistency evaluation
+    considers validation requirements across multiple assessment attempts.
     """
 
     def __init__(
         self,
-        model: Optional[Model] = None,
-        model_name: Optional[str] = None,
-        num_iterations: int = 5,
-        use_chain_of_thought: bool = True,
-        critique_prompt_template: Optional[str] = None,
-        improve_prompt_template: Optional[str] = None,
-        **model_kwargs: Any,
+        model_name: str = "openai:gpt-3.5-turbo",
+        num_consistency_attempts: int = 3,
+        consistency_threshold: float = 0.6,
+        retrieval_tools: Optional[List[Any]] = None,
+        auto_discover_tools: bool = False,
+        tool_categories: Optional[List[str]] = None,
+        **agent_kwargs: Any,
     ):
         """Initialize the Self-Consistency critic.
 
         Args:
-            model: The language model to use for critique and improvement.
-            model_name: The name of the model to use if model is not provided.
-            num_iterations: Number of critique iterations to generate (default: 5).
-            use_chain_of_thought: Whether to use chain-of-thought prompting.
-            critique_prompt_template: Template for the critique prompt.
-            improve_prompt_template: Template for the improvement prompt.
-            **model_kwargs: Additional keyword arguments for model creation.
+            model_name: The model name for the PydanticAI agent
+            num_consistency_attempts: Number of independent critique attempts for consistency
+            consistency_threshold: Minimum consistency score for reliable feedback
+            retrieval_tools: Optional list of retrieval tools for RAG support
+            auto_discover_tools: If True, automatically discover and use all available tools
+            tool_categories: Optional list of tool categories to include when auto-discovering
+            **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
-        super().__init__(model=model, model_name=model_name, **model_kwargs)
+        self.num_consistency_attempts = num_consistency_attempts
+        self.consistency_threshold = consistency_threshold
 
-        # Configuration parameters
-        self.num_iterations = max(3, num_iterations)  # Minimum 3 for meaningful consensus
-        self.use_chain_of_thought = use_chain_of_thought
-
-        # Set up prompt templates
-        self.critique_prompt_template = (
-            critique_prompt_template or self._default_critique_template()
+        system_prompt = self._create_system_prompt()
+        paper_reference = (
+            "Wang, X., Wei, J., Schuurmans, D., Le, Q., Chi, E., Narang, S., Chowdhery, A., & Zhou, D. (2022). "
+            "Self-Consistency Improves Chain of Thought Reasoning in Language Models. "
+            "arXiv preprint arXiv:2203.11171. https://arxiv.org/abs/2203.11171"
         )
-        self.improve_prompt_template = improve_prompt_template or self._default_improve_template()
-
-    def _default_critique_template(self) -> str:
-        """Default template for individual critique generation."""
-        cot_instruction = ""
-        if self.use_chain_of_thought:
-            cot_instruction = " Think step-by-step and provide detailed reasoning."
-
-        return (
-            "Evaluate the following text for quality, accuracy, and areas for improvement.\n\n"
-            "Original task: {prompt}\n\n"
-            "Text to evaluate:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            f"Please provide a thorough critique.{cot_instruction}\n\n"
-            "IMPORTANT: You MUST follow this exact format. Start each section with the exact header shown:\n\n"
-            "Reasoning: [Your step-by-step analysis of the text quality]\n\n"
-            "Strengths:\n- [List at least one specific strength, even if minor]\n- [Additional strengths if any]\n\n"
-            "Issues:\n- [List specific issues or problems, or write 'No significant issues found' if none]\n- [Additional issues if any]\n\n"
-            "Suggestions:\n- [List specific improvement suggestions, or write 'No improvements needed' if none]\n- [Additional suggestions if any]\n\n"
-            "Overall Assessment: [Summary of your evaluation]\n\n"
-            "Needs Improvement: [Write exactly 'Yes' or 'No']"
+        methodology = (
+            "Self-Consistency methodology: Multiple independent critique attempts with consensus building. "
+            "Improves reliability through consistency analysis across diverse evaluation perspectives. "
+            "Adapted from reasoning tasks to text critique evaluation."
         )
 
-    def _default_improve_template(self) -> str:
-        """Default template for improvement."""
-        return (
-            "Improve the following text based on the consensus feedback from multiple evaluations.\n\n"
-            "Original task: {prompt}\n\n"
-            "Current text:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Consensus Issues (found in {consensus_count}/{total_iterations} evaluations):\n{consensus_issues}\n\n"
-            "Consensus Suggestions (found in {consensus_count}/{total_iterations} evaluations):\n{consensus_suggestions}\n\n"
-            "Confidence Level: {confidence:.1%} (based on evaluator agreement)\n\n"
-            "Please provide an improved version that:\n"
-            "1. Addresses the most commonly identified issues\n"
-            "2. Incorporates the most frequently suggested improvements\n"
-            "3. Maintains the original intent and style\n"
-            "4. Focuses on changes supported by multiple evaluations\n\n"
-            "Improved text:"
+        super().__init__(
+            model_name=model_name,
+            system_prompt=system_prompt,
+            paper_reference=paper_reference,
+            methodology=methodology,
+            retrieval_tools=retrieval_tools,
+            auto_discover_tools=auto_discover_tools,
+            tool_categories=tool_categories,
+            **agent_kwargs,
         )
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
-        """Async version of the critique logic using Self-Consistency approach.
+    def _create_system_prompt(self) -> str:
+        """Create the system prompt for the Self-Consistency critic."""
+        return f"""You are a Self-Consistency critic implementing the methodology from Wang et al. 2022.
 
-        Args:
-            thought: The Thought container with the text to critique.
+Your role is to provide reliable critique through multiple independent assessments
+and consensus building, improving the consistency and reliability of feedback
+compared to single-shot evaluation.
 
-        Returns:
-            A dictionary with critique results (without processing_time_ms).
-        """
-        # Generate multiple critiques following original Self-Consistency algorithm
-        critiques = await self._generate_multiple_critiques(thought)
+SELF-CONSISTENCY METHODOLOGY:
+1. Generate independent critique assessments from different perspectives
+2. Analyze the text thoroughly with varied reasoning approaches
+3. Identify consistent patterns across multiple evaluation attempts
+4. Build consensus around the most reliable and consistent feedback
+5. Provide confidence based on consistency strength across attempts
 
-        # Aggregate critiques using majority voting
-        aggregated_result = self._aggregate_critiques(critiques)
+CONSISTENCY EVALUATION PROCESS:
+- Approach the text evaluation from multiple angles
+- Use different reasoning paths for each assessment attempt
+- Look for consistent patterns in quality assessment
+- Identify areas where multiple perspectives agree
+- Build reliable feedback based on consensus
 
-        # Calculate confidence based on agreement
-        confidence = self._calculate_confidence(critiques, aggregated_result)
+RESPONSE FORMAT:
+- needs_improvement: boolean based on consensus across multiple assessments
+- message: comprehensive analysis incorporating consistent findings
+- suggestions: 1-3 suggestions that show consistency across evaluation attempts
+- confidence: float 0.0-1.0 based on consistency strength and consensus reliability
+- reasoning: explanation of consistency analysis and consensus building process
 
-        # Determine if improvement is needed based on majority vote
-        needs_improvement = self._determine_improvement_need(critiques, aggregated_result)
+CONFIDENCE SCORING REQUIREMENTS:
+- Use the FULL range 0.0-1.0, not just 0.8!
+- High confidence (0.9-1.0): Strong consistency across all attempts
+- Medium confidence (0.6-0.8): Moderate consistency with some variation
+- Low confidence (0.3-0.5): Inconsistent results across attempts
+- Very low confidence (0.0-0.2): Highly inconsistent or conflicting assessments
 
-        # Format consensus message
-        consensus_message = self._format_consensus_message(critiques, aggregated_result, confidence)
+CONSISTENCY PRINCIPLES:
+- Generate diverse reasoning paths for the same evaluation task
+- Look for agreement patterns across different assessment approaches
+- Prioritize feedback that appears consistently across multiple attempts
+- Build confidence based on the strength of consensus
+- Acknowledge uncertainty when consistency is low
 
-        return {
-            "message": consensus_message,
-            "confidence": confidence,
-            "issues": aggregated_result["consensus_issues"],
-            "suggestions": aggregated_result["consensus_suggestions"],
-            "needs_improvement": needs_improvement,
-            "metadata": {
-                "num_iterations": self.num_iterations,
-                "individual_critiques": critiques,
-                "consensus_stats": aggregated_result,  # Store full consensus data here
-                "use_chain_of_thought": self.use_chain_of_thought,
-            },
-        }
+Focus on providing reliable, consistent feedback that improves with multiple
+independent assessment attempts and consensus building."""
 
-    async def _generate_multiple_critiques(self, thought: Thought) -> List[Dict[str, Any]]:
-        """Generate multiple critiques of the same text.
+    async def _build_critique_prompt(self, thought: SifakaThought) -> str:
+        """Build the critique prompt for Self-Consistency methodology."""
+        if not thought.current_text:
+            return "No text available for self-consistency critique."
 
-        Args:
-            thought: The Thought container with the text to critique.
+        prompt_parts = [
+            "SELF-CONSISTENCY CRITIQUE REQUEST",
+            "=" * 50,
+            "",
+            f"Original Task: {thought.prompt}",
+            f"Current Iteration: {thought.iteration}",
+            f"Consistency Attempts: {self.num_consistency_attempts}",
+            f"Consistency Threshold: {self.consistency_threshold}",
+            "",
+            "TEXT TO EVALUATE:",
+            thought.current_text,
+            "",
+        ]
 
-        Returns:
-            List of critique results from multiple iterations.
-        """
-        # Generate critiques using our own model (following original Self-Consistency)
-        critiques = []
-        for i in range(self.num_iterations):
-            try:
-                result = await self._generate_single_critique(thought)
-                critiques.append(result)
-            except Exception as e:
-                logger.warning(f"Critique iteration {i + 1} failed: {e}")
-                continue
-
-        if not critiques:
-            raise ImproverError(
-                message="All critique iterations failed",
-                component="SelfConsistencyCritic",
-                operation="generate_multiple_critiques",
-                suggestions=["Check model availability"],
+        # Add validation context
+        validation_context = self._get_validation_context(thought)
+        if validation_context:
+            prompt_parts.extend(
+                [
+                    "VALIDATION REQUIREMENTS:",
+                    "=" * 25,
+                    validation_context,
+                    "",
+                    "NOTE: Consistency evaluation should consider validation requirements",
+                    "across all assessment attempts and build consensus around addressing them.",
+                    "",
+                ]
             )
 
-        logger.debug(
-            f"Generated {len(critiques)} successful critiques out of {self.num_iterations} attempts"
-        )
-        return critiques
-
-    async def _generate_single_critique(self, thought: Thought) -> Dict[str, Any]:
-        """Generate a single critique using our own model.
-
-        Args:
-            thought: The Thought container with the text to critique.
-
-        Returns:
-            Single critique result dictionary.
-        """
-        # Prepare context from retrieved documents (using mixin)
-        context = self._prepare_context(thought)
-
-        # Create critique prompt
-        critique_prompt = self.critique_prompt_template.format(
-            prompt=thought.prompt,
-            text=thought.text,
-            context=context,
-        )
-
-        # Generate critique (async only)
-        critique_response = await self.model._generate_async(
-            prompt=critique_prompt,
-            system_prompt="You are an expert evaluator providing detailed, constructive feedback on text quality.",
-        )
-
-        # Parse the critique response
-        parsed_critique = self._parse_single_critique(critique_response)
-
-        return {
-            "message": critique_response,
-            "issues": parsed_critique["issues"],
-            "suggestions": parsed_critique["suggestions"],
-            "needs_improvement": parsed_critique["needs_improvement"],
-            "reasoning": parsed_critique["reasoning"],
-            "strengths": parsed_critique["strengths"],
-        }
-
-    def _parse_single_critique(self, critique_text: str) -> Dict[str, Any]:
-        """Parse a single critique response into structured components.
-
-        Args:
-            critique_text: The raw critique response text.
-
-        Returns:
-            Dictionary with parsed critique components.
-        """
-        issues = []
-        suggestions = []
-        reasoning = ""
-        strengths = []
-        needs_improvement = False
-
-        # Simple parsing logic for structured feedback
-        in_reasoning = False
-        in_strengths = False
-        in_issues = False
-        in_suggestions = False
-
-        for line in critique_text.split("\n"):
-            line = line.strip()
-
-            # Section headers
-            if line.lower().startswith("reasoning:"):
-                in_reasoning = True
-                in_strengths = False
-                in_issues = False
-                in_suggestions = False
-                reasoning = line[10:].strip()  # Remove "Reasoning:" prefix
-                continue
-            elif line.lower().startswith("strengths:"):
-                in_reasoning = False
-                in_strengths = True
-                in_issues = False
-                in_suggestions = False
-                continue
-            elif line.lower().startswith("issues:"):
-                in_reasoning = False
-                in_strengths = False
-                in_issues = True
-                in_suggestions = False
-                continue
-            elif line.lower().startswith("suggestions:"):
-                in_reasoning = False
-                in_strengths = False
-                in_issues = False
-                in_suggestions = True
-                continue
-            elif line.lower().startswith(("overall assessment:", "needs improvement:")):
-                in_reasoning = False
-                in_strengths = False
-                in_issues = False
-                in_suggestions = False
-                # Check for improvement need
-                if "yes" in line.lower() or "needs improvement" in line.lower():
-                    needs_improvement = True
-                continue
-            elif not line or line.startswith("#"):
-                continue
-
-            # Extract content from sections
-            if in_reasoning and line:
-                reasoning += " " + line if reasoning else line
-            elif in_strengths and line.startswith("-"):
-                strengths.append(line[1:].strip())
-            elif in_issues and line.startswith("-"):
-                issues.append(line[1:].strip())
-            elif in_suggestions and line.startswith("-"):
-                suggestions.append(line[1:].strip())
-
-        # Fallback: extract from general content if no structured format found
-        if not issues and not suggestions:
-            critique_lower = critique_text.lower()
-
-            # Try to extract meaningful content from unstructured text
-            lines = critique_text.split("\n")
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-
-                # Look for issue indicators
-                if any(
-                    word in line.lower()
-                    for word in ["issue", "problem", "error", "incorrect", "flaw", "weakness"]
-                ):
-                    if len(line) > 20:  # Only add if it's a substantial comment
-                        issues.append(line)
-
-                # Look for suggestion indicators
-                elif any(
-                    word in line.lower()
-                    for word in [
-                        "suggest",
-                        "recommend",
-                        "should",
-                        "could",
-                        "improve",
-                        "enhance",
-                        "consider",
+        # Add previous consistency assessments
+        if thought.iteration > 0:
+            prev_consistency_critiques = [
+                c
+                for c in thought.critiques
+                if c.iteration == thought.iteration - 1 and c.critic == "SelfConsistencyCritic"
+            ]
+            if prev_consistency_critiques:
+                prompt_parts.extend(
+                    [
+                        "PREVIOUS CONSISTENCY ASSESSMENT:",
+                        "=" * 40,
                     ]
-                ):
-                    if len(line) > 20:  # Only add if it's a substantial comment
-                        suggestions.append(line)
-
-            # Only use generic fallbacks if we still found nothing meaningful
-            if not issues and not suggestions:
-                if any(
-                    word in critique_lower for word in ["issue", "problem", "error", "incorrect"]
-                ):
-                    issues.append("Issues identified in evaluation")
-                if any(
-                    word in critique_lower for word in ["suggest", "improve", "should", "could"]
-                ):
-                    suggestions.append("See evaluation for improvement suggestions")
-
-            if any(word in critique_lower for word in ["poor", "weak", "needs", "improve"]):
-                needs_improvement = True
-
-        return {
-            "issues": issues,
-            "suggestions": suggestions,
-            "reasoning": reasoning,
-            "strengths": strengths,
-            "needs_improvement": needs_improvement,
-        }
-
-    def _aggregate_critiques(self, critiques: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Aggregate multiple critiques using majority voting (original Self-Consistency).
-
-        Args:
-            critiques: List of individual critique results.
-
-        Returns:
-            Aggregated critique result with majority vote information.
-        """
-        if not critiques:
-            return {
-                "consensus_issues": [],
-                "consensus_suggestions": [],
-                "stats": {"total_critiques": 0, "consensus_items": 0},
-            }
-
-        # Collect all issues and suggestions
-        all_issues = []
-        all_suggestions = []
-        improvement_votes = []
-
-        for critique in critiques:
-            all_issues.extend(critique.get("issues", []))
-            all_suggestions.extend(critique.get("suggestions", []))
-            improvement_votes.append(critique.get("needs_improvement", False))
-
-        # Find majority consensus items using simple frequency counting
-        consensus_issues = self._find_majority_items(all_issues)
-        consensus_suggestions = self._find_majority_items(all_suggestions)
-
-        # Calculate statistics
-        total_critiques = len(critiques)
-        consensus_items = len(consensus_issues) + len(consensus_suggestions)
-
-        return {
-            "consensus_issues": consensus_issues,
-            "consensus_suggestions": consensus_suggestions,
-            "improvement_votes": improvement_votes,
-            "stats": {
-                "total_critiques": total_critiques,
-                "consensus_items": consensus_items,
-                "agreement_ratio": (
-                    sum(improvement_votes) / total_critiques if total_critiques > 0 else 0
-                ),
-            },
-        }
-
-    def _find_majority_items(self, items: List[str]) -> List[Dict[str, Any]]:
-        """Find majority items from a list using frequency counting.
-
-        Args:
-            items: List of issues or suggestions.
-
-        Returns:
-            List of majority items with frequency information.
-        """
-        if not items:
-            return []
-
-        # Simple frequency-based majority voting (original Self-Consistency approach)
-        item_counts = Counter(items)
-        majority_items = []
-
-        # Items that appear in majority of critiques (more than half)
-        min_frequency = max(2, (self.num_iterations + 1) // 2)
-
-        for item, count in item_counts.items():
-            if count >= min_frequency:
-                majority_items.append(
-                    {
-                        "text": item,
-                        "frequency": count,
-                        "confidence": count / self.num_iterations,
-                    }
                 )
+                for critique in prev_consistency_critiques[-1:]:  # Last consistency critique
+                    prompt_parts.extend(
+                        [
+                            f"Previous Consensus: {critique.feedback[:150]}{'...' if len(critique.feedback) > 150 else ''}",
+                            f"Previous Consistency: {getattr(critique, 'confidence', 'N/A')}",
+                            f"Previous Suggestions: {', '.join(critique.suggestions)}",
+                            "",
+                        ]
+                    )
 
-        # Sort by frequency (most common first)
-        majority_items.sort(key=lambda x: x["frequency"], reverse=True)
-
-        return majority_items
-
-    def _calculate_confidence(
-        self, critiques: List[Dict[str, Any]], aggregated_result: Dict[str, Any]
-    ) -> float:
-        """Calculate confidence based on agreement between critiques.
-
-        Args:
-            critiques: List of individual critique results.
-            aggregated_result: Aggregated critique result.
-
-        Returns:
-            Confidence score between 0.0 and 1.0.
-        """
-        if not critiques:
-            return 0.0
-
-        # Base confidence from agreement ratio
-        agreement_ratio = aggregated_result["stats"]["agreement_ratio"]
-
-        # Adjust based on consensus items
-        consensus_items = len(aggregated_result["consensus_issues"]) + len(
-            aggregated_result["consensus_suggestions"]
-        )
-        total_items = sum(
-            len(c.get("issues", [])) + len(c.get("suggestions", [])) for c in critiques
+        # Add consistency evaluation instructions
+        prompt_parts.extend(
+            [
+                "SELF-CONSISTENCY EVALUATION INSTRUCTIONS:",
+                "=" * 50,
+                f"You will perform {self.num_consistency_attempts} independent assessment attempts:",
+                "",
+                "ATTEMPT 1 - STRUCTURAL ANALYSIS:",
+                "- Focus on organization, flow, and logical structure",
+                "- Evaluate clarity and coherence of presentation",
+                "- Assess completeness and coverage of the topic",
+                "",
+                "ATTEMPT 2 - CONTENT QUALITY ANALYSIS:",
+                "- Focus on accuracy, relevance, and depth of information",
+                "- Evaluate evidence quality and factual correctness",
+                "- Assess appropriateness for the intended purpose",
+                "",
+                "ATTEMPT 3 - AUDIENCE AND EFFECTIVENESS ANALYSIS:",
+                "- Focus on audience appropriateness and engagement",
+                "- Evaluate tone, style, and communication effectiveness",
+                "- Assess overall impact and usefulness",
+                "",
+                "CONSENSUS BUILDING:",
+                "- Identify consistent patterns across all attempts",
+                "- Look for agreement in quality assessment and suggestions",
+                "- Build consensus around the most reliable feedback",
+                f"- Require consistency above {self.consistency_threshold} threshold for high confidence",
+                "",
+                "Provide final assessment based on consensus across multiple independent attempts.",
+            ]
         )
 
-        if total_items > 0:
-            consensus_ratio = consensus_items / (total_items / len(critiques))
-            confidence = (agreement_ratio + consensus_ratio) / 2
-        else:
-            confidence = agreement_ratio
+        return "\n".join(prompt_parts)
 
-        # Boost confidence if we have many iterations
-        if len(critiques) >= 5:
-            confidence = min(1.0, confidence * 1.1)
+    def _get_critic_specific_metadata(self, feedback) -> Dict[str, Any]:
+        """Extract Self-Consistency-specific metadata."""
+        base_metadata = super()._get_critic_specific_metadata(feedback)
 
-        return max(0.1, min(1.0, confidence))
+        # Add Self-Consistency-specific metadata
+        self_consistency_metadata = {
+            "methodology": "self_consistency_consensus",
+            "num_attempts": self.num_consistency_attempts,
+            "consistency_threshold": self.consistency_threshold,
+            "consensus_achieved": feedback.confidence >= self.consistency_threshold,
+            "consistency_strength": (
+                "strong"
+                if feedback.confidence > 0.8
+                else "moderate" if feedback.confidence > 0.6 else "weak"
+            ),
+            "reliability_assessment": (
+                "high" if feedback.confidence >= self.consistency_threshold else "low"
+            ),
+            "multiple_perspectives": True,
+        }
 
-    def _determine_improvement_need(
-        self, critiques: List[Dict[str, Any]], aggregated_result: Dict[str, Any]
-    ) -> bool:
-        """Determine if improvement is needed based on majority vote.
-
-        Args:
-            critiques: List of individual critique results.
-            aggregated_result: Aggregated critique result.
-
-        Returns:
-            True if improvement is needed based on majority vote.
-        """
-        if not critiques:
-            return False
-
-        # Simple majority vote for improvement need (original Self-Consistency)
-        improvement_votes = aggregated_result["improvement_votes"]
-        improvement_ratio = sum(improvement_votes) / len(improvement_votes)
-
-        # Need improvement if majority agrees (more than half)
-        return improvement_ratio > 0.5
-
-    def _format_consensus_message(
-        self, critiques: List[Dict[str, Any]], aggregated_result: Dict[str, Any], confidence: float
-    ) -> str:
-        """Format the consensus message from multiple critiques.
-
-        Args:
-            critiques: List of individual critique results.
-            aggregated_result: Aggregated critique result.
-            confidence: Confidence score.
-
-        Returns:
-            Formatted consensus message.
-        """
-        num_critiques = len(critiques)
-        consensus_issues = aggregated_result["consensus_issues"]
-        consensus_suggestions = aggregated_result["consensus_suggestions"]
-
-        message = f"=== Self-Consistency Evaluation ({num_critiques} iterations) ===\n\n"
-        message += f"Confidence Level: {confidence:.1%}\n"
-        message += "Majority Threshold: >50% (original Self-Consistency)\n\n"
-
-        if consensus_issues:
-            message += "CONSENSUS ISSUES (found in multiple evaluations):\n"
-            for issue in consensus_issues:
-                freq_pct = (issue["frequency"] / num_critiques) * 100
-                message += f"• {issue['text']} (found in {issue['frequency']}/{num_critiques} evaluations, {freq_pct:.0f}%)\n"
-            message += "\n"
-
-        if consensus_suggestions:
-            message += "CONSENSUS SUGGESTIONS (found in multiple evaluations):\n"
-            for suggestion in consensus_suggestions:
-                freq_pct = (suggestion["frequency"] / num_critiques) * 100
-                message += f"• {suggestion['text']} (found in {suggestion['frequency']}/{num_critiques} evaluations, {freq_pct:.0f}%)\n"
-            message += "\n"
-
-        # Add summary statistics
-        stats = aggregated_result["stats"]
-        message += "EVALUATION SUMMARY:\n"
-        message += f"• Total evaluations: {stats['total_critiques']}\n"
-        message += f"• Consensus items: {stats['consensus_items']}\n"
-        message += f"• Agreement on improvement need: {stats['agreement_ratio']:.1%}\n"
-
-        message += "\n=== End Self-Consistency Evaluation ==="
-
-        return message
-
-    async def improve_async(self, thought: Thought) -> str:
-        """Improve text based on self-consistency critique asynchronously.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-
-        Returns:
-            The improved text that addresses consensus feedback.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        # Use the enhanced method with validation context from thought
-        validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return await self.improve_with_validation_context_async(thought, validation_context)
-
-    async def improve_with_validation_context_async(
-        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Improve text with validation context awareness.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-            validation_context: Optional validation context for constraint awareness.
-
-        Returns:
-            The improved text that prioritizes validation constraints.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name="SelfConsistencyCritic",
-            operation="improve",
-            message_prefix="Failed to improve text with Self-Consistency approach",
-        ):
-            # Check if text is available
-            if not thought.text:
-                raise ImproverError(
-                    message="No text available for improvement",
-                    component="SelfConsistencyCritic",
-                    operation="improve",
-                    suggestions=["Provide text to improve"],
-                )
-
-            # Get critique from thought
-            consensus_issues = []
-            consensus_suggestions = []
-            confidence = 0.0
-            total_iterations = 0
-
-            if thought.critic_feedback:
-                for feedback in thought.critic_feedback:
-                    if feedback.critic_name == "SelfConsistencyCritic":
-                        metadata = feedback.metadata or {}
-                        # Get consensus data from the stored aggregated result
-                        consensus_stats = metadata.get("consensus_stats", {})
-                        consensus_issues = consensus_stats.get("consensus_issues", [])
-                        consensus_suggestions = consensus_stats.get("consensus_suggestions", [])
-                        confidence = feedback.confidence
-                        total_iterations = metadata.get("num_iterations", 0)
-                        break
-
-            # If no critique available, generate one using async method
-            if not consensus_issues and not consensus_suggestions:
-                logger.debug(
-                    "No self-consistency critique found in thought, generating new critique"
-                )
-                critique_result = await self._perform_critique_async(thought)
-                metadata = critique_result["metadata"]
-                consensus_issues = critique_result["issues"]
-                consensus_suggestions = critique_result["suggestions"]
-                confidence = critique_result["confidence"]
-                total_iterations = metadata["num_iterations"]
-
-            # Prepare context for improvement (using mixin)
-            context = self._prepare_context(thought)
-
-            # Format consensus feedback for improvement prompt
-            # Handle both dictionary format (from fresh critique) and string format (from stored feedback)
-            if consensus_issues and isinstance(consensus_issues[0], dict):
-                # Fresh critique - consensus_issues are dictionaries with 'text' key
-                issues_text = (
-                    "\n".join([f"• {issue['text']}" for issue in consensus_issues])
-                    if consensus_issues
-                    else "None identified"
-                )
-                suggestions_list = [suggestion["text"] for suggestion in consensus_suggestions]
-            else:
-                # Stored feedback - consensus_issues are already strings
-                issues_text = (
-                    "\n".join([f"• {issue}" for issue in consensus_issues])
-                    if consensus_issues
-                    else "None identified"
-                )
-                suggestions_list = list(consensus_suggestions) if consensus_suggestions else []
-
-            if consensus_suggestions and isinstance(consensus_suggestions[0], dict):
-                # Fresh critique - consensus_suggestions are dictionaries with 'text' key
-                suggestions_text = (
-                    "\n".join([f"• {suggestion['text']}" for suggestion in consensus_suggestions])
-                    if consensus_suggestions
-                    else "None provided"
-                )
-            else:
-                # Stored feedback - consensus_suggestions are already strings
-                suggestions_text = (
-                    "\n".join([f"• {suggestion}" for suggestion in consensus_suggestions])
-                    if consensus_suggestions
-                    else "None provided"
-                )
-
-            consensus_count = max(len(consensus_issues), len(consensus_suggestions))
-
-            # Create improvement prompt with validation awareness
-            if validation_context:
-                # Create a critique string for the enhanced prompt
-                critique = f"Consensus Issues:\n{issues_text}\n\nConsensus Suggestions:\n{suggestions_text}"
-
-                # Use enhanced prompt with validation awareness
-                improve_prompt = self._create_enhanced_improvement_prompt(
-                    prompt=thought.prompt,
-                    text=thought.text,
-                    critique=critique,
-                    context=context,
-                    validation_context=validation_context,
-                    critic_suggestions=suggestions_list,
-                )
-            else:
-                # Use original prompt template
-                improve_prompt = self.improve_prompt_template.format(
-                    prompt=thought.prompt,
-                    text=thought.text,
-                    context=context,
-                    consensus_issues=issues_text,
-                    consensus_suggestions=suggestions_text,
-                    consensus_count=consensus_count,
-                    total_iterations=total_iterations,
-                    confidence=confidence,
-                )
-
-            # Generate improved text (async only)
-            improved_text = await self.model._generate_async(
-                prompt=improve_prompt,
-                system_prompt="You are an expert editor using consensus feedback from multiple evaluations to improve text quality.",
-            )
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(f"SelfConsistencyCritic: Improvement completed in {processing_time:.2f}ms")
-
-            return improved_text.strip()
+        base_metadata.update(self_consistency_metadata)
+        return base_metadata

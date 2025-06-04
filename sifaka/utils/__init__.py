@@ -1,57 +1,54 @@
-"""Utilities for Sifaka.
+"""Utility functions and helpers for Sifaka.
 
-This module provides essential utility functions and classes for the Sifaka framework,
-including error handling, logging, and performance monitoring.
+This module provides common utilities:
+- Error handling and exception hierarchy
+- Configuration management
+- Logging configuration
+- Input validation helpers
 """
 
-from sifaka.utils.error_handling import (
-    ChainError,
-    ConfigurationError,
-    ImproverError,
-    ModelAPIError,
-    ModelError,
-    RetrieverError,
+from sifaka.utils.errors import (
     SifakaError,
     ValidationError,
-    chain_context,
-    create_actionable_suggestions,
-    critic_context,
-    enhance_error_message,
-    error_context,
-    format_error_message,
-    log_error,
-    model_context,
-    validation_context,
+    CritiqueError,
+    GraphExecutionError,
+    ConfigurationError,
 )
-from sifaka.utils.logging import get_logger
-from sifaka.utils.mixins import APIKeyMixin, ContextAwareMixin, ValidationMixin
-from sifaka.utils.performance import PerformanceMonitor, time_operation
+from sifaka.utils.config import SifakaConfig
+from sifaka.utils.validation import (
+    validate_prompt,
+    validate_max_iterations,
+    validate_model_name,
+    validate_timeout,
+)
+
+# ValidationAwareMixin imported separately to avoid circular imports
+from sifaka.utils.logging import (
+    get_logger,
+    setup_logging,
+    configure_for_development,
+    configure_for_production,
+)
 
 __all__ = [
-    # Error handling
+    # Error types
     "SifakaError",
-    "ModelError",
-    "ModelAPIError",
     "ValidationError",
-    "ImproverError",
-    "RetrieverError",
-    "ChainError",
+    "CritiqueError",
+    "GraphExecutionError",
     "ConfigurationError",
-    "error_context",
-    "model_context",
-    "validation_context",
-    "critic_context",
-    "chain_context",
-    "log_error",
-    "format_error_message",
-    "create_actionable_suggestions",
-    "enhance_error_message",
-    # Other utilities
+    # Configuration
+    "SifakaConfig",
+    # Validation helpers
+    "validate_prompt",
+    "validate_max_iterations",
+    "validate_model_name",
+    "validate_timeout",
+    # Validation context - import separately to avoid circular imports
+    # "ValidationAwareMixin",
+    # Logging
     "get_logger",
-    "ContextAwareMixin",
-    "APIKeyMixin",
-    "SummarizationMixin",
-    "ValidationMixin",
-    "time_operation",
-    "PerformanceMonitor",
+    "setup_logging",
+    "configure_for_development",
+    "configure_for_production",
 ]

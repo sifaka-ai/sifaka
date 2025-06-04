@@ -19,42 +19,44 @@ We believe the future of AI applications lies in implementing proven academic re
 - **Self-Consistency** (Wang et al. 2022) - Multiple critique generation with consensus
 - **N-Critics** (Mousavi et al. 2023) - Ensemble of specialized critics
 
-### Thought-Centric Architecture
-Traditional AI frameworks focus on chains of tools. Sifaka centers everything around the **Thought** - a complete state container that provides:
+### Graph-Based Workflow with Thought-Centric State
+Traditional AI frameworks use linear chains or ad-hoc orchestration. Sifaka uses PydanticAI's graph-based workflow orchestration centered around the **SifakaThought** - a complete state container that flows through the graph:
 
-- **Complete observability** of every step in the generation process
-- **Immutable state management** with proper versioning and history
-- **Rich debugging capabilities** with exact prompts and intermediate results
-- **Serializable audit trails** for analysis and compliance
+- **Graph Orchestration**: Clear, resumable workflow execution with state persistence
+- **Complete observability** of every step in the generation process through graph nodes
+- **Immutable state management** with proper versioning and history at each iteration
+- **Rich debugging capabilities** with exact prompts, intermediate results, and node transitions
+- **Serializable audit trails** for analysis, compliance, and workflow resumption
 
-### Validation-First Design
-Most frameworks treat validation as an afterthought. Sifaka makes validation and iterative improvement core concepts:
+### Validation-First Design with Graph Integration
+Most frameworks treat validation as an afterthought. Sifaka makes validation and iterative improvement core concepts through dedicated graph nodes:
 
-- Built-in validation at every step
-- Automatic iterative improvement when validation fails
-- Critics that provide actionable feedback, not just scores
-- Complete transparency in the improvement process
+- **ValidateNode**: Built-in parallel validation at every iteration
+- **CritiqueNode**: Parallel critic execution for quality improvement
+- **Automatic iteration**: Graph flow control handles improvement cycles
+- **Actionable feedback**: Critics provide specific suggestions, not just scores
+- **Complete transparency**: Every validation and critique decision is captured in the thought audit trail
 
 ## Technical Vision
 
-### PydanticAI-First Architecture
-**As of Sifaka 0.2.0, we are fully aligned with PydanticAI's development and vision.** PydanticAI represents the future of AI agent frameworks, and Sifaka will evolve alongside it:
+### PydanticAI Graph-Based Architecture
+**As of Sifaka 0.4.0, we have fully adopted PydanticAI's graph-based workflow orchestration.** This represents a major architectural evolution that aligns us with PydanticAI's future:
 
-- **Native PydanticAI integration** as our primary chain implementation
-- **Tool-based extensibility** leveraging PydanticAI's powerful tool system
+- **Graph-based workflows** using PydanticAI's native graph orchestration
+- **Node-based design** with separate Generate, Validate, and Critique nodes
+- **State persistence** with built-in snapshotting and resumability
+- **Parallel execution** of validators and critics within their respective nodes
 - **Type-safe AI applications** with Pydantic's validation and serialization
 - **Modern async patterns** built on PydanticAI's foundation
-- **Aligned development roadmap** with PydanticAI's evolution
+- **Aligned development roadmap** with PydanticAI's graph evolution
 
 ### MCP-First Architecture
 We're building for the future of AI infrastructure using the Model Context Protocol (MCP):
 
 - **Standardized communication** with external services
-- **Unified storage architecture** across Redis, Milvus, and other backends
+- **Unified storage architecture** across Redis and other backends
 - **Cross-process data sharing** for distributed applications
 - **Future-proof integration** with emerging AI infrastructure
-
-> **⚠️ Current Status**: MCP storage integration is currently experiencing issues and is our highest priority to fix. We're actively working on restoring Redis and Milvus backends via MCP. For production use, we recommend Memory or File storage until MCP integration is restored.
 
 ### Academic Rigor in Production
 Sifaka bridges the gap between research and production by:
@@ -72,14 +74,18 @@ Every aspect of the AI generation process should be observable and debuggable:
 - **Validation and critique history** for understanding failures
 - **Performance metrics** for optimization and monitoring
 
-## Current Status (v0.3.0)
+## Current Status (v0.4.0)
 
 ### Major Achievements
-- **✅ PydanticAI-Only Architecture**: Complete removal of Traditional Chain for simplified, focused codebase
-- **✅ Thought-First Design**: Immutable audit trails with complete iteration history
-- **✅ Feedback Integration**: PydanticAI agents receive validation results and critic feedback in subsequent iterations
-- **✅ Guaranteed Completion**: Final thoughts emerge either from successful validation OR after max iterations
-- **✅ Tool Integration**: Native support for PydanticAI tool calling and structured outputs
+- **✅ PydanticAI Graph Architecture**: Complete adoption of PydanticAI's graph-based workflow orchestration
+- **✅ Node-Based Design**: Separate GenerateNode, ValidateNode, and CritiqueNode for clear separation of concerns
+- **✅ SifakaThought State Container**: Central state management with complete audit trails flowing through the graph
+- **✅ Parallel Execution**: Validators and critics run concurrently within their respective nodes
+- **✅ State Persistence**: Built-in snapshotting and resumable workflows through PydanticAI graphs
+- **✅ Feedback Integration**: Context-aware generation with validation and critique feedback in subsequent iterations
+- **✅ Guaranteed Completion**: Proper graph termination through End nodes with complete audit trails
+- **✅ Production Storage**: Multiple storage backends (Memory, File, Redis MCP, PostgreSQL) with hybrid failover
+- **✅ Storage Migration**: Tools for migrating between storage backends and legacy formats
 
 ### Coming Soon Features
 Exciting developments in active development:
@@ -97,16 +103,16 @@ Exciting developments in active development:
   - **Features**: Configurable T5 model variants (t5-small, t5-base, t5-large)
   - **Timeline**: In active development
 
-- **🚀 MCP Storage Restoration**: Robust Redis and Milvus backends
-  - **Impact**: Production-ready distributed storage
-  - **Timeline**: High priority fix in progress
+- **🚀 Advanced Storage Analytics**: Thought pattern analysis and insights
+  - **Impact**: Better understanding of AI generation patterns
+  - **Timeline**: Medium priority development
 
 ### Strategic Direction
-**Version 0.3.0 represents architectural maturity** with a clean, focused codebase:
+**Version 0.4.0 represents architectural maturity** with a graph-based, focused codebase:
 
-1. **PydanticAI-native approach** with no legacy compatibility burden
-2. **Research-backed reliability** through proven validation and criticism techniques
-3. **Production-ready observability** with complete audit trails and debugging capabilities
+1. **PydanticAI graph-native approach** with sophisticated workflow orchestration
+2. **Research-backed reliability** through proven validation and criticism techniques implemented as graph nodes
+3. **Production-ready observability** with complete audit trails, state persistence, and resumable workflows
 
 ## Future Developments
 
@@ -120,7 +126,7 @@ Exciting developments in active development:
 - **New PydanticAI features** integrated into Sifaka as they become available
 
 ### Advanced Critics and Validators as Tools
-- **Enhanced feedback summarization** using both local and API-based models ✅ *Available now with T5, BART, and API models*
+- **Enhanced feedback summarization** using both local and API-based models
 - **Multi-modal critics** implemented as PydanticAI tools for text, code, and structured data
 - **Domain-specific validators** as specialized tools for legal, medical, and technical content
 - **Ensemble methods** that combine multiple validation tools
@@ -128,10 +134,11 @@ Exciting developments in active development:
 - **Checkpoint recovery** for robust chain execution with failure recovery capabilities
 
 ### Enhanced Storage and Retrieval
-- **Semantic search** across thought histories for pattern recognition
-- **Distributed storage** for large-scale applications
-- **Real-time indexing** of thoughts and context documents
-- **Advanced caching strategies** for performance optimization
+- **Vector search** with semantic embeddings across thought histories
+- **Advanced analytics** for thought pattern recognition and insights
+- **Real-time indexing** with enhanced search capabilities
+- **Storage optimization** with intelligent caching and compression
+- **Cross-backend search** unified search across multiple storage backends
 
 ### Research Integration Pipeline
 - **Benchmark integration** for comparing approaches
@@ -205,5 +212,3 @@ By aligning our development with PydanticAI and focusing on the intersection of 
 ## References
 
 - **[Design Decisions](docs/DESIGN_DECISIONS.md)** - Key architectural decisions and trade-offs
-- **[Architecture Document](docs/ARCHITECTURE.md)** - Technical implementation details
-- **[PydanticAI Integration Guide](docs/guides/chain-selection.md)** - Choosing between chain types

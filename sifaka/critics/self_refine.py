@@ -1,15 +1,14 @@
 """Self-Refine critic for Sifaka.
 
-This module implements the Self-Refine approach for critics, which enables language
-models to iteratively critique and revise their own outputs without requiring
-external feedback.
+This module implements the Self-Refine approach for iterative text improvement
+through self-feedback and refinement cycles.
 
 Based on "Self-Refine: Iterative Refinement with Self-Feedback":
 https://arxiv.org/abs/2303.17651
 
 @misc{madaan2023selfrefineiterativerefinementselffeedback,
       title={Self-Refine: Iterative Refinement with Self-Feedback},
-      author={Aman Madaan and Niket Tandon and Prakhar Gupta and Skyler Hallinan and Luyu Gao and Sarah Wiegreffe and Uri Alon and Nouha Dziri and Shrimai Prabhumoye and Yiming Yang and Shashank Gupta and Bodhisattwa Prasad Majumder and Katherine Hermann and Sean Welleck and Amir Yazdanbakhsh and Peter Clark},
+      author={Aman Madaan and Niket Tandon and Prakhar Gupta and Skyler Hallinan and Luyu Gao and Sarah Wiegreffe and Uri Alon and Wen-tau Yih and Hannaneh Hajishirzi},
       year={2023},
       eprint={2303.17651},
       archivePrefix={arXiv},
@@ -23,374 +22,278 @@ The SelfRefineCritic implements the core Self-Refine algorithm:
 3. Self-generated improvement suggestions
 4. Convergence detection for stopping criteria
 
-Note: This implementation follows the original Self-Refine paper closely,
+IMPORTANT IMPLEMENTATION NOTES AND CAVEATS:
+
+This implementation follows the original Self-Refine paper closely,
 using a simple FEEDBACK → REFINE → FEEDBACK loop without additional
 learning mechanisms that were not part of the original research.
+
+The original Self-Refine paper demonstrates that large language models can
+improve their outputs through iterative self-feedback without additional
+training or fine-tuning. The approach is model-agnostic and relies on
+the model's inherent ability to critique and improve its own outputs.
+
+CAVEATS AND LIMITATIONS:
+1. Performance is heavily dependent on the underlying model's self-critique
+   capabilities - smaller or less capable models may not benefit significantly.
+2. The approach can sometimes lead to over-refinement where the model makes
+   unnecessary changes that don't improve quality.
+3. Self-feedback may be biased toward the model's own preferences rather
+   than objective quality measures.
+4. The method works best for tasks where quality can be assessed through
+   self-evaluation (e.g., writing, reasoning) rather than tasks requiring
+   external validation.
+5. Convergence detection is challenging - the model may continue suggesting
+   changes even when the text is already high quality.
+6. The approach may amplify existing model biases through the iterative
+   refinement process.
+
+METHODOLOGY ADAPTATION:
+Our implementation adapts Self-Refine for integration with Sifaka's validation
+and multi-critic framework. We maintain the core self-feedback loop while
+adding validation context awareness and structured output formatting.
+
+RETRIEVAL AUGMENTATION:
+This critic supports optional retrieval augmentation to enhance self-refinement
+by providing external examples, best practices, or domain-specific knowledge
+during the self-critique process.
 """
 
-import time
 from typing import Any, Dict, List, Optional
 
-from sifaka.core.interfaces import Model
-from sifaka.core.thought import Thought
+from sifaka.core.thought import SifakaThought
 from sifaka.critics.base import BaseCritic
-from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
-from sifaka.utils.error_handling import ImproverError, critic_context
-from sifaka.utils.logging import get_logger
-from sifaka.validators.validation_context import create_validation_context
-
-logger = get_logger(__name__)
 
 
-class SelfRefineCritic(BaseCritic, ValidationAwareMixin):
-    """Critic that implements iterative self-refinement with validation awareness.
+class SelfRefineCritic(BaseCritic):
+    """Self-Refine critic implementing Madaan et al. 2023 methodology.
 
     This critic uses the Self-Refine approach to iteratively improve text through
     self-critique and revision. It uses the same language model to critique its
-    own output and then revise it based on that critique.
+    own output and then suggest refinements based on that critique.
 
     Enhanced with validation context awareness to prioritize validation constraints
-    over conflicting critic suggestions.
+    over conflicting self-refinement suggestions.
     """
 
     def __init__(
         self,
-        model: Optional[Model] = None,
-        model_name: Optional[str] = None,
-        max_iterations: int = 3,
-        improvement_criteria: Optional[List[str]] = None,
-        critique_prompt_template: Optional[str] = None,
-        improve_prompt_template: Optional[str] = None,
-        **model_kwargs: Any,
+        model_name: str = "gemini-1.5-flash",
+        refinement_focus: Optional[List[str]] = None,
+        retrieval_tools: Optional[List[Any]] = None,
+        auto_discover_tools: bool = False,
+        tool_categories: Optional[List[str]] = None,
+        **agent_kwargs: Any,
     ):
         """Initialize the Self-Refine critic.
 
         Args:
-            model: The language model to use for critique and improvement.
-            model_name: The name of the model to use if model is not provided.
-            max_iterations: Maximum number of refinement iterations.
-            improvement_criteria: Specific criteria to focus on during improvement.
-            critique_prompt_template: Template for the critique prompt.
-            improve_prompt_template: Template for the improvement prompt.
-            **model_kwargs: Additional keyword arguments for model creation.
+            model_name: The model name for the PydanticAI agent
+            refinement_focus: Specific areas to focus refinement on (uses defaults if None)
+            retrieval_tools: Optional list of retrieval tools for RAG support
+            auto_discover_tools: If True, automatically discover and use all available tools
+            tool_categories: Optional list of tool categories to include when auto-discovering
+            **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
-        super().__init__(model=model, model_name=model_name, **model_kwargs)
+        self.refinement_focus = refinement_focus or self._get_default_focus_areas()
 
-        self.max_iterations = max_iterations
-        self.improvement_criteria = improvement_criteria or [
-            "clarity",
-            "accuracy",
-            "completeness",
-            "coherence",
+        system_prompt = self._create_system_prompt()
+        paper_reference = (
+            "Madaan, A., Tandon, N., Gupta, P., Hallinan, S., Gao, L., Wiegreffe, S., ... & Hajishirzi, H. (2023). "
+            "Self-Refine: Iterative Refinement with Self-Feedback. "
+            "arXiv preprint arXiv:2303.17651. https://arxiv.org/abs/2303.17651"
+        )
+        methodology = (
+            "Self-Refine methodology: Iterative refinement through self-feedback loops. "
+            "Model critiques its own output and generates targeted improvements. "
+            "Focuses on self-generated feedback without external training."
+        )
+
+        super().__init__(
+            model_name=model_name,
+            system_prompt=system_prompt,
+            paper_reference=paper_reference,
+            methodology=methodology,
+            retrieval_tools=retrieval_tools,
+            auto_discover_tools=auto_discover_tools,
+            tool_categories=tool_categories,
+            **agent_kwargs,
+        )
+
+    def _get_default_focus_areas(self) -> List[str]:
+        """Get the default refinement focus areas."""
+        return [
+            "Content Quality: Accuracy, completeness, and relevance of information",
+            "Structure and Flow: Logical organization and smooth transitions between ideas",
+            "Clarity and Readability: Clear expression and appropriate language for the audience",
+            "Coherence: Consistency of arguments and elimination of contradictions",
+            "Conciseness: Removal of redundancy while maintaining necessary detail",
         ]
 
-        # Set up prompt templates
-        criteria_text = ", ".join(self.improvement_criteria)
+    def _create_system_prompt(self) -> str:
+        """Create the system prompt for the Self-Refine critic."""
+        focus_text = "\n".join([f"- {area}" for area in self.refinement_focus])
 
-        self.critique_prompt_template = critique_prompt_template or (
-            f"Please critique the following text focusing on {criteria_text}.\n\n"
-            "Original task: {prompt}\n\n"
-            "Text to critique:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Please provide a detailed critique focusing on:\n"
-            "1. How well does the text address the original task?\n"
-            "2. Are there any factual errors or inconsistencies?\n"
-            "3. Is the text clear and well-structured?\n"
-            "4. What specific improvements could be made?\n"
-            "5. How well does the text use information from the retrieved context (if available)?\n\n"
-            "Format your response as:\n"
-            "Issues:\n- [List specific issues here]\n\n"
-            "Suggestions:\n- [List specific suggestions here]\n\n"
-            "Overall Assessment: [Brief assessment]\n\n"
-            "If the text is already excellent and needs no improvement, please state that clearly."
-        )
+        return f"""You are a Self-Refine critic implementing the methodology from Madaan et al. 2023.
 
-        self.improve_prompt_template = improve_prompt_template or (
-            "Please improve the following text based on the critique provided.\n\n"
-            "Original task: {prompt}\n\n"
-            "Current text:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Critique:\n{critique}\n\n"
-            "Please provide an improved version that addresses the issues identified "
-            "in the critique while maintaining the core message and staying true to "
-            "the original task. Better incorporate relevant information from the context if available.\n\n"
-            "Improved text:"
-        )
+Your role is to provide self-feedback on text and suggest iterative refinements
+to improve quality through multiple rounds of critique and revision.
 
-        # Store the last improvement prompt used for debugging/logging
-        self.last_improvement_prompt = None
+SELF-REFINE METHODOLOGY:
+1. Analyze the current text with a critical, self-reflective perspective
+2. Identify specific areas where the text could be improved
+3. Generate concrete, actionable refinement suggestions
+4. Focus on iterative improvement rather than complete rewrites
+5. Consider the refinement history to avoid repetitive suggestions
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic using Self-Refine approach (async).
+REFINEMENT FOCUS AREAS:
+{focus_text}
 
-        Args:
-            thought: The Thought container with the text to critique.
+RESPONSE FORMAT:
+- needs_improvement: boolean indicating if refinements would improve the text
+- message: detailed self-critique with specific areas for improvement
+- suggestions: 1-3 concrete, actionable refinement suggestions
+- confidence: float 0.0-1.0 based on self-assessment certainty
+  * 0.9-1.0: Very confident in refinement needs or text quality
+  * 0.7-0.8: Moderately confident in assessment
+  * 0.5-0.6: Somewhat uncertain about refinement direction
+  * 0.3-0.4: Low confidence in assessment
+  * 0.0-0.2: Very uncertain or conflicting self-assessment
+- reasoning: explanation of the self-refinement analysis process
 
-        Returns:
-            A dictionary with critique results (without processing_time_ms).
-        """
-        # Prepare context from retrieved documents (using mixin)
-        context = self._prepare_context(thought)
+SELF-REFINEMENT PRINCIPLES:
+- Be constructively critical of the current text
+- Focus on incremental improvements rather than major overhauls
+- Provide specific, actionable suggestions that can be implemented
+- Consider the cumulative effect of multiple refinement rounds
+- Balance thoroughness with conciseness
 
-        # Create critique prompt with context
-        critique_prompt = self.critique_prompt_template.format(
-            prompt=thought.prompt,
-            text=thought.text,
-            context=context,
-        )
+If the text is already well-refined and further changes would not improve quality,
+set needs_improvement to false and explain why no further refinement is beneficial."""
 
-        # Generate critique (async only)
-        critique_response = await self.model._generate_async(
-            prompt=critique_prompt,
-            system_prompt="You are an expert critic providing detailed, constructive feedback.",
-        )
+    async def _build_critique_prompt(self, thought: SifakaThought) -> str:
+        """Build the critique prompt for Self-Refine methodology."""
+        if not thought.current_text:
+            return "No text available for self-refinement critique."
 
-        # Parse the critique
-        issues, suggestions = self._parse_critique(critique_response)
+        prompt_parts = [
+            "SELF-REFINE CRITIQUE REQUEST",
+            "=" * 50,
+            "",
+            f"Original Task: {thought.prompt}",
+            f"Current Iteration: {thought.iteration}",
+            f"Refinement Round: {thought.iteration + 1}",
+            "",
+            "TEXT TO REFINE:",
+            thought.current_text,
+            "",
+        ]
 
-        # Determine if improvement is needed based on critique content
-        needs_improvement = self._needs_improvement(critique_response)
-
-        logger.debug("SelfRefineCritic: Async critique completed")
-
-        return {
-            "needs_improvement": needs_improvement,
-            "message": critique_response,
-            "issues": issues,
-            "suggestions": suggestions,
-            "confidence": 0.8,  # Default confidence for Self-Refine
-            "metadata": {
-                "max_iterations": self.max_iterations,
-                "improvement_criteria": self.improvement_criteria,
-            },
-        }
-
-    async def improve_async(self, thought: Thought) -> str:
-        """Improve text using iterative Self-Refine approach asynchronously.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-
-        Returns:
-            The improved text after iterative refinement.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        # Use the enhanced method with validation context from thought
-        validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return await self.improve_with_validation_context_async(thought, validation_context)
-
-    async def improve_with_validation_context_async(
-        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Improve text with validation context awareness.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-            validation_context: Optional validation context for constraint awareness.
-
-        Returns:
-            The improved text that prioritizes validation constraints.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name="SelfRefineCritic",
-            operation="improve",
-            message_prefix="Failed to improve text with Self-Refine",
-        ):
-            # Check if text is available
-            if not thought.text:
-                raise ImproverError(
-                    message="No text available for improvement",
-                    component="SelfRefineCritic",
-                    operation="improve",
-                    suggestions=["Provide text to improve"],
-                )
-
-            current_text = thought.text
-
-            # Prepare context once for all iterations (using mixin)
-            context = self._prepare_context(thought)
-
-            # Iterative refinement process following original Self-Refine algorithm
-            for iteration in range(self.max_iterations):
-                logger.debug(
-                    f"SelfRefineCritic: Starting iteration {iteration + 1}/{self.max_iterations}"
-                )
-
-                # FEEDBACK: Generate critique for current text
-                critique_prompt = self.critique_prompt_template.format(
-                    prompt=thought.prompt,
-                    text=current_text,
-                    context=context,
-                )
-
-                # Generate critique (async only)
-                critique = await self.model._generate_async(
-                    prompt=critique_prompt,
-                    system_prompt="You are an expert critic providing detailed, constructive feedback.",
-                )
-
-                # Check if improvement is needed (stopping criteria)
-                if not self._needs_improvement(critique):
-                    logger.debug(
-                        f"SelfRefineCritic: Stopping early at iteration {iteration + 1} - no improvement needed"
-                    )
-                    break
-
-                # Parse critique to extract suggestions for filtering
-                _, suggestions = self._parse_critique(critique)
-
-                # REFINE: Generate improved text using validation-aware prompt
-                if validation_context:
-                    # Use enhanced prompt with validation awareness
-                    improve_prompt = self._create_enhanced_improvement_prompt(
-                        prompt=thought.prompt,
-                        text=current_text,
-                        critique=critique,
-                        context=context,
-                        validation_context=validation_context,
-                        critic_suggestions=suggestions,
-                    )
-                else:
-                    # Use original prompt template
-                    improve_prompt = self.improve_prompt_template.format(
-                        prompt=thought.prompt,
-                        text=current_text,
-                        critique=critique,
-                        context=context,
-                    )
-
-                # Store the actual prompt for logging/debugging
-                self.last_improvement_prompt = improve_prompt
-
-                # Generate improved text (async only)
-                improved_text = await self.model._generate_async(
-                    prompt=improve_prompt,
-                    system_prompt="You are an expert editor improving text based on critique.",
-                )
-
-                # Update current text for next iteration
-                current_text = improved_text.strip()
-
-                logger.debug(f"SelfRefineCritic: Completed iteration {iteration + 1}")
-
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
-
-            logger.debug(
-                f"SelfRefineCritic: Refinement completed in {processing_time:.2f}ms "
-                f"after {iteration + 1} iterations"
+        # Add refinement history from previous iterations
+        if thought.iteration > 0:
+            prompt_parts.extend(
+                [
+                    "REFINEMENT HISTORY:",
+                    "=" * 20,
+                    "Previous refinement attempts and outcomes:",
+                    "",
+                ]
             )
 
-            return current_text
+            # Show progression through iterations
+            for i in range(min(thought.iteration, 3)):  # Limit to last 3 iterations
+                iteration_generations = [g for g in thought.generations if g.iteration == i]
+                iteration_critiques = [
+                    c
+                    for c in thought.critiques
+                    if c.iteration == i and c.critic == "SelfRefineCritic"
+                ]
 
-    def _parse_critique(self, critique: str) -> tuple[List[str], List[str]]:
-        """Parse critique text to extract issues and suggestions.
+                if iteration_generations and iteration_critiques:
+                    gen = iteration_generations[-1]
+                    critique = iteration_critiques[-1]
 
-        Args:
-            critique: The critique text to parse.
+                    prompt_parts.extend(
+                        [
+                            f"Iteration {i}:",
+                            f"Text: {gen.text[:150]}{'...' if len(gen.text) > 150 else ''}",
+                            f"Self-Critique: {critique.feedback[:100]}{'...' if len(critique.feedback) > 100 else ''}",
+                            f"Suggestions Applied: {len(critique.suggestions)} suggestions",
+                            "",
+                        ]
+                    )
 
-        Returns:
-            A tuple of (issues, suggestions) lists.
-        """
-        issues = []
-        suggestions = []
+        # Add validation context
+        validation_context = self._get_validation_context(thought)
+        if validation_context:
+            prompt_parts.extend(
+                [
+                    "VALIDATION REQUIREMENTS:",
+                    "=" * 25,
+                    validation_context,
+                    "",
+                    "NOTE: Self-refinement should prioritize addressing validation failures",
+                    "while also improving overall text quality.",
+                    "",
+                ]
+            )
 
-        # Simple parsing logic
-        in_issues = False
-        in_suggestions = False
+        # Add current refinement focus
+        prompt_parts.extend(
+            [
+                "CURRENT REFINEMENT FOCUS:",
+                "=" * 30,
+            ]
+        )
+        for area in self.refinement_focus:
+            prompt_parts.append(f"- {area}")
 
-        for line in critique.split("\n"):
-            line = line.strip()
-            if line.lower().startswith("issues:"):
-                in_issues = True
-                in_suggestions = False
-                continue
-            elif line.lower().startswith("suggestions:"):
-                in_issues = False
-                in_suggestions = True
-                continue
-            elif line.lower().startswith("overall assessment:"):
-                in_issues = False
-                in_suggestions = False
-                continue
-            elif not line or line.startswith("#"):
-                continue
+        prompt_parts.extend(
+            [
+                "",
+                "SELF-REFINEMENT INSTRUCTIONS:",
+                "=" * 35,
+                "1. Critically analyze the current text from a self-improvement perspective",
+                "2. Identify specific areas where refinement would add value",
+                "3. Consider the refinement history to avoid repetitive suggestions",
+                "4. Generate concrete, implementable improvement suggestions",
+                "5. Assess whether further refinement is beneficial or if the text is sufficiently refined",
+                "6. Set confidence based on:",
+                "   - Clarity of refinement needs (clear needs = higher confidence)",
+                "   - Quality of current text (poor quality = higher confidence in improvement)",
+                "   - Certainty of suggestions (specific improvements = higher confidence)",
+                "   - Assessment ambiguity (unclear cases = lower confidence)",
+                "",
+                "CONFIDENCE SCORING REQUIREMENTS:",
+                "- Use the FULL range 0.0-1.0, not just 0.8!",
+                "- High confidence (0.9-1.0): Very clear refinement needs or excellent text quality",
+                "- Medium confidence (0.6-0.8): Moderate refinement needs or good text quality",
+                "- Low confidence (0.3-0.5): Uncertain refinement direction or mixed quality",
+                "- Very low confidence (0.0-0.2): Highly uncertain or conflicting assessment",
+                "",
+                "Focus on iterative improvement that builds on previous refinement rounds.",
+            ]
+        )
 
-            if in_issues and line.startswith("-"):
-                issues.append(line[1:].strip())
-            elif in_suggestions and line.startswith("-"):
-                suggestions.append(line[1:].strip())
+        return "\n".join(prompt_parts)
 
-        # If no structured format found, extract from general content
-        if not issues and not suggestions:
-            critique_lower = critique.lower()
-            if any(word in critique_lower for word in ["issue", "problem", "error", "unclear"]):
-                issues.append("General issues identified in critique")
-            if any(word in critique_lower for word in ["improve", "suggest", "consider", "should"]):
-                suggestions.append("See critique for improvement suggestions")
+    def _get_critic_specific_metadata(self, feedback) -> Dict[str, Any]:
+        """Extract Self-Refine-specific metadata."""
+        base_metadata = super()._get_critic_specific_metadata(feedback)
 
-        return issues, suggestions
+        # Add Self-Refine-specific metadata
+        self_refine_metadata = {
+            "methodology": "self_refine_iterative",
+            "refinement_focus_areas": len(self.refinement_focus),
+            "refinement_needed": feedback.needs_improvement,
+            "refinement_confidence": feedback.confidence,
+            "iterative_improvement": True,  # Always true for Self-Refine
+            "self_critique_quality": (
+                "high"
+                if feedback.confidence > 0.7
+                else "medium" if feedback.confidence > 0.4 else "low"
+            ),
+        }
 
-    def _needs_improvement(self, critique: str) -> bool:
-        """Determine if text needs improvement based on critique content.
-
-        Args:
-            critique: The critique text to analyze.
-
-        Returns:
-            True if improvement is needed, False otherwise.
-        """
-        # Simple heuristic based on common phrases in critiques
-        no_improvement_phrases = [
-            "no issues",
-            "looks good",
-            "well written",
-            "excellent",
-            "great job",
-            "perfect",
-            "no improvement needed",
-            "already excellent",
-            "no changes needed",
-            "well-structured",
-            "clear and concise",
-            "high quality",
-        ]
-
-        improvement_phrases = [
-            "could be improved",
-            "needs improvement",
-            "issues",
-            "problems",
-            "unclear",
-            "confusing",
-            "missing",
-            "incorrect",
-            "should be",
-            "consider",
-            "suggest",
-            "recommend",
-            "enhance",
-            "revise",
-        ]
-
-        critique_lower = critique.lower()
-
-        # Check for explicit "no improvement" indicators
-        for phrase in no_improvement_phrases:
-            if phrase in critique_lower:
-                return False
-
-        # Check for improvement indicators
-        for phrase in improvement_phrases:
-            if phrase in critique_lower:
-                return True
-
-        # Default to needing improvement if unclear
-        return True
+        base_metadata.update(self_refine_metadata)
+        return base_metadata

@@ -1,332 +1,147 @@
-"""File-based storage implementation.
+"""Simple file persistence implementation for Sifaka.
 
-Simple JSON file persistence for thoughts and other data. Perfect for single-user
-applications and development where you want to persist data between runs.
+Just saves thoughts to JSON files. That's it.
 """
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
-import aiofiles
-
-from sifaka.utils.logging import get_logger
+from .base import SifakaBasePersistence
+from sifaka.core.thought import SifakaThought
+from sifaka.utils import get_logger
 
 logger = get_logger(__name__)
 
 
-class FileStorage:
-    """Simple file-based storage using JSON.
+class SifakaFilePersistence(SifakaBasePersistence):
+    """Simple file-based persistence.
 
-    Stores all data in a single JSON file. Data is loaded into memory on startup
-    and written back to file on every set operation.
-
-    Perfect for:
-    - Single-user applications
-    - Development and testing with persistence
-    - Small to medium datasets
-    - Cases where you want human-readable storage
-
-    Attributes:
-        file_path: Path to the JSON storage file.
-        data: In-memory cache of the file contents.
+    Just saves thoughts as JSON files in a directory.
     """
 
-    def __init__(
-        self,
-        file_path: Optional[str] = None,
-        directory: Optional[str] = None,
-        overwrite: bool = False,
-    ):
-        """Initialize file storage.
+    def __init__(self, storage_dir: str = "thoughts", file_prefix: str = ""):
+        """Initialize file persistence.
 
         Args:
-            file_path: Path to the JSON file for storage.
-            directory: Directory to store the default file (alternative to file_path).
-            overwrite: If True, start with empty storage (overwrite existing file).
-                      If False, load existing data and append to it (default behavior).
+            storage_dir: Directory to save thoughts in
+            file_prefix: Optional prefix for thought files (e.g., "n_critics_")
         """
-        if file_path is not None:
-            self.file_path = Path(file_path)
-        elif directory is not None:
-            self.file_path = Path(directory) / "sifaka_storage.json"
+        super().__init__("sifaka")
+        self.storage_dir = Path(storage_dir)
+        self.file_prefix = file_prefix
+        self.storage_dir.mkdir(exist_ok=True)
+        logger.debug(
+            f"Initialized SifakaFilePersistence at {self.storage_dir} with prefix '{file_prefix}'"
+        )
+
+    async def _store_raw(self, key: str, data: str) -> None:
+        """Store raw data at the given key."""
+        # For thoughts, save to {prefix}{thought_id}.json
+        if ":thought:" in key:
+            thought_id = key.split(":")[-1]
+            filename = f"{self.file_prefix}{thought_id}.json"
+            file_path = self.storage_dir / filename
+
+            with open(file_path, "w", encoding="utf-8") as f:
+                # Try to pretty-print JSON if possible
+                try:
+                    json_data = json.loads(data)
+                    json.dump(json_data, f, indent=2, ensure_ascii=False)
+                except json.JSONDecodeError:
+                    f.write(data)
+
+            logger.debug(f"Saved thought to {file_path}")
         else:
-            self.file_path = Path("sifaka_storage.json")
+            # For other data (run status, etc.), just ignore it
+            # We only care about saving actual thoughts
+            pass
 
-        self.data: Dict[str, Any] = {}
-        self.overwrite = overwrite
+    async def _retrieve_raw(self, key: str) -> Optional[str]:
+        """Retrieve raw data from the given key."""
+        if ":thought:" in key:
+            thought_id = key.split(":")[-1]
+            filename = f"{self.file_prefix}{thought_id}.json"
+            file_path = self.storage_dir / filename
 
-        # Create directory if it doesn't exist
-        self.file_path.parent.mkdir(parents=True, exist_ok=True)
+            if file_path.exists():
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    # Try to parse as JSON and re-serialize
+                    try:
+                        data = json.loads(content)
+                        return json.dumps(data)
+                    except json.JSONDecodeError:
+                        return content
 
-        # Load existing data if file exists and overwrite is False
-        if not overwrite:
-            self._load()
-        else:
-            # If overwrite is True, start with empty storage and remove existing file
-            if self.file_path.exists():
-                self.file_path.unlink()
-                logger.debug(f"Removed existing file {self.file_path} due to overwrite=True")
+        return None
 
-        logger.debug(f"Initialized FileStorage at {self.file_path} (overwrite={overwrite})")
+    async def _delete_raw(self, key: str) -> bool:
+        """Delete data at the given key."""
+        if ":thought:" in key:
+            thought_id = key.split(":")[-1]
+            filename = f"{self.file_prefix}{thought_id}.json"
+            file_path = self.storage_dir / filename
 
-    def _load(self) -> None:
-        """Load data from file into memory."""
-        if self.file_path.exists():
-            try:
-                with open(self.file_path, "r", encoding="utf-8") as f:
-                    self.data = json.load(f)
-                logger.debug(f"Loaded {len(self.data)} items from {self.file_path}")
-            except (json.JSONDecodeError, IOError) as e:
-                logger.warning(f"Failed to load from {self.file_path}: {e}")
-                self.data = {}
-        else:
-            logger.debug(f"File {self.file_path} does not exist, starting with empty storage")
+            if file_path.exists():
+                file_path.unlink()
+                return True
 
-    def _save(self) -> None:
-        """Save current data to file."""
-        try:
-            # Write to temporary file first, then rename for atomic operation
-            temp_path = self.file_path.with_suffix(".tmp")
-            with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(self.data, f, indent=2, ensure_ascii=False, default=str)
+        return False
 
-            # Atomic rename
-            temp_path.replace(self.file_path)
-            logger.debug(f"Saved {len(self.data)} items to {self.file_path}")
+    async def _list_keys(self, pattern: str) -> List[str]:
+        """List all keys matching the given pattern."""
+        keys = []
 
-        except IOError as e:
-            logger.error(f"Failed to save to {self.file_path}: {e}")
-            # Clean up temp file if it exists
-            temp_path = self.file_path.with_suffix(".tmp")
-            if temp_path.exists():
-                temp_path.unlink()
+        if ":thought:" in pattern:
+            # Look for files with our prefix
+            search_pattern = f"{self.file_prefix}*.json"
+            for file_path in self.storage_dir.glob(search_pattern):
+                # Remove prefix to get thought_id
+                filename = file_path.stem
+                if filename.startswith(self.file_prefix):
+                    thought_id = filename[len(self.file_prefix) :]
+                    key = f"{self.key_prefix}:thought:{thought_id}"
+                    keys.append(key)
 
-    async def _load_async(self) -> None:
-        """Load data from file into memory asynchronously."""
-        if self.file_path.exists():
-            try:
-                async with aiofiles.open(self.file_path, "r", encoding="utf-8") as f:
-                    content = await f.read()
-                    self.data = json.loads(content)
-                logger.debug(f"Loaded {len(self.data)} items from {self.file_path}")
-            except (json.JSONDecodeError, IOError) as e:
-                logger.warning(f"Failed to load from {self.file_path}: {e}")
-                self.data = {}
-        else:
-            logger.debug(f"File {self.file_path} does not exist, starting with empty storage")
+        return keys
 
-    async def _save_async(self) -> None:
-        """Save current data to file asynchronously."""
-        try:
-            # Write to temporary file first, then rename for atomic operation
-            temp_path = self.file_path.with_suffix(".tmp")
-            content = json.dumps(self.data, indent=2, ensure_ascii=False, default=str)
+    # Required BaseStatePersistence methods - minimal implementation
+    def record_run(self, snapshot_id: str):
+        """Record the run of a node."""
+        return self._RunRecorder()
 
-            async with aiofiles.open(temp_path, "w", encoding="utf-8") as f:
-                await f.write(content)
+    class _RunRecorder:
+        """Minimal run recorder that does nothing."""
 
-            # Atomic rename
-            temp_path.replace(self.file_path)
-            logger.debug(f"Saved {len(self.data)} items to {self.file_path}")
+        async def __aenter__(self):
+            return self
 
-        except IOError as e:
-            logger.error(f"Failed to save to {self.file_path}: {e}")
-            # Clean up temp file if it exists
-            temp_path = self.file_path.with_suffix(".tmp")
-            if temp_path.exists():
-                temp_path.unlink()
-
-    # Internal async methods (required by Storage protocol)
-    async def _get_async(self, key: str) -> Optional[Any]:
-        """Get a value by key asynchronously (internal method).
-
-        Args:
-            key: The storage key.
-
-        Returns:
-            The stored value, or None if not found.
-        """
-        value = self.data.get(key)
-        logger.debug(f"File get: {key} -> {'found' if value is not None else 'not found'}")
-
-        # If the value is a dictionary and looks like a Thought, try to reconstruct it
-        if value is not None and isinstance(value, dict) and "id" in value and "prompt" in value:
-            try:
-                from sifaka.core.thought import Thought
-
-                return Thought.from_dict(value)
-            except Exception as e:
-                logger.debug(f"Failed to reconstruct Thought from dict: {e}")
-                # Return the raw dict if reconstruction fails
-                return value
-
-        return value
-
-    async def _set_async(self, key: str, value: Any) -> None:
-        """Set a value for a key and save to file asynchronously (internal method).
-
-        Args:
-            key: The storage key.
-            value: The value to store.
-        """
-        # If the value is a Thought object, convert it to a dict for JSON serialization
-        if hasattr(value, "model_dump"):
-            # This is likely a Pydantic model (like Thought)
-            stored_value = value.model_dump()
-        else:
-            stored_value = value
-
-        self.data[key] = stored_value
-        await self._save_async()
-        logger.debug(f"File set: {key} -> stored and saved")
-
-    async def _search_async(self, query: str, limit: int = 10) -> List[Any]:
-        """Search for items matching a query asynchronously (internal method).
-
-        For file storage, this just returns all values (no semantic search).
-
-        Args:
-            query: The search query (ignored for file storage).
-            limit: Maximum number of results to return.
-
-        Returns:
-            List of all stored values, limited by the limit parameter.
-        """
-        values = list(self.data.values())[:limit]
-        logger.debug(f"File search: '{query}' -> {len(values)} results")
-        return values
-
-    async def _clear_async(self) -> None:
-        """Clear all stored data and remove file asynchronously (internal method)."""
-        count = len(self.data)
-        self.data.clear()
-
-        # Remove the file
-        if self.file_path.exists():
-            self.file_path.unlink()
-
-        logger.debug(f"File clear: removed {count} items and deleted {self.file_path}")
-
-    async def _delete_async(self, key: str) -> bool:
-        """Delete a value by key asynchronously (internal method).
-
-        Args:
-            key: The storage key to delete.
-
-        Returns:
-            True if the key was deleted, False if it didn't exist.
-        """
-        if key in self.data:
-            del self.data[key]
-            await self._save_async()
-            logger.debug(f"File delete: {key} -> deleted")
-            return True
-        else:
-            logger.debug(f"File delete: {key} -> not found")
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
             return False
 
-    async def _keys_async(self) -> List[str]:
-        """Get all keys asynchronously (internal method).
+    async def load_all(self, run_id: str) -> List["SifakaThought"]:
+        """Load all states for a given run."""
+        return []
 
-        Returns:
-            List of all storage keys.
-        """
-        return list(self.data.keys())
+    async def load_next(self, run_id: str) -> Optional["SifakaThought"]:
+        """Load the next state for a given run."""
+        return None
 
-    # Public sync methods (backward compatible API)
-    async def get(self, key: str) -> Optional[Any]:
-        """Get a value by key.
+    async def snapshot_end(self, state: "SifakaThought", end) -> None:
+        """Snapshot the final state at the end of execution."""
+        await self.store_thought(state)
 
-        Args:
-            key: The storage key.
+    async def snapshot_node_if_new(
+        self, snapshot_id: str, state: "SifakaThought", next_node
+    ) -> None:
+        """Snapshot the state if it's new."""
+        await self.store_thought(state)
 
-        Returns:
-            The stored value, or None if not found.
-        """
-        return await self._get_async(key)
+    async def snapshot_node(self, state: "SifakaThought", next_node: str) -> None:
+        """Snapshot the current state before executing a node."""
+        await self.store_thought(state)
 
-    async def set(self, key: str, value: Any) -> None:
-        """Set a value for a key and save to file.
-
-        Args:
-            key: The storage key.
-            value: The value to store.
-        """
-        return await self._set_async(key, value)
-
-    async def search(self, query: str, limit: int = 10) -> List[Any]:
-        """Search for items matching a query.
-
-        For file storage, this just returns all values (no semantic search).
-
-        Args:
-            query: The search query (ignored for file storage).
-            limit: Maximum number of results to return.
-
-        Returns:
-            List of all stored values, limited by the limit parameter.
-        """
-        return await self._search_async(query, limit)
-
-    async def clear(self) -> None:
-        """Clear all stored data and remove file."""
-        return await self._clear_async()
-
-    async def delete(self, key: str) -> bool:
-        """Delete a value by key.
-
-        Args:
-            key: The storage key to delete.
-
-        Returns:
-            True if the key was deleted, False if it didn't exist.
-        """
-        return await self._delete_async(key)
-
-    async def keys(self) -> List[str]:
-        """Get all keys in storage.
-
-        Returns:
-            List of all storage keys.
-        """
-        return await self._keys_async()
-
-    def __len__(self) -> int:
-        """Return number of stored items."""
-        return len(self.data)
-
-    def __contains__(self, key: str) -> bool:
-        """Check if key exists in storage."""
-        return key in self.data
-
-    def save(self, key: str, value: Any) -> None:
-        """Save a value for a key (same as set).
-
-        Args:
-            key: The storage key.
-            value: The value to store.
-        """
-        self.set(key, value)
-
-    def exists(self, key: str) -> bool:
-        """Check if key exists in storage (same as __contains__).
-
-        Args:
-            key: The storage key to check.
-
-        Returns:
-            True if the key exists, False otherwise.
-        """
-        return key in self.data
-
-    def load(self, key: str) -> Optional[Any]:
-        """Load a value by key (same as get).
-
-        Args:
-            key: The storage key.
-
-        Returns:
-            The stored value, or None if not found.
-        """
-        return self.get(key)
+    async def load_state(self, state_id: str) -> Optional["SifakaThought"]:
+        """Load a previously saved state."""
+        return await self.retrieve_thought(state_id)

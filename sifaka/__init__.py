@@ -1,63 +1,66 @@
-"""Sifaka: A framework for building reliable AI text generation chains.
+"""Sifaka - PydanticAI-native AI validation, improvement, and evaluation framework.
 
-Sifaka provides a comprehensive framework for building AI text generation
-pipelines with validation, criticism, and improvement capabilities using PydanticAI.
+This is a complete rewrite of Sifaka built on PydanticAI's graph capabilities.
+The new architecture provides:
 
-Key components:
-- PydanticAI Chains: Modern agent-based text generation workflows
-- Models: Interfaces to various language models (OpenAI, Anthropic, etc.)
-- Validators: Components for validating generated text
-- Critics: Components for providing feedback and improvement suggestions
-- Classifiers: Text classification for content moderation
-- Retrievers: Document retrieval for context-aware generation
+- Graph-based workflow orchestration using pydantic_graph
+- Pure async implementation throughout
+- State persistence for resumable workflows
+- Parallel execution of validators and critics
+- Rich observability and analytics
+- Type-safe operations with Pydantic models
 
-Example:
+Key Components:
+- SifakaEngine: Main orchestration engine
+- SifakaThought: Core state container with full audit trail
+- Graph Nodes: Generate, Validate, and Critique operations
+- Critics: Research-based improvement agents (Reflexion, Constitutional, Self-Refine)
+- Validators: Content validation (length, coherence, factual accuracy)
+- Storage: Pluggable storage backends (memory, file, Redis)
+
+Example Usage:
     ```python
-    from pydantic_ai import Agent
-    from sifaka.agents import create_pydantic_chain
-    from sifaka.validators import LengthValidator
-    from sifaka.critics import ReflexionCritic
-    from sifaka.models import create_model
+    from sifaka import SifakaEngine
 
-    # Create PydanticAI agent
-    agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant.")
+    # Create engine with default configuration
+    engine = SifakaEngine()
 
-    # Create Sifaka components
-    validator = LengthValidator(min_length=10, max_length=1000)
-    critic = ReflexionCritic(model=create_model("openai:gpt-3.5-turbo"))
+    # Process a single thought
+    thought = await engine.think("Explain renewable energy")
+    print(thought.final_text)
 
-    # Create chain
-    chain = create_pydantic_chain(
-        agent=agent,
-        validators=[validator],
-        critics=[critic]
-    )
-
-    # Run the chain
-    result = chain.run("Write a friendly greeting.")
-    print(result.text)
+    # Continue conversation
+    follow_up = await engine.continue_thought(thought, "Focus on solar panels")
+    print(follow_up.final_text)
     ```
+
+For more advanced usage, see the documentation and examples.
 """
 
-# Standard library imports
-from typing import List
+from sifaka.core.engine import SifakaEngine
+from sifaka.core.thought import SifakaThought
+from sifaka.graph.dependencies import SifakaDependencies
+from sifaka.utils import (
+    SifakaError,
+    ValidationError,
+    CritiqueError,
+    GraphExecutionError,
+    ConfigurationError,
+    SifakaConfig,
+)
 
-# Sifaka imports (absolute paths only)
-from sifaka.core.interfaces import Critic, Model, Retriever, Validator
-from sifaka.core.thought import CriticFeedback, Document, Thought, ValidationResult
-
-__all__: List[str] = [
+__version__ = "0.5.0-alpha"
+__all__ = [
     # Core components
-    "Thought",
-    "Document",
-    "ValidationResult",
-    "CriticFeedback",
-    # Interfaces
-    "Model",
-    "Validator",
-    "Critic",
-    "Retriever",
+    "SifakaEngine",
+    "SifakaThought",
+    "SifakaDependencies",
+    # Configuration and utilities
+    "SifakaConfig",
+    # Error types
+    "SifakaError",
+    "ValidationError",
+    "CritiqueError",
+    "GraphExecutionError",
+    "ConfigurationError",
 ]
-
-# Version info
-__version__ = "0.3.0"

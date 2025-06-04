@@ -1,352 +1,334 @@
-"""Prompt-based critic for Sifaka.
+"""Prompt-based customizable critic for Sifaka.
 
-This module implements a simple, customizable prompt-based critic that allows
-users to define their own critique criteria through custom prompts.
+This module implements a flexible, prompt-based critic that can be customized
+for specific evaluation criteria, domains, or use cases through configurable
+prompts and evaluation guidelines.
 
-The PromptCritic provides a flexible foundation for creating domain-specific
-critics without requiring complex implementations.
+This critic is not based on a specific research paper but provides a practical
+framework for implementing custom evaluation criteria using prompt engineering
+and structured output formatting.
+
+The PromptCritic enables:
+1. Custom evaluation criteria through configurable prompts
+2. Domain-specific critique through specialized guidelines
+3. Task-specific evaluation through tailored instructions
+4. Flexible adaptation to different use cases and requirements
+
+IMPLEMENTATION APPROACH:
+
+This critic uses prompt engineering to create customizable evaluation criteria
+without requiring separate model training or fine-tuning. It leverages the
+underlying language model's ability to follow detailed instructions and
+evaluation guidelines provided through carefully crafted prompts.
+
+The approach is inspired by prompt engineering best practices and instruction
+following research, allowing users to specify custom evaluation criteria,
+rubrics, and guidelines that the critic will apply consistently.
+
+DESIGN PRINCIPLES:
+1. Flexibility: Support for arbitrary evaluation criteria and guidelines
+2. Consistency: Structured output format regardless of custom criteria
+3. Adaptability: Easy modification for different domains and use cases
+4. Transparency: Clear specification of evaluation criteria and reasoning
+5. Integration: Seamless integration with Sifaka's validation and critique framework
+
+CUSTOMIZATION OPTIONS:
+- Custom evaluation criteria and rubrics
+- Domain-specific guidelines and best practices
+- Task-specific evaluation instructions
+- Specialized terminology and concepts
+- Custom scoring and assessment methods
+
+RETRIEVAL AUGMENTATION:
+This critic supports optional retrieval augmentation to enhance custom
+evaluation by providing external guidelines, examples, domain knowledge,
+or reference materials relevant to the specific evaluation criteria.
 """
 
-import time
 from typing import Any, Dict, List, Optional
 
-from sifaka.core.interfaces import Model
-from sifaka.core.thought import Thought
-from sifaka.critics.base import BaseCritic
-from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
-from sifaka.utils.error_handling import ImproverError, critic_context
-from sifaka.utils.logging import get_logger
-from sifaka.validators.validation_context import create_validation_context
+from pydantic_ai import Agent
 
-logger = get_logger(__name__)
+from sifaka.core.thought import SifakaThought
+from sifaka.critics.base import BaseCritic, CritiqueFeedback
 
 
-class PromptCritic(BaseCritic, ValidationAwareMixin):
-    """A simple, customizable prompt-based critic with validation awareness.
+class PromptCritic(BaseCritic):
+    """Customizable prompt-based critic for flexible evaluation criteria.
 
-    This critic allows users to define their own critique criteria through
-    custom prompts, making it easy to create domain-specific critics without
-    complex implementations.
+    This critic allows users to specify custom evaluation criteria, guidelines,
+    and instructions through configurable prompts, enabling domain-specific
+    and task-specific critique without requiring separate model training.
 
-    Enhanced with validation context awareness to prioritize validation constraints
-    over conflicting prompt-based suggestions.
+    Enhanced with validation context awareness to ensure custom evaluation
+    criteria work harmoniously with validation requirements.
     """
 
     def __init__(
         self,
-        model: Optional[Model] = None,
-        model_name: Optional[str] = None,
-        critique_prompt_template: Optional[str] = None,
-        improve_prompt_template: Optional[str] = None,
-        system_prompt: Optional[str] = None,
-        criteria: Optional[List[str]] = None,
-        **model_kwargs: Any,
+        model_name: str = "anthropic:claude-3-haiku-20240307",
+        custom_criteria: Optional[str] = None,
+        evaluation_guidelines: Optional[str] = None,
+        domain_context: Optional[str] = None,
+        retrieval_tools: Optional[List[Any]] = None,
+        auto_discover_tools: bool = False,
+        tool_categories: Optional[List[str]] = None,
+        **agent_kwargs: Any,
     ):
-        """Initialize the Prompt critic.
+        """Initialize the Prompt-based critic.
 
         Args:
-            model: The language model to use for critique and improvement.
-            model_name: The name of the model to use if model is not provided.
-            critique_prompt_template: Custom template for the critique prompt.
-            improve_prompt_template: Custom template for the improvement prompt.
-            system_prompt: Custom system prompt for the critic.
-            criteria: List of specific criteria to evaluate.
-            **model_kwargs: Additional keyword arguments for model creation.
+            model_name: The model name for the PydanticAI agent
+            custom_criteria: Custom evaluation criteria and instructions
+            evaluation_guidelines: Specific guidelines for evaluation process
+            domain_context: Domain-specific context and terminology
+            retrieval_tools: Optional list of retrieval tools for RAG support
+            auto_discover_tools: If True, automatically discover and use all available tools
+            tool_categories: Optional list of tool categories to include when auto-discovering
+            **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
-        super().__init__(model=model, model_name=model_name, **model_kwargs)
+        self.custom_criteria = custom_criteria or self._get_default_criteria()
+        self.evaluation_guidelines = evaluation_guidelines or self._get_default_guidelines()
+        self.domain_context = domain_context or "General text evaluation"
 
-        self.criteria = criteria or [
-            "Clarity and readability",
-            "Accuracy and factual correctness",
-            "Completeness and thoroughness",
-            "Relevance to the task",
+        system_prompt = self._create_system_prompt()
+        paper_reference = (
+            "Custom prompt-based critic implementation. "
+            "Not based on a specific research paper but follows prompt engineering best practices "
+            "for instruction following and structured evaluation."
+        )
+        methodology = (
+            "Prompt-based methodology: Customizable evaluation through configurable criteria and guidelines. "
+            "Uses prompt engineering for flexible, domain-specific critique without model training. "
+            "Adaptable to various use cases and evaluation requirements."
+        )
+
+        super().__init__(
+            model_name=model_name,
+            system_prompt=system_prompt,
+            paper_reference=paper_reference,
+            methodology=methodology,
+            retrieval_tools=retrieval_tools,
+            auto_discover_tools=auto_discover_tools,
+            tool_categories=tool_categories,
+            **agent_kwargs,
+        )
+
+    def _get_default_criteria(self) -> str:
+        """Get default evaluation criteria."""
+        return """Evaluate the text based on the following criteria:
+1. Clarity: Is the text clear, well-structured, and easy to understand?
+2. Accuracy: Is the information accurate and factually correct?
+3. Completeness: Does the text adequately address the given task or topic?
+4. Relevance: Is the content relevant and focused on the main topic?
+5. Quality: Is the overall quality appropriate for the intended purpose?"""
+
+    def _get_default_guidelines(self) -> str:
+        """Get default evaluation guidelines."""
+        return """Follow these guidelines when evaluating:
+- Be specific and constructive in your feedback
+- Provide actionable suggestions for improvement
+- Consider the intended audience and purpose
+- Balance criticism with recognition of strengths
+- Focus on the most important issues first"""
+
+    def _create_system_prompt(self) -> str:
+        """Create the system prompt for the Prompt-based critic."""
+        return f"""You are a customizable Prompt-based critic for text evaluation.
+
+Your role is to evaluate text according to specific custom criteria and guidelines
+provided by the user, offering flexible and adaptable critique for various
+domains, tasks, and use cases.
+
+DOMAIN CONTEXT:
+{self.domain_context}
+
+CUSTOM EVALUATION CRITERIA:
+{self.custom_criteria}
+
+EVALUATION GUIDELINES:
+{self.evaluation_guidelines}
+
+RESPONSE FORMAT:
+- needs_improvement: boolean indicating if text needs improvement based on custom criteria
+- message: detailed analysis according to the specified evaluation criteria
+- suggestions: 1-3 specific suggestions based on the custom guidelines
+- confidence: float 0.0-1.0 based on assessment certainty using the given criteria
+- reasoning: explanation of evaluation process and application of custom criteria
+
+CONFIDENCE SCORING REQUIREMENTS:
+- Use the FULL range 0.0-1.0, not just 0.8!
+- High confidence (0.9-1.0): Clear assessment using well-defined criteria
+- Medium confidence (0.6-0.8): Moderate assessment with some uncertainty
+- Low confidence (0.3-0.5): Unclear criteria application or mixed results
+- Very low confidence (0.0-0.2): Insufficient criteria or highly uncertain assessment
+
+EVALUATION PROCESS:
+1. Apply the custom evaluation criteria systematically
+2. Follow the specified evaluation guidelines
+3. Consider the domain context and specialized requirements
+4. Provide feedback that aligns with the custom criteria
+5. Generate actionable suggestions based on the guidelines
+
+Be consistent in applying the custom criteria while maintaining flexibility
+to adapt to the specific requirements and context provided."""
+
+    async def _build_critique_prompt(self, thought: SifakaThought) -> str:
+        """Build the critique prompt for custom prompt-based methodology."""
+        if not thought.current_text:
+            return "No text available for custom prompt-based critique."
+
+        prompt_parts = [
+            "CUSTOM PROMPT-BASED CRITIQUE REQUEST",
+            "=" * 50,
+            "",
+            f"Original Task: {thought.prompt}",
+            f"Current Iteration: {thought.iteration}",
+            f"Domain Context: {self.domain_context}",
+            "",
+            "TEXT TO EVALUATE:",
+            thought.current_text,
+            "",
+            "CUSTOM EVALUATION CRITERIA:",
+            "=" * 35,
+            self.custom_criteria,
+            "",
+            "EVALUATION GUIDELINES:",
+            "=" * 25,
+            self.evaluation_guidelines,
+            "",
         ]
 
-        self.system_prompt = system_prompt or (
-            "You are an expert critic providing detailed, constructive feedback on text quality."
-        )
-
-        # Set up prompt templates
-        criteria_text = "\n".join(f"- {criterion}" for criterion in self.criteria)
-
-        self.critique_prompt_template = critique_prompt_template or (
-            "Please critique the following text based on these criteria:\n\n"
-            f"{criteria_text}\n\n"
-            "Original task: {prompt}\n\n"
-            "Text to critique:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Please provide your critique in the following format:\n\n"
-            "Issues:\n- [List specific issues here]\n\n"
-            "Suggestions:\n- [List specific suggestions here]\n\n"
-            "Overall Assessment: [Brief overall assessment]\n\n"
-            "Be specific and constructive in your feedback. Consider how well the text "
-            "uses information from the retrieved context (if available)."
-        )
-
-        self.improve_prompt_template = improve_prompt_template or (
-            "Improve the following text based on the critique provided.\n\n"
-            "Original task: {prompt}\n\n"
-            "Current text:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Critique:\n{critique}\n\n"
-            "Please provide an improved version that addresses the issues identified "
-            "in the critique while maintaining the core message and staying true to "
-            "the original task. Better incorporate relevant information from the context if available.\n\n"
-            "Improved text:"
-        )
-
-        # Store the last improvement prompt used for debugging/logging
-        self.last_improvement_prompt = None
-
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic using custom prompt asynchronously.
-
-        Args:
-            thought: The Thought container with the text to critique.
-
-        Returns:
-            A dictionary with critique results (without processing_time_ms).
-        """
-        # Prepare context from retrieved documents (using mixin)
-        context = self._prepare_context(thought)
-
-        # Create critique prompt with context
-        critique_prompt = self.critique_prompt_template.format(
-            prompt=thought.prompt,
-            text=thought.text,
-            context=context,
-        )
-
-        # Generate critique asynchronously (async only)
-        critique_response = await self.model._generate_async(
-            prompt=critique_prompt,
-            system_prompt=self.system_prompt,
-        )
-
-        # Parse the critique
-        issues, suggestions = self._parse_critique(critique_response)
-
-        # Determine if improvement is needed based on critique content
-        needs_improvement = self._needs_improvement(critique_response)
-
-        logger.debug("PromptCritic: Async critique completed")
-
-        return {
-            "needs_improvement": needs_improvement,
-            "message": critique_response,
-            "issues": issues,
-            "suggestions": suggestions,
-            "confidence": 0.7,  # Default confidence for prompt-based critic
-            "metadata": {
-                "criteria": self.criteria,
-                "system_prompt": self.system_prompt,
-            },
-        }
-
-    async def improve_async(self, thought: Thought) -> str:
-        """Improve text based on prompt-based critique asynchronously.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-
-        Returns:
-            The improved text.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        # Use the enhanced method with validation context from thought
-        validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return await self.improve_with_validation_context_async(thought, validation_context)
-
-    async def improve_with_validation_context_async(
-        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Improve text with validation context awareness.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-            validation_context: Optional validation context for constraint awareness.
-
-        Returns:
-            The improved text that prioritizes validation constraints.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name="PromptCritic",
-            operation="improve",
-            message_prefix="Failed to improve text with prompt-based critic",
-        ):
-            # Check if text is available
-            if not thought.text:
-                raise ImproverError(
-                    message="No text available for improvement",
-                    component="PromptCritic",
-                    operation="improve",
-                    suggestions=["Provide text to improve"],
-                )
-
-            # Get critique from thought
-            critique = ""
-            if thought.critic_feedback:
-                for feedback in thought.critic_feedback:
-                    if feedback.critic_name == "PromptCritic":
-                        critique = feedback.feedback
-                        break
-
-            # If no critique available, generate one using async method
-            if not critique:
-                logger.debug("No critique found in thought, generating new critique")
-                critique_result = await self._perform_critique_async(thought)
-                critique = critique_result["message"]
-
-            # Prepare context for improvement (using mixin)
-            context = self._prepare_context(thought)
-
-            # Parse critique to extract suggestions for filtering
-            _, suggestions = self._parse_critique(critique)
-
-            # Create improvement prompt with validation awareness
-            if validation_context:
-                # Use enhanced prompt with validation awareness
-                improve_prompt = self._create_enhanced_improvement_prompt(
-                    prompt=thought.prompt,
-                    text=thought.text,
-                    critique=critique,
-                    context=context,
-                    validation_context=validation_context,
-                    critic_suggestions=suggestions,
-                )
-            else:
-                # Use original prompt template
-                improve_prompt = self.improve_prompt_template.format(
-                    prompt=thought.prompt,
-                    text=thought.text,
-                    critique=critique,
-                    context=context,
-                )
-
-            # Store the actual prompt for logging/debugging
-            self.last_improvement_prompt = improve_prompt
-
-            # Generate improved text (async only)
-            improved_text = await self.model._generate_async(
-                prompt=improve_prompt,
-                system_prompt=self.system_prompt,
+        # Add validation context
+        validation_context = self._get_validation_context(thought)
+        if validation_context:
+            prompt_parts.extend(
+                [
+                    "VALIDATION REQUIREMENTS:",
+                    "=" * 25,
+                    validation_context,
+                    "",
+                    "NOTE: Custom evaluation should consider validation requirements",
+                    "alongside the specified custom criteria and guidelines.",
+                    "",
+                ]
             )
 
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
+        # Add previous custom critiques
+        if thought.iteration > 0:
+            prev_prompt_critiques = [
+                c
+                for c in thought.critiques
+                if c.iteration == thought.iteration - 1 and c.critic == "PromptCritic"
+            ]
+            if prev_prompt_critiques:
+                prompt_parts.extend(
+                    [
+                        "PREVIOUS CUSTOM EVALUATION:",
+                        "=" * 30,
+                    ]
+                )
+                for critique in prev_prompt_critiques[-1:]:  # Last prompt critique
+                    prompt_parts.extend(
+                        [
+                            f"Previous Assessment: {critique.feedback[:150]}{'...' if len(critique.feedback) > 150 else ''}",
+                            f"Previous Suggestions: {', '.join(critique.suggestions)}",
+                            "",
+                        ]
+                    )
 
-            logger.debug(f"PromptCritic: Improvement completed in {processing_time:.2f}ms")
+        # Add custom evaluation instructions
+        prompt_parts.extend(
+            [
+                "CUSTOM EVALUATION INSTRUCTIONS:",
+                "=" * 40,
+                "1. Apply the custom evaluation criteria systematically to the text",
+                "2. Follow the specified evaluation guidelines throughout the process",
+                "3. Consider the domain context and any specialized requirements",
+                "4. Provide specific feedback that aligns with the custom criteria",
+                "5. Generate actionable suggestions based on the evaluation guidelines",
+                "6. Maintain consistency with the specified evaluation approach",
+                "",
+                "EVALUATION FOCUS:",
+                "- Apply each criterion from the custom evaluation criteria",
+                "- Follow the evaluation guidelines for feedback style and approach",
+                "- Consider domain-specific requirements and context",
+                "- Provide constructive, actionable feedback",
+                "- Maintain consistency with previous evaluations using the same criteria",
+                "",
+                "Evaluate the text thoroughly according to the custom criteria and guidelines provided.",
+            ]
+        )
 
-            return improved_text.strip()
+        return "\n".join(prompt_parts)
 
-    def _parse_critique(self, critique: str) -> tuple[List[str], List[str]]:
-        """Parse critique text to extract issues and suggestions.
+    def _get_critic_specific_metadata(self, feedback) -> Dict[str, Any]:
+        """Extract Prompt-based critic-specific metadata."""
+        base_metadata = super()._get_critic_specific_metadata(feedback)
+
+        # Add Prompt-based critic-specific metadata
+        prompt_metadata = {
+            "methodology": "custom_prompt_based",
+            "domain_context": self.domain_context,
+            "has_custom_criteria": bool(self.custom_criteria),
+            "has_custom_guidelines": bool(self.evaluation_guidelines),
+            "customizable": True,
+            "criteria_length": len(self.custom_criteria) if self.custom_criteria else 0,
+            "guidelines_length": (
+                len(self.evaluation_guidelines) if self.evaluation_guidelines else 0
+            ),
+        }
+
+        base_metadata.update(prompt_metadata)
+        return base_metadata
+
+    def update_criteria(self, new_criteria: str) -> None:
+        """Update the custom evaluation criteria.
 
         Args:
-            critique: The critique text to parse.
-
-        Returns:
-            A tuple of (issues, suggestions) lists.
+            new_criteria: New evaluation criteria to use
         """
-        issues = []
-        suggestions = []
+        self.custom_criteria = new_criteria
+        # Update system prompt with new criteria
+        self.system_prompt = self._create_system_prompt()
+        # Recreate agent with updated prompt
+        self.agent = Agent(
+            model=self.model_name,
+            output_type=CritiqueFeedback,
+            system_prompt=self.system_prompt,
+            tools=self.retrieval_tools,
+        )
 
-        # Simple parsing logic
-        in_issues = False
-        in_suggestions = False
-
-        for line in critique.split("\n"):
-            line = line.strip()
-            if line.lower().startswith("issues:"):
-                in_issues = True
-                in_suggestions = False
-                continue
-            elif line.lower().startswith("suggestions:"):
-                in_issues = False
-                in_suggestions = True
-                continue
-            elif line.lower().startswith("overall assessment:"):
-                in_issues = False
-                in_suggestions = False
-                continue
-            elif not line or line.startswith("#"):
-                continue
-
-            if in_issues and line.startswith("-"):
-                issues.append(line[1:].strip())
-            elif in_suggestions and line.startswith("-"):
-                suggestions.append(line[1:].strip())
-
-        # If no structured format found, extract from general content
-        if not issues and not suggestions:
-            critique_lower = critique.lower()
-            if any(word in critique_lower for word in ["issue", "problem", "error", "unclear"]):
-                issues.append("General issues identified in critique")
-            if any(word in critique_lower for word in ["improve", "suggest", "consider", "should"]):
-                suggestions.append("See critique for improvement suggestions")
-
-        return issues, suggestions
-
-    def _needs_improvement(self, critique: str) -> bool:
-        """Determine if text needs improvement based on critique content.
+    def update_guidelines(self, new_guidelines: str) -> None:
+        """Update the evaluation guidelines.
 
         Args:
-            critique: The critique text to analyze.
-
-        Returns:
-            True if improvement is needed, False otherwise.
+            new_guidelines: New evaluation guidelines to use
         """
-        # Simple heuristic based on common phrases in critiques
-        no_improvement_phrases = [
-            "no issues",
-            "looks good",
-            "well written",
-            "excellent",
-            "great job",
-            "perfect",
-            "no improvement needed",
-            "already excellent",
-            "no changes needed",
-            "well-structured",
-            "clear and concise",
-            "high quality",
-        ]
+        self.evaluation_guidelines = new_guidelines
+        # Update system prompt with new guidelines
+        self.system_prompt = self._create_system_prompt()
+        # Recreate agent with updated prompt
+        self.agent = Agent(
+            model=self.model_name,
+            output_type=CritiqueFeedback,
+            system_prompt=self.system_prompt,
+            tools=self.retrieval_tools,
+        )
 
-        improvement_phrases = [
-            "could be improved",
-            "needs improvement",
-            "issues",
-            "problems",
-            "unclear",
-            "confusing",
-            "missing",
-            "incorrect",
-            "should be",
-            "consider",
-            "suggest",
-            "recommend",
-            "enhance",
-            "revise",
-        ]
+    def update_domain_context(self, new_context: str) -> None:
+        """Update the domain context.
 
-        critique_lower = critique.lower()
-
-        # Check for explicit "no improvement" indicators
-        for phrase in no_improvement_phrases:
-            if phrase in critique_lower:
-                return False
-
-        # Check for improvement indicators
-        for phrase in improvement_phrases:
-            if phrase in critique_lower:
-                return True
-
-        # Default to needing improvement if unclear
-        return True
+        Args:
+            new_context: New domain context to use
+        """
+        self.domain_context = new_context
+        # Update system prompt with new context
+        self.system_prompt = self._create_system_prompt()
+        # Recreate agent with updated prompt
+        self.agent = Agent(
+            model=self.model_name,
+            output_type=CritiqueFeedback,
+            system_prompt=self.system_prompt,
+            tools=self.retrieval_tools,
+        )

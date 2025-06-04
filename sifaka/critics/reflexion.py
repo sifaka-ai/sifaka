@@ -1,7 +1,8 @@
 """Reflexion critic for Sifaka.
 
 This module implements a Reflexion-inspired approach for iterative improvement
-through trial-and-error learning with verbal reinforcement.
+through trial-and-error learning with verbal reinforcement using PydanticAI agents
+with structured output.
 
 Based on "Reflexion: Language Agents with Verbal Reinforcement Learning":
 https://arxiv.org/abs/2303.11366
@@ -22,40 +23,55 @@ The ReflexionCritic implements key Reflexion concepts:
 3. Self-reflection on failures and successes
 4. Verbal reinforcement for future attempts
 
-Note: This is a simplified implementation that captures core Reflexion principles
-without the full multi-agent Actor/Evaluator/Self-Reflection architecture.
+IMPORTANT IMPLEMENTATION NOTES AND CAVEATS:
+
+This implementation adapts the core Reflexion principle-based evaluation
+for text critique using Sifaka's Thought infrastructure. The original
+Reflexion paper focuses on multi-agent Actor/Evaluator/Self-Reflection architecture
+for reinforcement learning from AI feedback.
+
+Our implementation focuses on the critique and self-reflection aspects without the
+full multi-agent training component, making it suitable for real-time text improvement
+rather than model training. We leverage Sifaka's Thought system for episodic memory
+instead of duplicating memory infrastructure.
+
+CAVEATS AND LIMITATIONS:
+1. This is a simplified implementation that captures core Reflexion principles
+   without the full multi-agent Actor/Evaluator/Self-Reflection architecture.
+2. The original paper uses environment-specific reward signals; we adapt this
+   to text quality assessment which is more subjective.
+3. Memory persistence is handled by Sifaka's thought system rather than
+   the specialized memory buffer described in the original paper.
+4. The reflection mechanism is simplified to focus on text improvement
+   rather than the complex action-space exploration in the original work.
+5. Performance may vary significantly depending on the underlying language model's
+   capability for self-reflection and critique.
+
+RETRIEVAL AUGMENTATION:
+This critic supports optional retrieval augmentation to enhance reflection quality
+by providing external context, examples, or domain-specific knowledge during
+the critique process.
 """
 
-import time
 from typing import Any, Dict, List, Optional
 
-from sifaka.core.interfaces import Model
-from sifaka.core.thought import Thought
+from sifaka.core.thought import SifakaThought
 from sifaka.critics.base import BaseCritic
-from sifaka.critics.mixins.validation_aware import ValidationAwareMixin
-from sifaka.utils.error_handling import ImproverError, critic_context
-from sifaka.utils.logging import get_logger
-from sifaka.validators.validation_context import create_validation_context
-
-logger = get_logger(__name__)
 
 
-# Task feedback can be stored in CriticFeedback.metadata
-# Trial memory can be stored in Thought.history and Thought.metadata
-# This leverages the existing Thought infrastructure instead of duplicating it
-
-
-class ReflexionCritic(BaseCritic, ValidationAwareMixin):
-    """Critic that uses self-reflection to improve text quality with validation awareness.
+class ReflexionCritic(BaseCritic):
+    """Reflexion critic implementing Shinn et al. 2023 methodology.
 
     This critic implements the Reflexion approach for improving text through
-    self-reflection. It performs a critique, reflects on the critique to identify
-    specific improvements, and then generates improved text.
+    self-reflection and iterative learning from past attempts. It performs a critique,
+    reflects on the critique to identify specific improvements, and then generates
+    improvement suggestions.
 
     The process involves:
-    1. Generating an initial critique of the text
-    2. Reflecting on the critique to identify specific improvements
-    3. Improving the text based on the reflection
+    1. Analyzing the current text for quality and accuracy
+    2. Reflecting on previous attempts and their outcomes
+    3. Identifying specific patterns of success and failure
+    4. Generating targeted improvement suggestions based on reflection
 
     Enhanced with validation context awareness to prioritize validation constraints
     over conflicting reflection suggestions.
@@ -63,652 +79,181 @@ class ReflexionCritic(BaseCritic, ValidationAwareMixin):
 
     def __init__(
         self,
-        model: Optional[Model] = None,
-        model_name: Optional[str] = None,
-        critique_prompt_template: Optional[str] = None,
-        reflection_prompt_template: Optional[str] = None,
-        improve_prompt_template: Optional[str] = None,
-        max_memory_size: int = 10,
-        **model_kwargs: Any,
+        model_name: str = "openai:gpt-4o-mini",
+        retrieval_tools: Optional[List[Any]] = None,
+        auto_discover_tools: bool = False,
+        tool_categories: Optional[List[str]] = None,
+        **agent_kwargs: Any,
     ):
         """Initialize the Reflexion critic.
 
         Args:
-            model: The language model to use for critique and improvement.
-            model_name: The name of the model to use if model is not provided.
-            critique_prompt_template: Template for the critique prompt.
-            reflection_prompt_template: Template for the reflection prompt.
-            improve_prompt_template: Template for the improvement prompt.
-            max_memory_size: Maximum number of reflections to keep in memory.
-            **model_kwargs: Additional keyword arguments for model creation.
+            model_name: The model name for the PydanticAI agent
+            retrieval_tools: Optional list of retrieval tools for RAG support
+            auto_discover_tools: If True, automatically discover and use all available tools
+            tool_categories: Optional list of tool categories to include when auto-discovering
+            **agent_kwargs: Additional arguments passed to the PydanticAI agent
         """
-        super().__init__(model=model, model_name=model_name, **model_kwargs)
-
-        # Simple memory system for episodic learning (original Reflexion concept)
-        self.max_memory_size = max_memory_size
-        self.memory_buffer: List[Dict[str, Any]] = []
-
-        # Set up prompt templates
-        self.critique_prompt_template = critique_prompt_template or (
-            "Please critique the following text and identify any issues or areas for improvement. "
-            "Focus on clarity, coherence, accuracy, and relevance to the original prompt.\n\n"
-            "Original prompt: {prompt}\n\n"
-            "Text to critique:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Please provide your critique in the following format:\n"
-            "Issues:\n- [List specific issues here]\n\n"
-            "Suggestions:\n- [List specific suggestions here]\n\n"
-            "Overall Assessment: [Brief overall assessment]\n\n"
-            "Consider how well the text uses information from the retrieved context (if available)."
+        system_prompt = self._create_system_prompt()
+        paper_reference = (
+            "Shinn, N., Cassano, F., Berman, E., Gopinath, A., Narasimhan, K., & Yao, S. (2023). "
+            "Reflexion: Language Agents with Verbal Reinforcement Learning. "
+            "arXiv preprint arXiv:2303.11366. https://arxiv.org/abs/2303.11366"
+        )
+        methodology = (
+            "Reflexion methodology: Trial-and-error learning with verbal reinforcement. "
+            "Uses episodic memory to reflect on past attempts and generate targeted improvements. "
+            "Adapted for text critique with simplified reflection mechanism."
         )
 
-        self.reflection_prompt_template = reflection_prompt_template or (
-            "Based on the critique below, reflect deeply on what specific improvements should be made. "
-            "Use your episodic memory of past trials to inform your reflection.\n\n"
-            "Original prompt: {prompt}\n\n"
-            "Original text:\n{text}\n\n"
-            "Critique:\n{critique}\n\n"
-            "Trial Context:\n"
-            "- Current trial: {trial_number}\n"
-            "- Previous attempts: {previous_attempts}\n"
-            "- Success patterns: {success_patterns}\n"
-            "- Failure patterns: {failure_patterns}\n"
-            "- External feedback: {external_feedback}\n\n"
-            "Episodic Memory:\n{episodic_memory}\n\n"
-            "Please provide a multi-layered reflection:\n\n"
-            "1. CRITIQUE QUALITY ASSESSMENT:\n"
-            "- How accurate and useful was this critique?\n"
-            "- What did the critique miss or get wrong?\n\n"
-            "2. TASK PERFORMANCE REFLECTION:\n"
-            "- Why might this text have these issues?\n"
-            "- What patterns do I see from past similar tasks?\n"
-            "- What worked well in previous successful attempts?\n\n"
-            "3. IMPROVEMENT STRATEGY:\n"
-            "- Specific steps to address each issue\n"
-            "- How to avoid repeating past failures\n"
-            "- How to leverage successful patterns\n\n"
-            "4. META-REFLECTION:\n"
-            "- What am I learning about this type of task?\n"
-            "- How can I improve my critique process?\n"
-            "- What should I remember for future attempts?\n\n"
-            "Expected Outcome: [What the improved text should achieve based on learning]"
+        super().__init__(
+            model_name=model_name,
+            system_prompt=system_prompt,
+            paper_reference=paper_reference,
+            methodology=methodology,
+            retrieval_tools=retrieval_tools,
+            auto_discover_tools=auto_discover_tools,
+            tool_categories=tool_categories,
+            **agent_kwargs,
         )
 
-        self.improve_prompt_template = improve_prompt_template or (
-            "Improve the following text based on the critique and reflection provided.\n\n"
-            "Original prompt: {prompt}\n\n"
-            "Original text:\n{text}\n\n"
-            "Retrieved context:\n{context}\n\n"
-            "Critique:\n{critique}\n\n"
-            "Reflection:\n{reflection}\n\n"
-            "Please provide an improved version that:\n"
-            "1. Addresses all the issues identified in the critique\n"
-            "2. Follows the improvement strategy from the reflection\n"
-            "3. Maintains the core message and purpose\n"
-            "4. Better incorporates relevant information from the context (if available)\n\n"
-            "Improved text:"
-        )
+    def _create_system_prompt(self) -> str:
+        """Create the system prompt for the Reflexion critic."""
+        return """You are a Reflexion critic implementing the methodology from Shinn et al. 2023.
 
-    async def _perform_critique_async(self, thought: Thought) -> Dict[str, Any]:
-        """Perform the actual critique logic using Reflexion approach (async version).
+Your role is to analyze text through self-reflection and provide targeted improvement suggestions
+based on patterns of success and failure from previous attempts.
 
-        Args:
-            thought: The Thought container with the text to critique.
+REFLEXION METHODOLOGY:
+1. Analyze the current text for quality, accuracy, and effectiveness
+2. Reflect on the history of attempts and their outcomes
+3. Identify patterns of what works and what doesn't work
+4. Generate specific, actionable improvement suggestions
+5. Provide confidence assessment based on reflection quality
 
-        Returns:
-            A dictionary with critique results (without processing_time_ms).
-        """
-        # Check for external task feedback in thought metadata
-        task_feedback = self._extract_task_feedback(thought)
+RESPONSE FORMAT:
+- needs_improvement: boolean indicating if text needs improvement
+- message: detailed analysis with reflection on patterns and outcomes
+- suggestions: 1-3 specific, actionable improvement suggestions
+- confidence: float 0.0-1.0 based on reflection quality and pattern clarity
+- reasoning: explanation of the reflection process and pattern identification
 
-        # Step 1: Generate initial critique (considering task feedback if available)
-        critique_result = await self._generate_critique_async(thought, task_feedback)
+FOCUS AREAS:
+- Content accuracy and factual correctness
+- Logical flow and reasoning quality
+- Clarity and comprehensibility
+- Completeness and thoroughness
+- Learning from previous iteration patterns
 
-        # Step 2: Generate self-reflection on the critique and task performance
-        reflection_result = await self._generate_reflection_async(
-            thought, critique_result["critique"], task_feedback
-        )
+Be constructive and specific. If no improvements are needed, set needs_improvement to false
+and explain why the text meets quality standards based on reflection."""
 
-        # Step 3: Store reflection in memory for future learning (legacy)
-        self._add_to_memory(
-            thought.text or "", critique_result["critique"], reflection_result["reflection"]
-        )
+    async def _build_critique_prompt(self, thought: SifakaThought) -> str:
+        """Build the critique prompt for Reflexion methodology."""
+        if not thought.current_text:
+            return "No text available for critique."
 
-        # Store trial outcome in thought metadata for enhanced episodic learning
-        self._store_trial_outcome(thought, reflection_result)
+        prompt_parts = [
+            "REFLEXION CRITIQUE REQUEST",
+            "=" * 50,
+            "",
+            f"Original Task: {thought.prompt}",
+            f"Current Iteration: {thought.iteration}",
+            f"Max Iterations: {thought.max_iterations}",
+            "",
+            "TEXT TO CRITIQUE:",
+            thought.current_text,
+            "",
+        ]
 
-        logger.debug("ReflexionCritic: Async critique and reflection completed")
-
-        return {
-            "needs_improvement": critique_result["needs_improvement"],
-            "message": critique_result["critique"],
-            "issues": critique_result["issues"],
-            "suggestions": critique_result["suggestions"],
-            "confidence": 0.8,  # Default confidence for Reflexion
-            "metadata": {
-                "reflection": reflection_result["reflection"],
-                "improvement_strategy": reflection_result["improvement_strategy"],
-                "memory_size": len(self.memory_buffer),
-                "task_feedback": task_feedback,
-                "trial_number": thought.iteration,
-            },
-        }
-
-    async def improve_async(self, thought: Thought) -> str:
-        """Improve text based on critique and reflection asynchronously.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-
-        Returns:
-            The improved text based on critique and reflection.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        # Use the enhanced method with validation context from thought
-        validation_context = create_validation_context(getattr(thought, "validation_results", None))
-        return await self.improve_with_validation_context_async(thought, validation_context)
-
-    async def improve_with_validation_context_async(
-        self, thought: Thought, validation_context: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Improve text with validation context awareness.
-
-        Args:
-            thought: The Thought container with the text to improve and critique.
-            validation_context: Optional validation context for constraint awareness.
-
-        Returns:
-            The improved text that prioritizes validation constraints.
-
-        Raises:
-            ImproverError: If the improvement fails.
-        """
-        start_time = time.time()
-
-        with critic_context(
-            critic_name="ReflexionCritic",
-            operation="improve",
-            message_prefix="Failed to improve text with Reflexion approach",
-        ):
-            # Check if text is available
-            if not thought.text:
-                raise ImproverError(
-                    message="No text available for improvement",
-                    component="ReflexionCritic",
-                    operation="improve",
-                    suggestions=["Provide text to improve"],
-                )
-
-            # Get critique and reflection from thought
-            critique_text = ""
-            reflection_text = ""
-
-            if thought.critic_feedback:
-                for feedback in thought.critic_feedback:
-                    if feedback.critic_name == "ReflexionCritic":
-                        critique_text = feedback.feedback
-                        reflection_text = feedback.metadata.get("reflection", "")
-                        break
-
-            # If no critique available, generate one using async methods
-            if not critique_text:
-                logger.debug("No critique found in thought, generating new critique")
-                critique_result = await self._generate_critique_async(thought, None)
-                critique_text = critique_result["critique"]
-
-                # Generate reflection for the new critique
-                reflection_result = await self._generate_reflection_async(
-                    thought, critique_text, None
-                )
-                reflection_text = reflection_result["reflection"]
-
-            # Prepare context for improvement (using mixin)
-            context = self._prepare_context(thought)
-
-            # Create improvement prompt with validation awareness
-            if validation_context:
-                # Create a critique string for the enhanced prompt
-                critique = f"Critique:\n{critique_text}\n\nReflection:\n{reflection_text}"
-
-                # Use enhanced prompt with validation awareness
-                improve_prompt = self._create_enhanced_improvement_prompt(
-                    prompt=thought.prompt,
-                    text=thought.text,
-                    critique=critique,
-                    context=context,
-                    validation_context=validation_context,
-                    critic_suggestions=[],  # ReflexionCritic doesn't have structured suggestions
-                )
-            else:
-                # Use original prompt template
-                improve_prompt = self.improve_prompt_template.format(
-                    prompt=thought.prompt,
-                    text=thought.text,
-                    context=context,
-                    critique=critique_text,
-                    reflection=reflection_text,
-                )
-
-            # Generate improved text (async only)
-            improved_text = await self.model._generate_async(
-                prompt=improve_prompt,
-                system_prompt="You are an expert editor using reflection to improve text quality.",
+        # Add episodic memory from previous iterations
+        if thought.iteration > 0:
+            prompt_parts.extend(
+                [
+                    "EPISODIC MEMORY - PREVIOUS ATTEMPTS:",
+                    "=" * 40,
+                ]
             )
 
-            # Calculate processing time
-            processing_time = (time.time() - start_time) * 1000
+            # Add previous generations and their outcomes
+            for i in range(thought.iteration):
+                iteration_generations = [g for g in thought.generations if g.iteration == i]
+                iteration_validations = [v for v in thought.validations if v.iteration == i]
+                iteration_critiques = [c for c in thought.critiques if c.iteration == i]
 
-            logger.debug(f"ReflexionCritic: Improvement completed in {processing_time:.2f}ms")
+                if iteration_generations:
+                    gen = iteration_generations[-1]  # Get the last generation for this iteration
+                    prompt_parts.extend(
+                        [
+                            f"Iteration {i}:",
+                            f"Text: {gen.text[:200]}{'...' if len(gen.text) > 200 else ''}",
+                        ]
+                    )
 
-            return improved_text.strip()
+                    # Add validation outcomes
+                    if iteration_validations:
+                        passed = all(v.passed for v in iteration_validations)
+                        prompt_parts.append(f"Validation: {'PASSED' if passed else 'FAILED'}")
+                        if not passed:
+                            failures = [v for v in iteration_validations if not v.passed]
+                            for failure in failures[:2]:  # Limit to 2 failures
+                                prompt_parts.append(f"  - {failure.validator}: {failure.details}")
 
-    async def _generate_critique_async(
-        self, thought: Thought, task_feedback: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Generate initial critique of the text (async version).
+                    # Add critique outcomes
+                    if iteration_critiques:
+                        total_suggestions = sum(len(c.suggestions) for c in iteration_critiques)
+                        prompt_parts.append(
+                            f"Critique: {total_suggestions} suggestions from {len(iteration_critiques)} critics"
+                        )
 
-        Args:
-            thought: The Thought container with the text to critique.
-            task_feedback: Optional external task feedback.
+                    prompt_parts.append("")
 
-        Returns:
-            A dictionary with critique results.
-        """
-        # Prepare context for critique (using mixin)
-        context = self._prepare_context(thought)
+        # Add current validation context
+        validation_context = self._get_validation_context(thought)
+        if validation_context:
+            prompt_parts.extend(
+                [
+                    "CURRENT VALIDATION CONTEXT:",
+                    "=" * 30,
+                    validation_context,
+                    "",
+                ]
+            )
 
-        # Log context usage
-        if self._has_context(thought):
-            context_summary = self._get_context_summary(thought)
-            logger.debug(f"ReflexionCritic using context for critique: {context_summary}")
-
-        # Format the critique prompt with context
-        critique_prompt = self.critique_prompt_template.format(
-            prompt=thought.prompt,
-            text=thought.text,
-            context=context,
-        )
-
-        # Generate the critique using async model generation
-        logger.debug("Generating initial critique (async)")
-        critique_text = await self.model._generate_async(
-            prompt=critique_prompt,
-            system_prompt="You are an expert critic providing detailed feedback on text quality.",
-        )
-        logger.debug(f"Generated critique of length {len(critique_text)}")
-
-        # Parse the critique (same logic as sync version)
-        issues = []
-        suggestions = []
-
-        # Simple parsing logic - can be improved
-        in_issues = False
-        in_suggestions = False
-
-        for line in critique_text.split("\n"):
-            line = line.strip()
-            if line.lower().startswith("issues:"):
-                in_issues = True
-                in_suggestions = False
-                continue
-            elif line.lower().startswith("suggestions:"):
-                in_issues = False
-                in_suggestions = True
-                continue
-            elif line.lower().startswith("overall assessment:"):
-                in_issues = False
-                in_suggestions = False
-                continue
-            elif not line or line.startswith("#"):
-                continue
-
-            if in_issues and line.startswith("-"):
-                issues.append(line[1:].strip())
-            elif in_suggestions and line.startswith("-"):
-                suggestions.append(line[1:].strip())
-
-        # Determine if improvement is needed
-        needs_improvement = len(issues) > 0 or "improvement" in critique_text.lower()
-
-        return {
-            "critique": critique_text,
-            "issues": issues,
-            "suggestions": suggestions,
-            "needs_improvement": needs_improvement,
-        }
-
-    async def _generate_reflection_async(
-        self, thought: Thought, critique: str, task_feedback: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Generate reflection on the critique to identify specific improvements (async version).
-
-        Args:
-            thought: The Thought container with the text to reflect on.
-            critique: The critique text to reflect on.
-            task_feedback: Optional external task feedback.
-
-        Returns:
-            A dictionary with reflection results.
-        """
-        # Extract trial context from thought
-        trial_context = self._extract_trial_context(thought)
-
-        # Get episodic memory from thought history and metadata
-        episodic_memory = self._build_episodic_memory(thought)
-
-        # Extract patterns from past experiences
-        success_patterns = self._extract_success_patterns(thought)
-        failure_patterns = self._extract_failure_patterns(thought)
-
-        # Get external feedback
-        external_feedback = task_feedback or self._extract_task_feedback(thought)
-
-        # Format the enhanced reflection prompt
-        reflection_prompt = self.reflection_prompt_template.format(
-            prompt=thought.prompt,
-            text=thought.text,
-            critique=critique,
-            trial_number=trial_context.get("trial_number", 1),
-            previous_attempts=trial_context.get("previous_attempts", "None"),
-            success_patterns=success_patterns,
-            failure_patterns=failure_patterns,
-            external_feedback=external_feedback or "None available",
-            episodic_memory=episodic_memory,
-        )
-
-        # Generate the reflection using async model generation
-        logger.debug("Generating reflection on critique (async)")
-        reflection_text = await self.model._generate_async(
-            prompt=reflection_prompt,
-            system_prompt="You are an expert reflecting on critique to identify specific improvements.",
-        )
-        logger.debug(f"Generated reflection of length {len(reflection_text)}")
-
-        # Parse the reflection (same logic as sync version)
-        key_issues = []
-        improvement_strategy = []
-
-        # Simple parsing logic
-        in_key_issues = False
-        in_improvement_strategy = False
-
-        for line in reflection_text.split("\n"):
-            line = line.strip()
-            if line.lower().startswith("key issues to address:"):
-                in_key_issues = True
-                in_improvement_strategy = False
-                continue
-            elif line.lower().startswith("improvement strategy:"):
-                in_key_issues = False
-                in_improvement_strategy = True
-                continue
-            elif line.lower().startswith("expected outcome:") or line.lower().startswith(
-                "reflection:"
-            ):
-                in_key_issues = False
-                in_improvement_strategy = False
-                continue
-            elif not line or line.startswith("#"):
-                continue
-
-            if in_key_issues and line.startswith("-"):
-                key_issues.append(line[1:].strip())
-            elif in_improvement_strategy and line.startswith("-"):
-                improvement_strategy.append(line[1:].strip())
-
-        return {
-            "reflection": reflection_text,
-            "key_issues": key_issues,
-            "improvement_strategy": improvement_strategy,
-        }
-
-    def _add_to_memory(self, text: str, critique: str, reflection: str) -> None:
-        """Add a reflection to memory for future learning.
-
-        Args:
-            text: The original text that was critiqued.
-            critique: The critique that was generated.
-            reflection: The reflection that was generated.
-        """
-        memory_entry = {
-            "text": text[:200],  # Store first 200 chars to save memory
-            "critique": critique[:300],  # Store first 300 chars
-            "reflection": reflection[:300],  # Store first 300 chars
-        }
-
-        self.memory_buffer.append(memory_entry)
-
-        # Keep only the most recent reflections
-        if len(self.memory_buffer) > self.max_memory_size:
-            self.memory_buffer.pop(0)
-
-        logger.debug(f"Added reflection to memory. Buffer size: {len(self.memory_buffer)}")
-
-    def _get_memory_context(self) -> str:
-        """Get formatted memory context from past reflections.
-
-        Returns:
-            A formatted string with past reflections for context.
-        """
-        if not self.memory_buffer:
-            return "No past reflections available."
-
-        memory_parts = []
-        for i, entry in enumerate(self.memory_buffer[-3:], 1):  # Use last 3 entries
-            memory_part = f"Past Reflection {i}:\n"
-            memory_part += f"Text: {entry['text']}...\n"
-            memory_part += f"Critique: {entry['critique']}...\n"
-            memory_part += f"Reflection: {entry['reflection']}...\n"
-            memory_parts.append(memory_part)
-
-        return "\n".join(memory_parts)
-
-    def _extract_task_feedback(self, thought: Thought) -> Optional[Dict[str, Any]]:
-        """Extract task performance feedback from thought metadata.
-
-        Args:
-            thought: The Thought container to extract feedback from.
-
-        Returns:
-            Task feedback dictionary if available, None otherwise.
-        """
-        # Check thought metadata for task feedback
-        if thought.metadata and "task_feedback" in thought.metadata:
-            return thought.metadata["task_feedback"]
-
-        # Check previous iterations for task feedback
-        if thought.history:
-            for _ref in thought.history[:3]:  # Check last 3 iterations
-                # In a real implementation, you'd load the thought from storage
-                # For now, just check if there's feedback info in the reference
-                pass
-
-        return None
-
-    def add_task_feedback(
-        self,
-        thought: Thought,
-        success: bool,
-        score: Optional[float] = None,
-        error_message: Optional[str] = None,
-        external_feedback: Optional[str] = None,
-    ) -> Thought:
-        """Add external task performance feedback to a thought.
-
-        This method allows external systems to provide task performance feedback
-        that will be used in the Reflexion process.
-
-        Args:
-            thought: The Thought to add feedback to.
-            success: Whether the task was completed successfully.
-            score: Optional numeric score (0.0 to 1.0).
-            error_message: Optional error message if task failed.
-            external_feedback: Optional external feedback text.
-
-        Returns:
-            Updated thought with task feedback in metadata.
-        """
-        task_feedback = {
-            "success": success,
-            "score": score,
-            "error_message": error_message,
-            "external_feedback": external_feedback,
-            "timestamp": time.time(),
-        }
-
-        updated_metadata = dict(thought.metadata or {})
-        updated_metadata["task_feedback"] = task_feedback
-
-        return thought.model_copy(update={"metadata": updated_metadata})
-
-    def _extract_trial_context(self, thought: Thought) -> Dict[str, Any]:
-        """Extract trial context from thought for episodic learning.
-
-        Args:
-            thought: The Thought to extract context from.
-
-        Returns:
-            Dictionary with trial context information.
-        """
-        trial_context = {
-            "trial_number": thought.iteration,
-            "chain_id": thought.chain_id,
-            "previous_attempts": len(thought.history) if thought.history else 0,
-        }
-
-        # Extract previous attempt summaries from history
-        if thought.history:
-            attempts = []
-            for i, ref in enumerate(thought.history[-3:]):  # Last 3 attempts
-                attempts.append(f"Attempt {i + 1}: iteration {ref.iteration}")
-            trial_context["previous_attempts"] = "; ".join(attempts)
-
-        return trial_context
-
-    def _build_episodic_memory(self, thought: Thought) -> str:
-        """Build episodic memory from thought history and metadata.
-
-        Args:
-            thought: The Thought to build memory from.
-
-        Returns:
-            Formatted episodic memory string.
-        """
-        memory_parts = []
-
-        # Extract from thought metadata
-        if thought.metadata:
-            reflexion_data = thought.metadata.get("reflexion_memory", {})
-            if reflexion_data:
-                memory_parts.append("Previous Reflexion Sessions:")
-                for session in reflexion_data.get("sessions", [])[-3:]:  # Last 3 sessions
-                    memory_parts.append(f"- {session.get('summary', 'No summary')}")
-
-        # Extract from thought history
-        if thought.history:
-            memory_parts.append("\nRecent Trial History:")
-            for ref in thought.history[-3:]:  # Last 3 trials
-                memory_parts.append(f"- Trial {ref.iteration}: {ref.summary or 'No summary'}")
-
-        # Extract from critic feedback history
-        if thought.critic_feedback:
-            reflexion_feedback = [
-                f for f in thought.critic_feedback if f.critic_name == "ReflexionCritic"
+        # Add reflection instructions
+        prompt_parts.extend(
+            [
+                "REFLECTION INSTRUCTIONS:",
+                "=" * 25,
+                "1. Analyze patterns from previous attempts (if any)",
+                "2. Identify what approaches worked vs. failed",
+                "3. Assess current text quality against task requirements",
+                "4. Generate targeted improvements based on reflection",
+                "5. Provide confidence based on pattern clarity",
+                "",
+                "Focus on learning from the episodic memory to avoid repeating past mistakes",
+                "and build on successful patterns from previous iterations.",
             ]
-            if reflexion_feedback:
-                memory_parts.append("\nPrevious Reflexion Feedback:")
-                for feedback in reflexion_feedback[-2:]:  # Last 2 feedback instances
-                    reflection = feedback.metadata.get("reflection", "")
-                    if reflection:
-                        memory_parts.append(f"- {reflection[:150]}...")
+        )
 
-        return "\n".join(memory_parts) if memory_parts else "No episodic memory available."
+        return "\n".join(prompt_parts)
 
-    def _extract_success_patterns(self, thought: Thought) -> str:
-        """Extract success patterns from thought history.
+    def _get_critic_specific_metadata(self, feedback) -> Dict[str, Any]:
+        """Extract Reflexion-specific metadata."""
+        base_metadata = super()._get_critic_specific_metadata(feedback)
 
-        Args:
-            thought: The Thought to extract patterns from.
-
-        Returns:
-            Formatted success patterns string.
-        """
-        patterns = []
-
-        # Look for successful patterns in metadata
-        if thought.metadata:
-            success_data = thought.metadata.get("reflexion_success_patterns", [])
-            patterns.extend(success_data[-3:])  # Last 3 success patterns
-
-        # Analyze critic feedback for successful outcomes
-        if thought.critic_feedback:
-            for feedback in thought.critic_feedback:
-                if feedback.critic_name == "ReflexionCritic":
-                    if not feedback.metadata.get("needs_improvement", True):
-                        patterns.append("Previous attempt was successful - no improvement needed")
-
-        return "; ".join(patterns) if patterns else "No clear success patterns identified yet."
-
-    def _extract_failure_patterns(self, thought: Thought) -> str:
-        """Extract failure patterns from thought history.
-
-        Args:
-            thought: The Thought to extract patterns from.
-
-        Returns:
-            Formatted failure patterns string.
-        """
-        patterns = []
-
-        # Look for failure patterns in metadata
-        if thought.metadata:
-            failure_data = thought.metadata.get("reflexion_failure_patterns", [])
-            patterns.extend(failure_data[-3:])  # Last 3 failure patterns
-
-        # Analyze critic feedback for recurring issues
-        if thought.critic_feedback:
-            issue_counts = {}
-            for feedback in thought.critic_feedback:
-                if feedback.critic_name == "ReflexionCritic":
-                    for issue in feedback.violations:
-                        issue_counts[issue] = issue_counts.get(issue, 0) + 1
-
-            # Identify recurring issues (appeared more than once)
-            recurring = [issue for issue, count in issue_counts.items() if count > 1]
-            if recurring:
-                patterns.extend([f"Recurring issue: {issue}" for issue in recurring[:3]])
-
-        return "; ".join(patterns) if patterns else "No clear failure patterns identified yet."
-
-    def _store_trial_outcome(self, thought: Thought, reflection_result: Dict[str, Any]) -> None:
-        """Store trial outcome in thought metadata for future learning.
-
-        Args:
-            thought: The Thought to store outcome in.
-            reflection_result: The reflection result to store.
-        """
-        if not thought.metadata:
-            thought.metadata = {}
-
-        # Initialize reflexion memory if not exists
-        if "reflexion_memory" not in thought.metadata:
-            thought.metadata["reflexion_memory"] = {"sessions": []}
-
-        # Store this session
-        session_data = {
-            "trial_number": thought.iteration,
-            "timestamp": time.time(),
-            "reflection": reflection_result.get("reflection", ""),
-            "improvement_strategy": reflection_result.get("improvement_strategy", []),
-            "summary": f"Trial {thought.iteration}: {len(reflection_result.get('improvement_strategy', []))} strategies identified",
+        # Add Reflexion-specific metadata
+        reflexion_metadata = {
+            "reflection_quality": (
+                "high"
+                if feedback.confidence > 0.7
+                else "medium" if feedback.confidence > 0.4 else "low"
+            ),
+            "methodology": "reflexion_verbal_reinforcement",
+            "episodic_memory_used": True,  # Always true for Reflexion
+            "pattern_analysis": len(feedback.suggestions)
+            > 0,  # Indicates pattern-based suggestions
         }
 
-        thought.metadata["reflexion_memory"]["sessions"].append(session_data)
-
-        # Keep only last 10 sessions
-        if len(thought.metadata["reflexion_memory"]["sessions"]) > 10:
-            thought.metadata["reflexion_memory"]["sessions"] = thought.metadata["reflexion_memory"][
-                "sessions"
-            ][-10:]
+        base_metadata.update(reflexion_metadata)
+        return base_metadata
