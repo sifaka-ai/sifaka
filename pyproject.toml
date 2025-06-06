@@ -9,14 +9,17 @@ description = "Sifaka - PydanticAI-native AI validation, improvement, and evalua
 authors = [{name = "Evan Volgas", email = "evan.volgas@gmail.com"}]
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.9,<3.13"
 keywords = ["ai", "llm", "validation", "guardrails", "text-generation", "machine-learning"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
@@ -62,18 +65,26 @@ mcp = [
     "jsonschema>=4.17.0",
 ]
 
-# ML and classification (optional dependencies for classifiers)
+# ML and classification (all classifiers now use transformers)
+# Default: PyTorch backend (most common and well-supported)
 classifiers = [
-    "scikit-learn>=1.6.1",
-    "textblob>=0.19.0",
-    "langdetect>=1.0.9",
-    "better-profanity>=0.7.0",
-    "nltk>=3.8.1",  # Natural Language Toolkit for advanced text processing
-    "spacy>=3.7.0",  # Industrial-strength NLP library
-    "textstat>=0.7.3",  # Readability metrics and text statistics
-    "detoxify>=0.5.2",  # Bias detection using pretrained models
-    "transformers>=4.52.0",  # Hugging Face transformers for ML classifiers
+    "transformers>=4.52.0",  # Hugging Face transformers for all ML classifiers
     "torch>=2.0.0",  # PyTorch backend for transformers
+    "sentencepiece>=0.2.0",  # Tokenization for transformers
+    "accelerate>=0.20.0",  # Faster model loading and inference
+]
+
+# Alternative backends for transformers (choose one)
+classifiers-tf = [
+    "transformers>=4.52.0",  # Hugging Face transformers
+    "tensorflow>=2.15.0",  # TensorFlow backend for transformers
+    "sentencepiece>=0.2.0",  # Tokenization for transformers
+]
+
+classifiers-jax = [
+    "transformers>=4.52.0",  # Hugging Face transformers
+    "jax>=0.4.0",  # JAX backend for transformers
+    "flax>=0.8.0",  # Flax for JAX models
     "sentencepiece>=0.2.0",  # Tokenization for transformers
 ]
 
@@ -115,17 +126,10 @@ dev = [
     "types-requests>=2.31.0",
     "types-redis>=4.5.0",
     # Include all classifier dependencies for development
-    "scikit-learn>=1.6.1",
-    "textblob>=0.19.0",
-    "langdetect>=1.0.9",
-    "better-profanity>=0.7.0",
-    "nltk>=3.8.1",
-    "spacy>=3.7.0",
-    "textstat>=0.7.3",
-    "detoxify>=0.5.2",
     "transformers>=4.52.0",
     "torch>=2.0.0",
     "sentencepiece>=0.2.0",
+    "accelerate>=0.20.0",
     # Include tools for development
     "pydantic-ai-slim[duckduckgo]>=0.2.0",
 ]
@@ -137,8 +141,16 @@ models = [
 retrievers = [
     "sifaka[redis]",
 ]
+# Default: PyTorch backend
 all = [
     "sifaka[models,retrievers,classifiers,performance,mcp,tools]",
+]
+# Alternative backends
+all-tf = [
+    "sifaka[models,retrievers,classifiers-tf,performance,mcp,tools]",
+]
+all-jax = [
+    "sifaka[models,retrievers,classifiers-jax,performance,mcp,tools]",
 ]
 full = [
     "sifaka[all,dev]",
@@ -150,7 +162,7 @@ include = ["sifaka*"]
 
 [tool.black]
 line-length = 100
-target-version = ['py311']
+target-version = ['py39', 'py310', 'py311', 'py312']
 include = '\.pyi?$'
 
 [tool.isort]
@@ -160,7 +172,7 @@ multi_line_output = 3
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py39"
 exclude = [
     ".git",
     "__pycache__",
@@ -221,7 +233,7 @@ exclude_lines = [
 ]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

@@ -19,11 +19,11 @@ logger = get_logger(__name__)
 
 class ClassifierValidator(BaseValidator, TimingMixin):
     """Validator that uses a classifier to validate text.
-    
+
     This validator runs a classifier on text and validates the result
     against specified criteria such as required labels, confidence thresholds,
     or forbidden labels.
-    
+
     Attributes:
         classifier: The classifier to use for validation
         threshold: Minimum confidence threshold for classification
@@ -31,7 +31,7 @@ class ClassifierValidator(BaseValidator, TimingMixin):
         invalid_labels: List of labels that are considered invalid (None = none forbidden)
         strict: Whether to fail validation on any violation
     """
-    
+
     def __init__(
         self,
         classifier: BaseClassifier,
@@ -43,7 +43,7 @@ class ClassifierValidator(BaseValidator, TimingMixin):
         description: Optional[str] = None,
     ):
         """Initialize the classifier validator.
-        
+
         Args:
             classifier: The classifier to use for validation
             threshold: Minimum confidence threshold for classification
@@ -52,7 +52,7 @@ class ClassifierValidator(BaseValidator, TimingMixin):
             strict: Whether to fail validation on any violation
             name: Custom name for the validator
             description: Custom description for the validator
-            
+
         Raises:
             ValidationError: If configuration is invalid
         """
@@ -61,9 +61,9 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                 f"Threshold must be between 0.0 and 1.0, got {threshold}",
                 error_code="invalid_config",
                 context={"threshold": threshold},
-                suggestions=["Use a threshold between 0.0 and 1.0"]
+                suggestions=["Use a threshold between 0.0 and 1.0"],
             )
-        
+
         if valid_labels and invalid_labels:
             # Check for overlap
             overlap = set(valid_labels) & set(invalid_labels)
@@ -72,13 +72,13 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                     f"Labels cannot be both valid and invalid: {overlap}",
                     error_code="invalid_config",
                     context={"overlap": list(overlap)},
-                    suggestions=["Remove overlapping labels from one of the lists"]
+                    suggestions=["Remove overlapping labels from one of the lists"],
                 )
-        
+
         # Set default name and description
         if name is None:
             name = f"classifier_{classifier.name}"
-        
+
         if description is None:
             parts = []
             if valid_labels:
@@ -87,20 +87,20 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                 parts.append(f"forbids labels: {invalid_labels}")
             if threshold > 0.0:
                 parts.append(f"min confidence: {threshold}")
-            
+
             if parts:
                 description = f"Validates using {classifier.name} classifier ({', '.join(parts)})"
             else:
                 description = f"Validates using {classifier.name} classifier"
-        
+
         super().__init__(name=name, description=description)
-        
+
         self.classifier = classifier
         self.threshold = threshold
         self.valid_labels = valid_labels
         self.invalid_labels = invalid_labels
         self.strict = strict
-        
+
         logger.debug(
             f"Created ClassifierValidator",
             extra={
@@ -110,15 +110,15 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                 "valid_labels": self.valid_labels,
                 "invalid_labels": self.invalid_labels,
                 "strict": self.strict,
-            }
+            },
         )
-    
+
     async def validate_async(self, thought: SifakaThought) -> ValidationResult:
         """Validate text using the classifier.
-        
+
         Args:
             thought: The SifakaThought to validate
-            
+
         Returns:
             ValidationResult with classifier-based validation information
         """
@@ -127,20 +127,20 @@ class ClassifierValidator(BaseValidator, TimingMixin):
         if not text:
             logger.debug(
                 f"Classifier validation failed: no text",
-                extra={"validator": self.name, "thought_id": thought.id}
+                extra={"validator": self.name, "thought_id": thought.id},
             )
             return self.create_empty_text_result()
-        
+
         with self.time_operation("classifier_validation") as timer:
             try:
                 # Run classification
                 classification_result = await self.classifier.classify_async(text)
-                
+
                 # Validate classification result
                 issues = []
                 suggestions = []
                 violations = 0
-                
+
                 # Check confidence threshold
                 if classification_result.confidence < self.threshold:
                     violations += 1
@@ -148,8 +148,10 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                         f"Classification confidence {classification_result.confidence:.3f} "
                         f"below threshold {self.threshold}"
                     )
-                    suggestions.append(f"Improve text to increase {self.classifier.name} confidence")
-                
+                    suggestions.append(
+                        f"Improve text to increase {self.classifier.name} confidence"
+                    )
+
                 # Check valid labels
                 if self.valid_labels and classification_result.label not in self.valid_labels:
                     violations += 1
@@ -157,8 +159,10 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                         f"Classification label '{classification_result.label}' "
                         f"not in valid labels: {self.valid_labels}"
                     )
-                    suggestions.append(f"Modify text to achieve one of: {', '.join(self.valid_labels)}")
-                
+                    suggestions.append(
+                        f"Modify text to achieve one of: {', '.join(self.valid_labels)}"
+                    )
+
                 # Check invalid labels
                 if self.invalid_labels and classification_result.label in self.invalid_labels:
                     violations += 1
@@ -167,10 +171,10 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                         f"is in forbidden labels: {self.invalid_labels}"
                     )
                     suggestions.append(f"Modify text to avoid: {', '.join(self.invalid_labels)}")
-                
+
                 # Determine if validation passed
                 passed = violations == 0
-                
+
                 # Calculate score
                 if passed:
                     score = 1.0
@@ -181,7 +185,7 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                     confidence_score = classification_result.confidence
                     violation_penalty = violations * 0.3
                     score = max(0.1, confidence_score - violation_penalty)
-                
+
                 # Create result message
                 if passed:
                     message = (
@@ -190,10 +194,10 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                     )
                 else:
                     message = f"Classifier validation failed: {violations} violation(s)"
-                
+
                 # Get processing time from timer context
-                processing_time = getattr(timer, 'duration_ms', 0.0)
-                
+                processing_time = getattr(timer, "duration_ms", 0.0)
+
                 result = self.create_validation_result(
                     passed=passed,
                     message=message,
@@ -214,7 +218,7 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                     },
                     processing_time_ms=processing_time,
                 )
-                
+
                 logger.debug(
                     f"Classifier validation completed",
                     extra={
@@ -226,11 +230,11 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                         "confidence": classification_result.confidence,
                         "violations": violations,
                         "score": score,
-                    }
+                    },
                 )
-                
+
                 return result
-                
+
             except Exception as e:
                 logger.error(
                     f"Classifier validation failed",
@@ -241,11 +245,16 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                         "error": str(e),
                         "error_type": type(e).__name__,
                     },
-                    exc_info=True
+                    exc_info=True,
                 )
                 raise ValidationError(
                     f"Classifier validation failed: {str(e)}",
-                    error_code="classifier_validation_error",
+                    validator_name=self.name,
+                    validation_details={
+                        "classifier": self.classifier.name,
+                        "text_length": len(text),
+                        "error_type": type(e).__name__,
+                    },
                     context={
                         "validator": self.name,
                         "classifier": self.classifier.name,
@@ -256,7 +265,7 @@ class ClassifierValidator(BaseValidator, TimingMixin):
                         "Check classifier configuration",
                         "Verify classifier is properly initialized",
                         "Try with different text",
-                    ]
+                    ],
                 ) from e
 
 
@@ -269,7 +278,7 @@ def create_classifier_validator(
     name: Optional[str] = None,
 ) -> ClassifierValidator:
     """Create a classifier validator with the specified parameters.
-    
+
     Args:
         classifier: The classifier to use for validation
         threshold: Minimum confidence threshold for classification
@@ -277,7 +286,7 @@ def create_classifier_validator(
         invalid_labels: List of labels that are considered invalid
         strict: Whether to fail validation on any violation
         name: Custom name for the validator
-        
+
     Returns:
         Configured ClassifierValidator instance
     """
@@ -299,30 +308,30 @@ def sentiment_validator(
     name: Optional[str] = None,
 ) -> ClassifierValidator:
     """Create a validator that checks text sentiment.
-    
+
     Args:
         required_sentiment: Required sentiment ('positive', 'negative', 'neutral')
         forbidden_sentiments: List of forbidden sentiments
         min_confidence: Minimum confidence for sentiment detection
         cached: Whether to use cached sentiment classifier
         name: Custom name for the validator
-        
+
     Returns:
         ClassifierValidator configured for sentiment validation
     """
     from sifaka.classifiers.sentiment import create_sentiment_classifier
-    
+
     classifier = create_sentiment_classifier(cached=cached)
-    
+
     # Set up valid/invalid labels
     valid_labels = None
     invalid_labels = None
-    
+
     if required_sentiment:
         valid_labels = [required_sentiment]
     elif forbidden_sentiments:
         invalid_labels = forbidden_sentiments
-    
+
     return create_classifier_validator(
         classifier=classifier,
         threshold=min_confidence,

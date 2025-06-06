@@ -1,9 +1,11 @@
 """Intent classification for detecting the purpose/intent of text.
 
 This module provides a classifier for detecting intent in text using pretrained models
-from Hugging Face. Designed for the new PydanticAI-based Sifaka architecture.
+from Hugging Face transformers.
 
 Detects intents like question, request, statement, command, complaint, etc.
+
+Requires transformers library to be installed.
 """
 
 import importlib
@@ -22,17 +24,30 @@ logger = get_logger(__name__)
 
 # Popular pretrained intent classification models
 INTENT_MODELS = {
-    "microsoft/DialoGPT-medium": {
-        "description": "General conversational intent classification",
-        "intents": ["question", "statement", "request", "greeting", "goodbye"],
+    "microsoft/DialoGPT-small": {
+        "description": "Lightweight conversational model for intent classification",
+        "intents": [
+            "question",
+            "statement",
+            "request",
+            "greeting",
+            "goodbye",
+            "complaint",
+            "compliment",
+        ],
+        "labels": {"LABEL_0": "statement", "LABEL_1": "question", "LABEL_2": "request"},
     },
-    "facebook/blenderbot-400M-distill": {
-        "description": "Conversational AI model for intent detection",
-        "intents": ["question", "statement", "request", "complaint", "compliment", "greeting"],
-    },
-    "microsoft/GODEL-v1_1-base-seq2seq": {
-        "description": "Goal-oriented dialog model for intent classification",
-        "intents": ["question", "request", "inform", "confirm", "deny", "greeting", "goodbye"],
+    "facebook/bart-large-mnli": {
+        "description": "BART model fine-tuned for natural language inference",
+        "intents": [
+            "question",
+            "statement",
+            "request",
+            "greeting",
+            "goodbye",
+            "complaint",
+            "compliment",
+        ],
     },
 }
 
@@ -41,18 +56,18 @@ class IntentClassifier(BaseClassifier, TimingMixin):
     """Classifier for detecting intent in text using pretrained models.
 
     This classifier uses pretrained models from Hugging Face transformers
-    for accurate intent detection.
+    for accurate intent detection. Requires transformers library to be installed.
 
     Attributes:
         model_name: Name of the pretrained model to use
         threshold: Confidence threshold for intent detection
-        pipeline: The Hugging Face pipeline (if available)
+        pipeline: The Hugging Face transformers pipeline
         intents: List of intents the model can detect
     """
 
     def __init__(
         self,
-        model_name: str = "microsoft/DialoGPT-medium",
+        model_name: str = "microsoft/DialoGPT-small",
         threshold: float = 0.4,
         name: str = "intent_detection",
         description: str = "Detects intent in text using pretrained models",
@@ -64,6 +79,10 @@ class IntentClassifier(BaseClassifier, TimingMixin):
             threshold: Confidence threshold for intent detection
             name: Name of the classifier
             description: Description of the classifier
+
+        Raises:
+            ImportError: If transformers library is not installed
+            Exception: If model loading fails
         """
         super().__init__(name=name, description=description)
         self.model_name = model_name
@@ -71,7 +90,8 @@ class IntentClassifier(BaseClassifier, TimingMixin):
         self.pipeline = None
         self.model_info = INTENT_MODELS.get(model_name, {})
         self.intents = self.model_info.get(
-            "intents", ["question", "statement", "request", "greeting"]
+            "intents",
+            ["question", "statement", "request", "greeting", "goodbye", "complaint", "compliment"],
         )
         self._initialize_model()
 
@@ -81,39 +101,29 @@ class IntentClassifier(BaseClassifier, TimingMixin):
 
     def _initialize_model(self) -> None:
         """Initialize the pretrained intent detection model."""
-        try:
-            # Try to use transformers pipeline
-            transformers = importlib.import_module("transformers")
+        # Import transformers - fail fast if not available
+        transformers = importlib.import_module("transformers")
 
-            # Create a text classification pipeline
-            self.pipeline = transformers.pipeline(
-                "text-classification",
-                model=self.model_name,
-                return_all_scores=True,
-                device=-1,  # Use CPU by default
-                truncation=True,
-                max_length=512,
-            )
+        # Create a text classification pipeline
+        self.pipeline = transformers.pipeline(
+            "text-classification",
+            model=self.model_name,
+            return_all_scores=True,
+            device=-1,  # Use CPU by default
+            truncation=True,
+            max_length=512,
+        )
 
-            logger.debug(
-                f"Initialized intent classifier with transformers pipeline",
-                extra={
-                    "classifier": self.name,
-                    "model_name": self.model_name,
-                    "method": "transformers_pipeline",
-                    "description": self.model_info.get("description", "Unknown model"),
-                    "intents": self.intents,
-                },
-            )
-
-        except (ImportError, Exception) as e:
-            logger.warning(
-                f"Transformers not available or model loading failed: {e}. "
-                "Using simple fallback intent detection. "
-                "Install transformers for better accuracy: pip install transformers",
-                extra={"classifier": self.name},
-            )
-            self.pipeline = None
+        logger.debug(
+            f"Initialized intent classifier with transformers pipeline",
+            extra={
+                "classifier": self.name,
+                "model_name": self.model_name,
+                "method": "transformers_pipeline",
+                "description": self.model_info.get("description", "Unknown model"),
+                "intents": self.intents,
+            },
+        )
 
     async def classify_async(self, text: str) -> ClassificationResult:
         """Classify text for intent asynchronously.
@@ -129,10 +139,7 @@ class IntentClassifier(BaseClassifier, TimingMixin):
 
         with self.time_operation("intent_classification") as timer:
             try:
-                if self.pipeline is not None:
-                    result = await self._classify_with_pipeline(text)
-                else:
-                    result = await self._classify_with_fallback(text)
+                result = await self._classify_with_pipeline(text)
 
                 # Get processing time from timer context
                 processing_time = getattr(timer, "duration_ms", 0.0)
@@ -189,17 +196,41 @@ class IntentClassifier(BaseClassifier, TimingMixin):
             loop = asyncio.get_event_loop()
             results = await loop.run_in_executor(None, analyze)
 
-            # Process results - get the highest scoring intent
-            best_result = max(results, key=lambda x: x["score"])
-            intent = best_result["label"].lower()
-            confidence = float(best_result["score"])
+            # Process results - handle different pipeline output formats
+            if not results:
+                raise ValueError("Pipeline returned empty results")
 
-            # Get all intents above threshold
-            detected_intents = [
-                {"intent": result["label"].lower(), "confidence": float(result["score"])}
-                for result in results
-                if float(result["score"]) >= self.threshold
-            ]
+            # Check if results is a list of dictionaries or a different format
+            if isinstance(results, list) and len(results) > 0:
+                if isinstance(results[0], dict) and "score" in results[0] and "label" in results[0]:
+                    # Standard format: list of dicts with score and label
+                    best_result = max(results, key=lambda x: x["score"])
+                    intent = best_result["label"].lower()
+                    confidence = float(best_result["score"])
+                else:
+                    # Alternative format - try to extract from first result
+                    if hasattr(results[0], "label") and hasattr(results[0], "score"):
+                        intent = results[0].label.lower()
+                        confidence = float(results[0].score)
+                    else:
+                        raise ValueError(f"Unexpected pipeline result format: {type(results[0])}")
+            else:
+                raise ValueError(f"Unexpected pipeline results type: {type(results)}")
+
+            # Get all intents above threshold - handle different formats
+            detected_intents = []
+            if isinstance(results, list) and len(results) > 0:
+                if isinstance(results[0], dict) and "score" in results[0] and "label" in results[0]:
+                    # Standard format: list of dicts with score and label
+                    detected_intents = [
+                        {"intent": result["label"].lower(), "confidence": float(result["score"])}
+                        for result in results
+                        if float(result["score"]) >= self.threshold
+                    ]
+                else:
+                    # Alternative format - only include the primary intent if above threshold
+                    if confidence >= self.threshold:
+                        detected_intents = [{"intent": intent, "confidence": confidence}]
 
             return self.create_classification_result(
                 label=intent,
@@ -216,129 +247,12 @@ class IntentClassifier(BaseClassifier, TimingMixin):
             )
 
         except Exception as e:
-            # Fallback to simple analysis
-            logger.warning(
-                f"Pipeline intent classification failed, using simple fallback: {e}",
+            logger.error(
+                f"Pipeline intent classification failed: {e}",
                 extra={"classifier": self.name},
+                exc_info=True,
             )
-            return await self._classify_with_fallback(text)
-
-    async def _classify_with_fallback(self, text: str) -> ClassificationResult:
-        """Simple fallback intent classification based on patterns."""
-
-        def analyze():
-            text_lower = text.lower().strip()
-
-            # Simple intent patterns
-            intent_patterns = {
-                "question": [
-                    lambda t: t.startswith(
-                        (
-                            "what",
-                            "how",
-                            "why",
-                            "when",
-                            "where",
-                            "who",
-                            "which",
-                            "can",
-                            "could",
-                            "would",
-                            "should",
-                            "is",
-                            "are",
-                            "do",
-                            "does",
-                            "did",
-                        )
-                    ),
-                    lambda t: "?" in t,
-                ],
-                "request": [
-                    lambda t: t.startswith(
-                        (
-                            "please",
-                            "can you",
-                            "could you",
-                            "would you",
-                            "i need",
-                            "i want",
-                            "help me",
-                        )
-                    ),
-                    lambda t: any(word in t for word in ["please", "help", "assist", "support"]),
-                ],
-                "greeting": [
-                    lambda t: t.startswith(
-                        ("hello", "hi", "hey", "good morning", "good afternoon", "good evening")
-                    ),
-                    lambda t: any(word in t for word in ["hello", "hi", "hey", "greetings"]),
-                ],
-                "goodbye": [
-                    lambda t: t.startswith(("goodbye", "bye", "see you", "farewell", "take care")),
-                    lambda t: any(word in t for word in ["goodbye", "bye", "farewell", "later"]),
-                ],
-                "complaint": [
-                    lambda t: any(
-                        word in t
-                        for word in [
-                            "problem",
-                            "issue",
-                            "wrong",
-                            "error",
-                            "broken",
-                            "not working",
-                            "disappointed",
-                            "frustrated",
-                        ]
-                    ),
-                ],
-                "compliment": [
-                    lambda t: any(
-                        word in t
-                        for word in [
-                            "great",
-                            "excellent",
-                            "amazing",
-                            "wonderful",
-                            "fantastic",
-                            "love",
-                            "perfect",
-                            "awesome",
-                        ]
-                    ),
-                ],
-            }
-
-            intent_scores = {}
-            for intent, patterns in intent_patterns.items():
-                score = sum(1 for pattern in patterns if pattern(text_lower))
-                if score > 0:
-                    intent_scores[intent] = min(0.8, 0.5 + score * 0.15)
-
-            if intent_scores:
-                primary_intent = max(intent_scores.keys(), key=lambda i: intent_scores[i])
-                confidence = intent_scores[primary_intent]
-            else:
-                primary_intent = "statement"
-                confidence = 0.7
-
-            return primary_intent, confidence, intent_scores
-
-        # Run analysis in thread pool for consistency
-        loop = asyncio.get_event_loop()
-        intent, confidence, intent_scores = await loop.run_in_executor(None, analyze)
-
-        return self.create_classification_result(
-            label=intent,
-            confidence=confidence,
-            metadata={
-                "method": "pattern_fallback",
-                "intent_scores": intent_scores,
-                "input_length": len(text),
-                "warning": "Using simple fallback - install transformers for better accuracy",
-            },
-        )
+            raise
 
 
 class CachedIntentClassifier(CachedClassifier):

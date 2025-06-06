@@ -184,10 +184,62 @@ graph TD
 Set API keys in your environment:
 
 ```bash
-export OPENAI_API_KEY=your_openai_api_key
-export ANTHROPIC_API_KEY=your_anthropic_api_key
-export GOOGLE_API_KEY=your_google_api_key
+export OPENAI_API_KEY=
+export ANTHROPIC_API_KEY=
+export GUARDRAILS_API_KEY=
+export HUGGINGFACE_API_KEY=
+export GEMINI_API_KEY=
+export GROQ_API_KEY=
 ```
+
+## 🤖 Transformer-Based Text Classifiers
+
+Sifaka includes 8 state-of-the-art text classifiers, all powered by Hugging Face Transformers:
+
+```python
+from sifaka.classifiers import (
+    create_sentiment_classifier,    # Sentiment analysis (positive/negative/neutral)
+    create_toxicity_classifier,     # Toxicity and harmful content detection
+    create_spam_classifier,         # Spam vs. legitimate content detection
+    create_language_classifier,     # Language detection (70+ languages)
+    create_bias_classifier,         # Bias and fairness assessment
+    create_readability_classifier,  # Text complexity and grade level
+    create_emotion_classifier,      # Emotion detection (joy, anger, fear, etc.)
+    create_intent_classifier,       # Intent and purpose classification
+)
+
+# Example: Analyze text sentiment
+classifier = create_sentiment_classifier(cached=True)
+result = await classifier.classify_async("I love this new feature!")
+print(f"Sentiment: {result.label} (confidence: {result.confidence:.3f})")
+# Output: Sentiment: positive (confidence: 0.998)
+```
+
+### Key Features:
+- **🎯 High Accuracy**: State-of-the-art transformer models (BERT, RoBERTa, DistilBERT)
+- **⚡ Fast Processing**: Optimized for production use with caching
+- **🌍 Multilingual**: Support for 70+ languages
+- **🔧 Customizable**: Choose from multiple models per classifier
+- **📊 Rich Metadata**: Detailed confidence scores and processing metrics
+
+### Installation:
+```bash
+# Default: PyTorch backend (recommended)
+pip install "sifaka[classifiers]"
+
+# Alternative: TensorFlow backend
+pip install "sifaka[classifiers-tf]"
+
+# Alternative: JAX backend
+pip install "sifaka[classifiers-jax]"
+
+# Or with uv (recommended package manager)
+uv pip install "sifaka[classifiers]"
+```
+
+**Python Version Support**: Python 3.9+ (3.9, 3.10, 3.11, 3.12)
+
+See [examples/](examples/) for comprehensive classifier demonstrations.
 
 ## Validators and Critics with Classifier Integration
 

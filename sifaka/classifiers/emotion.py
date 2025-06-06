@@ -1,9 +1,11 @@
 """Emotion classification for detecting specific emotions in text.
 
 This module provides a classifier for detecting emotions in text using pretrained models
-from Hugging Face. Designed for the new PydanticAI-based Sifaka architecture.
+from Hugging Face transformers.
 
 Detects emotions like joy, sadness, anger, fear, surprise, disgust, and more.
+
+Requires transformers library to be installed.
 """
 
 import importlib
@@ -82,12 +84,12 @@ class EmotionClassifier(BaseClassifier, TimingMixin):
     """Classifier for detecting emotions in text using pretrained models.
 
     This classifier uses pretrained models from Hugging Face transformers
-    for accurate emotion detection.
+    for accurate emotion detection. Requires transformers library to be installed.
 
     Attributes:
         model_name: Name of the pretrained model to use
         threshold: Confidence threshold for emotion detection
-        pipeline: The Hugging Face pipeline (if available)
+        pipeline: The Hugging Face transformers pipeline
         emotions: List of emotions the model can detect
     """
 
@@ -105,6 +107,10 @@ class EmotionClassifier(BaseClassifier, TimingMixin):
             threshold: Confidence threshold for emotion detection
             name: Name of the classifier
             description: Description of the classifier
+
+        Raises:
+            ImportError: If transformers library is not installed
+            Exception: If model loading fails
         """
         super().__init__(name=name, description=description)
         self.model_name = model_name
@@ -122,39 +128,29 @@ class EmotionClassifier(BaseClassifier, TimingMixin):
 
     def _initialize_model(self) -> None:
         """Initialize the pretrained emotion detection model."""
-        try:
-            # Try to use transformers pipeline
-            transformers = importlib.import_module("transformers")
+        # Import transformers - fail fast if not available
+        transformers = importlib.import_module("transformers")
 
-            # Create a text classification pipeline
-            self.pipeline = transformers.pipeline(
-                "text-classification",
-                model=self.model_name,
-                return_all_scores=True,
-                device=-1,  # Use CPU by default
-                truncation=True,
-                max_length=512,
-            )
+        # Create a text classification pipeline
+        self.pipeline = transformers.pipeline(
+            "text-classification",
+            model=self.model_name,
+            return_all_scores=True,
+            device=-1,  # Use CPU by default
+            truncation=True,
+            max_length=512,
+        )
 
-            logger.debug(
-                f"Initialized emotion classifier with transformers pipeline",
-                extra={
-                    "classifier": self.name,
-                    "model_name": self.model_name,
-                    "method": "transformers_pipeline",
-                    "description": self.model_info.get("description", "Unknown model"),
-                    "emotions": self.emotions,
-                },
-            )
-
-        except (ImportError, Exception) as e:
-            logger.warning(
-                f"Transformers not available or model loading failed: {e}. "
-                "Using simple fallback emotion detection. "
-                "Install transformers for better accuracy: pip install transformers",
-                extra={"classifier": self.name},
-            )
-            self.pipeline = None
+        logger.debug(
+            f"Initialized emotion classifier with transformers pipeline",
+            extra={
+                "classifier": self.name,
+                "model_name": self.model_name,
+                "method": "transformers_pipeline",
+                "description": self.model_info.get("description", "Unknown model"),
+                "emotions": self.emotions,
+            },
+        )
 
     async def classify_async(self, text: str) -> ClassificationResult:
         """Classify text for emotions asynchronously.
@@ -170,10 +166,7 @@ class EmotionClassifier(BaseClassifier, TimingMixin):
 
         with self.time_operation("emotion_classification") as timer:
             try:
-                if self.pipeline is not None:
-                    result = await self._classify_with_pipeline(text)
-                else:
-                    result = await self._classify_with_fallback(text)
+                result = await self._classify_with_pipeline(text)
 
                 # Get processing time from timer context
                 processing_time = getattr(timer, "duration_ms", 0.0)
@@ -230,17 +223,41 @@ class EmotionClassifier(BaseClassifier, TimingMixin):
             loop = asyncio.get_event_loop()
             results = await loop.run_in_executor(None, analyze)
 
-            # Process results - get the highest scoring emotion
-            best_result = max(results, key=lambda x: x["score"])
-            emotion = best_result["label"].lower()
-            confidence = float(best_result["score"])
+            # Process results - handle different pipeline output formats
+            if not results:
+                raise ValueError("Pipeline returned empty results")
 
-            # Get all emotions above threshold
-            detected_emotions = [
-                {"emotion": result["label"].lower(), "confidence": float(result["score"])}
-                for result in results
-                if float(result["score"]) >= self.threshold
-            ]
+            # Check if results is a list of dictionaries or a different format
+            if isinstance(results, list) and len(results) > 0:
+                if isinstance(results[0], dict) and "score" in results[0] and "label" in results[0]:
+                    # Standard format: list of dicts with score and label
+                    best_result = max(results, key=lambda x: x["score"])
+                    emotion = best_result["label"].lower()
+                    confidence = float(best_result["score"])
+                else:
+                    # Alternative format - try to extract from first result
+                    if hasattr(results[0], "label") and hasattr(results[0], "score"):
+                        emotion = results[0].label.lower()
+                        confidence = float(results[0].score)
+                    else:
+                        raise ValueError(f"Unexpected pipeline result format: {type(results[0])}")
+            else:
+                raise ValueError(f"Unexpected pipeline results type: {type(results)}")
+
+            # Get all emotions above threshold - handle different formats
+            detected_emotions = []
+            if isinstance(results, list) and len(results) > 0:
+                if isinstance(results[0], dict) and "score" in results[0] and "label" in results[0]:
+                    # Standard format: list of dicts with score and label
+                    detected_emotions = [
+                        {"emotion": result["label"].lower(), "confidence": float(result["score"])}
+                        for result in results
+                        if float(result["score"]) >= self.threshold
+                    ]
+                else:
+                    # Alternative format - only include the primary emotion if above threshold
+                    if confidence >= self.threshold:
+                        detected_emotions = [{"emotion": emotion, "confidence": confidence}]
 
             return self.create_classification_result(
                 label=emotion,
@@ -257,67 +274,12 @@ class EmotionClassifier(BaseClassifier, TimingMixin):
             )
 
         except Exception as e:
-            # Fallback to simple analysis
-            logger.warning(
-                f"Pipeline emotion classification failed, using simple fallback: {e}",
+            logger.error(
+                f"Pipeline emotion classification failed: {e}",
                 extra={"classifier": self.name},
+                exc_info=True,
             )
-            return await self._classify_with_fallback(text)
-
-    async def _classify_with_fallback(self, text: str) -> ClassificationResult:
-        """Simple fallback emotion classification based on keywords."""
-
-        def analyze():
-            text_lower = text.lower()
-
-            # Simple emotion keywords
-            emotion_keywords = {
-                "joy": [
-                    "happy",
-                    "joy",
-                    "excited",
-                    "wonderful",
-                    "great",
-                    "amazing",
-                    "love",
-                    "fantastic",
-                ],
-                "sadness": ["sad", "depressed", "unhappy", "miserable", "crying", "tears", "grief"],
-                "anger": ["angry", "mad", "furious", "rage", "hate", "annoyed", "frustrated"],
-                "fear": ["scared", "afraid", "terrified", "worried", "anxious", "nervous", "panic"],
-                "surprise": ["surprised", "shocked", "amazed", "astonished", "unexpected", "wow"],
-                "disgust": ["disgusted", "gross", "yuck", "revolting", "sick", "nasty"],
-            }
-
-            emotion_scores = {}
-            for emotion, keywords in emotion_keywords.items():
-                score = sum(1 for keyword in keywords if keyword in text_lower)
-                if score > 0:
-                    emotion_scores[emotion] = min(0.8, 0.4 + score * 0.1)
-
-            if emotion_scores:
-                primary_emotion = max(emotion_scores.keys(), key=lambda e: emotion_scores[e])
-                confidence = emotion_scores[primary_emotion]
-            else:
-                primary_emotion = "neutral"
-                confidence = 0.7
-
-            return primary_emotion, confidence, emotion_scores
-
-        # Run analysis in thread pool for consistency
-        loop = asyncio.get_event_loop()
-        emotion, confidence, emotion_scores = await loop.run_in_executor(None, analyze)
-
-        return self.create_classification_result(
-            label=emotion,
-            confidence=confidence,
-            metadata={
-                "method": "keyword_fallback",
-                "emotion_scores": emotion_scores,
-                "input_length": len(text),
-                "warning": "Using simple fallback - install transformers for better accuracy",
-            },
-        )
+            raise
 
 
 class CachedEmotionClassifier(CachedClassifier):
