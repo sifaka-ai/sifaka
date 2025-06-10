@@ -5,10 +5,11 @@ It provides common functionality including PydanticAI integration, structured ou
 optional retrieval augmentation, and consistent error handling.
 """
 
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from pydantic_ai import Agent
 
 from sifaka.core.interfaces import Critic
@@ -191,6 +192,122 @@ class BaseCritic(ValidationAwareMixin, Critic, ABC):
                 retrieval_context=retrieval_context,
             )
 
+    async def critique(self, thought: SifakaThought):
+        """Critique the current text and return a CriticResult object.
+
+        This method provides a structured interface that returns CriticResult objects
+        for testing and external integration purposes.
+
+        Args:
+            thought: The SifakaThought containing text to critique
+
+        Returns:
+            CriticResult: Structured result with feedback and metadata
+        """
+        from sifaka.models.critic_results import ConfidenceScore, CriticResult, CritiqueFeedback
+
+        start_time = time.time()
+        tools_used = []
+        retrieval_context = None
+
+        try:
+            # Build the critique prompt
+            prompt = await self._build_critique_prompt(thought)
+
+            # Run the PydanticAI agent
+            result = await self.agent.run(prompt)
+
+            # Extract feedback
+            feedback = result.output
+
+            # Track tool usage if any
+            if hasattr(result, "tool_calls") and result.tool_calls:
+                tools_used = [call.tool_name for call in result.tool_calls]
+                # Extract retrieval context from tool results
+                retrieval_context = self._extract_retrieval_context(result.tool_calls)
+
+            # Calculate processing time
+            processing_time_ms = (time.time() - start_time) * 1000
+
+            # Apply validation-aware filtering to suggestions
+            filtered_feedback = self._apply_validation_filtering(thought, feedback)
+
+            # Create structured confidence score
+            confidence_score = ConfidenceScore(overall=filtered_feedback.confidence)
+
+            # Create structured critique feedback
+            structured_feedback = CritiqueFeedback(
+                message=filtered_feedback.message,
+                needs_improvement=filtered_feedback.needs_improvement,
+                violations=[],  # Would need to be populated by specific critics
+                suggestions=[],  # Convert string suggestions to structured format
+                confidence=confidence_score,
+                critic_name=self.__class__.__name__,
+                processing_time_ms=processing_time_ms,
+                metadata=self._get_critic_specific_metadata(filtered_feedback),
+            )
+
+            # Convert string suggestions to structured format
+            for suggestion in filtered_feedback.suggestions:
+                from sifaka.models.critic_results import ImprovementSuggestion
+
+                structured_suggestion = ImprovementSuggestion(
+                    suggestion=suggestion, category="general"
+                )
+                structured_feedback.suggestions.append(structured_suggestion)
+
+            # Create and return CriticResult
+            return CriticResult(
+                feedback=structured_feedback,
+                operation_type="critique",
+                success=True,
+                total_processing_time_ms=processing_time_ms,
+                input_text_length=len(thought.current_text or ""),
+                metadata={
+                    "model_name": self.model_name,
+                    "paper_reference": self.paper_reference,
+                    "methodology": self.methodology,
+                    "tools_used": tools_used,
+                    "retrieval_context": retrieval_context,
+                },
+            )
+
+        except Exception as e:
+            # Calculate processing time for error case
+            processing_time_ms = (time.time() - start_time) * 1000
+
+            # Create error confidence score
+            confidence_score = ConfidenceScore(overall=0.0)
+
+            # Create error feedback
+            error_feedback = CritiqueFeedback(
+                message=f"Critique failed: {str(e)}",
+                needs_improvement=False,
+                violations=[],
+                suggestions=[],
+                confidence=confidence_score,
+                critic_name=self.__class__.__name__,
+                processing_time_ms=processing_time_ms,
+                metadata={"error": str(e), "error_type": type(e).__name__},
+            )
+
+            # Return error result
+            return CriticResult(
+                feedback=error_feedback,
+                operation_type="critique",
+                success=False,
+                total_processing_time_ms=processing_time_ms,
+                input_text_length=len(thought.current_text or ""),
+                error_message=str(e),
+                metadata={
+                    "model_name": self.model_name,
+                    "paper_reference": self.paper_reference,
+                    "methodology": self.methodology,
+                    "tools_used": tools_used,
+                    "retrieval_context": retrieval_context,
+                },
+            )
+
     @abstractmethod
     async def _build_critique_prompt(self, thought: SifakaThought) -> str:
         """Build the critique prompt for this specific critic.
@@ -209,7 +326,6 @@ class BaseCritic(ValidationAwareMixin, Critic, ABC):
         Returns:
             The formatted prompt string
         """
-        pass
 
     def _get_critic_specific_metadata(self, feedback: CritiqueFeedback) -> Dict[str, Any]:
         """Extract critic-specific metadata from the feedback.
@@ -228,7 +344,9 @@ class BaseCritic(ValidationAwareMixin, Critic, ABC):
             "confidence_level": (
                 "high"
                 if feedback.confidence > 0.8
-                else "medium" if feedback.confidence > 0.5 else "low"
+                else "medium"
+                if feedback.confidence > 0.5
+                else "low"
             ),
         }
 

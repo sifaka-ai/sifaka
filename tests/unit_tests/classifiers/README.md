@@ -8,7 +8,6 @@ This directory contains comprehensive unit tests for all Sifaka classifier imple
 - **`test_base.py`** - Tests for `BaseClassifier`, `CachedClassifier`, `ClassificationResult`, and `TimingMixin`
 
 ### Classifier Implementations
-- **`test_bias.py`** - Tests for `BiasClassifier` and `CachedBiasClassifier`
 - **`test_emotion.py`** - Tests for `EmotionClassifier` and `CachedEmotionClassifier`
 - **`test_intent.py`** - Tests for `IntentClassifier` and `CachedIntentClassifier`
 - **`test_language.py`** - Tests for `LanguageClassifier` and `CachedLanguageClassifier`
@@ -74,9 +73,6 @@ python -m pytest tests/unit_tests/classifiers/ --cov=sifaka.classifiers --cov-re
 
 ### Run Specific Classifier Tests
 ```bash
-# Test bias classifier
-python -m pytest tests/unit_tests/classifiers/test_bias.py -v
-
 # Test emotion classifier
 python -m pytest tests/unit_tests/classifiers/test_emotion.py -v
 
@@ -93,7 +89,7 @@ python tests/run_classifier_tests.py
 python tests/run_classifier_tests.py --coverage
 
 # Run specific classifier
-python tests/run_classifier_tests.py --classifier bias
+python tests/run_classifier_tests.py --classifier emotion
 
 # List available classifiers
 python tests/run_classifier_tests.py --list
@@ -147,7 +143,7 @@ async def test_with_external_library(self, mock_import):
     mock_lib = Mock()
     mock_lib.some_method.return_value = expected_result
     mock_import.return_value = mock_lib
-    
+
     classifier = SomeClassifier()
     result = await classifier.classify_async("test")
     assert result.metadata["method"] == "external_library"
@@ -160,7 +156,7 @@ async def test_fallback_method(self):
     with patch('module.importlib.import_module') as mock_import:
         mock_import.side_effect = ImportError("No dependencies")
         classifier = SomeClassifier()
-    
+
     result = await classifier.classify_async("test")
     assert result.metadata["method"] == "fallback"
 ```

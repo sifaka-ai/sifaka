@@ -4,8 +4,9 @@ This module provides a classifier for detecting the language of text using
 pretrained models from Hugging Face transformers.
 """
 
-from typing import Dict, List, Any
 import asyncio
+import importlib
+from typing import Any, Dict, List
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -56,6 +57,7 @@ LANGUAGE_NAMES = {
     "ur": "Urdu",
     "vi": "Vietnamese",
     "zh": "Chinese",
+    "unknown": "Unknown",
     # Additional languages for BERT multilingual model
     "af": "Afrikaans",
     "az": "Azerbaijani",
@@ -131,7 +133,7 @@ class LanguageClassifier(BaseClassifier, TimingMixin):
         self,
         model_name: str = "papluca/xlm-roberta-base-language-detection",
         min_confidence: float = 0.7,
-        fallback_lang: str = "en",
+        fallback_lang: str = "unknown",
         fallback_confidence: float = 0.5,
         name: str = "language",
         description: str = "Detects the language of text using pretrained models",
@@ -157,14 +159,7 @@ class LanguageClassifier(BaseClassifier, TimingMixin):
 
     def _initialize_model(self) -> None:
         """Initialize the pretrained language detection model."""
-        try:
-            import transformers
-        except ImportError as e:
-            raise ValidationError(
-                "transformers is required for language classification",
-                error_code="dependency_missing",
-                suggestions=["Install transformers: pip install transformers"],
-            ) from e
+        transformers = importlib.import_module("transformers")
 
         # Create a text classification pipeline
         self.pipeline = transformers.pipeline(
@@ -177,7 +172,7 @@ class LanguageClassifier(BaseClassifier, TimingMixin):
         )
 
         logger.debug(
-            f"Initialized language classifier with transformers pipeline",
+            "Initialized language classifier with transformers pipeline",
             extra={
                 "classifier": self.name,
                 "model_name": self.model_name,
@@ -215,7 +210,7 @@ class LanguageClassifier(BaseClassifier, TimingMixin):
                 result.processing_time_ms = processing_time
 
                 logger.debug(
-                    f"Language classification completed",
+                    "Language classification completed",
                     extra={
                         "classifier": self.name,
                         "text_length": len(text),
@@ -229,7 +224,7 @@ class LanguageClassifier(BaseClassifier, TimingMixin):
 
             except Exception as e:
                 logger.error(
-                    f"Language classification failed",
+                    "Language classification failed",
                     extra={
                         "classifier": self.name,
                         "text_length": len(text),
@@ -331,7 +326,7 @@ class CachedLanguageClassifier(CachedClassifier, TimingMixin):
         self,
         model_name: str = "papluca/xlm-roberta-base-language-detection",
         min_confidence: float = 0.7,
-        fallback_lang: str = "en",
+        fallback_lang: str = "unknown",
         fallback_confidence: float = 0.5,
         cache_size: int = 128,
         name: str = "cached_language",
@@ -359,14 +354,7 @@ class CachedLanguageClassifier(CachedClassifier, TimingMixin):
 
     def _initialize_model(self) -> None:
         """Initialize the pretrained language detection model."""
-        try:
-            import transformers
-        except ImportError as e:
-            raise ValidationError(
-                "transformers is required for language classification",
-                error_code="dependency_missing",
-                suggestions=["Install transformers: pip install transformers"],
-            ) from e
+        transformers = importlib.import_module("transformers")
 
         # Create a text classification pipeline
         self.pipeline = transformers.pipeline(
@@ -379,7 +367,7 @@ class CachedLanguageClassifier(CachedClassifier, TimingMixin):
         )
 
         logger.debug(
-            f"Initialized cached language classifier with transformers pipeline",
+            "Initialized cached language classifier with transformers pipeline",
             extra={
                 "classifier": self.name,
                 "model_name": self.model_name,
@@ -394,7 +382,7 @@ class CachedLanguageClassifier(CachedClassifier, TimingMixin):
             return self._classify_with_transformers_sync(text)
         except Exception as e:
             logger.error(
-                f"Cached language classification failed",
+                "Cached language classification failed",
                 extra={
                     "classifier": self.name,
                     "text_length": len(text),
@@ -430,6 +418,10 @@ class CachedLanguageClassifier(CachedClassifier, TimingMixin):
 
         # Run transformers analysis
         results = self.pipeline(text)
+
+        # Handle nested list format (some mocks return [[{...}]] instead of [{...}])
+        if isinstance(results, list) and len(results) > 0 and isinstance(results[0], list):
+            results = results[0]  # Unwrap the nested list
 
         # Process results - transformers returns list of dicts with label and score
         # Find the result with highest score
@@ -488,7 +480,7 @@ class CachedLanguageClassifier(CachedClassifier, TimingMixin):
 def create_language_classifier(
     model_name: str = "papluca/xlm-roberta-base-language-detection",
     min_confidence: float = 0.7,
-    fallback_lang: str = "en",
+    fallback_lang: str = "unknown",
     fallback_confidence: float = 0.5,
     cached: bool = False,
     cache_size: int = 128,

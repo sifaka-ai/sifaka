@@ -8,9 +8,10 @@ This module tests the base classifier functionality including:
 - Error handling and validation
 """
 
-import pytest
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch
+
+import pytest
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -346,3 +347,215 @@ class TestTimingMixin:
 
         # Verify that performance_timer was called
         mock_logger.performance_timer.assert_called_with("test_op", classifier="test")
+
+
+class TestBaseClassifierEdgeCases:
+    """Test edge cases and error scenarios for BaseClassifier."""
+
+    def test_create_classification_result_helper(self):
+        """Test the create_classification_result helper method."""
+
+        class TestClassifier(BaseClassifier):
+            async def classify_async(self, text: str) -> ClassificationResult:
+                return self.create_classification_result(
+                    label="test", confidence=0.7, metadata={"custom": "data"}
+                )
+
+            def get_classes(self) -> list[str]:
+                return ["test", "other"]
+
+        classifier = TestClassifier("test_classifier", "Test description")
+        result = classifier.create_classification_result(
+            label="positive", confidence=0.85, metadata={"source": "test"}
+        )
+
+        assert result.label == "positive"
+        assert result.confidence == 0.85
+        assert result.metadata["source"] == "test"
+        assert result.metadata["classifier_name"] == "test_classifier"
+        assert result.metadata["classifier_description"] == "Test description"
+
+    def test_create_empty_text_result(self):
+        """Test creating results for empty text."""
+
+        class TestClassifier(BaseClassifier):
+            async def classify_async(self, text: str) -> ClassificationResult:
+                if not text or not text.strip():
+                    return self.create_empty_text_result("unknown")
+                return ClassificationResult(label="valid", confidence=0.8)
+
+            def get_classes(self) -> list[str]:
+                return ["valid", "unknown"]
+
+        classifier = TestClassifier("test", "Test classifier")
+
+        # Test with default label
+        result = classifier.create_empty_text_result()
+        assert result.label == "unknown"
+        assert result.confidence == 0.0
+        assert result.metadata["reason"] == "empty_text"
+        assert result.metadata["input_length"] == 0
+
+        # Test with custom label
+        result = classifier.create_empty_text_result("empty")
+        assert result.label == "empty"
+        assert result.confidence == 0.0
+
+    @pytest.mark.asyncio
+    async def test_classify_with_empty_text(self):
+        """Test classification behavior with empty or None text."""
+
+        class TestClassifier(BaseClassifier):
+            async def classify_async(self, text: str) -> ClassificationResult:
+                if not text or not text.strip():
+                    return self.create_empty_text_result("empty")
+                return ClassificationResult(label="valid", confidence=0.8)
+
+            def get_classes(self) -> list[str]:
+                return ["valid", "empty"]
+
+        classifier = TestClassifier("test", "Test classifier")
+
+        # Test with None (should be handled gracefully)
+        result = await classifier.classify_async("")
+        assert result.label == "empty"
+        assert result.confidence == 0.0
+
+        # Test with whitespace only
+        result = await classifier.classify_async("   ")
+        assert result.label == "empty"
+
+    def test_sync_classify_with_running_event_loop(self):
+        """Test sync classify method when event loop is already running."""
+
+        class TestClassifier(BaseClassifier):
+            async def classify_async(self, text: str) -> ClassificationResult:
+                return ClassificationResult(label="async_result", confidence=0.6)
+
+            def get_classes(self) -> list[str]:
+                return ["async_result", "sync_result"]
+
+        classifier = TestClassifier("test", "Test classifier")
+
+        # This should work even if called from sync context
+        result = classifier.classify("test text")
+        assert result.label == "async_result"
+        assert result.confidence == 0.6
+
+    @pytest.mark.asyncio
+    async def test_error_propagation_in_sync_classify(self):
+        """Test that errors in async method are properly wrapped in sync method."""
+
+        class FailingClassifier(BaseClassifier):
+            async def classify_async(self, text: str) -> ClassificationResult:
+                raise ValueError("Test error")
+
+            def get_classes(self) -> list[str]:
+                return ["fail", "success"]
+
+        classifier = FailingClassifier("failing", "Failing classifier")
+
+        # Test that sync method wraps the error properly
+        with pytest.raises(ValidationError) as exc_info:
+            classifier.classify("test")
+
+        assert "Classification failed for failing" in str(exc_info.value)
+        assert exc_info.value.error_code == "classification_execution_error"
+        assert "failing" in exc_info.value.context["classifier"]
+
+
+class TestCachedClassifierEdgeCases:
+    """Test edge cases for CachedClassifier."""
+
+    @pytest.mark.asyncio
+    async def test_cached_classifier_empty_text_handling(self):
+        """Test that CachedClassifier handles empty text correctly."""
+
+        class TestCachedClassifier(CachedClassifier):
+            def _classify_uncached(self, text: str) -> ClassificationResult:
+                return ClassificationResult(label="processed", confidence=0.8)
+
+            def get_classes(self) -> list[str]:
+                return ["processed", "empty"]
+
+        classifier = TestCachedClassifier("test", "Test", 128)
+
+        # Test empty string
+        result = await classifier.classify_async("")
+        assert result.label == "unknown"  # Default empty text result
+        assert result.confidence == 0.0
+
+        # Test None
+        result = await classifier.classify_async(None)
+        assert result.label == "unknown"
+
+        # Test whitespace only
+        result = await classifier.classify_async("   ")
+        assert result.label == "unknown"
+
+    def test_get_cache_info(self):
+        """Test cache information retrieval."""
+
+        class TestCachedClassifier(CachedClassifier):
+            def _classify_uncached(self, text: str) -> ClassificationResult:
+                return ClassificationResult(label="test", confidence=0.5)
+
+            def get_classes(self) -> list[str]:
+                return ["test", "other"]
+
+        classifier = TestCachedClassifier("test", "Test", 64)
+
+        # Initial cache info
+        info = classifier.get_cache_info()
+        assert info["hits"] == 0
+        assert info["misses"] == 0
+        assert info["maxsize"] == 64
+        assert info["currsize"] == 0
+        assert info["hit_rate"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_rate_calculation(self):
+        """Test cache hit rate calculation."""
+
+        class TestCachedClassifier(CachedClassifier):
+            def _classify_uncached(self, text: str) -> ClassificationResult:
+                return ClassificationResult(label="cached", confidence=0.7)
+
+            def get_classes(self) -> list[str]:
+                return ["cached", "uncached"]
+
+        classifier = TestCachedClassifier("test", "Test", 128)
+
+        # Make some calls to generate cache statistics
+        await classifier.classify_async("text1")  # Miss
+        await classifier.classify_async("text1")  # Hit
+        await classifier.classify_async("text2")  # Miss
+        await classifier.classify_async("text1")  # Hit
+
+        info = classifier.get_cache_info()
+        assert info["hits"] == 2
+        assert info["misses"] == 2
+        assert info["hit_rate"] == 0.5  # 2 hits out of 4 total calls
+
+    @pytest.mark.asyncio
+    async def test_cache_metadata_inclusion(self):
+        """Test that cache metadata is included in results."""
+
+        class TestCachedClassifier(CachedClassifier):
+            def _classify_uncached(self, text: str) -> ClassificationResult:
+                return ClassificationResult(
+                    label="cached", confidence=0.8, metadata={"original": True}
+                )
+
+            def get_classes(self) -> list[str]:
+                return ["cached", "uncached"]
+
+        classifier = TestCachedClassifier("test", "Test", 64)
+
+        result = await classifier.classify_async("test text")
+
+        # Check that cache metadata is added
+        assert result.metadata["cached"] is True
+        assert result.metadata["cache_size"] == 64
+        assert "cache_info" in result.metadata
+        assert result.metadata["original"] is True  # Original metadata preserved

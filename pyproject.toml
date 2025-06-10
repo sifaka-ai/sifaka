@@ -36,6 +36,7 @@ dependencies = [
     "tenacity>=8.2.3",
     "websockets>=15.0.1",
     "jsonschema>=4.23.0",
+    "transformers>=4.52.4",
 ]
 
 [project.optional-dependencies]

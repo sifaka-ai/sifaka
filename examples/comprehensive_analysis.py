@@ -24,24 +24,23 @@ uv pip install "sifaka[classifiers]"
 """
 
 import asyncio
-import sys
-import os
-from typing import Dict, Any
 import json
+import os
+import sys
 from datetime import datetime
+from typing import Any, Dict
 
 # Add the sifaka directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from sifaka.classifiers import (
-    create_sentiment_classifier,
-    create_toxicity_classifier,
-    create_spam_classifier,
-    create_language_classifier,
-    create_bias_classifier,
-    create_readability_classifier,
     create_emotion_classifier,
     create_intent_classifier,
+    create_language_classifier,
+    create_readability_classifier,
+    create_sentiment_classifier,
+    create_spam_classifier,
+    create_toxicity_classifier,
 )
 
 # Sample thoughts to analyze
@@ -102,7 +101,6 @@ async def analyze_text_comprehensive(text: str, text_name: str) -> Dict[str, Any
         "toxicity": create_toxicity_classifier(cached=True),
         "spam": create_spam_classifier(cached=True),
         "language": create_language_classifier(cached=True),
-        "bias": create_bias_classifier(cached=True),
         "readability": create_readability_classifier(cached=True),
         "emotion": create_emotion_classifier(cached=True),
         "intent": create_intent_classifier(cached=True),
@@ -161,7 +159,6 @@ async def main():
             print(f"   Intent: {analyses.get('intent', {}).get('label', 'N/A')}")
             print(f"   Readability: {analyses.get('readability', {}).get('label', 'N/A')}")
             print(f"   Toxicity: {analyses.get('toxicity', {}).get('label', 'N/A')}")
-            print(f"   Bias: {analyses.get('bias', {}).get('label', 'N/A')}")
             print(f"   Spam: {analyses.get('spam', {}).get('label', 'N/A')}")
 
         # Save detailed results

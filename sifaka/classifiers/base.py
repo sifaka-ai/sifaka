@@ -1,7 +1,7 @@
 """Base classifier classes for Sifaka.
 
 This module provides the base classifier interface and common functionality
-for all classifiers in the new PydanticAI-based Sifaka architecture.
+for all classifiers
 
 Key features:
 - Async-first design compatible with PydanticAI
@@ -10,12 +10,12 @@ Key features:
 - Support for caching and performance optimization
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
-from functools import lru_cache
 import asyncio
 import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from functools import lru_cache
+from typing import Any, Dict, List
 
 from sifaka.utils.errors import ValidationError
 from sifaka.utils.logging import get_logger
@@ -94,7 +94,6 @@ class BaseClassifier(ABC):
         Raises:
             ValidationError: If classification cannot be performed
         """
-        pass
 
     def classify(self, text: str) -> ClassificationResult:
         """Classify text synchronously.
@@ -157,7 +156,6 @@ class BaseClassifier(ABC):
         Returns:
             List of possible class labels that this classifier can predict
         """
-        pass
 
     def create_classification_result(
         self,
@@ -251,15 +249,15 @@ class CachedClassifier(BaseClassifier):
         self._cached_classify = lru_cache(maxsize=cache_size)(self._classify_uncached)
 
         logger.debug(
-            f"Created cached classifier",
+            "Created cached classifier",
             extra={
                 "classifier": self.name,
                 "cache_size": cache_size,
             },
         )
 
-    async def classify_async(self, text: str) -> ClassificationResult:
-        """Classify text asynchronously with caching.
+    def classify(self, text: str) -> ClassificationResult:
+        """Classify text synchronously with caching.
 
         Args:
             text: The text to classify
@@ -286,6 +284,19 @@ class CachedClassifier(BaseClassifier):
 
         return result
 
+    async def classify_async(self, text: str) -> ClassificationResult:
+        """Classify text asynchronously with caching.
+
+        Args:
+            text: The text to classify
+
+        Returns:
+            ClassificationResult (potentially from cache)
+        """
+        # For cached classifiers, we can just call the synchronous method
+        # since _classify_uncached is already synchronous
+        return self.classify(text)
+
     @abstractmethod
     def _classify_uncached(self, text: str) -> ClassificationResult:
         """Perform classification without caching.
@@ -299,12 +310,11 @@ class CachedClassifier(BaseClassifier):
         Returns:
             ClassificationResult with classification information
         """
-        pass
 
     def clear_cache(self) -> None:
         """Clear the classification cache."""
         self._cached_classify.cache_clear()
-        logger.debug(f"Cleared cache for classifier", extra={"classifier": self.name})
+        logger.debug("Cleared cache for classifier", extra={"classifier": self.name})
 
     def get_cache_info(self) -> Dict[str, Any]:
         """Get information about the cache state.

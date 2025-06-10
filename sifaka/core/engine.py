@@ -24,7 +24,7 @@ from sifaka.graph.dependencies import SifakaDependencies
 from sifaka.graph.nodes_unified import CritiqueNode, GenerateNode, ValidateNode
 from sifaka.utils.errors import GraphExecutionError
 from sifaka.utils.logging import get_logger
-from sifaka.utils.validation import validate_prompt, validate_max_iterations
+from sifaka.utils.validation import validate_max_iterations, validate_prompt
 
 logger = get_logger(__name__)
 
@@ -148,7 +148,7 @@ class SifakaEngine:
                     GenerateNode(), state=thought, deps=self.deps, persistence=self.persistence
                 )
 
-            final_thought = result.output
+            final_thought = result
 
             logger.log_thought_event(
                 "thought_completed",
@@ -228,7 +228,7 @@ class SifakaEngine:
                 GenerateNode(), state=new_thought, deps=self.deps, persistence=self.persistence
             )
 
-            return result.output
+            return result
         except Exception as e:
             raise GraphExecutionError(
                 f"Failed to continue thought: {str(e)}",

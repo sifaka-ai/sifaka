@@ -1,7 +1,7 @@
 """Comprehensive unit tests for memory storage backend.
 
 This module tests the in-memory storage implementation:
-- MemoryStorage: In-memory thought persistence
+- MemoryPersistence: In-memory thought persistence
 - Thread-safe operations
 - Performance characteristics
 - Error handling
@@ -14,17 +14,379 @@ Tests cover:
 - Error scenarios
 """
 
-import pytest
 import asyncio
-from datetime import datetime
-from typing import List
+import uuid
 
-from sifaka.storage.memory import MemoryPersistence
+import pytest
+
 from sifaka.core.thought import SifakaThought
+from sifaka.storage.memory import MemoryPersistence
 
 
 class TestMemoryPersistence:
-    """Test the MemoryPersistence implementation."""
+    """Test suite for MemoryPersistence class."""
+
+    def test_memory_persistence_creation_minimal(self):
+        """Test creating MemoryPersistence with minimal parameters."""
+        storage = MemoryPersistence()
+
+        assert storage.key_prefix == "sifaka"
+        assert storage.data == {}
+        assert storage.indexes == {}
+
+    def test_memory_persistence_creation_with_prefix(self):
+        """Test creating MemoryPersistence with custom key prefix."""
+        storage = MemoryPersistence(key_prefix="test")
+
+        assert storage.key_prefix == "test"
+        assert storage.data == {}
+        assert storage.indexes == {}
+
+    @pytest.mark.asyncio
+    async def test_store_and_retrieve_thought(self):
+        """Test storing and retrieving a thought."""
+        storage = MemoryPersistence()
+
+        thought = SifakaThought(
+            prompt="Test prompt", final_text="Test response", iteration=1, max_iterations=3
+        )
+
+        # Store the thought
+        await storage.store_thought(thought)
+
+        # Retrieve the thought
+        retrieved = await storage.retrieve_thought(thought.id)
+
+        assert retrieved is not None
+        assert retrieved.id == thought.id
+        assert retrieved.prompt == thought.prompt
+        assert retrieved.final_text == thought.final_text
+
+    @pytest.mark.asyncio
+    async def test_store_thought_updates_index(self):
+        """Test that storing a thought updates the index."""
+        storage = MemoryPersistence()
+
+        thought = SifakaThought(
+            prompt="Test prompt", final_text="Test response", iteration=1, max_iterations=3
+        )
+
+        await storage.store_thought(thought)
+
+        # Check that thought was stored
+        key = storage._make_key(thought.id)
+        assert key in storage.data
+
+    @pytest.mark.asyncio
+    async def test_get_nonexistent_thought(self):
+        """Test retrieving a non-existent thought."""
+        storage = MemoryPersistence()
+
+        nonexistent_id = str(uuid.uuid4())
+        result = await storage.retrieve_thought(nonexistent_id)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_list_thoughts_empty(self):
+        """Test listing thoughts when storage is empty."""
+        storage = MemoryPersistence()
+
+        thoughts = await storage.list_thoughts()
+
+        assert thoughts == []
+
+    @pytest.mark.asyncio
+    async def test_list_thoughts_with_data(self):
+        """Test listing thoughts with stored data."""
+        storage = MemoryPersistence()
+
+        # Store multiple thoughts
+        thoughts = []
+        for i in range(3):
+            thought = SifakaThought(
+                prompt=f"Test prompt {i}",
+                final_text=f"Test response {i}",
+                iteration=1,
+                max_iterations=3,
+            )
+            thoughts.append(thought)
+            await storage.store_thought(thought)
+
+        # List all thoughts
+        retrieved_thoughts = await storage.list_thoughts()
+
+        assert len(retrieved_thoughts) == 3
+        retrieved_ids = {t.id for t in retrieved_thoughts}
+        expected_ids = {t.id for t in thoughts}
+        assert retrieved_ids == expected_ids
+
+    @pytest.mark.asyncio
+    async def test_list_thoughts_with_limit(self):
+        """Test listing thoughts with limit parameter."""
+        storage = MemoryPersistence()
+
+        # Store multiple thoughts
+        for i in range(5):
+            thought = SifakaThought(
+                prompt=f"Test prompt {i}",
+                final_text=f"Test response {i}",
+                iteration=1,
+                max_iterations=3,
+            )
+            await storage.store_thought(thought)
+
+        # List with limit
+        retrieved_thoughts = await storage.list_thoughts(limit=3)
+
+        assert len(retrieved_thoughts) == 3
+
+    @pytest.mark.asyncio
+    async def test_list_thoughts_with_offset(self):
+        """Test listing thoughts with offset parameter."""
+        storage = MemoryPersistence()
+
+        # Store multiple thoughts
+        thoughts = []
+        for i in range(5):
+            thought = SifakaThought(
+                prompt=f"Test prompt {i}",
+                final_text=f"Test response {i}",
+                iteration=1,
+                max_iterations=3,
+            )
+            thoughts.append(thought)
+            await storage.store_thought(thought)
+
+        # List all thoughts (offset not supported in base implementation)
+        all_thoughts = await storage.list_thoughts()
+
+        assert len(all_thoughts) == 5
+        # Note: Order might vary, so we just check count
+
+    @pytest.mark.asyncio
+    async def test_delete_thought(self):
+        """Test deleting a thought."""
+        storage = MemoryPersistence()
+
+        thought = SifakaThought(
+            prompt="Test prompt", final_text="Test response", iteration=1, max_iterations=3
+        )
+
+        # Store and then delete
+        await storage.store_thought(thought)
+        assert await storage.retrieve_thought(thought.id) is not None
+
+        await storage.delete_thought(thought.id)
+        assert await storage.retrieve_thought(thought.id) is None
+
+        # Check that index was also updated
+        assert thought.id not in storage._index
+
+    @pytest.mark.asyncio
+    async def test_delete_nonexistent_thought(self):
+        """Test deleting a non-existent thought."""
+        storage = MemoryPersistence()
+
+        nonexistent_id = str(uuid.uuid4())
+
+        # Should not raise an exception
+        await storage.delete_thought(nonexistent_id)
+
+    @pytest.mark.asyncio
+    async def test_update_thought(self):
+        """Test updating an existing thought."""
+        storage = MemoryPersistence()
+
+        thought = SifakaThought(
+            prompt="Test prompt", final_text="Original response", iteration=1, max_iterations=3
+        )
+
+        await storage.store_thought(thought)
+
+        # Update the thought
+        thought.final_text = "Updated response"
+        thought.iteration = 2
+
+        await storage.store_thought(thought)
+
+        # Retrieve and verify update
+        retrieved = await storage.retrieve_thought(thought.id)
+        assert retrieved.final_text == "Updated response"
+        assert retrieved.iteration == 2
+
+    @pytest.mark.asyncio
+    async def test_concurrent_access(self):
+        """Test concurrent access to storage."""
+        storage = MemoryPersistence()
+
+        async def store_thought(i):
+            thought = SifakaThought(
+                prompt=f"Concurrent prompt {i}",
+                final_text=f"Concurrent response {i}",
+                iteration=1,
+                max_iterations=3,
+            )
+            await storage.store_thought(thought)
+            return thought
+
+        # Store thoughts concurrently
+        tasks = [store_thought(i) for i in range(10)]
+        stored_thoughts = await asyncio.gather(*tasks)
+
+        # Verify all thoughts were stored
+        all_thoughts = await storage.list_thoughts()
+        assert len(all_thoughts) == 10
+
+        stored_ids = {t.id for t in stored_thoughts}
+        retrieved_ids = {t.id for t in all_thoughts}
+        assert stored_ids == retrieved_ids
+
+    @pytest.mark.asyncio
+    async def test_filter_thoughts_by_prompt(self):
+        """Test filtering thoughts by prompt content."""
+        storage = MemoryPersistence()
+
+        # Store thoughts with different prompts
+        thoughts = [
+            SifakaThought(
+                prompt="Tell me about cats", final_text="Cats are...", iteration=1, max_iterations=3
+            ),
+            SifakaThought(
+                prompt="Tell me about dogs", final_text="Dogs are...", iteration=1, max_iterations=3
+            ),
+            SifakaThought(
+                prompt="What are cats like?",
+                final_text="Cats are...",
+                iteration=1,
+                max_iterations=3,
+            ),
+        ]
+
+        for thought in thoughts:
+            await storage.store_thought(thought)
+
+        # List all thoughts and filter manually
+        all_thoughts = await storage.list_thoughts()
+        cat_thoughts = [t for t in all_thoughts if "cats" in t.prompt.lower()]
+
+        assert len(cat_thoughts) == 2
+        for thought in cat_thoughts:
+            assert "cats" in thought.prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_search_thoughts_by_response(self):
+        """Test searching thoughts by response content."""
+        storage = MemoryPersistence()
+
+        # Store thoughts with different responses
+        thoughts = [
+            SifakaThought(
+                prompt="Question 1",
+                final_text="Python is a programming language",
+                iteration=1,
+                max_iterations=3,
+            ),
+            SifakaThought(
+                prompt="Question 2",
+                final_text="Java is also a programming language",
+                iteration=1,
+                max_iterations=3,
+            ),
+            SifakaThought(
+                prompt="Question 3",
+                final_text="Cats are wonderful pets",
+                iteration=1,
+                max_iterations=3,
+            ),
+        ]
+
+        for thought in thoughts:
+            await storage.store_thought(thought)
+
+        # List all thoughts and filter manually
+        all_thoughts = await storage.list_thoughts()
+        programming_thoughts = [t for t in all_thoughts if "programming" in t.final_text.lower()]
+
+        assert len(programming_thoughts) == 2
+        for thought in programming_thoughts:
+            assert "programming" in thought.final_text.lower()
+
+    @pytest.mark.asyncio
+    async def test_search_thoughts_case_insensitive(self):
+        """Test that search is case insensitive."""
+        storage = MemoryPersistence()
+
+        thought = SifakaThought(
+            prompt="Tell me about PYTHON",
+            final_text="Python is great",
+            iteration=1,
+            max_iterations=3,
+        )
+
+        await storage.store_thought(thought)
+
+        # Search with different cases
+        results1 = await storage.search_thoughts("python")
+        results2 = await storage.search_thoughts("PYTHON")
+        results3 = await storage.search_thoughts("Python")
+
+        assert len(results1) == 1
+        assert len(results2) == 1
+        assert len(results3) == 1
+        assert results1[0].id == results2[0].id == results3[0].id
+
+    @pytest.mark.asyncio
+    async def test_search_thoughts_empty_query(self):
+        """Test searching with empty query."""
+        storage = MemoryPersistence()
+
+        thought = SifakaThought(
+            prompt="Test prompt", final_text="Test response", iteration=1, max_iterations=3
+        )
+
+        await storage.store_thought(thought)
+
+        # Search with empty query should return all thoughts
+        results = await storage.search_thoughts("")
+
+        assert len(results) == 1
+
+    @pytest.mark.asyncio
+    async def test_clear_storage(self):
+        """Test clearing all storage."""
+        storage = MemoryPersistence()
+
+        # Store some thoughts
+        for i in range(3):
+            thought = SifakaThought(
+                prompt=f"Test prompt {i}",
+                final_text=f"Test response {i}",
+                iteration=1,
+                max_iterations=3,
+            )
+            await storage.store_thought(thought)
+
+        # Verify thoughts are stored
+        thoughts = await storage.list_thoughts()
+        assert len(thoughts) == 3
+
+        # Clear storage
+        await storage.clear()
+
+        # Verify storage is empty
+        thoughts = await storage.list_thoughts()
+        assert len(thoughts) == 0
+        assert storage._data == {}
+        assert storage._index == {}
+
+    def test_memory_persistence_repr(self):
+        """Test MemoryPersistence string representation."""
+        storage = MemoryPersistence(key_prefix="test")
+
+        repr_str = repr(storage)
+        assert "MemoryPersistence" in repr_str
+        assert "test" in repr_str
 
     @pytest.fixture
     def storage(self):

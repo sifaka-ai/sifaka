@@ -5,18 +5,17 @@ These classifiers are designed to work with the new PydanticAI-based architectur
 """
 
 from .base import BaseClassifier, CachedClassifier, ClassificationResult
-from .sentiment import SentimentClassifier, CachedSentimentClassifier, create_sentiment_classifier
-from .toxicity import ToxicityClassifier, CachedToxicityClassifier, create_toxicity_classifier
-from .spam import SpamClassifier, CachedSpamClassifier, create_spam_classifier
-from .language import LanguageClassifier, CachedLanguageClassifier, create_language_classifier
-from .bias import BiasClassifier, CachedBiasClassifier, create_bias_classifier
+from .emotion import CachedEmotionClassifier, EmotionClassifier, create_emotion_classifier
+from .intent import CachedIntentClassifier, IntentClassifier, create_intent_classifier
+from .language import CachedLanguageClassifier, LanguageClassifier, create_language_classifier
 from .readability import (
-    ReadabilityClassifier,
     CachedReadabilityClassifier,
+    ReadabilityClassifier,
     create_readability_classifier,
 )
-from .emotion import EmotionClassifier, CachedEmotionClassifier, create_emotion_classifier
-from .intent import IntentClassifier, CachedIntentClassifier, create_intent_classifier
+from .sentiment import CachedSentimentClassifier, SentimentClassifier, create_sentiment_classifier
+from .spam import CachedSpamClassifier, SpamClassifier, create_spam_classifier
+from .toxicity import CachedToxicityClassifier, ToxicityClassifier, create_toxicity_classifier
 
 __all__ = [
     # Base classes
@@ -39,10 +38,6 @@ __all__ = [
     "LanguageClassifier",
     "CachedLanguageClassifier",
     "create_language_classifier",
-    # Bias classification
-    "BiasClassifier",
-    "CachedBiasClassifier",
-    "create_bias_classifier",
     # Readability classification
     "ReadabilityClassifier",
     "CachedReadabilityClassifier",

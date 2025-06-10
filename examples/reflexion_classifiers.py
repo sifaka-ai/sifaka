@@ -15,23 +15,23 @@ the reflexion process when validation constraints are not met.
 import asyncio
 import logging
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
 from sifaka import SifakaEngine
-from sifaka.graph import SifakaDependencies
-from sifaka.storage.file import SifakaFilePersistence
-from sifaka.validators import LengthValidator, ContentValidator
-from sifaka.validators.classifier import create_classifier_validator
 from sifaka.classifiers import (
-    create_bias_classifier,
-    create_readability_classifier,
     create_emotion_classifier,
     create_intent_classifier,
+    create_readability_classifier,
 )
+from sifaka.graph import SifakaDependencies
+from sifaka.storage.file import SifakaFilePersistence
 from sifaka.utils.logging import get_logger
+from sifaka.validators import ContentValidator, LengthValidator
+from sifaka.validators.classifier import create_classifier_validator
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -45,12 +45,6 @@ def create_comprehensive_validators():
         LengthValidator(min_length=100, max_length=800, name="length_check"),
         ContentValidator(required=["technology", "future"], name="content_requirements"),
         # Classifier-based validators - using non-cached versions to avoid numpy serialization issues
-        create_classifier_validator(
-            classifier=create_bias_classifier(cached=False),
-            threshold=0.6,  # Lower threshold = more likely to detect bias
-            invalid_labels=["biased", "toxic"],
-            name="bias_validation",
-        ),
         create_classifier_validator(
             classifier=create_readability_classifier(cached=False),
             threshold=0.5,

@@ -4,8 +4,9 @@ This module provides classifiers for detecting toxic, harmful, or abusive
 language using pretrained models from Hugging Face transformers.
 """
 
-from typing import List, Dict, Any
 import asyncio
+import importlib
+from typing import Any, Dict, List
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -79,14 +80,7 @@ class ToxicityClassifier(BaseClassifier, TimingMixin):
 
     def _initialize_model(self) -> None:
         """Initialize the pretrained toxicity detection model."""
-        try:
-            import transformers
-        except ImportError as e:
-            raise ValidationError(
-                "transformers is required for toxicity classification",
-                error_code="dependency_missing",
-                suggestions=["Install transformers: pip install transformers"],
-            ) from e
+        transformers = importlib.import_module("transformers")
 
         # Create a text classification pipeline
         self.pipeline = transformers.pipeline(
@@ -99,7 +93,7 @@ class ToxicityClassifier(BaseClassifier, TimingMixin):
         )
 
         logger.debug(
-            f"Initialized toxicity classifier with transformers pipeline",
+            "Initialized toxicity classifier with transformers pipeline",
             extra={
                 "classifier": self.name,
                 "model_name": self.model_name,
@@ -129,7 +123,7 @@ class ToxicityClassifier(BaseClassifier, TimingMixin):
                 result.processing_time_ms = processing_time
 
                 logger.debug(
-                    f"Toxicity classification completed",
+                    "Toxicity classification completed",
                     extra={
                         "classifier": self.name,
                         "text_length": len(text),
@@ -142,7 +136,7 @@ class ToxicityClassifier(BaseClassifier, TimingMixin):
 
             except Exception as e:
                 logger.error(
-                    f"Toxicity classification failed",
+                    "Toxicity classification failed",
                     extra={
                         "classifier": self.name,
                         "text_length": len(text),
@@ -253,14 +247,7 @@ class CachedToxicityClassifier(CachedClassifier, TimingMixin):
 
     def _initialize_model(self) -> None:
         """Initialize the pretrained toxicity detection model."""
-        try:
-            import transformers
-        except ImportError as e:
-            raise ValidationError(
-                "transformers is required for toxicity classification",
-                error_code="dependency_missing",
-                suggestions=["Install transformers: pip install transformers"],
-            ) from e
+        transformers = importlib.import_module("transformers")
 
         # Create a text classification pipeline
         self.pipeline = transformers.pipeline(
@@ -273,7 +260,7 @@ class CachedToxicityClassifier(CachedClassifier, TimingMixin):
         )
 
         logger.debug(
-            f"Initialized cached toxicity classifier with transformers pipeline",
+            "Initialized cached toxicity classifier with transformers pipeline",
             extra={
                 "classifier": self.name,
                 "model_name": self.model_name,
@@ -288,7 +275,7 @@ class CachedToxicityClassifier(CachedClassifier, TimingMixin):
             return self._classify_with_transformers_sync(text)
         except Exception as e:
             logger.error(
-                f"Cached toxicity classification failed",
+                "Cached toxicity classification failed",
                 extra={
                     "classifier": self.name,
                     "text_length": len(text),

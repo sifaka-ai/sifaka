@@ -4,8 +4,9 @@ This module provides a classifier for detecting spam content using
 pretrained models from Hugging Face transformers.
 """
 
-from typing import List, Dict, Any
 import asyncio
+import importlib
+from typing import Any, Dict, List
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -78,14 +79,7 @@ class SpamClassifier(BaseClassifier, TimingMixin):
 
     def _initialize_model(self) -> None:
         """Initialize the pretrained spam detection model."""
-        try:
-            import transformers
-        except ImportError as e:
-            raise ValidationError(
-                "transformers is required for spam classification",
-                error_code="dependency_missing",
-                suggestions=["Install transformers: pip install transformers"],
-            ) from e
+        transformers = importlib.import_module("transformers")
 
         # Create a text classification pipeline
         self.pipeline = transformers.pipeline(
@@ -98,7 +92,7 @@ class SpamClassifier(BaseClassifier, TimingMixin):
         )
 
         logger.debug(
-            f"Initialized spam classifier with transformers pipeline",
+            "Initialized spam classifier with transformers pipeline",
             extra={
                 "classifier": self.name,
                 "model_name": self.model_name,
@@ -128,7 +122,7 @@ class SpamClassifier(BaseClassifier, TimingMixin):
                 result.processing_time_ms = processing_time
 
                 logger.debug(
-                    f"Spam classification completed",
+                    "Spam classification completed",
                     extra={
                         "classifier": self.name,
                         "text_length": len(text),
@@ -141,7 +135,7 @@ class SpamClassifier(BaseClassifier, TimingMixin):
 
             except Exception as e:
                 logger.error(
-                    f"Spam classification failed",
+                    "Spam classification failed",
                     extra={
                         "classifier": self.name,
                         "text_length": len(text),
@@ -252,14 +246,7 @@ class CachedSpamClassifier(CachedClassifier, TimingMixin):
 
     def _initialize_model(self) -> None:
         """Initialize the pretrained spam detection model."""
-        try:
-            import transformers
-        except ImportError as e:
-            raise ValidationError(
-                "transformers is required for spam classification",
-                error_code="dependency_missing",
-                suggestions=["Install transformers: pip install transformers"],
-            ) from e
+        transformers = importlib.import_module("transformers")
 
         # Create a text classification pipeline
         self.pipeline = transformers.pipeline(
@@ -272,7 +259,7 @@ class CachedSpamClassifier(CachedClassifier, TimingMixin):
         )
 
         logger.debug(
-            f"Initialized cached spam classifier with transformers pipeline",
+            "Initialized cached spam classifier with transformers pipeline",
             extra={
                 "classifier": self.name,
                 "model_name": self.model_name,
@@ -287,7 +274,7 @@ class CachedSpamClassifier(CachedClassifier, TimingMixin):
             return self._classify_with_transformers_sync(text)
         except Exception as e:
             logger.error(
-                f"Cached spam classification failed",
+                "Cached spam classification failed",
                 extra={
                     "classifier": self.name,
                     "text_length": len(text),

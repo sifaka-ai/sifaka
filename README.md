@@ -202,7 +202,6 @@ from sifaka.classifiers import (
     create_toxicity_classifier,     # Toxicity and harmful content detection
     create_spam_classifier,         # Spam vs. legitimate content detection
     create_language_classifier,     # Language detection (70+ languages)
-    create_bias_classifier,         # Bias and fairness assessment
     create_readability_classifier,  # Text complexity and grade level
     create_emotion_classifier,      # Emotion detection (joy, anger, fear, etc.)
     create_intent_classifier,       # Intent and purpose classification
@@ -255,7 +254,6 @@ from sifaka.validators.classifier import (
     create_classifier_validator
 )
 from sifaka.classifiers import (
-    create_bias_classifier,
     create_readability_classifier,
     create_emotion_classifier,
     create_intent_classifier
@@ -273,12 +271,7 @@ async def main():
             min_confidence=0.7,
             cached=True
         ),
-        create_classifier_validator(
-            classifier=create_bias_classifier(cached=True),
-            threshold=0.7,
-            invalid_labels=["biased"],
-            name="bias_validation"
-        ),
+
         create_classifier_validator(
             classifier=create_readability_classifier(cached=True),
             threshold=0.6,
