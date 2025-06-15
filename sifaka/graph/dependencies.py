@@ -78,6 +78,12 @@ class SifakaDependencies:
         always_include_validation_results: bool = True,
         validation_weight: float = 0.6,
         critic_weight: float = 0.4,
+        # Memory management options
+        auto_optimize_memory: bool = False,
+        memory_optimization_interval: int = 5,
+        keep_last_n_iterations: int = 3,
+        max_messages_per_iteration: int = 10,
+        max_tool_result_size_bytes: int = 10240,
     ):
         """Initialize SifakaDependencies with flexible parameter types.
 
@@ -91,6 +97,11 @@ class SifakaDependencies:
             always_include_validation_results: If True, validation results always included in context
             validation_weight: Weight for validation feedback in context (0.0-1.0, default 0.6)
             critic_weight: Weight for critic feedback in context (0.0-1.0, default 0.4)
+            auto_optimize_memory: If True, automatically optimize memory during processing
+            memory_optimization_interval: Optimize memory every N iterations
+            keep_last_n_iterations: Number of iterations to keep in history
+            max_messages_per_iteration: Maximum conversation messages per iteration
+            max_tool_result_size_bytes: Maximum size for tool results
         """
 
         # Set defaults
@@ -149,6 +160,13 @@ class SifakaDependencies:
         self.validation_weight = validation_weight
         self.critic_weight = critic_weight
 
+        # Memory management configuration
+        self.auto_optimize_memory = auto_optimize_memory
+        self.memory_optimization_interval = memory_optimization_interval
+        self.keep_last_n_iterations = keep_last_n_iterations
+        self.max_messages_per_iteration = max_messages_per_iteration
+        self.max_tool_result_size_bytes = max_tool_result_size_bytes
+
         logger.info(
             "SifakaDependencies initialized",
             extra={
@@ -163,6 +181,13 @@ class SifakaDependencies:
                 "always_apply_critics": self.always_apply_critics,
                 "validation_weight": self.validation_weight,
                 "critic_weight": self.critic_weight,
+                "memory_management": {
+                    "auto_optimize": self.auto_optimize_memory,
+                    "optimization_interval": self.memory_optimization_interval,
+                    "keep_iterations": self.keep_last_n_iterations,
+                    "max_messages": self.max_messages_per_iteration,
+                    "max_tool_size": self.max_tool_result_size_bytes,
+                },
             },
         )
 

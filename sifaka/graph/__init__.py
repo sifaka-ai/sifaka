@@ -7,7 +7,7 @@ This module contains the PydanticAI graph implementation:
 """
 
 from sifaka.graph.dependencies import SifakaDependencies
-from sifaka.graph.nodes_unified import CritiqueNode, GenerateNode, ValidateNode
+from sifaka.graph.nodes import CritiqueNode, GenerateNode, ValidateNode
 
 __all__ = [
     "SifakaDependencies",

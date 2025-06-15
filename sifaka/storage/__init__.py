@@ -60,8 +60,8 @@ __all__ = [
     "FlexibleHybridPersistence",
     "BackendConfig",
     "BackendRole",
-    "ThoughtRetrievalTools",
-    "create_retrieval_tools",
+    # "ThoughtRetrievalTools",  # Temporarily disabled
+    # "create_retrieval_tools",  # Temporarily disabled
 ]
 
 # Add optional backends to __all__ if available

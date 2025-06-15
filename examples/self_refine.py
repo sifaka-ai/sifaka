@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Self-Refine Example with PydanticAI-native Sifaka.
+"""Self-Refine Example with Simple Built-in Features.
 
 This example demonstrates:
-- SifakaEngine with PydanticAI integration
+- Simple configuration with built-in logging and timing
 - Self-Refine critic for iterative improvement
 - Comprehensive set of validators for quality assurance
-- Modern PydanticAI-native architecture
-- Proper storage and thought inspection
+- Built-in performance monitoring and caching
+- Clean, simple architecture
 
 The engine will generate content about software engineering best practices
 and use multiple validators to ensure high-quality, comprehensive output.
@@ -17,55 +17,29 @@ import asyncio
 import os
 from datetime import datetime
 
-from dotenv import load_dotenv
-
-from sifaka import SifakaEngine
-from sifaka.graph import SifakaDependencies
-from sifaka.validators import LengthValidator, ContentValidator
-from sifaka.storage import SifakaFilePersistence
-from sifaka.utils.thought_inspector import (
-    print_iteration_details,
-    get_thought_overview,
-)
-from sifaka.utils.logging import get_logger
-
-# Load environment variables
-load_dotenv()
-
-# Configure logging
-logger = get_logger(__name__)
+# Simple imports - no complex dependencies needed
+import sifaka
+from sifaka import SifakaConfig, SifakaEngine
 
 
-def create_comprehensive_validators():
-    """Create a comprehensive set of validators for quality assurance."""
+def create_simple_config():
+    """Create a simple configuration with built-in features and validation."""
 
-    validators = []
-
-    # 1. Length Validator - Ensure substantial content (CHALLENGING)
-    length_validator = LengthValidator(
-        min_length=1200,  # Minimum 1200 characters for comprehensive coverage
-        max_length=3000,  # Maximum 3000 characters to stay focused
+    # Use the simple configuration approach with built-in features
+    config = (
+        SifakaConfig.builder()
+        .model("anthropic:claude-3-5-haiku-20241022")
+        .max_iterations(3)
+        .min_length(1200)  # Ensure substantial content
+        .max_length(3000)  # Stay focused
+        .critics(["self_refine"])  # Use self-refine critic
+        .with_logging(log_level="INFO", log_content=False)  # Enable logging
+        .with_timing()  # Enable performance timing
+        .with_caching(cache_size=100)  # Enable caching for repeated runs
+        .build()
     )
-    validators.append(length_validator)
 
-    # 2. Content Validator - Check for required topics and forbidden content
-    content_validator = ContentValidator(
-        required=[
-            "software",
-            "engineering",
-            "development",
-            "code",
-            "quality",
-            "testing",
-            "documentation",
-            "practices",
-        ],
-        prohibited=["hack", "exploit", "malicious"],
-        case_sensitive=False,  # Make matching case-insensitive
-    )
-    validators.append(content_validator)
-
-    return validators
+    return config
 
 
 def show_self_refine_progression(thought):
@@ -107,35 +81,19 @@ def show_self_refine_progression(thought):
 
 
 async def main():
-    """Run the Self-Refine example using modern Sifaka architecture."""
+    """Run the Self-Refine example using simple built-in features."""
 
     # Ensure API key is available
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 
-    logger.info("Creating Self-Refine example with PydanticAI-native Sifaka")
+    print("🚀 Self-Refine Example with Simple Built-in Features")
 
-    # Create comprehensive validators
-    validators = create_comprehensive_validators()
+    # Create simple configuration with built-in features
+    config = create_simple_config()
 
-    # Set up storage for thoughts
-    storage = SifakaFilePersistence("../thoughts", file_prefix="self_refine_")
-
-    # Create dependencies with Self-Refine critic focus
-    dependencies = SifakaDependencies(
-        generator="anthropic:claude-3-5-haiku-20241022",
-        validators=validators,
-        critics={
-            "self_refine": "anthropic:claude-3-5-haiku-20241022",  # Use same model for consistency
-        },
-        # Configuration for Self-Refine behavior
-        always_apply_critics=False,  # Always apply the Self-Refine critic
-        validation_weight=0.7,  # Prioritize validation feedback (70%)
-        critic_weight=0.3,  # Self-Refine suggestions (30%)
-    )
-
-    # Create Sifaka engine
-    engine = SifakaEngine(dependencies=dependencies, persistence=storage)
+    # Create Sifaka engine with simple configuration
+    engine = SifakaEngine(config=config)
 
     # Define the prompt designed to initially fail validation
     prompt = "Write about software engineering. Give me some tips."
@@ -148,34 +106,39 @@ async def main():
 
     thought = await engine.think(prompt, max_iterations=3)
 
-    # Display results using thought inspector utilities
+    # Display results using simple built-in information
     print("\n✅ Self-Refine Results:")
 
-    # Show overview
-    overview = get_thought_overview(thought)
-    print(f"Final text: {overview['final_text_length']} characters")
-    print(f"Iterations: {overview['current_iteration'] + 1}")
-    print(f"Validation passed: {overview['validation_passed']}")
-    print(f"Total critiques: {overview['total_critiques']}")
+    # Show simple overview
+    print(f"Final text: {len(thought.final_text or thought.current_text)} characters")
+    print(f"Iterations: {thought.iteration}")
+    print(f"Validation passed: {thought.validation_passed()}")
+    print(f"Total generations: {len(thought.generations)}")
+    print(f"Total validations: {len(thought.validations)}")
+    print(f"Total critiques: {len(thought.critiques)}")
 
     # Show Self-Refine progression
     show_self_refine_progression(thought)
 
-    # Show latest iteration details for debugging
-    print("\n🔍 Latest Iteration Details:")
-    print_iteration_details(thought)
+    # Show performance stats if timing is enabled
+    timing_stats = engine.get_timing_stats()
+    if timing_stats.get("total_requests", 0) > 0:
+        print(f"\n⏱️ Performance Stats:")
+        print(f"Duration: {timing_stats['avg_duration_seconds']:.2f}s")
+        print(f"Iterations: {timing_stats['avg_iterations']:.1f}")
 
-    # Show storage information
-    print(f"\n💾 Thought saved to: {storage.storage_dir}")
-    print(f"Thought ID: {thought.id}")
+    # Show cache stats if caching is enabled
+    cache_stats = engine.get_cache_stats()
+    if cache_stats.get("cache_size", 0) >= 0:
+        print(f"\n💾 Cache Stats:")
+        print(f"Cache size: {cache_stats['cache_size']}")
 
-    # Demonstrate thought retrieval using model_dump
-    print(f"\n🔍 Thought data available via:")
-    print(f"• thought.model_dump() - Full serializable dict")
-    print(f"• thought.model_dump_json() - JSON string")
-    print(f"• Storage backend - Automatic persistence")
+    # Show final text preview
+    final_text = thought.final_text or thought.current_text
+    print(f"\n📝 Final Text Preview:")
+    print(f"{final_text[:200]}..." if len(final_text) > 200 else final_text)
 
-    logger.info("Self-Refine example completed successfully")
+    print("✅ Self-Refine example completed successfully!")
 
 
 if __name__ == "__main__":

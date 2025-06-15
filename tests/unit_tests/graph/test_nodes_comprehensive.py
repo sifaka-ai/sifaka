@@ -25,7 +25,7 @@ import pytest
 from sifaka.core.interfaces import Critic, Validator
 from sifaka.core.thought import SifakaThought
 from sifaka.graph.dependencies import SifakaDependencies
-from sifaka.graph.nodes_unified import CritiqueNode, GenerateNode, ValidateNode
+from sifaka.graph.nodes import CritiqueNode, GenerateNode, ValidateNode
 
 
 class MockGraphRunContext:

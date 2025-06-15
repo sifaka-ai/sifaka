@@ -1,165 +1,149 @@
 #!/usr/bin/env python3
 """
-Enhanced Self-RAG Critic Demo
+Self-RAG with Simple Built-in Features
 
-This example demonstrates the enhanced SelfRAGCritic that's closer to the original
-Self-RAG paper by Asai et al. 2023. The enhanced version includes:
+This example demonstrates Self-RAG (Retrieval-Augmented Generation) using
+Sifaka's simple built-in features approach. It shows how to:
 
-1. Structured reflection simulating original Self-RAG special tokens
-2. Automatic retrieval execution when tools are available
-3. More faithful implementation of the Self-RAG methodology
+1. Use Self-RAG critic with simple configuration
+2. Enable built-in logging, timing, and caching
+3. Process different types of content that benefit from retrieval
+4. Monitor performance with built-in statistics
 
-Key improvements over the basic version:
-- Simulates [Retrieve], [IsRel], [IsSup], [IsUse] token decisions
-- Provides structured reflection with specific retrieval queries
-- Can execute retrieval automatically when tools are configured
-- Better alignment with the original paper's methodology
+The example maintains the power of Self-RAG while using a much simpler
+configuration approach with built-in features.
 """
 
 import asyncio
 import os
-from dotenv import load_dotenv
 
-from sifaka.core.thought import SifakaThought
-from sifaka.critics.self_rag import SelfRAGCritic
-from sifaka.tools import create_web_search_tools
-
-# Load environment variables
-load_dotenv()
+# Simple imports - no complex dependencies needed
+import sifaka
+from sifaka import SifakaConfig, SifakaEngine
 
 
-async def demo_enhanced_self_rag():
-    """Demonstrate the enhanced Self-RAG critic with retrieval capabilities."""
-    
-    print("🔍 Enhanced Self-RAG Critic Demo")
-    print("=" * 50)
-    
-    # Create web search tools for retrieval augmentation
-    print("\n📡 Setting up retrieval tools...")
-    try:
-        # Try to create web search tools (requires optional dependencies)
-        web_tools = create_web_search_tools(providers=["duckduckgo"])
-        print(f"✅ Created {len(web_tools)} web search tools")
-        has_tools = len(web_tools) > 0
-    except Exception as e:
-        print(f"⚠️  Could not create web tools: {e}")
-        print("💡 Install with: pip install 'pydantic-ai-slim[duckduckgo]'")
-        web_tools = []
-        has_tools = False
-    
-    # Create enhanced Self-RAG critic
-    print("\n🤖 Creating Enhanced Self-RAG Critic...")
-    critic = SelfRAGCritic(
-        model_name="openai:gpt-4o-mini",  # Use a reliable model
-        retrieval_tools=web_tools,
-        retrieval_focus_areas=[
-            "Factual Accuracy: Verify specific claims and statistics",
-            "Currency: Check if information is current and up-to-date", 
-            "Evidence Quality: Assess need for authoritative sources",
-            "Completeness: Identify missing critical information",
-        ]
+def create_simple_config():
+    """Create a simple configuration with Self-RAG critic and built-in features."""
+
+    # Use the simple configuration approach with built-in features
+    config = (
+        SifakaConfig.builder()
+        .model("openai:gpt-4o-mini")  # Fast, reliable model
+        .max_iterations(3)  # Allow multiple iterations for improvement
+        .min_length(150)  # Minimum content length
+        .max_length(1200)  # Maximum content length
+        .critics(["self_rag"])  # Use Self-RAG critic
+        .with_logging(log_level="INFO", log_content=False)  # Enable logging
+        .with_timing()  # Enable performance timing
+        .with_caching(cache_size=50)  # Enable caching for repeated runs
+        .build()
     )
-    
-    print(f"✅ Created critic with {len(critic.retrieval_tools)} retrieval tools")
-    print(f"🔧 Auto-execute retrieval: {critic.auto_execute_retrieval}")
-    
+
+    return config
+
+
+async def demo_self_rag_simple():
+    """Demonstrate Self-RAG with simple built-in features."""
+
+    # Ensure API key is available
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required")
+
+    print("🔍 Self-RAG with Simple Built-in Features")
+    print("=" * 50)
+
+    # Create simple configuration with Self-RAG
+    config = create_simple_config()
+
+    # Create engine with simple configuration
+    engine = SifakaEngine(config=config)
+
+    print("✅ Created Self-RAG engine with built-in features")
+    print(f"   Model: {config.model}")
+    print(f"   Critics: {config.critics}")
+    print(
+        f"   Built-in features: logging={config.enable_logging}, timing={config.enable_timing}, caching={config.enable_caching}"
+    )
+
     # Test cases with different retrieval needs
     test_cases = [
         {
             "name": "Factual Claims Needing Verification",
-            "prompt": "Write about recent developments in AI safety research",
-            "text": """Recent AI safety research has made significant breakthroughs. 
-            OpenAI released GPT-5 in early 2024 with revolutionary safety features. 
-            The model achieved 99.9% alignment accuracy in testing. Google's DeepMind 
-            also announced their new safety framework called 'SafeAI' which has been 
-            adopted by over 500 companies worldwide."""
+            "prompt": "Write about recent developments in AI safety research and include specific examples and statistics.",
         },
         {
-            "name": "Well-Supported Content",
-            "prompt": "Explain basic principles of machine learning",
-            "text": """Machine learning is a subset of artificial intelligence that enables 
-            computers to learn and improve from experience without being explicitly 
-            programmed. The three main types are supervised learning (learning from 
-            labeled data), unsupervised learning (finding patterns in unlabeled data), 
-            and reinforcement learning (learning through trial and error with rewards)."""
+            "name": "Technical Explanation",
+            "prompt": "Explain how transformer neural networks work, including key innovations and current applications.",
         },
         {
-            "name": "Time-Sensitive Information",
-            "prompt": "Provide current stock market information",
-            "text": """The stock market has been volatile recently. The S&P 500 closed at 4,200 
-            points yesterday, showing a 2.5% increase from last week. Tesla stock 
-            reached $800 per share, while Apple maintained its position at $150. 
-            These figures reflect the current market sentiment."""
-        }
+            "name": "Current Events Analysis",
+            "prompt": "Analyze the current state of renewable energy adoption globally with recent data and trends.",
+        },
     ]
-    
-    # Process each test case
+
+    # Process each test case using the simple engine approach
     for i, test_case in enumerate(test_cases, 1):
         print(f"\n{'='*60}")
         print(f"🧪 Test Case {i}: {test_case['name']}")
         print(f"{'='*60}")
-        
-        # Create thought
-        thought = SifakaThought(
-            prompt=test_case["prompt"],
-            current_text=test_case["text"]
-        )
-        
-        print(f"\n📝 Original Text:")
-        print(f"'{test_case['text'][:100]}{'...' if len(test_case['text']) > 100 else ''}'")
-        
-        # Perform critique
-        print(f"\n🔍 Performing Enhanced Self-RAG Analysis...")
+
+        print(f"\n📝 Prompt: {test_case['prompt']}")
+
+        # Generate and critique with Self-RAG
+        print(f"\n🔍 Running Self-RAG generation + critique workflow...")
         try:
-            await critic.critique_async(thought)
-            
-            # Get the latest critique
+            thought = await engine.think(test_case["prompt"], max_iterations=3)
+
+            # Display results using simple built-in information
+            print(f"\n✅ Self-RAG Results:")
+            print(f"Final text: {len(thought.final_text or thought.current_text)} characters")
+            print(f"Iterations: {thought.iteration}")
+            print(f"Validation passed: {thought.validation_passed()}")
+            print(f"Total critiques: {len(thought.critiques)}")
+
+            # Show which critics were applied
             if thought.critiques:
-                latest_critique = thought.critiques[-1]
-                
-                print(f"\n📊 Self-RAG Assessment:")
-                print(f"   Needs Improvement: {latest_critique.needs_improvement}")
-                print(f"   Confidence: {latest_critique.confidence:.2f}")
-                print(f"   Tools Used: {latest_critique.tools_used or 'None'}")
-                
-                print(f"\n💬 Feedback:")
-                print(f"   {latest_critique.feedback}")
-                
-                if latest_critique.suggestions:
-                    print(f"\n💡 Suggestions:")
-                    for j, suggestion in enumerate(latest_critique.suggestions, 1):
-                        print(f"   {j}. {suggestion}")
-                
-                print(f"\n🔧 Methodology:")
-                print(f"   {latest_critique.methodology}")
-                
-                # Show enhanced metadata
-                if hasattr(latest_critique, 'critic_metadata'):
-                    metadata = latest_critique.critic_metadata
-                    if metadata.get('self_rag_enhanced'):
-                        print(f"\n🚀 Enhanced Self-RAG Features:")
-                        print(f"   Auto-execute retrieval: {metadata.get('auto_execute_retrieval', False)}")
-                        print(f"   Retrieval tools available: {metadata.get('retrieval_tools_available', False)}")
-                        print(f"   Factual assessment: {metadata.get('factual_assessment', 'unknown')}")
-                
+                print(f"\nCritics Applied:")
+                applied_critics = set(critique.critic for critique in thought.critiques)
+                for critic in applied_critics:
+                    count = sum(1 for c in thought.critiques if c.critic == critic)
+                    print(f"  - {critic}: {count} times")
+
+            # Show final text preview
+            final_text = thought.final_text or thought.current_text
+            print(f"\n📝 Generated Text Preview:")
+            print(f"{final_text[:200]}..." if len(final_text) > 200 else final_text)
+
         except Exception as e:
-            print(f"❌ Critique failed: {e}")
+            print(f"❌ Generation failed: {e}")
             print(f"💡 Make sure you have a valid OpenAI API key in your environment")
-    
+
+    # Show performance stats if timing is enabled
+    timing_stats = engine.get_timing_stats()
+    if timing_stats.get("total_requests", 0) > 0:
+        print(f"\n⏱️ Performance Stats:")
+        print(f"Duration: {timing_stats['avg_duration_seconds']:.2f}s")
+        print(f"Iterations: {timing_stats['avg_iterations']:.1f}")
+
+    # Show cache stats if caching is enabled
+    cache_stats = engine.get_cache_stats()
+    if cache_stats.get("cache_size", 0) >= 0:
+        print(f"\n💾 Cache Stats:")
+        print(f"Cache size: {cache_stats['cache_size']}")
+
     # Summary
     print(f"\n{'='*60}")
     print("📋 Demo Summary")
     print(f"{'='*60}")
-    print(f"✅ Enhanced Self-RAG critic demonstrated")
-    print(f"🔧 Retrieval tools available: {has_tools}")
-    print(f"🎯 Closer to original Self-RAG methodology")
-    print(f"📊 Structured reflection with token simulation")
-    
-    if not has_tools:
-        print(f"\n💡 To enable full retrieval capabilities:")
-        print(f"   pip install 'pydantic-ai-slim[duckduckgo]'")
-        print(f"   pip install 'pydantic-ai-slim[tavily]'")
+    print(f"✅ Self-RAG with simple built-in features demonstrated")
+    print(f"🎯 Retrieval-augmented generation with simple configuration")
+    print(f"📊 Built-in performance monitoring and caching")
+
+    print("\n✅ Self-RAG with Simple Built-in Features completed!")
+    print(
+        "Key Benefits: Retrieval-augmented generation, built-in performance monitoring, simple configuration"
+    )
 
 
 if __name__ == "__main__":
-    asyncio.run(demo_enhanced_self_rag())
+    asyncio.run(demo_self_rag_simple())

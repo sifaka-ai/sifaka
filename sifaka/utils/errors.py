@@ -17,7 +17,204 @@ Each exception type includes:
 - Error codes for programmatic handling
 """
 
+import os
+import re
 from typing import Any, Dict, List, Optional
+
+
+class ErrorMessageBuilder:
+    """Helper class for building user-friendly error messages with context-aware suggestions."""
+
+    @staticmethod
+    def format_api_key_error(provider: str, key_name: str) -> tuple[str, List[str]]:
+        """Format API key related error messages.
+
+        Args:
+            provider: Name of the provider (e.g., "OpenAI", "Anthropic")
+            key_name: Environment variable name (e.g., "OPENAI_API_KEY")
+
+        Returns:
+            Tuple of (error_message, suggestions)
+        """
+        message = f"Missing or invalid {provider} API key"
+        suggestions = [
+            f"Set your {provider} API key: export {key_name}='your-key-here'",
+            f"Get an API key from {provider.lower()}.com",
+            f"Verify your {key_name} environment variable is set correctly",
+            "Check that your API key has the necessary permissions",
+            f"Try using a different model provider if {provider} is not available",
+        ]
+        return message, suggestions
+
+    @staticmethod
+    def format_model_error(model_name: str, error_type: str) -> tuple[str, List[str]]:
+        """Format model-related error messages.
+
+        Args:
+            model_name: Name of the model that failed
+            error_type: Type of error (e.g., "connection", "rate_limit", "invalid_model")
+
+        Returns:
+            Tuple of (error_message, suggestions)
+        """
+        if error_type == "connection":
+            message = f"Failed to connect to model '{model_name}'"
+            suggestions = [
+                "Check your internet connection",
+                "Verify the model name is correct",
+                "Try again in a few moments (temporary network issue)",
+                "Consider using a different model as fallback",
+            ]
+        elif error_type == "rate_limit":
+            message = f"Rate limit exceeded for model '{model_name}'"
+            suggestions = [
+                "Wait a few minutes before trying again",
+                "Consider upgrading your API plan for higher limits",
+                "Use a different model with higher rate limits",
+                "Implement retry logic with exponential backoff",
+            ]
+        elif error_type == "invalid_model":
+            message = f"Model '{model_name}' is not available or invalid"
+            suggestions = [
+                "Check the model name spelling and format",
+                "Verify the model is available in your region",
+                "Use a supported model like 'openai:gpt-4' or 'anthropic:claude-3-sonnet'",
+                "Check the provider's documentation for available models",
+            ]
+        else:
+            message = f"Error with model '{model_name}': {error_type}"
+            suggestions = [
+                "Check the model configuration",
+                "Verify your API credentials",
+                "Try a different model",
+                "Check the provider's status page for outages",
+            ]
+
+        return message, suggestions
+
+    @staticmethod
+    def format_validation_error(
+        validator_name: str, issue: str, current_value: Any, expected: str
+    ) -> tuple[str, List[str]]:
+        """Format validation error messages with specific guidance.
+
+        Args:
+            validator_name: Name of the validator that failed
+            issue: Description of the validation issue
+            current_value: Current value that failed validation
+            expected: Description of what was expected
+
+        Returns:
+            Tuple of (error_message, suggestions)
+        """
+        message = f"{validator_name} validation failed: {issue}"
+
+        # Context-aware suggestions based on validator type
+        if "length" in validator_name.lower():
+            suggestions = ErrorMessageBuilder._get_length_suggestions(
+                issue, current_value, expected
+            )
+        elif "content" in validator_name.lower():
+            suggestions = ErrorMessageBuilder._get_content_suggestions(
+                issue, current_value, expected
+            )
+        elif "format" in validator_name.lower():
+            suggestions = ErrorMessageBuilder._get_format_suggestions(
+                issue, current_value, expected
+            )
+        else:
+            suggestions = [
+                f"Current: {current_value}, Expected: {expected}",
+                "Review the validation requirements",
+                "Adjust your input to meet the criteria",
+                "Consider using different validation settings",
+            ]
+
+        return message, suggestions
+
+    @staticmethod
+    def _get_length_suggestions(issue: str, current_value: Any, expected: str) -> List[str]:
+        """Get length-specific suggestions."""
+        suggestions = []
+
+        if "too short" in issue.lower():
+            if isinstance(current_value, int):
+                match = re.search(r"minimum:\s*(\d+)", expected)
+                if match:
+                    min_length = int(match.group(1))
+                    deficit = min_length - current_value
+                    suggestions.append(f"Add approximately {deficit} more characters/words")
+            suggestions.extend(
+                [
+                    "Expand your content with more details",
+                    "Add examples or explanations",
+                    "Include additional relevant information",
+                ]
+            )
+        elif "too long" in issue.lower():
+            if isinstance(current_value, int):
+                match = re.search(r"maximum:\s*(\d+)", expected)
+                if match:
+                    max_length = int(match.group(1))
+                    excess = current_value - max_length
+                    suggestions.append(f"Remove approximately {excess} characters/words")
+            suggestions.extend(
+                [
+                    "Trim unnecessary words or phrases",
+                    "Focus on the most important points",
+                    "Break content into smaller sections",
+                ]
+            )
+
+        return suggestions
+
+    @staticmethod
+    def _get_content_suggestions(issue: str, current_value: Any, expected: str) -> List[str]:
+        """Get content-specific suggestions."""
+        suggestions = []
+
+        if "missing required" in issue.lower():
+            suggestions.extend(
+                [
+                    f"Include the required content: {expected}",
+                    "Make sure all required topics are covered",
+                    "Review the content requirements carefully",
+                ]
+            )
+        elif "prohibited content" in issue.lower():
+            suggestions.extend(
+                [
+                    f"Remove or rephrase the prohibited content",
+                    "Use alternative wording to express the same idea",
+                    "Review content guidelines and restrictions",
+                ]
+            )
+
+        return suggestions
+
+    @staticmethod
+    def _get_format_suggestions(issue: str, current_value: Any, expected: str) -> List[str]:
+        """Get format-specific suggestions."""
+        suggestions = []
+
+        if "json" in issue.lower():
+            suggestions.extend(
+                [
+                    "Check JSON syntax for missing commas, brackets, or quotes",
+                    "Use a JSON validator to identify syntax errors",
+                    "Ensure all strings are properly quoted",
+                ]
+            )
+        elif "markdown" in issue.lower():
+            suggestions.extend(
+                [
+                    "Check Markdown syntax for headers, links, and formatting",
+                    "Ensure proper spacing around headers and lists",
+                    "Validate Markdown with a preview tool",
+                ]
+            )
+
+        return suggestions
 
 
 class SifakaError(Exception):
@@ -83,14 +280,18 @@ class ValidationError(SifakaError):
         message: str,
         validator_name: Optional[str] = None,
         validation_details: Optional[Dict[str, Any]] = None,
+        current_value: Optional[Any] = None,
+        expected_value: Optional[str] = None,
         **kwargs,
     ):
-        """Initialize validation error.
+        """Initialize validation error with enhanced user-friendly messaging.
 
         Args:
             message: Human-readable error description
             validator_name: Name of the validator that failed
             validation_details: Detailed validation results
+            current_value: Current value that failed validation
+            expected_value: Description of what was expected
             **kwargs: Additional arguments passed to SifakaError
         """
         context = kwargs.get("context", {})
@@ -98,8 +299,30 @@ class ValidationError(SifakaError):
             context["validator"] = validator_name
         if validation_details:
             context["validation_details"] = validation_details
+        if current_value is not None:
+            context["current_value"] = current_value
+        if expected_value:
+            context["expected_value"] = expected_value
 
         suggestions = kwargs.get("suggestions", [])
+
+        # Use enhanced error message builder if we have enough context
+        if not suggestions and validator_name and current_value is not None and expected_value:
+            try:
+                enhanced_message, enhanced_suggestions = (
+                    ErrorMessageBuilder.format_validation_error(
+                        validator_name, message, current_value, expected_value
+                    )
+                )
+                # Use enhanced message if it's more descriptive
+                if len(enhanced_message) > len(message):
+                    message = enhanced_message
+                suggestions = enhanced_suggestions
+            except Exception:
+                # Fall back to default suggestions if enhancement fails
+                pass
+
+        # Default suggestions if none provided
         if not suggestions:
             suggestions = [
                 "Check input parameters against validation requirements",
@@ -130,24 +353,68 @@ class CritiqueError(SifakaError):
         message: str,
         critic_name: Optional[str] = None,
         model_error: Optional[Exception] = None,
+        model_name: Optional[str] = None,
         **kwargs,
     ):
-        """Initialize critique error.
+        """Initialize critique error with enhanced model-specific messaging.
 
         Args:
             message: Human-readable error description
             critic_name: Name of the critic that failed
             model_error: Underlying model/API error if applicable
+            model_name: Name of the model that failed
             **kwargs: Additional arguments passed to SifakaError
         """
         context = kwargs.get("context", {})
         if critic_name:
             context["critic"] = critic_name
+        if model_name:
+            context["model"] = model_name
         if model_error:
             context["underlying_error"] = str(model_error)
             context["error_type"] = type(model_error).__name__
 
         suggestions = kwargs.get("suggestions", [])
+
+        # Use enhanced error message builder for common model errors
+        if not suggestions and model_error and model_name:
+            try:
+                error_str = str(model_error).lower()
+                if "api" in error_str and "key" in error_str:
+                    # API key error
+                    provider = self._extract_provider_from_model(model_name)
+                    key_name = f"{provider.upper()}_API_KEY"
+                    enhanced_message, enhanced_suggestions = (
+                        ErrorMessageBuilder.format_api_key_error(provider, key_name)
+                    )
+                    message = f"{message}: {enhanced_message}"
+                    suggestions = enhanced_suggestions
+                elif "rate limit" in error_str or "quota" in error_str:
+                    # Rate limit error
+                    enhanced_message, enhanced_suggestions = ErrorMessageBuilder.format_model_error(
+                        model_name, "rate_limit"
+                    )
+                    message = f"{message}: {enhanced_message}"
+                    suggestions = enhanced_suggestions
+                elif "connection" in error_str or "network" in error_str:
+                    # Connection error
+                    enhanced_message, enhanced_suggestions = ErrorMessageBuilder.format_model_error(
+                        model_name, "connection"
+                    )
+                    message = f"{message}: {enhanced_message}"
+                    suggestions = enhanced_suggestions
+                elif "model" in error_str and ("not found" in error_str or "invalid" in error_str):
+                    # Invalid model error
+                    enhanced_message, enhanced_suggestions = ErrorMessageBuilder.format_model_error(
+                        model_name, "invalid_model"
+                    )
+                    message = f"{message}: {enhanced_message}"
+                    suggestions = enhanced_suggestions
+            except Exception:
+                # Fall back to default suggestions if enhancement fails
+                pass
+
+        # Default suggestions if none provided
         if not suggestions:
             suggestions = [
                 "Check model API credentials and connectivity",
@@ -163,6 +430,21 @@ class CritiqueError(SifakaError):
             suggestions=suggestions,
             **{k: v for k, v in kwargs.items() if k not in ["context", "suggestions"]},
         )
+
+    @staticmethod
+    def _extract_provider_from_model(model_name: str) -> str:
+        """Extract provider name from model string."""
+        if ":" in model_name:
+            provider = model_name.split(":")[0]
+            if provider == "openai":
+                return "OpenAI"
+            elif provider == "anthropic":
+                return "Anthropic"
+            elif provider == "google" or provider == "gemini":
+                return "Google"
+            elif provider == "groq":
+                return "Groq"
+        return "Model Provider"
 
 
 class GraphExecutionError(SifakaError):
@@ -225,7 +507,7 @@ class ConfigurationError(SifakaError):
         config_value: Optional[Any] = None,
         **kwargs,
     ):
-        """Initialize configuration error.
+        """Initialize configuration error with enhanced guidance.
 
         Args:
             message: Human-readable error description
@@ -240,12 +522,18 @@ class ConfigurationError(SifakaError):
             context["config_value"] = config_value
 
         suggestions = kwargs.get("suggestions", [])
+
+        # Provide specific suggestions based on configuration key
+        if not suggestions and config_key:
+            suggestions = self._get_config_specific_suggestions(config_key, config_value, message)
+
+        # Default suggestions if none provided
         if not suggestions:
             suggestions = [
                 "Check configuration file syntax and values",
                 "Verify environment variables are set correctly",
                 "Review documentation for valid configuration options",
-                "Use SifakaConfig.create_default() for basic setup",
+                "Use SifakaConfig.simple() for basic setup",
             ]
 
         super().__init__(
@@ -255,3 +543,64 @@ class ConfigurationError(SifakaError):
             suggestions=suggestions,
             **{k: v for k, v in kwargs.items() if k not in ["context", "suggestions"]},
         )
+
+    @staticmethod
+    def _get_config_specific_suggestions(
+        config_key: str, config_value: Any, message: str
+    ) -> List[str]:
+        """Get configuration-specific suggestions based on the key and error."""
+        suggestions = []
+
+        if "max_iterations" in config_key:
+            suggestions.extend(
+                [
+                    "Set max_iterations to a positive integer (1-20)",
+                    "Example: max_iterations=3",
+                    "Higher values allow more improvement cycles but take longer",
+                ]
+            )
+        elif "min_length" in config_key or "max_length" in config_key:
+            suggestions.extend(
+                [
+                    "Set length values to positive integers",
+                    "Ensure min_length <= max_length if both are specified",
+                    "Example: min_length=50, max_length=500",
+                ]
+            )
+        elif "model" in config_key:
+            suggestions.extend(
+                [
+                    "Use format 'provider:model-name' (e.g., 'openai:gpt-4')",
+                    "Supported providers: openai, anthropic, google, groq",
+                    "Verify the model name is correct and available",
+                    "Check that you have API access to the model",
+                ]
+            )
+        elif "critics" in config_key:
+            suggestions.extend(
+                [
+                    "Use a list of critic names: ['reflexion', 'constitutional']",
+                    "Available critics: reflexion, constitutional, self_refine",
+                    "Example: critics=['reflexion', 'constitutional']",
+                ]
+            )
+        elif "api_key" in config_key.lower() or "key" in config_key.lower():
+            suggestions.extend(
+                [
+                    "Set your API key as an environment variable",
+                    "Example: export OPENAI_API_KEY='your-key-here'",
+                    "Get API keys from the respective provider websites",
+                    "Ensure the API key has necessary permissions",
+                ]
+            )
+        else:
+            # Generic suggestions for unknown config keys
+            suggestions.extend(
+                [
+                    f"Check the '{config_key}' configuration value",
+                    "Review the documentation for valid options",
+                    "Use SifakaConfig.simple() with valid parameters",
+                ]
+            )
+
+        return suggestions

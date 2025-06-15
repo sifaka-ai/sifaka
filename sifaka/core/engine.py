@@ -1,19 +1,14 @@
-"""SifakaEngine: Main orchestration engine for Sifaka.
+"""SifakaEngine: Simplified engine with built-in features.
 
-This module implements the core engine that orchestrates the entire Sifaka
-workflow using PydanticAI graphs. It provides the main API for thought
-processing and conversation management.
-
-Key features:
-- Graph-based workflow orchestration
-- Thought processing with complete audit trails
-- Conversation continuity and management
-- State persistence integration
-- Error handling and recovery
+This module implements the core engine with simple built-in features instead
+of complex middleware system.
 """
 
 import uuid
-from typing import List, Optional
+import time
+import hashlib
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timedelta
 
 from pydantic_graph import Graph
 from pydantic_graph.persistence import BaseStatePersistence
@@ -21,7 +16,6 @@ from pydantic_graph.persistence.in_mem import FullStatePersistence
 
 from sifaka.core.thought import SifakaThought
 from sifaka.graph.dependencies import SifakaDependencies
-from sifaka.graph.nodes_unified import CritiqueNode, GenerateNode, ValidateNode
 from sifaka.utils.errors import GraphExecutionError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.validation import validate_max_iterations, validate_prompt
@@ -30,48 +24,31 @@ logger = get_logger(__name__)
 
 
 class SifakaEngine:
-    """Main orchestration engine for Sifaka.
-
-    This engine provides the primary API for processing thoughts using
-    the PydanticAI graph-based workflow. It handles:
-
-    - Single thought processing
-    - Conversation continuity
-    - Batch processing
-    - State persistence
-    - Error recovery
-
-    Example:
-        ```python
-        # Create engine with default configuration
-        engine = SifakaEngine()
-
-        # Process a single thought
-        thought = await engine.think("Explain renewable energy")
-        print(thought.final_text)
-
-        # Continue conversation
-        follow_up = await engine.continue_thought(
-            thought,
-            "Focus on solar panels"
-        )
-        ```
-    """
+    """Main orchestration engine for Sifaka with built-in features."""
 
     def __init__(
         self,
+        config: Optional["SifakaConfig"] = None,
         dependencies: Optional[SifakaDependencies] = None,
         persistence: Optional[BaseStatePersistence] = None,
     ):
-        """Initialize the Sifaka engine.
+        """Initialize the Sifaka engine."""
+        # Import here to avoid circular imports
+        from sifaka.utils.config import SifakaConfig
 
-        Args:
-            dependencies: Dependency container with agents, validators, etc.
-                         If None, creates default configuration.
-            persistence: State persistence implementation.
-                        If None, uses Sifaka's memory persistence.
-        """
-        self.deps = dependencies or SifakaDependencies.create_default()
+        if config is not None:
+            # Create dependencies from config
+            self.config = config
+            self.deps = self._create_dependencies_from_config(config)
+        else:
+            # Use provided dependencies or create default
+            self.config = None
+            self.deps = dependencies or SifakaDependencies.create_default()
+
+        # Initialize built-in features
+        self._cache: Dict[str, Any] = {} if (config and config.enable_caching) else {}
+        self._cache_timestamps: Dict[str, datetime] = {}
+        self._timing_data: List[Dict[str, Any]] = []
 
         # Use PydanticAI's FullStatePersistence by default
         if persistence is None:
@@ -79,7 +56,9 @@ class SifakaEngine:
         else:
             self.persistence = persistence
 
-        # Create the PydanticAI graph
+        # Create the PydanticAI graph with lazy node imports
+        from sifaka.graph.nodes import CritiqueNode, GenerateNode, ValidateNode
+
         self.graph = Graph(
             nodes=[GenerateNode, ValidateNode, CritiqueNode],
             state_type=SifakaThought,
@@ -90,46 +69,125 @@ class SifakaEngine:
         logger.info(
             "SifakaEngine initialized",
             extra={
+                "config_provided": config is not None,
                 "dependencies_type": type(self.deps).__name__,
                 "persistence_type": type(self.persistence).__name__,
-                "graph_nodes": [
-                    node.__name__ for node in [GenerateNode, ValidateNode, CritiqueNode]
-                ],
+                "logging_enabled": config.enable_logging if config else False,
+                "timing_enabled": config.enable_timing if config else False,
+                "caching_enabled": config.enable_caching if config else False,
             },
         )
 
-    async def think(self, prompt: str, max_iterations: int = 3) -> SifakaThought:
-        """Process a single thought through the Sifaka workflow.
-
-        This is the main method for processing thoughts. It creates a new
-        thought and runs it through the complete workflow of generation,
-        validation, and critique until completion.
-
-        Args:
-            prompt: The input prompt for generation
-            max_iterations: Maximum number of improvement iterations
-
-        Returns:
-            Completed SifakaThought with full audit trail
-
-        Raises:
-            ValidationError: If input parameters are invalid
-            GraphExecutionError: If the workflow encounters an unrecoverable error
-        """
-        # Validate inputs
-        prompt = validate_prompt(prompt)
-        max_iterations = validate_max_iterations(max_iterations)
-
-        logger.info(
-            "Starting thought processing",
-            extra={
-                "prompt_length": len(prompt),
-                "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt,
-                "max_iterations": max_iterations,
-            },
+    def _create_dependencies_from_config(self, config: "SifakaConfig") -> SifakaDependencies:
+        """Create SifakaDependencies from SifakaConfig."""
+        from sifaka.validators import (
+            min_length_validator,
+            max_length_validator,
+            sentiment_validator,
         )
+
+        # Build validators from config
+        validators = []
+        if config.min_length is not None:
+            validators.append(min_length_validator(config.min_length))
+        if config.max_length is not None:
+            validators.append(max_length_validator(config.max_length))
+        if config.required_sentiment is not None:
+            validators.append(sentiment_validator(required_sentiments=[config.required_sentiment]))
+
+        # Build critics dict from config - map critic names to default model names
+        default_critic_models = {
+            "reflexion": "openai:gpt-4o-mini",
+            "constitutional": "anthropic:claude-3-5-haiku-20241022",
+            "self_refine": "gemini-1.5-flash",
+            "n_critics": "groq:llama-3.1-8b-instant",
+            "self_consistency": "openai:gpt-3.5-turbo",
+            "prompt": "anthropic:claude-3-haiku-20240307",
+            "meta_rewarding": "gemini-1.5-flash",
+            "self_rag": "groq:mixtral-8x7b-32768",
+        }
+
+        critics = {}
+        for name in config.critics:
+            # Use default model for each critic type, fallback to main model
+            critics[name] = default_critic_models.get(name, config.model)
+
+        return SifakaDependencies(generator=config.model, critics=critics, validators=validators)
+
+    def _get_cache_key(self, prompt: str, max_iterations: int) -> str:
+        """Generate a cache key for the request."""
+        content = f"{prompt}:{max_iterations}"
+        return hashlib.md5(content.encode()).hexdigest()
+
+    def _get_from_cache(self, cache_key: str) -> Optional[SifakaThought]:
+        """Get result from cache if valid."""
+        if cache_key not in self._cache:
+            return None
+
+        # Check TTL
+        if cache_key in self._cache_timestamps:
+            age = datetime.now() - self._cache_timestamps[cache_key]
+            if age.total_seconds() > (self.config.cache_ttl_seconds if self.config else 3600):
+                # Expired
+                del self._cache[cache_key]
+                del self._cache_timestamps[cache_key]
+                return None
+
+        return self._cache[cache_key]
+
+    def _store_in_cache(self, cache_key: str, thought: SifakaThought) -> None:
+        """Store result in cache."""
+        # Enforce cache size limit
+        max_size = self.config.cache_size if self.config else 1000
+        if len(self._cache) >= max_size:
+            # Remove oldest entry
+            oldest_key = min(self._cache_timestamps.keys(), key=lambda k: self._cache_timestamps[k])
+            del self._cache[oldest_key]
+            del self._cache_timestamps[oldest_key]
+
+        self._cache[cache_key] = thought
+        self._cache_timestamps[cache_key] = datetime.now()
+
+    async def think(
+        self,
+        prompt: str,
+        max_iterations: Optional[int] = None,
+        user_id: str = None,
+        session_id: str = None,
+    ) -> SifakaThought:
+        """Process a single thought through the Sifaka workflow."""
+        # Start timing if enabled
+        start_time = time.time() if (self.config and self.config.enable_timing) else None
+        request_id = str(uuid.uuid4())
 
         try:
+            # Validate inputs
+            prompt = validate_prompt(prompt)
+            max_iterations = validate_max_iterations(max_iterations)
+
+            # Determine max_iterations from config or parameter
+            if max_iterations is None:
+                max_iterations = self.config.max_iterations if self.config else 3
+
+            # Logging if enabled
+            if self.config and self.config.enable_logging:
+                content_preview = (
+                    f" - Content: {prompt[:100]}..." if self.config.log_content else ""
+                )
+                logger.info(
+                    f"Starting thought processing for request {request_id}{content_preview}"
+                )
+
+            # Check cache if enabled
+            cache_key = None
+            if self.config and self.config.enable_caching:
+                cache_key = self._get_cache_key(prompt, max_iterations)
+                cached_result = self._get_from_cache(cache_key)
+                if cached_result:
+                    if self.config.enable_logging:
+                        logger.info(f"Cache hit for request {request_id}")
+                    return cached_result
+
             # Create initial thought
             thought = SifakaThought(prompt=prompt, max_iterations=max_iterations)
 
@@ -139,16 +197,40 @@ class SifakaEngine:
                 extra={
                     "prompt_length": len(prompt),
                     "max_iterations": max_iterations,
+                    "request_id": request_id,
                 },
             )
 
             # Run the graph starting with generation
+            from sifaka.graph.nodes import GenerateNode
+
             with logger.performance_timer("graph_execution", thought_id=thought.id):
                 result = await self.graph.run(
                     GenerateNode(), state=thought, deps=self.deps, persistence=self.persistence
                 )
 
-            final_thought = result
+            # Extract the final thought from the GraphRunResult
+            final_thought = result.state
+
+            # Store in cache if enabled
+            if self.config and self.config.enable_caching and cache_key:
+                self._store_in_cache(cache_key, final_thought)
+
+            # Record timing if enabled
+            if start_time and self.config and self.config.enable_timing:
+                duration = time.time() - start_time
+                self._timing_data.append(
+                    {
+                        "request_id": request_id,
+                        "duration_seconds": duration,
+                        "iterations": final_thought.iteration,
+                        "timestamp": datetime.now(),
+                    }
+                )
+                if self.config.enable_logging:
+                    logger.info(
+                        f"Request {request_id} completed in {duration:.2f}s with {final_thought.iteration} iterations"
+                    )
 
             logger.log_thought_event(
                 "thought_completed",
@@ -161,11 +243,15 @@ class SifakaEngine:
                         len(final_thought.current_text) if final_thought.current_text else 0
                     ),
                     "is_finalized": final_thought.final_text is not None,
+                    "request_id": request_id,
                 },
             )
 
             return final_thought
         except Exception as e:
+            if self.config and self.config.enable_logging:
+                logger.error(f"Error in request {request_id}: {e}")
+
             logger.error(
                 "Failed to process thought",
                 extra={
@@ -173,36 +259,53 @@ class SifakaEngine:
                     "max_iterations": max_iterations,
                     "error": str(e),
                     "error_type": type(e).__name__,
+                    "request_id": request_id,
                 },
                 exc_info=True,
             )
             raise GraphExecutionError(
                 f"Failed to process thought: {str(e)}",
                 execution_stage="graph_execution",
-                context={"prompt": prompt[:100], "max_iterations": max_iterations},
+                context={
+                    "prompt": prompt[:100],
+                    "max_iterations": max_iterations,
+                    "request_id": request_id,
+                },
             ) from e
 
+    def get_timing_stats(self) -> Dict[str, Any]:
+        """Get timing statistics if timing is enabled."""
+        if not self._timing_data:
+            return {"message": "No timing data available. Enable timing in config."}
+
+        durations = [d["duration_seconds"] for d in self._timing_data]
+        iterations = [d["iterations"] for d in self._timing_data]
+
+        return {
+            "total_requests": len(self._timing_data),
+            "avg_duration_seconds": sum(durations) / len(durations),
+            "min_duration_seconds": min(durations),
+            "max_duration_seconds": max(durations),
+            "avg_iterations": sum(iterations) / len(iterations),
+            "total_duration_seconds": sum(durations),
+        }
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics if caching is enabled."""
+        if not self.config or not self.config.enable_caching:
+            return {"message": "Caching not enabled"}
+
+        return {
+            "cache_size": len(self._cache),
+            "max_cache_size": self.config.cache_size,
+            "cache_ttl_seconds": self.config.cache_ttl_seconds,
+        }
+
+    # Keep other methods from original engine...
     async def continue_thought(
         self, parent_thought: SifakaThought, new_prompt: str, max_iterations: int = 3
     ) -> SifakaThought:
-        """Continue a conversation with a new thought connected to a parent.
-
-        This method creates a new thought that is connected to the parent
-        thought for conversation continuity. The new thought will have
-        access to the conversation history.
-
-        Args:
-            parent_thought: The parent thought to continue from
-            new_prompt: The new prompt for the follow-up thought
-            max_iterations: Maximum number of improvement iterations
-
-        Returns:
-            New SifakaThought connected to the parent
-
-        Raises:
-            ValidationError: If input parameters are invalid
-            GraphExecutionError: If the workflow encounters an unrecoverable error
-        """
+        """Continue a conversation with a new thought connected to a parent."""
         # Validate inputs
         if not isinstance(parent_thought, SifakaThought):
             raise GraphExecutionError(
@@ -224,11 +327,14 @@ class SifakaEngine:
             new_thought.connect_to(parent_thought)
 
             # Run the graph for the new thought
+            from sifaka.graph.nodes import GenerateNode
+
             result = await self.graph.run(
                 GenerateNode(), state=new_thought, deps=self.deps, persistence=self.persistence
             )
 
-            return result
+            # Extract the final thought from the GraphRunResult
+            return result.state
         except Exception as e:
             raise GraphExecutionError(
                 f"Failed to continue thought: {str(e)}",
@@ -239,158 +345,3 @@ class SifakaEngine:
                     "parent_id": parent_thought.id,
                 },
             ) from e
-
-    async def batch_think(self, prompts: List[str], max_iterations: int = 3) -> List[SifakaThought]:
-        """Process multiple prompts in parallel.
-
-        This method allows for efficient parallel processing of multiple
-        independent thoughts. Each thought is processed through the complete
-        workflow independently.
-
-        Args:
-            prompts: List of prompts to process
-            max_iterations: Maximum iterations for each thought
-
-        Returns:
-            List of completed thoughts in the same order as input prompts
-
-        Raises:
-            ValidationError: If input parameters are invalid
-            GraphExecutionError: If any workflow encounters an unrecoverable error
-        """
-        import asyncio
-
-        # Validate inputs
-        if not isinstance(prompts, list):
-            raise GraphExecutionError(
-                f"prompts must be a list, got {type(prompts).__name__}",
-                execution_stage="input_validation",
-                context={"prompts_type": type(prompts).__name__},
-                suggestions=[
-                    "Ensure prompts is a list of strings",
-                    "Use [prompt] for single prompt processing",
-                ],
-            )
-
-        if not prompts:
-            raise GraphExecutionError(
-                "prompts list cannot be empty",
-                execution_stage="input_validation",
-                suggestions=[
-                    "Provide at least one prompt to process",
-                    "Use engine.think() for single prompt processing",
-                ],
-            )
-
-        if len(prompts) > 50:
-            raise GraphExecutionError(
-                f"Too many prompts: {len(prompts)} (maximum: 50)",
-                execution_stage="input_validation",
-                context={"prompt_count": len(prompts)},
-                suggestions=[
-                    "Process prompts in smaller batches",
-                    "Consider if all prompts are really needed",
-                ],
-            )
-
-        max_iterations = validate_max_iterations(max_iterations)
-
-        # Create tasks for parallel processing
-        tasks = [self.think(prompt, max_iterations) for prompt in prompts]
-
-        # Wait for all thoughts to complete
-        return await asyncio.gather(*tasks)
-
-    def create_conversation(self, initial_prompt: str = "") -> str:
-        """Create a new conversation ID for tracking related thoughts.
-
-        This method generates a unique conversation ID that can be used
-        to group related thoughts together. The first thought in a
-        conversation will have this ID as its conversation_id.
-
-        Args:
-            initial_prompt: The initial prompt (for logging/debugging, optional)
-
-        Returns:
-            Unique conversation ID string
-        """
-        conversation_id = str(uuid.uuid4())
-        if initial_prompt:
-            logger.debug(
-                f"Created conversation {conversation_id} for prompt: {initial_prompt[:50]}..."
-            )
-        return conversation_id
-
-    async def get_conversation_thoughts(self, conversation_id: str) -> List[SifakaThought]:
-        """Retrieve all thoughts in a conversation.
-
-        This method uses the Sifaka persistence backend to retrieve all
-        thoughts that belong to a specific conversation.
-
-        Args:
-            conversation_id: The conversation ID to retrieve
-
-        Returns:
-            List of thoughts in the conversation, ordered by creation time
-        """
-        try:
-            # Check if persistence supports Sifaka-specific operations
-            if hasattr(self.persistence, "list_thoughts"):
-                return await self.persistence.list_thoughts(conversation_id=conversation_id)
-            else:
-                # Fallback for non-Sifaka persistence backends
-                logger.warning(
-                    f"Persistence backend {type(self.persistence).__name__} "
-                    "does not support conversation queries"
-                )
-                return []
-        except Exception as e:
-            logger.error(f"Failed to retrieve conversation thoughts: {e}")
-            return []
-
-    async def get_thought(self, thought_id: str) -> Optional[SifakaThought]:
-        """Retrieve a specific thought by ID.
-
-        Args:
-            thought_id: The thought ID to retrieve
-
-        Returns:
-            The thought if found, None otherwise
-        """
-        try:
-            # Check if persistence supports Sifaka-specific operations
-            if hasattr(self.persistence, "retrieve_thought"):
-                return await self.persistence.retrieve_thought(thought_id)
-            else:
-                # Fallback for non-Sifaka persistence backends
-                logger.warning(
-                    f"Persistence backend {type(self.persistence).__name__} "
-                    "does not support thought retrieval"
-                )
-                return None
-        except Exception as e:
-            logger.error(f"Failed to retrieve thought {thought_id}: {e}")
-            return None
-
-    def get_graph_diagram(self, format: str = "mermaid") -> str:
-        """Get a visual representation of the workflow graph.
-
-        Args:
-            format: Diagram format ('mermaid' is currently supported)
-
-        Returns:
-            String representation of the graph diagram
-        """
-        if format == "mermaid":
-            return self.graph.mermaid_code(start_node=GenerateNode)
-        else:
-            raise ValueError(f"Unsupported diagram format: {format}")
-
-    async def __aenter__(self):
-        """Async context manager entry."""
-        self.deps.__enter__()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
-        self.deps.__exit__(exc_type, exc_val, exc_tb)

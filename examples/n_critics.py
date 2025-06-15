@@ -1,134 +1,102 @@
 #!/usr/bin/env python3
-"""Example demonstrating multi-model N-Critics ensemble.
+"""Example demonstrating N-Critics with Simple Built-in Features.
 
-This example shows how to use the N-Critics implementation in true multi-model mode,
-where each critical perspective uses a different model for specialized evaluation.
+This example shows how to use multiple critics with the simple configuration
+approach, featuring built-in logging, timing, and caching.
 """
 
 import asyncio
-from datetime import datetime
-from dotenv import load_dotenv
+import os
 
-from sifaka.critics.n_critics import NCriticsCritic
-from sifaka.core.engine import SifakaEngine
-from sifaka.graph.dependencies import SifakaDependencies
-from sifaka.storage import SifakaFilePersistence
-from sifaka.utils.thought_inspector import get_thought_overview
+# Simple imports - no complex dependencies needed
+import sifaka
+from sifaka import SifakaConfig, SifakaEngine
 
-# Load environment variables
-load_dotenv()
+
+def create_simple_config():
+    """Create a simple configuration with multiple critics and built-in features."""
+
+    # Use the simple configuration approach with built-in features
+    config = (
+        SifakaConfig.builder()
+        .model("openai:gpt-4o-mini")  # Fast, cost-effective generator
+        .max_iterations(3)  # Allow multiple iterations for improvement
+        .min_length(200)  # Minimum content length
+        .max_length(1000)  # Maximum content length
+        .critics(["reflexion", "constitutional", "self_refine"])  # Multiple critics
+        .with_logging(log_level="INFO", log_content=False)  # Enable logging
+        .with_timing()  # Enable performance timing
+        .with_caching(cache_size=100)  # Enable caching for repeated runs
+        .build()
+    )
+
+    return config
 
 
 async def main():
-    """Demonstrate multi-model N-Critics ensemble with full generation workflow."""
+    """Demonstrate multiple critics with simple built-in features."""
 
-    print("🤖 Multi-Model N-Critics Ensemble with Full Generation")
+    # Ensure API key is available
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required")
+
+    print("🤖 Multiple Critics with Simple Built-in Features")
     print("=" * 60)
 
     # The prompt we'll use for generation
     prompt = "Write a balanced analysis of AI's impact on healthcare, covering both benefits and potential risks."
 
-    # Set up storage for thoughts
-    storage = SifakaFilePersistence("../thoughts", file_prefix="n_critics_")
+    # Create simple configuration with multiple critics
+    config = create_simple_config()
 
-    # Example 1: Single-model N-Critics with full generation workflow
-    print("\n📝 Single-Model N-Critics with Full Generation")
+    # Create engine with simple configuration
+    engine = SifakaEngine(config=config)
 
-    # Create dependencies with single-model N-Critics
-    single_model_deps = SifakaDependencies(
-        generator="openai:gpt-4o-mini",  # Generator model
-        critics={"n_critics": "groq:llama-3.1-8b-instant"},  # Single model for all perspectives
-    )
-
-    # Create engine with single-model configuration
-    single_engine = SifakaEngine(dependencies=single_model_deps, persistence=storage)
-
-    # Generate and critique with single-model N-Critics
+    # Generate and critique with multiple critics
     print("🔄 Running generation + critique workflow...")
-    thought_single = await single_engine.think(prompt, max_iterations=2)
+    thought = await engine.think(prompt, max_iterations=3)
 
-    # Display single-model results
-    single_overview = get_thought_overview(thought_single)
+    # Display results using simple built-in information
+    print("\n✅ Multiple Critics Results:")
+
+    # Show simple overview
+    print(f"Final text: {len(thought.final_text or thought.current_text)} characters")
+    print(f"Iterations: {thought.iteration}")
+    print(f"Validation passed: {thought.validation_passed()}")
+    print(f"Total generations: {len(thought.generations)}")
+    print(f"Total validations: {len(thought.validations)}")
+    print(f"Total critiques: {len(thought.critiques)}")
+
+    # Show which critics were applied
+    if thought.critiques:
+        print(f"\nCritics Applied:")
+        applied_critics = set(critique.critic for critique in thought.critiques)
+        for critic in applied_critics:
+            count = sum(1 for c in thought.critiques if c.critic == critic)
+            print(f"  - {critic}: {count} times")
+
+    # Show performance stats if timing is enabled
+    timing_stats = engine.get_timing_stats()
+    if timing_stats.get("total_requests", 0) > 0:
+        print(f"\n⏱️ Performance Stats:")
+        print(f"Duration: {timing_stats['avg_duration_seconds']:.2f}s")
+        print(f"Iterations: {timing_stats['avg_iterations']:.1f}")
+
+    # Show cache stats if caching is enabled
+    cache_stats = engine.get_cache_stats()
+    if cache_stats.get("cache_size", 0) >= 0:
+        print(f"\n💾 Cache Stats:")
+        print(f"Cache size: {cache_stats['cache_size']}")
+
+    # Show final text preview
+    final_text = thought.final_text or thought.current_text
+    print(f"\n📝 Final Text Preview:")
+    print(f"{final_text[:200]}..." if len(final_text) > 200 else final_text)
+
+    print("\n✅ Multiple Critics with Simple Built-in Features completed!")
     print(
-        f"✅ Single-Model Results: {single_overview['final_text_length']} chars, "
-        f"{single_overview['total_critiques']} critiques, "
-        f"validation: {single_overview['validation_passed']}"
+        "Key Benefits: Multiple perspectives, built-in performance monitoring, simple configuration"
     )
-
-    # Example 2: Multi-model N-Critics with full generation workflow
-    print("\n🎭 Multi-Model N-Critics with Full Generation")
-
-    # Create custom N-Critics with different models for each perspective
-    perspective_models = {
-        "Clarity": "groq:llama-3.1-8b-instant",  # Fast model for clarity
-        "Accuracy": "anthropic:claude-3-5-haiku-latest",  # Accurate model for facts
-        "Completeness": "openai:gpt-4o-mini",  # Comprehensive model
-        "Style": "groq:mixtral-8x7b-32768",  # Creative model for style
-    }
-
-    # Create multi-model N-Critics instance
-    multi_model_critic = NCriticsCritic(perspective_models=perspective_models)
-
-    # Create generator agent
-    from pydantic_ai import Agent
-
-    generator = Agent(
-        "openai:gpt-4o-mini",
-        system_prompt="Generate high-quality content using available tools when needed. Focus on accuracy, clarity, and helpfulness.",
-    )
-
-    # Create dependencies with multi-model N-Critics
-    multi_model_deps = SifakaDependencies(
-        generator=generator,
-        critics={"n_critics": multi_model_critic},  # Use our custom multi-model critic
-        validators=[],
-        retrievers={},
-    )
-
-    # Create engine with multi-model configuration
-    multi_engine = SifakaEngine(dependencies=multi_model_deps, persistence=storage)
-
-    # Generate and critique with multi-model N-Critics
-    print("🔄 Running generation + critique workflow...")
-    thought_multi = await multi_engine.think(prompt, max_iterations=2)
-
-    # Display multi-model results
-    multi_overview = get_thought_overview(thought_multi)
-    print(
-        f"✅ Multi-Model Results: {multi_overview['final_text_length']} chars, "
-        f"{multi_overview['total_critiques']} critiques, "
-        f"validation: {multi_overview['validation_passed']}"
-    )
-
-    # Show key differences between approaches
-    if thought_multi.critiques:
-        latest_critique = thought_multi.critiques[-1]
-        is_true_ensemble = latest_critique.critic_metadata.get("is_true_ensemble", False)
-        agreement_ratio = latest_critique.critic_metadata.get("perspective_agreement", 0)
-        print(f"🎯 True ensemble: {is_true_ensemble}, Agreement: {agreement_ratio:.2f}")
-
-    # Compare the two approaches
-    print(f"\n📊 Comparison:")
-    print(
-        f"Single-model: {len(thought_single.final_text)} chars, {thought_single.iteration} iterations"
-    )
-    print(
-        f"Multi-model: {len(thought_multi.final_text)} chars, {thought_multi.iteration} iterations"
-    )
-
-    # Show storage information
-    print(f"\n💾 Thoughts saved to: {storage.storage_dir}")
-    print(f"Single-model ID: {thought_single.id}")
-    print(f"Multi-model ID: {thought_multi.id}")
-
-    # Demonstrate thought retrieval using model_dump
-    print(f"\n🔍 Thought data available via:")
-    print(f"• thought.model_dump() - Full serializable dict")
-    print(f"• thought.model_dump_json() - JSON string")
-    print(f"• Storage backend - Automatic persistence")
-
-    print("\n✅ N-Critics demonstration complete!")
-    print("Key Benefits: Specialized models per perspective, true ensemble diversity, reduced bias")
 
 
 if __name__ == "__main__":

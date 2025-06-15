@@ -462,6 +462,282 @@ class SifakaThought(BaseModel):
             "updated_at": self.updated_at,
         }
 
+    # Memory Management Methods
+    def get_memory_usage(self) -> Dict[str, Any]:
+        """Get detailed memory usage information for this thought.
+
+        Returns:
+            Dictionary containing memory usage statistics
+        """
+        import sys
+
+        # Calculate sizes of major components
+        generations_size = sum(sys.getsizeof(gen.model_dump()) for gen in self.generations)
+        validations_size = sum(sys.getsizeof(val.model_dump()) for val in self.validations)
+        critiques_size = sum(sys.getsizeof(crit.model_dump()) for crit in self.critiques)
+        tool_calls_size = sum(sys.getsizeof(tool.model_dump()) for tool in self.tool_calls)
+
+        # Calculate conversation history size (often the largest component)
+        conversation_size = 0
+        for gen in self.generations:
+            if gen.conversation_history:
+                conversation_size += sys.getsizeof(gen.conversation_history)
+                for msg in gen.conversation_history:
+                    conversation_size += sys.getsizeof(msg)
+
+        total_size = sys.getsizeof(self.model_dump())
+
+        return {
+            "total_size_bytes": total_size,
+            "total_size_mb": round(total_size / (1024 * 1024), 2),
+            "components": {
+                "generations": {
+                    "count": len(self.generations),
+                    "size_bytes": generations_size,
+                    "size_mb": round(generations_size / (1024 * 1024), 2),
+                },
+                "conversation_history": {
+                    "size_bytes": conversation_size,
+                    "size_mb": round(conversation_size / (1024 * 1024), 2),
+                },
+                "validations": {
+                    "count": len(self.validations),
+                    "size_bytes": validations_size,
+                    "size_mb": round(validations_size / (1024 * 1024), 2),
+                },
+                "critiques": {
+                    "count": len(self.critiques),
+                    "size_bytes": critiques_size,
+                    "size_mb": round(critiques_size / (1024 * 1024), 2),
+                },
+                "tool_calls": {
+                    "count": len(self.tool_calls),
+                    "size_bytes": tool_calls_size,
+                    "size_mb": round(tool_calls_size / (1024 * 1024), 2),
+                },
+            },
+            "largest_component": max(
+                [
+                    ("generations", generations_size),
+                    ("conversation_history", conversation_size),
+                    ("validations", validations_size),
+                    ("critiques", critiques_size),
+                    ("tool_calls", tool_calls_size),
+                ],
+                key=lambda x: x[1],
+            )[0],
+        }
+
+    def cleanup_history(
+        self, keep_last_n: int = 3, preserve_current: bool = True
+    ) -> Dict[str, int]:
+        """Remove old history entries to save memory.
+
+        Args:
+            keep_last_n: Number of most recent entries to keep for each type
+            preserve_current: Whether to always preserve current iteration data
+
+        Returns:
+            Dictionary with counts of items removed
+        """
+        removed_counts = {
+            "generations": 0,
+            "validations": 0,
+            "critiques": 0,
+            "tool_calls": 0,
+        }
+
+        # Determine which iterations to preserve
+        if preserve_current:
+            # Always keep current iteration + last N-1 iterations
+            min_iteration_to_keep = max(0, self.iteration - keep_last_n + 1)
+            preserve_iterations = set(range(min_iteration_to_keep, self.iteration + 1))
+        else:
+            # Keep only the last N iterations
+            all_iterations = set()
+            for gen in self.generations:
+                all_iterations.add(gen.iteration)
+            for val in self.validations:
+                all_iterations.add(val.iteration)
+            for crit in self.critiques:
+                all_iterations.add(crit.iteration)
+            for tool in self.tool_calls:
+                all_iterations.add(tool.iteration)
+
+            sorted_iterations = sorted(all_iterations, reverse=True)
+            preserve_iterations = set(sorted_iterations[:keep_last_n])
+
+        # Clean up generations
+        original_count = len(self.generations)
+        self.generations = [gen for gen in self.generations if gen.iteration in preserve_iterations]
+        removed_counts["generations"] = original_count - len(self.generations)
+
+        # Clean up validations
+        original_count = len(self.validations)
+        self.validations = [val for val in self.validations if val.iteration in preserve_iterations]
+        removed_counts["validations"] = original_count - len(self.validations)
+
+        # Clean up critiques
+        original_count = len(self.critiques)
+        self.critiques = [crit for crit in self.critiques if crit.iteration in preserve_iterations]
+        removed_counts["critiques"] = original_count - len(self.critiques)
+
+        # Clean up tool calls
+        original_count = len(self.tool_calls)
+        self.tool_calls = [
+            tool for tool in self.tool_calls if tool.iteration in preserve_iterations
+        ]
+        removed_counts["tool_calls"] = original_count - len(self.tool_calls)
+
+        self.updated_at = datetime.now()
+
+        logger.info(
+            f"Cleaned up thought {self.id} history",
+            extra={
+                "keep_last_n": keep_last_n,
+                "preserve_current": preserve_current,
+                "preserved_iterations": sorted(preserve_iterations),
+                "removed_counts": removed_counts,
+            },
+        )
+
+        return removed_counts
+
+    def compress_conversation_history(self, max_messages_per_iteration: int = 10) -> int:
+        """Compress conversation history by keeping only the most recent messages per iteration.
+
+        Args:
+            max_messages_per_iteration: Maximum number of messages to keep per iteration
+
+        Returns:
+            Number of messages removed
+        """
+        messages_removed = 0
+
+        for generation in self.generations:
+            if (
+                generation.conversation_history
+                and len(generation.conversation_history) > max_messages_per_iteration
+            ):
+                original_count = len(generation.conversation_history)
+                # Keep the most recent messages
+                generation.conversation_history = generation.conversation_history[
+                    -max_messages_per_iteration:
+                ]
+                messages_removed += original_count - len(generation.conversation_history)
+
+        if messages_removed > 0:
+            self.updated_at = datetime.now()
+            logger.info(
+                f"Compressed conversation history for thought {self.id}",
+                extra={
+                    "messages_removed": messages_removed,
+                    "max_messages_per_iteration": max_messages_per_iteration,
+                },
+            )
+
+        return messages_removed
+
+    def remove_large_tool_results(self, max_result_size_bytes: int = 10240) -> int:
+        """Remove large tool call results to save memory.
+
+        Args:
+            max_result_size_bytes: Maximum size for tool results (default: 10KB)
+
+        Returns:
+            Number of tool results removed
+        """
+        import sys
+
+        results_removed = 0
+
+        for tool_call in self.tool_calls:
+            if tool_call.result is not None:
+                result_size = sys.getsizeof(tool_call.result)
+                if result_size > max_result_size_bytes:
+                    # Replace with summary
+                    tool_call.result = {
+                        "_removed_large_result": True,
+                        "original_size_bytes": result_size,
+                        "summary": f"Large result removed (was {result_size} bytes)",
+                        "type": type(tool_call.result).__name__,
+                    }
+                    results_removed += 1
+
+        if results_removed > 0:
+            self.updated_at = datetime.now()
+            logger.info(
+                f"Removed large tool results for thought {self.id}",
+                extra={
+                    "results_removed": results_removed,
+                    "max_result_size_bytes": max_result_size_bytes,
+                },
+            )
+
+        return results_removed
+
+    def optimize_memory(
+        self,
+        keep_last_n_iterations: int = 3,
+        max_messages_per_iteration: int = 10,
+        max_tool_result_size_bytes: int = 10240,
+        preserve_current: bool = True,
+    ) -> Dict[str, Any]:
+        """Comprehensive memory optimization for the thought.
+
+        Args:
+            keep_last_n_iterations: Number of iterations to keep in history
+            max_messages_per_iteration: Maximum conversation messages per iteration
+            max_tool_result_size_bytes: Maximum size for tool results
+            preserve_current: Whether to always preserve current iteration
+
+        Returns:
+            Dictionary with optimization results
+        """
+        # Get memory usage before optimization
+        memory_before = self.get_memory_usage()
+
+        # Apply optimizations
+        removed_counts = self.cleanup_history(keep_last_n_iterations, preserve_current)
+        messages_removed = self.compress_conversation_history(max_messages_per_iteration)
+        tool_results_removed = self.remove_large_tool_results(max_tool_result_size_bytes)
+
+        # Get memory usage after optimization
+        memory_after = self.get_memory_usage()
+
+        # Calculate savings
+        bytes_saved = memory_before["total_size_bytes"] - memory_after["total_size_bytes"]
+        mb_saved = round(bytes_saved / (1024 * 1024), 2)
+        percent_saved = (
+            round((bytes_saved / memory_before["total_size_bytes"]) * 100, 1)
+            if memory_before["total_size_bytes"] > 0
+            else 0
+        )
+
+        optimization_results = {
+            "memory_before_mb": memory_before["total_size_mb"],
+            "memory_after_mb": memory_after["total_size_mb"],
+            "memory_saved_mb": mb_saved,
+            "percent_saved": percent_saved,
+            "optimizations_applied": {
+                "history_cleanup": removed_counts,
+                "conversation_compression": {"messages_removed": messages_removed},
+                "tool_result_cleanup": {"results_removed": tool_results_removed},
+            },
+            "settings": {
+                "keep_last_n_iterations": keep_last_n_iterations,
+                "max_messages_per_iteration": max_messages_per_iteration,
+                "max_tool_result_size_bytes": max_tool_result_size_bytes,
+                "preserve_current": preserve_current,
+            },
+        }
+
+        logger.info(
+            f"Memory optimization completed for thought {self.id}", extra=optimization_results
+        )
+
+        return optimization_results
+
     def get_conversation_messages_for_iteration(self, iteration: int) -> List[str]:
         """Get all conversation messages (requests and responses) from a specific iteration.
 

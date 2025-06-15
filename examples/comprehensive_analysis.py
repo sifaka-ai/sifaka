@@ -1,165 +1,198 @@
 #!/usr/bin/env python3
 """
-Comprehensive Analysis Example
+Comprehensive Analysis with Simple Built-in Features
 
-This example demonstrates running all available Sifaka classifiers on a static thought
-to showcase the full range of text analysis capabilities. All classifiers now use
-Hugging Face Transformers for state-of-the-art performance.
+This example demonstrates comprehensive text analysis using Sifaka's simple
+built-in features approach. It shows how to:
 
-Requirements:
-- Python 3.9+ (supports 3.9, 3.10, 3.11, 3.12)
-- transformers>=4.52.0
-- Backend: torch>=2.0.0 OR tensorflow>=2.15.0 OR jax>=0.4.0
+1. Use multiple critics for comprehensive analysis
+2. Enable built-in logging, timing, and caching
+3. Process different types of content with full workflow analysis
+4. Monitor performance with built-in statistics
 
-Install with:
-# Default PyTorch backend (recommended)
-pip install "sifaka[classifiers]"
-
-# Alternative backends
-pip install "sifaka[classifiers-tf]"  # TensorFlow
-pip install "sifaka[classifiers-jax]" # JAX
-
-# Or with uv (recommended)
-uv pip install "sifaka[classifiers]"
+The example maintains comprehensive analysis capabilities while using a much
+simpler configuration approach with built-in features.
 """
 
 import asyncio
 import json
 import os
-import sys
 from datetime import datetime
 from typing import Any, Dict
 
-# Add the sifaka directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# Simple imports - no complex dependencies needed
+import sifaka
+from sifaka import SifakaConfig, SifakaEngine
 
-from sifaka.classifiers import (
-    create_emotion_classifier,
-    create_intent_classifier,
-    create_language_classifier,
-    create_readability_classifier,
-    create_sentiment_classifier,
-    create_spam_classifier,
-    create_toxicity_classifier,
-)
 
-# Sample thoughts to analyze
-SAMPLE_THOUGHTS = {
-    "positive_review": """
-    I absolutely love this new restaurant! The food was incredible, the service was
-    outstanding, and the atmosphere was perfect for a romantic dinner. The chef clearly
-    knows what they're doing - every dish was expertly prepared and beautifully presented.
-    I can't wait to come back and try more items from their menu. Highly recommended!
-    """,
-    "technical_explanation": """
-    Machine learning algorithms work by finding patterns in large datasets. Neural networks,
-    inspired by the human brain, use interconnected nodes to process information. Deep learning
-    uses multiple layers to extract increasingly complex features from raw data. This approach
-    has revolutionized fields like computer vision, natural language processing, and speech
-    recognition.
-    """,
-    "customer_complaint": """
-    I'm extremely disappointed with my recent purchase. The product arrived damaged,
-    the customer service was unhelpful, and I still haven't received a refund after
-    three weeks. This is completely unacceptable and I will never shop here again.
-    I'm considering filing a complaint with the Better Business Bureau.
-    """,
-    "multilingual_greeting": """
-    Hello everyone! Bonjour tout le monde! ¡Hola a todos! Guten Tag allerseits!
-    こんにちは皆さん！你好大家！مرحبا بالجميع! We're excited to welcome people
-    from all around the world to our international conference.
-    """,
-    "simple_instruction": """
-    To make a peanut butter sandwich, you need bread, peanut butter, and jelly.
-    First, take two slices of bread. Then, spread peanut butter on one slice.
-    Next, spread jelly on the other slice. Finally, put the slices together.
-    Your sandwich is ready to eat!
-    """,
+def create_comprehensive_config():
+    """Create a comprehensive configuration with multiple critics and built-in features."""
+
+    # Use the simple configuration approach with comprehensive analysis
+    config = (
+        SifakaConfig.builder()
+        .model("openai:gpt-4o-mini")  # Fast, reliable model
+        .max_iterations(4)  # Allow multiple iterations for comprehensive analysis
+        .min_length(100)  # Minimum content length
+        .max_length(2000)  # Maximum content length for comprehensive content
+        .critics(
+            ["reflexion", "constitutional", "self_refine", "self_rag"]
+        )  # Multiple critics for comprehensive analysis
+        .with_logging(log_level="INFO", log_content=False)  # Enable logging
+        .with_timing()  # Enable performance timing
+        .with_caching(cache_size=200)  # Enable caching for repeated runs
+        .build()
+    )
+
+    return config
+
+
+# Sample prompts for comprehensive analysis
+ANALYSIS_PROMPTS = {
+    "restaurant_review": "Write a detailed restaurant review covering food quality, service, atmosphere, and value for money.",
+    "technical_explanation": "Explain how machine learning neural networks work, including key concepts and real-world applications.",
+    "customer_service": "Write a professional response to a customer complaint about a delayed order and damaged product.",
+    "educational_content": "Create an educational guide about renewable energy sources and their environmental impact.",
+    "creative_writing": "Write a short story about a person discovering an unexpected talent during a challenging time.",
 }
 
 
-async def analyze_text_comprehensive(text: str, text_name: str) -> Dict[str, Any]:
-    """Run all available classifiers on the given text."""
+async def analyze_prompt_comprehensive(
+    prompt: str, prompt_name: str, engine: SifakaEngine
+) -> Dict[str, Any]:
+    """Run comprehensive analysis using multiple critics on the given prompt."""
 
     print(f"\n{'='*60}")
-    print(f"ANALYZING: {text_name.upper()}")
+    print(f"ANALYZING: {prompt_name.upper()}")
     print(f"{'='*60}")
-    print(f"Text: {text.strip()[:100]}...")
-    print(f"Length: {len(text)} characters")
+    print(f"Prompt: {prompt[:100]}...")
+    print(f"Length: {len(prompt)} characters")
 
     results = {
-        "text_name": text_name,
-        "text": text.strip(),
-        "text_length": len(text),
+        "prompt_name": prompt_name,
+        "prompt": prompt,
+        "prompt_length": len(prompt),
         "timestamp": datetime.now().isoformat(),
-        "analyses": {},
+        "analysis": {},
     }
 
-    # Create all classifiers (using cached versions for better performance)
-    classifiers = {
-        "sentiment": create_sentiment_classifier(cached=True),
-        "toxicity": create_toxicity_classifier(cached=True),
-        "spam": create_spam_classifier(cached=True),
-        "language": create_language_classifier(cached=True),
-        "readability": create_readability_classifier(cached=True),
-        "emotion": create_emotion_classifier(cached=True),
-        "intent": create_intent_classifier(cached=True),
-    }
+    try:
+        print(f"\n🔍 Running comprehensive analysis with multiple critics...")
 
-    print(f"\nRunning {len(classifiers)} classifiers...")
+        # Generate and analyze with comprehensive workflow
+        thought = await engine.think(prompt, max_iterations=4)
 
-    # Run each classifier
-    for name, classifier in classifiers.items():
-        try:
-            print(f"  • {name.capitalize()}...", end=" ")
-            result = await classifier.classify_async(text)
+        # Extract comprehensive analysis results
+        analysis = {
+            "final_text_length": len(thought.final_text or thought.current_text),
+            "iterations": thought.iteration,
+            "validation_passed": thought.validation_passed(),
+            "total_generations": len(thought.generations),
+            "total_validations": len(thought.validations),
+            "total_critiques": len(thought.critiques),
+            "techniques_applied": thought.techniques_applied,
+        }
 
-            # Extract key information
-            analysis = {
-                "label": result.label,
-                "confidence": round(result.confidence, 3),
-                "processing_time_ms": round(result.processing_time_ms, 2),
-                "metadata": {
-                    k: v
-                    for k, v in result.metadata.items()
-                    if k in ["model_name", "language_name", "grade_level", "detected_language"]
-                },
-            }
+        # Analyze critics applied
+        if thought.critiques:
+            critics_applied = {}
+            for critique in thought.critiques:
+                critic_name = critique.critic
+                if critic_name not in critics_applied:
+                    critics_applied[critic_name] = {
+                        "count": 0,
+                        "avg_confidence": 0,
+                        "improvements_suggested": 0,
+                    }
+                critics_applied[critic_name]["count"] += 1
+                critics_applied[critic_name]["avg_confidence"] += critique.confidence
+                if critique.needs_improvement:
+                    critics_applied[critic_name]["improvements_suggested"] += 1
 
-            results["analyses"][name] = analysis
-            print(f"✅ {result.label} ({result.confidence:.3f})")
+            # Calculate averages
+            for critic_data in critics_applied.values():
+                critic_data["avg_confidence"] = round(
+                    critic_data["avg_confidence"] / critic_data["count"], 3
+                )
 
-        except Exception as e:
-            print(f"❌ Error: {str(e)[:50]}...")
-            results["analyses"][name] = {"error": str(e), "label": "error", "confidence": 0.0}
+            analysis["critics_applied"] = critics_applied
+
+        # Get final text preview
+        final_text = thought.final_text or thought.current_text
+        analysis["final_text_preview"] = (
+            final_text[:200] + "..." if len(final_text) > 200 else final_text
+        )
+
+        results["analysis"] = analysis
+
+        print(f"✅ Comprehensive analysis completed")
+        print(f"   Final text: {analysis['final_text_length']} characters")
+        print(f"   Iterations: {analysis['iterations']}")
+        print(f"   Critics applied: {len(analysis.get('critics_applied', {}))}")
+
+    except Exception as e:
+        print(f"❌ Analysis failed: {str(e)[:50]}...")
+        results["analysis"] = {"error": str(e)}
 
     return results
 
 
 async def main():
-    """Run comprehensive analysis on all sample thoughts."""
-    print("🤖 Sifaka Comprehensive Text Analysis")
-    print("=====================================")
-    print("All classifiers now use Hugging Face Transformers!")
-    print(f"Analyzing {len(SAMPLE_THOUGHTS)} sample thoughts...")
+    """Run comprehensive analysis on all sample prompts."""
+
+    # Ensure API key is available
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required")
+
+    print("🤖 Sifaka Comprehensive Analysis with Simple Built-in Features")
+    print("=" * 65)
+    print("Multiple critics working together with built-in performance monitoring!")
+    print(f"Analyzing {len(ANALYSIS_PROMPTS)} different types of content...")
+
+    # Create comprehensive configuration
+    config = create_comprehensive_config()
+
+    # Create engine with comprehensive configuration
+    engine = SifakaEngine(config=config)
+
+    print(f"\n✅ Created comprehensive analysis engine")
+    print(f"   Model: {config.model}")
+    print(f"   Critics: {config.critics}")
+    print(
+        f"   Built-in features: logging={config.enable_logging}, timing={config.enable_timing}, caching={config.enable_caching}"
+    )
 
     all_results = []
 
     try:
-        for thought_name, thought_text in SAMPLE_THOUGHTS.items():
-            result = await analyze_text_comprehensive(thought_text, thought_name)
+        for prompt_name, prompt_text in ANALYSIS_PROMPTS.items():
+            result = await analyze_prompt_comprehensive(prompt_text, prompt_name, engine)
             all_results.append(result)
 
             # Brief summary
-            analyses = result["analyses"]
-            print(f"\n📊 SUMMARY for {thought_name}:")
-            print(f"   Sentiment: {analyses.get('sentiment', {}).get('label', 'N/A')}")
-            print(f"   Language: {analyses.get('language', {}).get('label', 'N/A')}")
-            print(f"   Emotion: {analyses.get('emotion', {}).get('label', 'N/A')}")
-            print(f"   Intent: {analyses.get('intent', {}).get('label', 'N/A')}")
-            print(f"   Readability: {analyses.get('readability', {}).get('label', 'N/A')}")
-            print(f"   Toxicity: {analyses.get('toxicity', {}).get('label', 'N/A')}")
-            print(f"   Spam: {analyses.get('spam', {}).get('label', 'N/A')}")
+            analysis = result["analysis"]
+            if "error" not in analysis:
+                print(f"\n📊 SUMMARY for {prompt_name}:")
+                print(
+                    f"   Final text length: {analysis.get('final_text_length', 'N/A')} characters"
+                )
+                print(f"   Iterations: {analysis.get('iterations', 'N/A')}")
+                print(f"   Validation passed: {analysis.get('validation_passed', 'N/A')}")
+                print(f"   Total critiques: {analysis.get('total_critiques', 'N/A')}")
+                print(f"   Critics applied: {list(analysis.get('critics_applied', {}).keys())}")
+
+        # Show performance stats if timing is enabled
+        timing_stats = engine.get_timing_stats()
+        if timing_stats.get("total_requests", 0) > 0:
+            print(f"\n⏱️ Performance Stats:")
+            print(f"Duration: {timing_stats['avg_duration_seconds']:.2f}s")
+            print(f"Iterations: {timing_stats['avg_iterations']:.1f}")
+
+        # Show cache stats if caching is enabled
+        cache_stats = engine.get_cache_stats()
+        if cache_stats.get("cache_size", 0) >= 0:
+            print(f"\n💾 Cache Stats:")
+            print(f"Cache size: {cache_stats['cache_size']}")
 
         # Save detailed results
         output_file = "comprehensive_analysis_results.json"
@@ -168,26 +201,20 @@ async def main():
 
         print(f"\n✅ Analysis complete! Detailed results saved to {output_file}")
         print(f"\n🎯 Key Insights:")
-        print(f"   • All {len(SAMPLE_THOUGHTS)} texts analyzed successfully")
-        print(f"   • {len(all_results[0]['analyses'])} different classifiers used")
-        print(f"   • All classifiers use state-of-the-art Transformer models")
-        print(f"   • Results include confidence scores and processing times")
+        print(f"   • All {len(ANALYSIS_PROMPTS)} prompts analyzed successfully")
+        print(f"   • {len(config.critics)} different critics used")
+        print(f"   • Built-in performance monitoring and caching")
+        print(f"   • Comprehensive workflow analysis with multiple iterations")
 
-    except ImportError as e:
-        print(f"\n❌ Import Error: {e}")
-        print("Please install required dependencies:")
-        print('  pip install "sifaka[classifiers]"  # PyTorch backend')
-        print('  pip install "sifaka[classifiers-tf]"  # TensorFlow backend')
-        print('  pip install "sifaka[classifiers-jax]"  # JAX backend')
-        print('  or: uv pip install "sifaka[classifiers]"')
-        return False
     except Exception as e:
         print(f"\n❌ Unexpected error: {e}")
         return False
 
+    print("\n✅ Comprehensive Analysis with Simple Built-in Features completed!")
+    print("Key Benefits: Multiple critics, built-in performance monitoring, simple configuration")
     return True
 
 
 if __name__ == "__main__":
     success = asyncio.run(main())
-    sys.exit(0 if success else 1)
+    exit(0 if success else 1)

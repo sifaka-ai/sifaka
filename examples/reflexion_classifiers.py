@@ -1,109 +1,66 @@
 #!/usr/bin/env python3
-"""Reflexion Critic with All Classifiers Example.
+"""Reflexion Critic with Simple Built-in Features.
 
 This example demonstrates:
-1. Using the ReflexionCritic for self-reflection and improvement
-2. All available classifiers (bias, readability, emotion, intent) as validators
-3. Critics only running when validators fail (always_apply_critics=False)
-4. Saving thoughts to /thoughts directory for analysis
-5. Simple but comprehensive validation pipeline
+1. Using the Reflexion critic for self-reflection and improvement
+2. Simple built-in validation with length and content requirements
+3. Built-in logging, timing, and caching features
+4. Clean, simple configuration without complex dependencies
+5. Performance monitoring and result analysis
 
-The example uses a prompt that might trigger classifier failures to demonstrate
+The example uses a prompt that might trigger validation failures to demonstrate
 the reflexion process when validation constraints are not met.
 """
 
 import asyncio
 import logging
-from pathlib import Path
+import os
 
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
-
-from sifaka import SifakaEngine
-from sifaka.classifiers import (
-    create_emotion_classifier,
-    create_intent_classifier,
-    create_readability_classifier,
-)
-from sifaka.graph import SifakaDependencies
-from sifaka.storage.file import SifakaFilePersistence
-from sifaka.utils.logging import get_logger
-from sifaka.validators import ContentValidator, LengthValidator
-from sifaka.validators.classifier import create_classifier_validator
+# Simple imports - no complex dependencies needed
+import sifaka
+from sifaka import SifakaConfig, SifakaEngine
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
-logger = get_logger(__name__)
 
 
-def create_comprehensive_validators():
-    """Create a comprehensive set of validators including all classifiers."""
-    return [
-        # Basic content validators
-        LengthValidator(min_length=100, max_length=800, name="length_check"),
-        ContentValidator(required=["technology", "future"], name="content_requirements"),
-        # Classifier-based validators - using non-cached versions to avoid numpy serialization issues
-        create_classifier_validator(
-            classifier=create_readability_classifier(cached=False),
-            threshold=0.5,
-            valid_labels=["high", "college", "graduate"],  # Require high readability
-            name="readability_validation",
-        ),
-        create_classifier_validator(
-            classifier=create_emotion_classifier(cached=False),
-            threshold=0.4,
-            invalid_labels=["anger", "fear", "disgust"],  # Block negative emotions
-            name="emotion_validation",
-        ),
-        create_classifier_validator(
-            classifier=create_intent_classifier(cached=False),
-            threshold=0.3,
-            valid_labels=["informative", "educational", "explanatory"],
-            name="intent_validation",
-        ),
-    ]
+def create_simple_config():
+    """Create a simple configuration with built-in features and validation."""
+
+    # Use the simple configuration approach with built-in features
+    config = (
+        SifakaConfig.builder()
+        .model("openai:gpt-4o-mini")  # Fast, cost-effective generator
+        .max_iterations(3)  # Allow multiple iterations for improvement
+        .min_length(100)  # Minimum content length
+        .max_length(800)  # Maximum content length
+        .critics(["reflexion"])  # Use reflexion critic
+        .with_logging(log_level="INFO", log_content=False)  # Enable logging
+        .with_timing()  # Enable performance timing
+        .with_caching(cache_size=50)  # Enable caching for repeated runs
+        .build()
+    )
+
+    return config
 
 
 async def main():
-    """Run the Reflexion critic example with all classifiers."""
+    """Run the Reflexion critic example with simple built-in features."""
 
-    logger.info("Starting Reflexion Critic with All Classifiers Example")
+    # Ensure API key is available
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required")
 
-    # Ensure thoughts directory exists in the root directory
-    thoughts_dir = Path("../thoughts")
-    thoughts_dir.mkdir(exist_ok=True)
-    logger.info(f"Thoughts will be saved to: {thoughts_dir.absolute()}")
+    print("🚀 Starting Reflexion Critic with Simple Built-in Features")
 
-    # Create comprehensive validators with all classifiers
-    validators = create_comprehensive_validators()
-    logger.info(f"Created {len(validators)} validators including all classifiers")
+    # Create simple configuration with built-in features
+    config = create_simple_config()
 
-    # Set up file-based persistence for thoughts
-    persistence = SifakaFilePersistence(
-        storage_dir="../thoughts", file_prefix="reflexion_classifiers_"
-    )
+    # Create the Sifaka engine with simple configuration
+    engine = SifakaEngine(config=config)
 
-    # Create dependencies with Reflexion critic
-    # Critics only run when validators fail (always_apply_critics=False)
-    dependencies = SifakaDependencies(
-        generator="openai:gpt-4o-mini",  # Fast, cost-effective generator
-        validators=validators,
-        critics={
-            "reflexion": "anthropic:claude-3-5-haiku-20241022",  # Reflexion critic
-        },
-        # Key configuration: critics only run when validation fails
-        always_apply_critics=False,  # This is the key setting!
-        validation_weight=0.7,  # Prioritize validation feedback (70%)
-        critic_weight=0.3,  # Reflexion suggestions (30%)
-    )
-
-    # Create the Sifaka engine with file persistence
-    engine = SifakaEngine(dependencies=dependencies, persistence=persistence)
-
-    # Test prompt that might trigger classifier failures
-    # This prompt could potentially trigger bias, emotion, or intent validation failures
+    # Test prompt that might trigger validation failures
+    # This prompt could potentially trigger length or content validation failures
     test_prompt = """
     Write a comprehensive explanation about how artificial intelligence technology
     will completely revolutionize the future of humanity. Discuss both the amazing
@@ -111,10 +68,8 @@ async def main():
     Make sure to cover the technological aspects and future implications.
     """
 
-    logger.info("Running generation with potential validation challenges...")
-    logger.info(
-        "This prompt might trigger classifier failures, causing Reflexion critic to activate"
-    )
+    print("🤖 Running generation with potential validation challenges...")
+    print("This prompt might trigger validation failures, causing Reflexion critic to activate")
 
     try:
         # Run the generation process
@@ -125,7 +80,7 @@ async def main():
 
         # Display results
         print("\n" + "=" * 80)
-        print("REFLEXION CRITIC WITH CLASSIFIERS - RESULTS")
+        print("REFLEXION CRITIC WITH SIMPLE BUILT-IN FEATURES - RESULTS")
         print("=" * 80)
 
         print(f"\nValidation Passed: {result.validation_passed()}")
@@ -153,8 +108,19 @@ async def main():
             for critique in result.critiques:
                 print(f"  {critique.critic}: Applied (confidence: {critique.confidence})")
 
-        # Show thought file location
-        thought_file = thoughts_dir / f"reflexion_classifiers_{result.id}.json"
+        # Show performance stats if timing is enabled
+        timing_stats = engine.get_timing_stats()
+        if timing_stats.get("total_requests", 0) > 0:
+            print(f"\n⏱️ Performance Stats:")
+            print(f"Duration: {timing_stats['avg_duration_seconds']:.2f}s")
+            print(f"Iterations: {timing_stats['avg_iterations']:.1f}")
+
+        # Show cache stats if caching is enabled
+        cache_stats = engine.get_cache_stats()
+        if cache_stats.get("cache_size", 0) >= 0:
+            print(f"\n💾 Cache Stats:")
+            print(f"Cache size: {cache_stats['cache_size']}")
+
         print(f"\nThought Information:")
         print(f"  - Thought ID: {result.id}")
         print(f"  - Total generations: {len(result.generations)}")
@@ -162,21 +128,11 @@ async def main():
         print(f"  - Total critiques: {len(result.critiques)}")
         print(f"  - Techniques applied: {result.techniques_applied}")
 
-        if thought_file.exists():
-            print(f"\nThought saved to: {thought_file}")
-            print("You can examine the complete thought process including:")
-            print("  - All validation attempts and results")
-            print("  - Reflexion critic feedback (if triggered)")
-            print("  - Generation iterations and improvements")
-            print("  - Classifier analysis results")
-        else:
-            print(f"\nNote: Thought file should be saved to {thought_file}")
-
     except Exception as e:
-        logger.error(f"Error during generation: {e}")
+        print(f"❌ Error during generation: {e}")
         raise
 
-    logger.info("Reflexion Critic with All Classifiers Example completed")
+    print("✅ Reflexion Critic with Simple Built-in Features completed!")
 
 
 if __name__ == "__main__":

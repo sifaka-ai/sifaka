@@ -2,7 +2,65 @@
 
 This document provides comprehensive API documentation for Sifaka's core components, models, and utilities.
 
-## Architecture Overview
+## 🎯 Quick Reference
+
+### Simple API (Recommended)
+
+```python
+import sifaka
+
+# Basic usage
+result = await sifaka.improve("Write about AI")
+
+# With configuration and built-in features
+result = await sifaka.improve(
+    "Write about renewable energy",
+    max_rounds=5,
+    model="openai:gpt-4",
+    min_length=200,
+    critics=["reflexion", "constitutional"],
+    enable_logging=True,
+    enable_timing=True,
+    enable_caching=True
+)
+```
+
+### Configuration API
+
+```python
+from sifaka import SifakaConfig, SifakaEngine
+
+# Builder pattern with simple features
+config = (SifakaConfig.builder()
+         .model("openai:gpt-4")
+         .max_iterations(5)
+         .with_logging(log_level="INFO")
+         .with_timing()
+         .with_caching(cache_size=1000)
+         .build())
+
+engine = SifakaEngine(config=config)
+result = await engine.think("Your prompt")
+```
+
+### Advanced API
+
+```python
+from sifaka.graph import SifakaDependencies
+from sifaka.validators import LengthValidator
+from sifaka.critics import ReflexionCritic
+
+deps = SifakaDependencies(
+    generator="openai:gpt-4",
+    validators=[LengthValidator(min_length=100)],
+    critics={"reflexion": ReflexionCritic()}
+)
+
+engine = SifakaEngine(dependencies=deps)
+result = await engine.think("Your prompt")
+```
+
+## 🏗️ Architecture Overview
 
 Sifaka is built on PydanticAI with a simple graph-based workflow:
 
@@ -238,23 +296,37 @@ print(f"Validation success rate: {overview['validation_success_rate']}")
 
 ### Configuration
 
-Global configuration management for Sifaka.
+Simplified configuration management for Sifaka.
 
 ```python
 from sifaka.utils.config import SifakaConfig
 
-# Create configuration
+# Builder pattern configuration
+config = (SifakaConfig.builder()
+         .model("openai:gpt-4")
+         .max_iterations(5)
+         .min_length(100)
+         .max_length(1000)
+         .required_sentiment("positive")
+         .critics(["reflexion", "constitutional"])
+         .with_logging(log_level="INFO")
+         .with_timing()
+         .with_caching(cache_size=1000)
+         .build())
+
+# Direct instantiation with simple features
 config = SifakaConfig(
-    default_model="openai:gpt-4",
+    model="anthropic:claude-3-sonnet",
     max_iterations=3,
-    enable_critics=True,
-    timeout_seconds=30.0,
-    storage_backend="memory"
+    critics=["reflexion"],
+    enable_logging=True,
+    enable_timing=True,
+    enable_caching=True
 )
 
-# Access configuration values
-print(f"Default model: {config.default_model}")
-print(f"Max iterations: {config.max_iterations}")
+# Use with SifakaEngine
+from sifaka import SifakaEngine
+engine = SifakaEngine(config=config)
 ```
 
 ## Pydantic Models
