@@ -276,8 +276,8 @@ print(f"Config valid: {config.max_iterations > 0}")
 
 ```python
 from sifaka.utils.errors import (
-    ValidationError, 
-    CritiqueError, 
+    ValidationError,
+    CritiqueError,
     ConfigurationError
 )
 
@@ -306,20 +306,20 @@ import asyncio
 
 async def profile_improve(prompt):
     times = {}
-    
+
     start = time.time()
     result = await sifaka.improve(prompt)
     times['total'] = time.time() - start
-    
+
     # Analyze the result
     overview = get_thought_overview(result)
     times['per_iteration'] = times['total'] / overview['total_iterations']
     times['per_model_call'] = times['total'] / overview['total_model_calls']
-    
+
     print(f"Performance Profile:")
     for key, value in times.items():
         print(f"  {key}: {value:.2f}s")
-    
+
     return result
 ```
 
@@ -332,15 +332,19 @@ async def profile_improve(prompt):
 - **[Architecture](ARCHITECTURE.md)** - How it works
 - **[Performance](PERFORMANCE.md)** - Optimization tips
 
-### 2. Common Solutions
+### 2. Quick Fixes with Presets
 
-| Issue | Quick Fix |
-|-------|-----------|
+**💡 Pro Tip:** Most issues can be avoided by using presets instead of manual configuration!
+
+| Issue | Preset Solution |
+|-------|-----------------|
 | API key missing | `export OPENAI_API_KEY="your-key"` |
-| Too slow | Use `model="groq:llama-3.1-8b-instant"` |
-| Validation fails | Increase `max_iterations` or adjust criteria |
-| Import error | `pip install sifaka[openai]` |
-| Rate limited | Add retry logic with backoff |
+| Too slow | `await sifaka.presets.quick_draft("prompt")` |
+| Validation fails | `await sifaka.presets.academic_writing("prompt")` |
+| Import error | `pip install "sifaka[all]"` |
+| Rate limited | `await sifaka.presets.draft("prompt")` (uses gpt-4o-mini) |
+| Need high quality | `await sifaka.presets.premium("prompt")` |
+| Complex config | `await sifaka.presets.technical_docs("prompt")` |
 
 ### 3. Create a Minimal Reproduction
 

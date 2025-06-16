@@ -39,18 +39,46 @@ pip install sifaka[all]
 
 ## Quick Start
 
-### Simple One-Liner API (New!)
+### 🎯 PRIMARY API - Configuration Presets (Recommended)
+
+**For 90% of use cases, just use the presets:**
 
 ```python
 import asyncio
 import sifaka
 
 async def main():
-    # Most basic usage - just improve some text
-    result = await sifaka.improve("Write about renewable energy")
+    # Ready-to-use presets for common scenarios
+    result = await sifaka.academic_writing("Explain quantum computing")
+    result = await sifaka.creative_writing("Write a short story about AI")
+    result = await sifaka.technical_docs("Document the API endpoints")
+    result = await sifaka.business_writing("Write a project proposal")
+    result = await sifaka.quick_draft("Brainstorm marketing ideas")
+    result = await sifaka.high_quality("Write a research summary")
+
     print(f"Result: {result.final_text}")
 
-    # With configuration in up to 5 lines
+asyncio.run(main())
+```
+
+**Available Presets:**
+- `academic_writing` / `academic` - Formal tone, comprehensive coverage, 300+ words
+- `creative_writing` / `creative` - Engaging narrative, emotional impact, up to 800 words
+- `technical_docs` / `technical` - Clear explanations, practical examples, 200+ words
+- `business_writing` / `business` - Professional tone, concise communication, up to 500 words
+- `quick_draft` / `draft` - Speed over perfection, minimal processing, 2 rounds
+- `high_quality` / `premium` - Maximum quality, all critics, 7 rounds, 400+ words
+
+### ⚙️ SECONDARY API - Simple Customization
+
+**When presets aren't enough:**
+
+```python
+import asyncio
+import sifaka
+
+async def main():
+    # Simple customization with sensible defaults
     result = await sifaka.improve(
         "Write about renewable energy benefits",
         max_rounds=5,
@@ -63,30 +91,27 @@ async def main():
 asyncio.run(main())
 ```
 
-### Traditional API (Still Available)
+### 🔧 ADVANCED API - Full Control
+
+**For complex use cases requiring full configuration:**
 
 ```python
 import asyncio
-from sifaka import SifakaEngine, SifakaConfig
+from sifaka.advanced import SifakaEngine, SifakaConfig
 
 async def main():
-    # Builder pattern configuration
-    config = (SifakaConfig.builder()
-             .model("openai:gpt-4")
-             .max_iterations(5)
-             .min_length(200)
-             .with_reflexion()
-             .with_constitutional()
-             .build())
-
-    # Create Sifaka engine with config
+    # Full configuration control
+    config = SifakaConfig(
+        model="openai:gpt-4",
+        max_iterations=5,
+        critics=["reflexion", "constitutional"],
+        validators=[...],  # Custom validators
+        enable_persistence=True,
+    )
     engine = SifakaEngine(config=config)
 
-    # Process a thought
-    thought = await engine.think("Write about renewable energy trends.")
-    print(f"Generated: {thought.final_text}")
-    print(f"Iterations: {thought.iteration}")
-    print(f"Validation passed: {thought.validation_passed()}")
+    result = await engine.think("Write about renewable energy trends.")
+    print(f"Generated: {result.final_text}")
 
 asyncio.run(main())
 ```

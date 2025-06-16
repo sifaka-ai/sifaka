@@ -369,11 +369,28 @@ def min_length_validator(
 
     Args:
         min_length: Minimum required length
-        unit: Unit of measurement
+        unit: Unit of measurement ("characters" or "words")
         strict: Whether to fail validation on violation
 
     Returns:
         LengthValidator configured for minimum length checking
+
+    Example:
+        ```python
+        from sifaka.validators import min_length_validator
+        from sifaka.advanced import SifakaEngine, SifakaConfig
+
+        # Ensure content is at least 200 characters
+        validator = min_length_validator(200)
+
+        config = SifakaConfig(
+            model="openai:gpt-4",
+            validators=[validator]
+        )
+
+        engine = SifakaEngine(config=config)
+        result = await engine.think("Write about AI")
+        ```
     """
     return create_length_validator(
         min_length=min_length,
@@ -390,11 +407,30 @@ def max_length_validator(
 
     Args:
         max_length: Maximum allowed length
-        unit: Unit of measurement
+        unit: Unit of measurement ("characters" or "words")
         strict: Whether to fail validation on violation
 
     Returns:
         LengthValidator configured for maximum length checking
+
+    Example:
+        ```python
+        from sifaka.validators import max_length_validator
+        import sifaka
+
+        # Ensure content is no more than 500 characters
+        result = await sifaka.improve(
+            "Write a brief summary of AI",
+            max_length=500  # Built-in parameter
+        )
+
+        # Or use validator directly for advanced configuration
+        from sifaka.advanced import SifakaEngine, SifakaConfig
+
+        validator = max_length_validator(500, unit="characters")
+        config = SifakaConfig(validators=[validator])
+        engine = SifakaEngine(config=config)
+        ```
     """
     return create_length_validator(
         max_length=max_length,

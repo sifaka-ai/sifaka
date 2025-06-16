@@ -22,25 +22,60 @@ pip install sifaka[openai]
 export OPENAI_API_KEY="your-openai-key-here"
 ```
 
-### 3. Your First Improvement
+### 3. Your First Improvement (RECOMMENDED)
+
+**Start with presets - they cover 90% of use cases:**
 
 ```python
 import asyncio
 import sifaka
 
 async def main():
-    # One line to improve any text
-    result = await sifaka.improve("Write about renewable energy")
+    # Just pick the preset that matches your use case
+    result = await sifaka.academic_writing("Explain quantum computing")
+    result = await sifaka.creative_writing("Write a short story about AI")
+    result = await sifaka.technical_docs("Document the API endpoints")
+    result = await sifaka.quick_draft("Brainstorm marketing ideas")
+
     print(result.final_text)
 
 asyncio.run(main())
 ```
 
-**That's it!** Sifaka automatically:
-- ✅ Generates text with GPT-4
-- ✅ Validates the output quality
-- ✅ Applies Reflexion critic for improvement
+**That's it!** Each preset automatically:
+- ✅ Uses the right model for the task
+- ✅ Applies appropriate validation criteria
+- ✅ Enables relevant critics for improvement
 - ✅ Iterates until quality standards are met
+
+**Available Presets:**
+- `academic_writing` / `academic` - Formal tone, comprehensive coverage, 300+ words
+- `creative_writing` / `creative` - Engaging narrative, emotional impact, up to 800 words
+- `technical_docs` / `technical` - Clear explanations, practical examples, 200+ words
+- `business_writing` / `business` - Professional tone, concise communication, up to 500 words
+- `quick_draft` / `draft` - Speed over perfection, minimal processing, 2 rounds
+- `high_quality` / `premium` - Maximum quality, all critics enabled, 7 rounds
+
+### Alternative: Simple Customization
+
+**When presets aren't enough:**
+
+```python
+import asyncio
+import sifaka
+
+async def main():
+    # Simple customization with sensible defaults
+    result = await sifaka.improve(
+        "Write about renewable energy",
+        max_rounds=5,
+        model="openai:gpt-4",
+        min_length=200
+    )
+    print(result.final_text)
+
+asyncio.run(main())
+```
 
 ## 🎯 Common Use Cases (3 minutes)
 
@@ -117,53 +152,50 @@ for generation in result.generations:
     print(f"Round {generation.iteration}: {generation.text[:100]}...")
 ```
 
-## 🛠️ Configuration Levels
+## 🛠️ API Hierarchy - Progressive Disclosure
 
-Sifaka grows with your needs:
+Sifaka provides **ONE clear path** with increasing complexity as needed:
 
-### Level 1: One-Liner (80% of users)
+### 🎯 PRIMARY: Configuration Presets (90% of users)
 ```python
-result = await sifaka.improve("Your prompt", max_rounds=3)
+# Direct access to presets - the recommended approach
+result = await sifaka.academic_writing("Your prompt")
+result = await sifaka.quick_draft("Your prompt")
+result = await sifaka.high_quality("Your prompt")
 ```
 
-### Level 2: Simple Configuration (15% of users)
+### ⚙️ SECONDARY: Simple Customization (8% of users)
 ```python
-config = SifakaConfig.simple(
+# When presets aren't enough, add simple parameters
+result = await sifaka.improve(
+    "Your prompt",
+    max_rounds=5,
+    model="openai:gpt-4",
+    min_length=200
+)
+```
+
+### 🔧 ADVANCED: Full Control (2% of users)
+```python
+# For complex use cases requiring full configuration
+from sifaka.advanced import SifakaEngine, SifakaConfig
+
+config = SifakaConfig(
     model="openai:gpt-4",
     max_iterations=5,
-    min_length=200,
-    critics=["reflexion", "constitutional"]
+    critics=["reflexion", "constitutional"],
+    validators=[...],  # Custom validators
+    enable_persistence=True,
 )
 engine = SifakaEngine(config=config)
 result = await engine.think("Your prompt")
 ```
 
-### Level 3: Builder Pattern (4% of users)
-```python
-config = (SifakaConfig.builder()
-         .model("openai:gpt-4")
-         .max_iterations(5)
-         .min_length(200)
-         .with_reflexion()
-         .with_constitutional()
-         .build())
-```
-
-### Level 4: Full Control (1% of users)
-```python
-from sifaka.graph import SifakaDependencies
-from sifaka.validators import LengthValidator
-from sifaka.critics import ReflexionCritic
-
-deps = SifakaDependencies(
-    generator="openai:gpt-4",
-    validators=[LengthValidator(min_length=100)],
-    critics={"reflexion": ReflexionCritic()},
-    validation_weight=0.7,  # 70% validation, 30% critic feedback
-    critic_weight=0.3
-)
-engine = SifakaEngine(dependencies=deps)
-```
+**Key Benefits of This Hierarchy:**
+- ✅ **Simple Start**: 90% of users never need to leave the preset level
+- ✅ **Progressive Disclosure**: Complexity only when needed
+- ✅ **Clear Path**: No confusion about which API to use
+- ✅ **Backwards Compatible**: Existing code still works
 
 ## 🎓 What You've Learned
 

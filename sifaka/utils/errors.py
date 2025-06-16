@@ -36,13 +36,29 @@ class ErrorMessageBuilder:
         Returns:
             Tuple of (error_message, suggestions)
         """
-        message = f"Missing or invalid {provider} API key"
+        message = f"🔑 {provider} API key is missing or invalid"
+
+        # Check if key exists but might be invalid
+        current_key = os.getenv(key_name, "")
+        if current_key:
+            if len(current_key) < 10:
+                key_status = "appears too short"
+            elif not current_key.startswith(("sk-", "claude-", "gsk_")):
+                key_status = "doesn't match expected format"
+            else:
+                key_status = "exists but may be invalid"
+            message += f" (key {key_status})"
+
         suggestions = [
-            f"Set your {provider} API key: export {key_name}='your-key-here'",
-            f"Get an API key from {provider.lower()}.com",
-            f"Verify your {key_name} environment variable is set correctly",
-            "Check that your API key has the necessary permissions",
-            f"Try using a different model provider if {provider} is not available",
+            f"💡 Quick fix: export {key_name}='your-actual-key-here'",
+            f"🌐 Get a new API key from {provider.lower()}.com/api-keys",
+            (
+                f"🔍 Current key status: {current_key[:8]}..."
+                if current_key
+                else f"❌ No {key_name} found in environment"
+            ),
+            "✅ Test your key with a simple API call first",
+            f"🔄 Alternative: Try sifaka.presets.quick_draft() with a different model",
         ]
         return message, suggestions
 
@@ -58,36 +74,41 @@ class ErrorMessageBuilder:
             Tuple of (error_message, suggestions)
         """
         if error_type == "connection":
-            message = f"Failed to connect to model '{model_name}'"
+            message = f"🌐 Cannot connect to model '{model_name}'"
             suggestions = [
-                "Check your internet connection",
-                "Verify the model name is correct",
-                "Try again in a few moments (temporary network issue)",
-                "Consider using a different model as fallback",
+                "🔍 Check your internet connection",
+                "✏️ Verify model name format: 'provider:model' (e.g., 'openai:gpt-4')",
+                "⏰ Try again in a few moments (temporary network issue)",
+                "🔄 Quick alternative: await sifaka.presets.quick_draft('your prompt')",
+                "📋 Working models: openai:gpt-4, anthropic:claude-3-sonnet, openai:gpt-4o-mini",
             ]
         elif error_type == "rate_limit":
-            message = f"Rate limit exceeded for model '{model_name}'"
+            message = f"⏱️ Rate limit exceeded for model '{model_name}'"
             suggestions = [
-                "Wait a few minutes before trying again",
-                "Consider upgrading your API plan for higher limits",
-                "Use a different model with higher rate limits",
-                "Implement retry logic with exponential backoff",
+                "⏳ Wait 1-2 minutes before trying again",
+                "💰 Consider upgrading your API plan for higher limits",
+                "🔄 Try a faster model: await sifaka.presets.quick_draft() uses gpt-4o-mini",
+                "🛠️ Use exponential backoff: retry after 1s, 2s, 4s, 8s...",
+                "📊 Check your usage at the provider's dashboard",
             ]
         elif error_type == "invalid_model":
-            message = f"Model '{model_name}' is not available or invalid"
+            message = f"❌ Model '{model_name}' is not available"
             suggestions = [
-                "Check the model name spelling and format",
-                "Verify the model is available in your region",
-                "Use a supported model like 'openai:gpt-4' or 'anthropic:claude-3-sonnet'",
-                "Check the provider's documentation for available models",
+                "✏️ Check spelling - use format 'provider:model'",
+                "🌍 Verify model availability in your region",
+                "✅ Try these working models:",
+                "   • openai:gpt-4 (high quality)",
+                "   • openai:gpt-4o-mini (fast & cheap)",
+                "   • anthropic:claude-3-sonnet (balanced)",
+                "📚 Check provider docs for complete model list",
             ]
         else:
-            message = f"Error with model '{model_name}': {error_type}"
+            message = f"⚠️ Model error '{model_name}': {error_type}"
             suggestions = [
-                "Check the model configuration",
-                "Verify your API credentials",
-                "Try a different model",
-                "Check the provider's status page for outages",
+                "🔧 Check model configuration and API credentials",
+                "🔄 Try a different model as fallback",
+                "🌐 Check provider status page for outages",
+                "💡 Quick test: await sifaka.presets.quick_draft('test prompt')",
             ]
 
         return message, suggestions

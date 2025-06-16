@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from pydantic_graph.persistence import BaseStatePersistence
 from sifaka.core.thought import SifakaThought
-from sifaka.utils import get_logger
+from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

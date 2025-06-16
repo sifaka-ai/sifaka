@@ -15,92 +15,17 @@ The SifakaThought model captures:
 
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from sifaka.core.models.generation import Generation
+from sifaka.core.models.validation import ValidationResult
+from sifaka.core.models.critique import CritiqueResult
+from sifaka.core.models.tool_call import ToolCall
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-class ToolCall(BaseModel):
-    """Record of a tool call made during generation.
-
-    Tracks tool execution with timing and result information for observability.
-    """
-
-    iteration: int
-    tool_name: str
-    args: Dict[str, Any]
-    result: Any
-    execution_time: float  # in seconds
-    timestamp: datetime
-
-
-class Generation(BaseModel):
-    """Record of a text generation operation.
-
-    Captures the generated text along with PydanticAI metadata for complete traceability.
-    """
-
-    iteration: int
-    text: str
-    model: str
-    timestamp: datetime
-    conversation_history: List[Union[Dict, str]] = Field(
-        default_factory=list,
-        description="Complete conversation history including requests and responses",
-    )
-    cost: Optional[float] = None
-    usage: Optional[Dict] = None
-
-
-class ValidationResult(BaseModel):
-    """Result of a validation operation.
-
-    Records validation outcome with detailed information for debugging and improvement.
-    """
-
-    iteration: int
-    validator: str
-    passed: bool
-    details: Dict[str, Any]
-    timestamp: datetime
-
-
-class CritiqueResult(BaseModel):
-    """Result of a critique operation.
-
-    Captures critic feedback with structured suggestions for iterative improvement.
-    Enhanced with rich metadata for observability and debugging.
-    """
-
-    iteration: int
-    critic: str
-    feedback: str
-    suggestions: List[str]
-    timestamp: datetime
-
-    # Rich metadata for observability
-    confidence: Optional[float] = None  # 0.0 to 1.0
-    reasoning: Optional[str] = None
-    needs_improvement: bool = True
-
-    # Critic-specific metadata
-    critic_metadata: Dict[str, Any] = Field(default_factory=dict)
-
-    # Performance metrics
-    processing_time_ms: Optional[float] = None
-    model_name: Optional[str] = None
-
-    # Research paper information
-    paper_reference: Optional[str] = None
-    methodology: Optional[str] = None
-
-    # Tool usage tracking
-    tools_used: List[str] = Field(default_factory=list)
-    retrieval_context: Optional[Dict[str, Any]] = None
 
 
 class SifakaThought(BaseModel):

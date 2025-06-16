@@ -129,26 +129,19 @@ class GenerateNode(SifakaNode):
 
         if thought.iteration > 0:
             parts.append(f"Iteration {thought.iteration}:")
+            parts.extend(
+                [
+                    "",
+                    "Improve the following text based on this feedback:",
+                ]
+            )
 
-            # Add previous generation for context continuity
-            if thought.generations:
-                last_generation = thought.generations[-1]
-                parts.extend(
-                    [
-                        "",
-                        "Previous attempt:",
-                        last_generation.text,
-                        "",
-                        "Improve the above based on the following feedback:",
-                    ]
-                )
-
-            # Include validation results with weighting
+            # REORDERED: Validation results FIRST (always included)
             prev_iteration = thought.iteration - 1
             prev_validations = [v for v in thought.validations if v.iteration == prev_iteration]
 
-            if prev_validations and deps.always_include_validation_results:
-                # Apply validation weight to determine prominence
+            # Always include validation results (not conditional)
+            if prev_validations:
                 validation_prominence = self._get_prominence_level(deps.validation_weight)
                 parts.append(
                     f"{validation_prominence} Validation Results (Weight: {deps.validation_weight:.0%}):"
@@ -159,13 +152,19 @@ class GenerateNode(SifakaNode):
                     parts.append(f"- {validation.validator}: {status}")
                     if not validation.passed and "message" in validation.details:
                         parts.append(f"  → {validation.details['message']}")
+                    # Include suggestions from validation details
+                    if not validation.passed and "suggestions" in validation.details:
+                        suggestions = validation.details["suggestions"]
+                        if isinstance(suggestions, list):
+                            for suggestion in suggestions[
+                                :3
+                            ]:  # Include up to 3 validation suggestions
+                                parts.append(f"  → {suggestion}")
                 parts.append("")  # Add spacing
 
-            # Get validation context for priority-aware prompting (for failures only)
+            # Enhanced validation context for failures
             validation_context = ValidationContext.extract_constraints(thought)
-
             if validation_context:
-                # Use validation-aware formatting for failures
                 feedback_categories = ValidationContext.categorize_feedback(validation_context)
                 priority_notice = ValidationContext.create_validation_priority_notice(
                     validation_context
@@ -178,40 +177,46 @@ class GenerateNode(SifakaNode):
                     parts.append(priority_notice.strip())
                 if validation_issues:
                     parts.append(validation_issues.strip())
-            elif not deps.always_include_validation_results:
-                # Fallback to simple validation failure listing (only if not already included above)
-                failures = [
-                    v for v in thought.validations if not v.passed and v.iteration == prev_iteration
-                ]
-                if failures:
-                    parts.append("Fix these validation issues:")
-                    for failure in failures[-3:]:  # Limit to last 3 failures
-                        parts.append(f"- {failure.validator}: {failure.details}")
 
-            # Add critic suggestions from previous iteration with weighting
-            prev_iteration = thought.iteration - 1
+            # REORDERED: Critic feedback AFTER validation results
             suggestions = [
                 c for c in thought.critiques if c.iteration == prev_iteration and c.suggestions
             ]
             if suggestions:
-                # Apply critic weight to determine prominence
                 critic_prominence = self._get_prominence_level(deps.critic_weight)
 
-                # Get header from validation context if available
-                if validation_context:
-                    feedback_categories = ValidationContext.categorize_feedback(validation_context)
-                    critic_header = feedback_categories["critic_header"]
-                    parts.append(
-                        f"{critic_prominence} {critic_header} (Weight: {deps.critic_weight:.0%})"
-                    )
-                else:
-                    parts.append(
-                        f"{critic_prominence} Critic Suggestions (Weight: {deps.critic_weight:.0%}):"
-                    )
-
+                # Show each critic's feedback separately for clarity
                 for critique in suggestions:
-                    for suggestion in critique.suggestions[:2]:  # Limit to 2 per critic
+                    # Get header from validation context if available
+                    if validation_context:
+                        feedback_categories = ValidationContext.categorize_feedback(
+                            validation_context
+                        )
+                        critic_header = feedback_categories["critic_header"]
+                        parts.append(
+                            f"{critic_prominence} {critic_header} - {critique.critic} (Weight: {deps.critic_weight:.0%}):"
+                        )
+                    else:
+                        parts.append(
+                            f"{critic_prominence} {critique.critic} Suggestions (Weight: {deps.critic_weight:.0%}):"
+                        )
+
+                    for (
+                        suggestion
+                    ) in critique.suggestions:  # Include all suggestions from this critic
                         parts.append(f"- {suggestion}")
+                    parts.append("")  # Add spacing between critics
+
+            # Add previous generation AFTER feedback for better focus
+            if thought.generations:
+                last_generation = thought.generations[-1]
+                parts.extend(
+                    [
+                        "",
+                        "Previous attempt:",
+                        last_generation.text,
+                    ]
+                )
 
         return "\n".join(parts)
 

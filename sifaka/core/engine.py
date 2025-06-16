@@ -7,18 +7,22 @@ of complex middleware system.
 import uuid
 import time
 import hashlib
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
+from datetime import datetime
 
 from pydantic_graph import Graph
 from pydantic_graph.persistence import BaseStatePersistence
 from pydantic_graph.persistence.in_mem import FullStatePersistence
 
 from sifaka.core.thought import SifakaThought
+from sifaka.core.container import get_container
 from sifaka.graph.dependencies import SifakaDependencies
 from sifaka.utils.errors import GraphExecutionError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.validation import validate_max_iterations, validate_prompt
+
+if TYPE_CHECKING:
+    from sifaka.utils.config import SifakaConfig
 
 logger = get_logger(__name__)
 
@@ -33,8 +37,6 @@ class SifakaEngine:
         persistence: Optional[BaseStatePersistence] = None,
     ):
         """Initialize the Sifaka engine."""
-        # Import here to avoid circular imports
-        from sifaka.utils.config import SifakaConfig
 
         if config is not None:
             # Create dependencies from config
@@ -56,11 +58,15 @@ class SifakaEngine:
         else:
             self.persistence = persistence
 
-        # Create the PydanticAI graph with lazy node imports
-        from sifaka.graph.nodes import CritiqueNode, GenerateNode, ValidateNode
+        # Create the PydanticAI graph with container-managed nodes
+        container = get_container()
 
         self.graph = Graph(
-            nodes=[GenerateNode, ValidateNode, CritiqueNode],
+            nodes=[
+                container.get_node("generate"),
+                container.get_node("validate"),
+                container.get_node("critique"),
+            ],
             state_type=SifakaThought,
             run_end_type=SifakaThought,
             name="SifakaWorkflow",
@@ -202,11 +208,12 @@ class SifakaEngine:
             )
 
             # Run the graph starting with generation
-            from sifaka.graph.nodes import GenerateNode
+            container = get_container()
+            generate_node = container.get_node_instance("generate")
 
             with logger.performance_timer("graph_execution", thought_id=thought.id):
                 result = await self.graph.run(
-                    GenerateNode(), state=thought, deps=self.deps, persistence=self.persistence
+                    generate_node, state=thought, deps=self.deps, persistence=self.persistence
                 )
 
             # Extract the final thought from the GraphRunResult
@@ -327,10 +334,11 @@ class SifakaEngine:
             new_thought.connect_to(parent_thought)
 
             # Run the graph for the new thought
-            from sifaka.graph.nodes import GenerateNode
+            container = get_container()
+            generate_node = container.get_node_instance("generate")
 
             result = await self.graph.run(
-                GenerateNode(), state=new_thought, deps=self.deps, persistence=self.persistence
+                generate_node, state=new_thought, deps=self.deps, persistence=self.persistence
             )
 
             # Extract the final thought from the GraphRunResult

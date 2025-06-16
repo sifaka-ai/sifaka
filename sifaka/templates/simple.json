@@ -1,0 +1,8 @@
+{
+  "model": "openai:gpt-4o-mini",
+  "max_rounds": 2,
+  "critics": ["reflexion"],
+  "enable_caching": true,
+  "enable_logging": false,
+  "enable_timing": false
+}

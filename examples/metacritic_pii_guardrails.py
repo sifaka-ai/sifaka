@@ -1,57 +1,39 @@
 #!/usr/bin/env python3
-"""Meta-Rewarding Critic with PII Detection Example.
+"""Meta-Evaluation Critic Example - Using the New Preset API.
 
 This example demonstrates:
-- Meta-rewarding critic for meta-evaluation of critique quality
-- PII detection and removal using content validation
-- Built-in logging, timing, and caching features
-- Email address detection and removal workflow
+- Meta-evaluation critic for assessing critique quality
+- Simple preset API for business writing
+- Built-in validation and improvement workflow
 
-The meta-rewarding critic evaluates the quality of feedback and critique itself,
-providing meta-level assessment to improve the critique process for PII removal.
+The meta-evaluation critic provides meta-level assessment to improve
+the overall critique process and content quality.
 """
 
 import asyncio
 import os
 from datetime import datetime
 
-# Simple imports - no complex dependencies needed
+# Simple imports using the new preset API
 import sifaka
-from sifaka.fluent import Sifaka
-
-
-def create_meta_rewarding_pii_sifaka(prompt):
-    """Create meta-rewarding critic Sifaka instance for PII detection and removal."""
-
-    # Use the fluent API to create a Sifaka instance with meta-evaluation critic
-    sifaka_instance = (
-        Sifaka(prompt)
-        .model("openai:gpt-4o-mini")  # Fast, reliable model
-        .with_meta_evaluation("openai:gpt-4o-mini")  # Use meta-rewarding critic for meta-evaluation
-        .min_length(100)  # Minimum content length
-        .max_length(800)  # Maximum content length for business content
-        .max_iterations(3)  # Allow iterations for PII removal
-    )
-
-    return sifaka_instance
 
 
 async def main():
-    """Run the Meta-Rewarding Critic with PII detection example."""
+    """Run the Meta-Evaluation Critic example using preset API."""
 
     # Ensure API key is available
     if not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY environment variable is required")
 
-    print("🛡️ Meta-Rewarding Critic with PII Detection")
+    print("🎯 Meta-Evaluation Critic Example")
     print("=" * 50)
 
-    print("✅ Using Meta-Rewarding Critic with fluent API for PII detection")
+    print("✅ Using Meta-Evaluation Critic with preset API")
     print(f"   Model: openai:gpt-4o-mini")
     print(f"   Critics: meta_evaluation")
     print(f"   Length validation: 100-800 characters")
     print(f"   Max iterations: 3")
-    print(f"   Note: Meta-rewarding critic evaluates critique quality for better PII removal")
+    print(f"   Note: Meta-evaluation critic assesses critique quality for better results")
 
     # Test cases that will initially contain PII (email addresses)
     test_cases = [
@@ -78,12 +60,18 @@ async def main():
         print(f"\n📝 Prompt: {test_case['prompt']}")
         print(f"💡 Expected: Meta-rewarding critic will evaluate critique quality for PII removal")
 
-        # Generate and analyze with meta-rewarding critic
-        print(f"\n🔄 Running meta-rewarding critic for PII meta-evaluation...")
+        # Generate and analyze with meta-evaluation critic
+        print(f"\n🔄 Running meta-evaluation critic...")
         try:
-            # Create Sifaka instance for this specific prompt
-            sifaka_instance = create_meta_rewarding_pii_sifaka(test_case["prompt"])
-            thought = await sifaka_instance.improve()
+            # Use the business writing preset with meta-evaluation critic
+            thought = await sifaka.business_writing(
+                test_case["prompt"],
+                model="openai:gpt-4o-mini",
+                min_length=100,
+                max_length=800,
+                max_rounds=3,
+                critics=["meta_evaluation"],
+            )
 
             # Display results using simple built-in information
             print(f"\n✅ Meta-Rewarding Critic Results:")
@@ -154,25 +142,20 @@ async def main():
 
     # Summary
     print(f"\n{'='*70}")
-    print("📋 Meta-Rewarding PII Validation Summary")
+    print("📋 Meta-Evaluation Critic Summary")
     print(f"{'='*70}")
-    print(f"✅ Meta-rewarding critic with Guardrails PII validation demonstrated")
-    print(f"🛡️ Privacy protection with meta-evaluation of critique quality")
+    print(f"✅ Meta-evaluation critic with preset API demonstrated")
+    print(f"🎯 Quality assessment through meta-level critique evaluation")
     print(f"🔄 Iterative improvement through meta-judging feedback")
-    print(f"📊 Built-in performance monitoring and caching")
+    print(f"📊 Simple preset API with powerful meta-evaluation features")
 
-    print("\n✅ Meta-Rewarding with Guardrails PII Validator completed!")
+    print("\n✅ Meta-Evaluation Critic Example completed!")
     print("Key Benefits:")
-    print("• Meta-evaluation of critique quality for better PII removal")
-    print("• Iterative content improvement with meta-rewarding methodology")
-    print("• Privacy-first content generation workflow")
-    print("• Built-in performance monitoring and caching")
-    print("• Simple configuration with powerful meta-evaluation features")
-
-    print(f"\n💡 Installation Note:")
-    print("To use Guardrails PII validation, install with:")
-    print("pip install 'guardrails-ai[api]'")
-    print("guardrails hub install hub://guardrails/detect_pii")
+    print("• Meta-evaluation of critique quality for better results")
+    print("• Simple preset API with advanced critic capabilities")
+    print("• Iterative content improvement with meta-level assessment")
+    print("• Built-in validation and improvement workflow")
+    print("• Zero configuration complexity with powerful features")
 
 
 if __name__ == "__main__":

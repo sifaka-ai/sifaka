@@ -1,0 +1,10 @@
+{
+  "model": "openai:gpt-4",
+  "max_rounds": 5,
+  "critics": ["reflexion", "constitutional", "self_refine"],
+  "enable_caching": true,
+  "enable_logging": true,
+  "enable_timing": true,
+  "min_length": 200,
+  "max_length": 2000
+}

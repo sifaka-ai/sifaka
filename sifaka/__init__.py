@@ -18,15 +18,26 @@ Key Components:
 - Validators: Content validation (length, coherence, factual accuracy)
 - Storage: Pluggable storage backends (memory, file, Redis)
 
-Simple API Usage:
+**PRIMARY API - Configuration Presets (Recommended):**
     ```python
     import sifaka
 
-    # One-liner for common use cases
-    result = await sifaka.improve("Write about AI", max_rounds=3)
-    print(result.final_text)
+    # Ready-to-use presets for common scenarios (covers 90% of use cases)
+    result = await sifaka.academic_writing("Explain quantum computing")
+    result = await sifaka.creative_writing("Write a short story")
+    result = await sifaka.technical_docs("Document the API")
+    result = await sifaka.business_writing("Write a project proposal")
+    result = await sifaka.quick_draft("Brainstorm ideas")
+    result = await sifaka.high_quality("Write a research summary")
 
-    # With configuration
+    print(result.final_text)
+    ```
+
+**SECONDARY API - Simple Customization (When presets aren't enough):**
+    ```python
+    import sifaka
+
+    # Simple customization with sensible defaults
     result = await sifaka.improve(
         "Write about renewable energy",
         max_rounds=5,
@@ -35,33 +46,28 @@ Simple API Usage:
     )
     ```
 
-Advanced Usage:
+**ADVANCED API - Full Control (For complex use cases):**
     ```python
-    from sifaka import SifakaEngine, SifakaConfig
+    from sifaka.advanced import SifakaEngine, SifakaConfig
 
-    # Configuration with builder pattern
-    config = SifakaConfig.simple(
+    # Full configuration control for advanced users
+    config = SifakaConfig(
         model="openai:gpt-4",
         max_iterations=5,
-        min_length=100,
-        critics=["reflexion", "constitutional"]
+        critics=["reflexion", "constitutional"],
+        validators=[...],
     )
     engine = SifakaEngine(config=config)
-
-    # Process a single thought
-    thought = await engine.think("Explain renewable energy")
-    print(thought.final_text)
+    result = await engine.think("Explain renewable energy")
     ```
 
 For more advanced usage, see the documentation and examples.
 """
 
-from typing import Optional, List, Union, Dict, Any
-from sifaka.core.engine import SifakaEngine
-from sifaka.core.thought import SifakaThought
-from sifaka.graph.dependencies import SifakaDependencies
-from sifaka.fluent import Sifaka
-from sifaka.utils.config import SifakaConfig
+from typing import Optional, List
+
+# Core components (only what's needed for the main API)
+from sifaka.core.thought import SifakaThought  # Return type, users need this
 from sifaka.utils import (
     SifakaError,
     ValidationError,
@@ -69,8 +75,30 @@ from sifaka.utils import (
     GraphExecutionError,
     ConfigurationError,
 )
+from sifaka import presets
 
 __version__ = "0.5.0-alpha"
+
+# ============================================================================
+# PRIMARY API - Configuration Presets (Recommended for 90% of use cases)
+# ============================================================================
+
+# Import preset functions to module level for direct access
+from sifaka.presets import (
+    academic_writing,
+    creative_writing,
+    technical_docs,
+    business_writing,
+    quick_draft,
+    high_quality,
+    # Aliases for convenience
+    academic,
+    creative,
+    technical,
+    business,
+    draft,
+    premium,
+)
 
 
 async def improve(
@@ -215,6 +243,9 @@ async def improve(
         )
 
     try:
+        # Import advanced components locally to keep main API clean
+        from sifaka.advanced import SifakaEngine, SifakaConfig
+
         # Create configuration
         config = SifakaConfig(
             model=model,
@@ -233,7 +264,9 @@ async def improve(
 
         # Create and run engine
         engine = SifakaEngine(config=config)
-        return await engine.think(prompt, user_id=user_id, session_id=session_id)
+        return await engine.think(
+            prompt, max_iterations=max_rounds, user_id=user_id, session_id=session_id
+        )
 
     except Exception as e:
         # Re-raise our custom errors as-is
@@ -270,17 +303,44 @@ async def improve(
 
 
 __all__ = [
-    # Simple API
+    # ============================================================================
+    # PRIMARY API - Configuration Presets (Recommended)
+    # ============================================================================
+    "academic_writing",
+    "creative_writing",
+    "technical_docs",
+    "business_writing",
+    "quick_draft",
+    "high_quality",
+    # Aliases
+    "academic",
+    "creative",
+    "technical",
+    "business",
+    "draft",
+    "premium",
+    # ============================================================================
+    # SECONDARY API - Simple Customization
+    # ============================================================================
     "improve",
-    # Core components
-    "SifakaEngine",
-    "SifakaThought",
-    "SifakaDependencies",
-    # Fluent API
-    "Sifaka",
-    # Configuration and utilities
-    "SifakaConfig",
-    # Error types
+    # ============================================================================
+    # ADVANCED API - Full Control (moved to sifaka.advanced)
+    # ============================================================================
+    # Note: Advanced components are available via sifaka.advanced import
+    # This keeps the main API clean and focused
+    # ============================================================================
+    # LEGACY/COMPATIBILITY (backwards compatibility only)
+    # ============================================================================
+    "presets",  # For backwards compatibility: sifaka.presets.academic_writing()
+    "SifakaThought",  # Return type, users need this
+    # ============================================================================
+    # DEPRECATED (moved to sifaka.advanced - will be removed in future versions)
+    # ============================================================================
+    # "SifakaEngine",  # Use sifaka.advanced.SifakaEngine instead
+    # "SifakaDependencies",  # Use sifaka.advanced.SifakaDependencies instead
+    # "Sifaka",  # Use sifaka.advanced.Sifaka instead
+    # "SifakaConfig",  # Use sifaka.advanced.SifakaConfig instead
+    # Error types (always needed)
     "SifakaError",
     "ValidationError",
     "CritiqueError",

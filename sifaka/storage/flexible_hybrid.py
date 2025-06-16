@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from .base import SifakaBasePersistence
 from .memory import MemoryPersistence
 from sifaka.core.thought import SifakaThought
-from sifaka.utils import get_logger
+from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

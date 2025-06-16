@@ -23,6 +23,7 @@ from typing import Any, Dict
 # Simple imports - no complex dependencies needed
 import sifaka
 from sifaka import SifakaConfig, SifakaEngine
+from sifaka.storage import SifakaFilePersistence
 
 
 def create_comprehensive_config():
@@ -32,11 +33,11 @@ def create_comprehensive_config():
     config = (
         SifakaConfig.builder()
         .model("openai:gpt-4o-mini")  # Fast, reliable model
-        .max_iterations(4)  # Allow multiple iterations for comprehensive analysis
+        .max_iterations(2)  # Reduced iterations for faster execution
         .min_length(100)  # Minimum content length
         .max_length(2000)  # Maximum content length for comprehensive content
         .critics(
-            ["reflexion", "constitutional", "self_refine", "self_rag"]
+            ["reflexion", "constitutional"]  # Reduced to 2 critics for faster execution
         )  # Multiple critics for comprehensive analysis
         .with_logging(log_level="INFO", log_content=False)  # Enable logging
         .with_timing()  # Enable performance timing
@@ -80,7 +81,10 @@ async def analyze_prompt_comprehensive(
         print(f"\n🔍 Running comprehensive analysis with multiple critics...")
 
         # Generate and analyze with comprehensive workflow
-        thought = await engine.think(prompt, max_iterations=4)
+        thought = await engine.think(prompt, max_iterations=2)
+
+        # The thought is automatically persisted by the engine's persistence layer
+        print(f"💾 Thought {thought.id} processed and persisted")
 
         # Extract comprehensive analysis results
         analysis = {
@@ -149,11 +153,19 @@ async def main():
     print("Multiple critics working together with built-in performance monitoring!")
     print(f"Analyzing {len(ANALYSIS_PROMPTS)} different types of content...")
 
+    # Create thoughts directory if it doesn't exist
+    thoughts_dir = "thoughts"
+    os.makedirs(thoughts_dir, exist_ok=True)
+    print(f"📁 Thoughts will be saved to: {thoughts_dir}/")
+
     # Create comprehensive configuration
     config = create_comprehensive_config()
 
-    # Create engine with comprehensive configuration
-    engine = SifakaEngine(config=config)
+    # Create file persistence for thoughts
+    persistence = SifakaFilePersistence(storage_dir=thoughts_dir)
+
+    # Create engine with comprehensive configuration and persistence
+    engine = SifakaEngine(config=config, persistence=persistence)
 
     print(f"\n✅ Created comprehensive analysis engine")
     print(f"   Model: {config.model}")
@@ -165,7 +177,8 @@ async def main():
     all_results = []
 
     try:
-        for prompt_name, prompt_text in ANALYSIS_PROMPTS.items():
+        for i, (prompt_name, prompt_text) in enumerate(ANALYSIS_PROMPTS.items(), 1):
+            print(f"\n🔄 Processing {i}/{len(ANALYSIS_PROMPTS)}: {prompt_name}")
             result = await analyze_prompt_comprehensive(prompt_text, prompt_name, engine)
             all_results.append(result)
 
