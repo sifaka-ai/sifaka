@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sifaka"
+version = "0.0.7"
+description = "Simple AI text improvement through research-backed critique with complete observability"
+authors = [{name = "Evan Volgas", email = "evan.volgas@gmail.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.9,<3.14"
+keywords = ["ai", "llm", "validation", "text-improvement", "critique"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10", 
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Core dependencies - minimal for basic functionality
+dependencies = [
+    "pydantic>=2.11.3",
+    "pydantic-ai>=0.0.14",
+    "openai>=1.82.0", 
+    "httpx>=0.28.1",
+    "python-dotenv>=1.0.1",
+    "aiofiles>=24.1.0",  # Required for FileStorage backend
+]
+
+[project.optional-dependencies]
+# Model providers
+anthropic = ["anthropic>=0.50.0"]
+gemini = ["google-generativeai>=0.8.5"]
+
+# Validation
+guardrails = ["guardrails-ai>=0.5.0"]
+
+# Development tools
+dev = [
+    "pytest>=8.0.2",
+    "pytest-cov>=4.1.0", 
+    "pytest-asyncio>=0.21.0",
+    "black>=24.2.0",
+    "mypy>=1.9.0",
+    "ruff>=0.3.0",
+]
+
+# All features
+all = ["sifaka[anthropic,gemini,guardrails]"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sifaka*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py39', 'py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = ["--strict-markers", "--cov=sifaka", "--cov-report=term-missing"]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

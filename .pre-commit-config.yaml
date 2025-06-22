@@ -1,0 +1,91 @@
+# Pre-commit hooks for code quality
+repos:
+  # Black - Python code formatter
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        language_version: python3
+        args: [--line-length=88]
+
+  # Ruff - Fast Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.0
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [--fix]
+      # Run the formatter
+      - id: ruff-format
+
+  # MyPy - Static type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.16.1
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-requests]
+        args: [--strict, --ignore-missing-imports]
+
+  # General pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Prevent large files
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      
+      # Check for merge conflicts
+      - id: check-merge-conflict
+      
+      # Check YAML syntax
+      - id: check-yaml
+      
+      # Check TOML syntax
+      - id: check-toml
+      
+      # Fix trailing whitespace
+      - id: trailing-whitespace
+      
+      # Fix end of files
+      - id: end-of-file-fixer
+      
+      # Check for debug statements
+      - id: debug-statements
+      
+      # Check for private keys
+      - id: detect-private-key
+
+  # Security scanning with bandit
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        args: ["-r", "sifaka/", "-f", "custom", "--msg-template", "{abspath}:{line}: [{test_id}] {msg}"]
+        exclude: ^tests/
+
+  # pytest - run tests before commit
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: pytest
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        args: [tests/, --tb=short, -q]
+
+  # Check for TODO/FIXME comments in production code
+  - repo: local
+    hooks:
+      - id: check-todos
+        name: Check for TODO/FIXME in production code
+        entry: bash -c 'if grep -r "TODO\|FIXME" sifaka/ --exclude-dir=__pycache__; then echo "Found TODO/FIXME in production code"; exit 1; fi'
+        language: system
+        pass_filenames: false
+
+  # Validate pyproject.toml
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.22
+    hooks:
+      - id: validate-pyproject
