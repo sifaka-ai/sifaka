@@ -1,4 +1,4 @@
-"""N-Critics example with thoughts output."""
+"""Self-Consistency critic example with thoughts output."""
 
 import asyncio
 import json
@@ -7,17 +7,17 @@ from sifaka import improve
 
 
 async def main():
-    """Run N-Critics and save thoughts."""
-    text = "Climate change is happening. We should use renewable energy."
+    """Run Self-Consistency critic and save thoughts."""
+    text = "Quantum computers can solve certain problems faster than classical computers."
     
-    print("N-CRITICS EXAMPLE")
+    print("SELF-CONSISTENCY CRITIC EXAMPLE")
     print("=" * 60)
     print(f"Original: {text}")
     print()
     
     result = await improve(
         text,
-        critics=["n_critics"],
+        critics=["self_consistency"],
         max_iterations=2,
         show_improvement_prompt=True,
         force_improvements=True
@@ -27,7 +27,7 @@ async def main():
     
     # Save thoughts
     thoughts = {
-        "critic": "n_critics",
+        "critic": "self_consistency",
         "original": text,
         "final": result.final_text,
         "iterations": result.iteration,
@@ -45,10 +45,10 @@ async def main():
     thoughts_dir = Path("thoughts")
     thoughts_dir.mkdir(exist_ok=True)
     
-    with open(thoughts_dir / "n_critics_thoughts.json", "w") as f:
+    with open(thoughts_dir / "self_consistency_thoughts.json", "w") as f:
         json.dump(thoughts, f, indent=2)
     
-    print(f"\n✅ Thoughts saved to thoughts/n_critics_thoughts.json")
+    print(f"\n✅ Thoughts saved to thoughts/self_consistency_thoughts.json")
 
 
 if __name__ == "__main__":

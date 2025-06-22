@@ -1,4 +1,4 @@
-"""N-Critics example with thoughts output."""
+"""Meta-Rewarding critic example with thoughts output."""
 
 import asyncio
 import json
@@ -7,17 +7,17 @@ from sifaka import improve
 
 
 async def main():
-    """Run N-Critics and save thoughts."""
-    text = "Climate change is happening. We should use renewable energy."
+    """Run Meta-Rewarding critic and save thoughts."""
+    text = "Climate change is causing global temperatures to rise."
     
-    print("N-CRITICS EXAMPLE")
+    print("META-REWARDING CRITIC EXAMPLE")
     print("=" * 60)
     print(f"Original: {text}")
     print()
     
     result = await improve(
         text,
-        critics=["n_critics"],
+        critics=["meta_rewarding"],
         max_iterations=2,
         show_improvement_prompt=True,
         force_improvements=True
@@ -27,7 +27,7 @@ async def main():
     
     # Save thoughts
     thoughts = {
-        "critic": "n_critics",
+        "critic": "meta_rewarding",
         "original": text,
         "final": result.final_text,
         "iterations": result.iteration,
@@ -45,10 +45,10 @@ async def main():
     thoughts_dir = Path("thoughts")
     thoughts_dir.mkdir(exist_ok=True)
     
-    with open(thoughts_dir / "n_critics_thoughts.json", "w") as f:
+    with open(thoughts_dir / "meta_rewarding_thoughts.json", "w") as f:
         json.dump(thoughts, f, indent=2)
     
-    print(f"\n✅ Thoughts saved to thoughts/n_critics_thoughts.json")
+    print(f"\n✅ Thoughts saved to thoughts/meta_rewarding_thoughts.json")
 
 
 if __name__ == "__main__":
