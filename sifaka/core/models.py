@@ -194,32 +194,4 @@ class SifakaResult(BaseModel):
         }
 
 
-class Config(BaseModel):
-    """Configuration for Sifaka with sensible defaults."""
-
-    # Model settings
-    model: str = "gpt-4o-mini"
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    max_tokens: Optional[int] = None
-    
-    # Critic model settings (optional, defaults to main model)
-    critic_model: Optional[str] = None
-    critic_temperature: Optional[float] = None
-
-    # Iteration settings
-    max_iterations: int = Field(default=3, ge=1, le=10)
-    force_improvements: bool = False  # Always run critics and try to improve
-    show_improvement_prompt: bool = False  # Show the prompt used for improvements
-
-    # Critics and validators
-    critics: List[str] = Field(default_factory=lambda: ["reflexion"])
-
-    # Timeouts
-    timeout_seconds: float = Field(default=300.0, ge=0.001, le=3600)
-    
-    # Retry configuration
-    retry_enabled: bool = True
-    retry_max_attempts: int = Field(default=3, ge=1, le=10)
-    retry_initial_delay: float = Field(default=1.0, ge=0.1, le=60.0)
-    retry_max_delay: float = Field(default=60.0, ge=1.0, le=300.0)
-    retry_exponential_base: float = Field(default=2.0, ge=1.1, le=10.0)
+# Config class moved to config.py

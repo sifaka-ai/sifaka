@@ -13,69 +13,24 @@ Sifaka is built around three core principles:
 ## 🏗️ High-Level Architecture
 
 ```mermaid
-graph TB
-    subgraph "User Interface"
-        API[improve() Function]
-        Config[Configuration]
-        Results[SifakaResult]
-    end
+graph LR
+    A["Input Text"] --> B["LLM Model"]
+    B --> C["Generated Text"]
+    C --> D["Critics & Validators"]
+    D --> E{"Needs Improvement?"}
+    E -->|Yes| F["Revision Prompt"]
+    F --> B
+    E -->|No| G["Final Text"]
     
-    subgraph "Core Engine"
-        Engine[SifakaEngine]
-        Models[Pydantic Models]
-        Interfaces[Abstract Interfaces]
-    end
+    C --> H["Thought History"]
+    D --> H
+    F --> H
+    H --> I["File Storage"]
     
-    subgraph "Critique System"
-        Reflexion[Reflexion Critic]
-        Constitutional[Constitutional AI]
-        SelfRefine[Self-Refine]
-        NCritics[N-Critics]
-        SelfRAG[Self-RAG]
-        MetaRewarding[Meta-Rewarding]
-        SelfConsistency[Self-Consistency]
-    end
-    
-    subgraph "Validation System"
-        LengthVal[Length Validator]
-        ContentVal[Content Validator]
-        CustomVal[Custom Validators]
-    end
-    
-    subgraph "Storage System"
-        MemStorage[Memory Storage]
-        FileStorage[File Storage]
-        PluginStorage[Plugin Storage]
-    end
-    
-    subgraph "Model Providers"
-        OpenAI[OpenAI API]
-        Anthropic[Anthropic API]
-        Google[Google API]
-    end
-    
-    API --> Engine
-    Engine --> Reflexion
-    Engine --> Constitutional
-    Engine --> SelfRefine
-    Engine --> NCritics
-    Engine --> SelfRAG
-    Engine --> MetaRewarding
-    Engine --> SelfConsistency
-    
-    Engine --> LengthVal
-    Engine --> ContentVal
-    Engine --> CustomVal
-    
-    Engine --> MemStorage
-    Engine --> FileStorage
-    Engine --> PluginStorage
-    
-    Engine --> OpenAI
-    Engine --> Anthropic
-    Engine --> Google
-    
-    Engine --> Results
+    style A fill:#e1f5fe
+    style G fill:#c8e6c9
+    style H fill:#fff3e0
+    style I fill:#f3e5f5
 ```
 
 ## 🧩 Component Architecture
@@ -303,7 +258,7 @@ Add support for new LLM providers through the unified interface.
 - **Minimal dependencies** (5 core packages)
 - **Lazy loading** of optional components
 - **Efficient serialization** with Pydantic
-- **Connection pooling** for API calls
+- **Efficient API calls** with retry logic
 
 ## 🔒 Security Considerations
 

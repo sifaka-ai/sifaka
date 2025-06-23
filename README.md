@@ -19,21 +19,19 @@ pip install sifaka
 ```
 
 ```python
-import asyncio
-from sifaka import improve
+from sifaka import improve_sync
 
-async def main():
-    result = await improve(
-        "Write about renewable energy benefits",
-        max_iterations=3,
-        critics=["reflexion", "constitutional"]
-    )
-    
-    print(f"Final text: {result.final_text}")
-    print(f"Iterations: {result.iteration}")
-    print(f"Improvements made: {len(result.critiques)}")
+# Simple one-liner
+result = improve_sync("Write about renewable energy benefits")
+print(result.final_text)
 
-asyncio.run(main())
+# With options
+result = improve_sync(
+    "Write about renewable energy benefits",
+    critics=["reflexion", "constitutional"],
+    max_iterations=3
+)
+print(f"Improved through {result.iteration} iterations")
 ```
 
 ## Key Features
@@ -57,69 +55,24 @@ asyncio.run(main())
 Sifaka is built around a simple but powerful architecture that prioritizes observability and research-backed methods:
 
 ```mermaid
-graph TB
-    subgraph "User Interface"
-        API[improve() Function]
-        Config[Configuration]
-        Results[SifakaResult]
-    end
+graph LR
+    A["Input Text"] --> B["LLM Model"]
+    B --> C["Generated Text"]
+    C --> D["Critics & Validators"]
+    D --> E{"Needs Improvement?"}
+    E -->|Yes| F["Revision Prompt"]
+    F --> B
+    E -->|No| G["Final Text"]
     
-    subgraph "Core Engine"
-        Engine[SifakaEngine]
-        Models[Pydantic Models]
-        Interfaces[Abstract Interfaces]
-    end
+    C --> H["Thought History"]
+    D --> H
+    F --> H
+    H --> I["File Storage"]
     
-    subgraph "Critique System"
-        Reflexion[Reflexion Critic]
-        Constitutional[Constitutional AI]
-        SelfRefine[Self-Refine]
-        NCritics[N-Critics]
-        SelfRAG[Self-RAG]
-        MetaRewarding[Meta-Rewarding]
-        SelfConsistency[Self-Consistency]
-    end
-    
-    subgraph "Validation System"
-        LengthVal[Length Validator]
-        ContentVal[Content Validator]
-        CustomVal[Custom Validators]
-    end
-    
-    subgraph "Storage System"
-        MemStorage[Memory Storage]
-        FileStorage[File Storage]
-        PluginStorage[Plugin Storage]
-    end
-    
-    subgraph "Model Providers"
-        OpenAI[OpenAI API]
-        Anthropic[Anthropic API]
-        Google[Google API]
-    end
-    
-    API --> Engine
-    Engine --> Reflexion
-    Engine --> Constitutional
-    Engine --> SelfRefine
-    Engine --> NCritics
-    Engine --> SelfRAG
-    Engine --> MetaRewarding
-    Engine --> SelfConsistency
-    
-    Engine --> LengthVal
-    Engine --> ContentVal
-    Engine --> CustomVal
-    
-    Engine --> MemStorage
-    Engine --> FileStorage
-    Engine --> PluginStorage
-    
-    Engine --> OpenAI
-    Engine --> Anthropic
-    Engine --> Google
-    
-    Engine --> Results
+    style A fill:#e1f5fe
+    style G fill:#c8e6c9
+    style H fill:#fff3e0
+    style I fill:#f3e5f5
 ```
 
 ### Core Design Principles
@@ -138,11 +91,11 @@ graph TB
 async def improve(
     text: str,
     *,
+    critics: Optional[List[str]] = None,
     max_iterations: int = 3,
-    model: str = "gpt-4o-mini", 
-    critics: list[str] = ["reflexion"],
-    validators: list[Validator] = None,
-    temperature: float = 0.7
+    validators: Optional[List[Validator]] = None,
+    config: Optional[Config] = None,
+    storage: Optional[StorageBackend] = None,
 ) -> SifakaResult:
     """Improve text through iterative critique."""
 ```
@@ -230,18 +183,21 @@ result = await improve(
 ```
 
 
-### With Retry Logic
+### With Advanced Configuration
 ```python
-from sifaka.core.retry import RetryConfig
+from sifaka import Config
 
-# Configure automatic retries for transient failures
+# Configure advanced options
+config = Config(
+    model="gpt-4o",
+    temperature=0.8,
+    critic_model="claude-3-5-sonnet-20241022",
+    force_improvements=True
+)
+
 result = await improve(
     "Write about AI ethics",
-    retry_config=RetryConfig(
-        max_attempts=3,
-        initial_delay=1.0,
-        exponential_base=2.0
-    )
+    config=config
 )
 ```
 

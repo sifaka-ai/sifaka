@@ -1,32 +1,54 @@
-"""Self-RAG example using OpenAI generator and Groq critic."""
+"""Example of using Self-RAG critic for retrieval-augmented critique.
+
+Self-RAG uses retrieval-augmented generation to verify factual accuracy.
+"""
 
 import asyncio
-from sifaka import Runner
-from sifaka.storage import FileStorage
+from sifaka import improve, FileStorage
 
 async def main():
-    runner = Runner(
-        critic_name="self_rag",
-        description="Retrieval-aware self-critique",
-        prompt="Explain quantum computing and its applications in cryptography",
-        min_length=200,
-        max_length=1200,
-        iterations=3
-    )
+    """Run Self-RAG improvement example with file storage."""
     
-    await runner.run(
-        model="gpt-4o",  # OpenAI for generation
-        critic_model="mixtral-8x7b-32768",  # Groq for critique
-        storage=FileStorage("./rag_results"),  # Save results to disk
-        timeout_seconds=600,  # Longer timeout for fact-checking
+    # Text with potential factual issues
+    text = """
+    The Amazon rainforest produces 50% of the world's oxygen. It's often called 
+    the lungs of the Earth. The forest is home to over 10 million species and 
+    covers an area of 2 million square miles.
+    """
+    
+    print("Original text:")
+    print(text)
+    print("\n" + "="*80 + "\n")
+    
+    try:
+        # Run improvement with Self-RAG critic and file storage
+        storage = FileStorage("./rag_thoughts")
         
-        # Other available options (with defaults):
-        # temperature=0.7,  # Generation temperature (0.0-2.0)
-        # critic_temperature=0.3,  # Critic temperature (usually lower for consistency)
-        # force_improvements=True,  # Always run critics even if validation passes
-        # show_improvement_prompt=True,  # Display the prompts sent to improve text
-        # validators=None,  # Custom validators (default: LengthValidator)
-    )
+        result = await improve(
+            text,
+            critics=["self_rag"],
+            max_iterations=3,
+            storage=storage
+        )
+        
+        print("Fact-checked text:")
+        print(result.final_text)
+        print(f"\nIterations: {result.iteration}")
+        print(f"Processing time: {result.processing_time:.2f}s")
+        print(f"Result saved with ID: {result.id}")
+        
+        # Show fact-checking results
+        print("\nFact-checking critique:")
+        for critique in result.critiques:
+            if critique.critic == "self_rag":
+                print(f"\n- Feedback: {critique.feedback}")
+                if critique.suggestions:
+                    print("  Fact corrections:")
+                    for suggestion in critique.suggestions:
+                        print(f"    * {suggestion}")
+    
+    except Exception as e:
+        print(f"Error: {type(e).__name__}: {str(e)}")
 
 if __name__ == "__main__":
     asyncio.run(main())

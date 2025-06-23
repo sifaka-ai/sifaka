@@ -24,7 +24,8 @@ pip install sifaka-mem0
 
 ### Auto-Discovery (Recommended)
 ```python
-from sifaka import improve, create_storage_backend
+from sifaka import improve
+from sifaka.core.plugins import create_storage_backend
 
 # Plugin automatically discovered via entry points
 storage = create_storage_backend('redis', url='redis://localhost:6379')
@@ -37,7 +38,8 @@ result = await improve(
 
 ### Manual Registration
 ```python
-from sifaka import improve, register_storage_backend
+from sifaka import improve
+from sifaka.core.plugins import register_storage_backend
 from sifaka_redis import RedisStorage
 
 # Register the plugin manually
@@ -50,7 +52,7 @@ result = await improve("Text to improve", storage=storage)
 
 ### List Available Storage
 ```python
-from sifaka import list_storage_backends
+from sifaka.core.plugins import list_storage_backends
 
 print("Available storage backends:", list_storage_backends())
 # Output: ['memory', 'file', 'redis', 'mem0']
@@ -129,7 +131,7 @@ from .storage import MyDBStorage
 
 # Auto-register when imported
 try:
-    from sifaka import register_storage_backend
+    from sifaka.core.plugins import register_storage_backend
     register_storage_backend('mydb', MyDBStorage)
 except ImportError:
     # Sifaka not installed, skip registration

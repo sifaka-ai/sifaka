@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 import openai
 import httpx
 
+
 # Load environment variables
 load_dotenv()
 
@@ -57,7 +58,7 @@ class LLMClient:
         self.temperature = temperature
         self._api_key = api_key or self._get_api_key(provider)
         
-        # For now, we'll use OpenAI client for OpenAI and Groq (which is OpenAI-compatible)
+        # For OpenAI-compatible providers
         if provider in [Provider.OPENAI, Provider.GROQ]:
             base_url = self.PROVIDER_URLS.get(provider)
             self.client = openai.AsyncOpenAI(
@@ -65,8 +66,7 @@ class LLMClient:
                 base_url=base_url
             )
         else:
-            # For other providers, we'll need to implement specific clients
-            # For now, fallback to OpenAI
+            # For other providers, fallback to OpenAI
             self.client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     
     def _get_api_key(self, provider: Provider) -> Optional[str]:
@@ -86,10 +86,6 @@ class LLMClient:
     
     async def complete(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
         """Complete a conversation."""
-        # Remove parameters that might conflict
-        kwargs.pop('model', None)  # Use the instance's model
-        kwargs.pop('api_key', None)  # Don't pass API key to create method
-        
         provider_model = self._get_provider_model()
         
         try:
@@ -106,7 +102,14 @@ class LLMClient:
                 model=provider_model
             )
         except Exception as e:
-            raise RuntimeError(f"LLM completion failed: {str(e)}")
+            # Simple error handling
+            error_msg = str(e).lower()
+            if "rate limit" in error_msg:
+                raise RuntimeError("Rate limit exceeded. Please wait and retry.")
+            elif "api key" in error_msg or "unauthorized" in error_msg:
+                raise RuntimeError("Invalid API key.")
+            else:
+                raise RuntimeError(f"LLM error: {str(e)}")
 
 
 class LLMManager:

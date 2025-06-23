@@ -1,0 +1,143 @@
+"""Simplified API for Sifaka."""
+
+from typing import List, Optional, Union
+import asyncio
+
+from ..core.models import SifakaResult
+from ..core.config import Config
+from ..core.interfaces import Validator
+from ..core.engine import SifakaEngine
+from ..core.constants import DEFAULT_CRITIC, DEFAULT_MAX_ITERATIONS, DEFAULT_MODEL
+from ..storage import StorageBackend
+
+
+async def improve(
+    text: str,
+    *,
+    critics: Optional[List[str]] = None,
+    max_iterations: int = 3,
+    validators: Optional[List[Validator]] = None,
+    config: Optional[Config] = None,
+    storage: Optional[StorageBackend] = None,
+) -> SifakaResult:
+    """Improve text through iterative critique - simplified API.
+    
+    Args:
+        text: The text to improve
+        critics: List of critics to use (default: ["reflexion"])
+        max_iterations: Maximum improvement iterations (1-10)
+        validators: Optional quality validators
+        config: Advanced configuration options
+        storage: Optional storage backend
+        
+    Returns:
+        SifakaResult with improved text and audit trail
+        
+    Example:
+        result = await improve(
+            "Write about AI",
+            critics=["reflexion", "constitutional"],
+            max_iterations=3
+        )
+    """
+    # Set defaults
+    if critics is None:
+        critics = [DEFAULT_CRITIC]
+    
+    if config is None:
+        config = Config()
+    
+    # Create engine config
+    engine_config = Config(
+        model=config.model,
+        temperature=config.temperature,
+        max_iterations=max_iterations,
+        critics=critics,
+        timeout_seconds=config.timeout_seconds,
+        force_improvements=config.force_improvements,
+        show_improvement_prompt=config.show_improvement_prompt,
+        critic_model=config.critic_model,
+        critic_temperature=config.critic_temperature,
+        # retry_config handled in Config directly
+    )
+    
+    # Run improvement
+    engine = SifakaEngine(engine_config, storage)
+    return await engine.improve(text, validators)
+
+
+def improve_sync(
+    text: str,
+    *,
+    critics: Optional[List[str]] = None,
+    max_iterations: int = 3,
+    validators: Optional[List[Validator]] = None,
+    config: Optional[Config] = None,
+    storage: Optional[StorageBackend] = None,
+) -> SifakaResult:
+    """Synchronous wrapper for improve().
+    
+    Same arguments as improve() but runs synchronously.
+    
+    Example:
+        result = improve_sync(
+            "Write about AI",
+            critics=["reflexion"],
+        )
+    """
+    return asyncio.run(
+        improve(
+            text,
+            critics=critics,
+            max_iterations=max_iterations,
+            validators=validators,
+            config=config,
+            storage=storage,
+        )
+    )
+
+
+# Advanced API for power users
+async def improve_advanced(
+    text: str,
+    *,
+    max_iterations: int = DEFAULT_MAX_ITERATIONS,
+    model: str = DEFAULT_MODEL,
+    critics: Optional[List[str]] = None,
+    validators: Optional[List[Validator]] = None,
+    temperature: float = 0.7,
+    timeout_seconds: int = 300,
+    storage: Optional[StorageBackend] = None,
+    force_improvements: bool = False,
+    show_improvement_prompt: bool = False,
+    critic_model: Optional[str] = None,
+    critic_temperature: Optional[float] = None,
+    retry_config: Optional[Union[dict, 'RetryConfig']] = None,
+) -> SifakaResult:
+    """Advanced API with all parameters exposed.
+    
+    This is the original API with all parameters for backwards compatibility
+    and advanced use cases.
+    """
+    # RetryConfig removed - handled in Config
+    
+    # Create config
+    config = Config(
+        model=model,
+        temperature=temperature,
+        timeout_seconds=timeout_seconds,
+        critic_model=critic_model,
+        critic_temperature=critic_temperature,
+        force_improvements=force_improvements,
+        show_improvement_prompt=show_improvement_prompt,
+        # retry config embedded in Config
+    )
+    
+    return await improve(
+        text,
+        critics=critics,
+        max_iterations=max_iterations,
+        validators=validators,
+        config=config,
+        storage=storage,
+    )

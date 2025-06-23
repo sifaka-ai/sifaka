@@ -13,14 +13,11 @@ We will provide a single `improve()` function as the primary API for all text im
 async def improve(
     text: str,
     *,
+    critics: Optional[List[str]] = None,
     max_iterations: int = 3,
-    model: str = "gpt-4o-mini",
-    critics: list[str] = ["reflexion"],
-    validators: list[Validator] = None,
-    temperature: float = 0.7,
-    max_cost: float = 10.0,
-    timeout_seconds: int = 300,
-    storage: StorageBackend = None
+    validators: Optional[List[Validator]] = None,
+    config: Optional[Config] = None,
+    storage: Optional[StorageBackend] = None,
 ) -> SifakaResult
 ```
 

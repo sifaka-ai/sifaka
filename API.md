@@ -9,9 +9,7 @@ The main function for improving text through iterative critique.
 **Parameters:**
 
 - `text` (str): The text to improve
-- `max_iterations` (int, default=3): Maximum number of improvement iterations
-- `model` (str, default="gpt-4o-mini"): The language model to use
-- `critics` (List[str], optional): List of critics to use. Available options:
+- `critics` (List[str], optional): List of critics to use. Default: ["reflexion"]. Available options:
   - `"reflexion"` - Self-reflection and learning from mistakes
   - `"constitutional"` - Principle-based ethical evaluation
   - `"self_refine"` - Iterative self-improvement
@@ -20,14 +18,10 @@ The main function for improving text through iterative critique.
   - `"meta_rewarding"` - Meta-evaluation of judgments
   - `"self_consistency"` - Consensus-based evaluation
   - `"prompt"` - Custom prompt-based critique
+- `max_iterations` (int, default=3): Maximum number of improvement iterations
 - `validators` (List[Validator], optional): Validation constraints
-- `temperature` (float, default=0.7): Model temperature for generation
-- `timeout_seconds` (int, default=300): Timeout in seconds
+- `config` (Config, optional): Advanced configuration options including model, temperature, timeouts, etc.
 - `storage` (StorageBackend, optional): Storage backend for results
-- `force_improvements` (bool, default=False): Always run critics even if validation passes
-- `show_improvement_prompt` (bool, default=False): Display the prompts used for improvements
-- `critic_model` (str, optional): Model to use for critics (defaults to same as model)
-- `critic_temperature` (float, optional): Temperature for critic model (defaults to same as temperature)
 
 **Returns:**
 - `SifakaResult`: Complete result with audit trail
@@ -467,7 +461,7 @@ class CustomCritic(Critic):
 Register custom storage backends.
 
 ```python
-from sifaka.plugins import register_storage_backend
+from sifaka.core.plugins import register_storage_backend
 from sifaka.storage.base import StorageBackend
 
 class CustomStorage(StorageBackend):
@@ -477,7 +471,7 @@ class CustomStorage(StorageBackend):
 register_storage_backend("custom", CustomStorage)
 
 # Use it
-from sifaka.plugins import create_storage_backend
+from sifaka.core.plugins import create_storage_backend
 storage = create_storage_backend("custom")
 ```
 

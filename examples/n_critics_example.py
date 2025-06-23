@@ -1,31 +1,49 @@
-"""N-Critics example using Groq generator and Gemini critic."""
+"""Example of using N-Critics for multi-perspective ensemble evaluation.
+
+N-Critics uses multiple critical perspectives to provide comprehensive feedback.
+"""
 
 import asyncio
-from sifaka import Runner
+from sifaka import improve
 
 async def main():
-    runner = Runner(
-        critic_name="n_critics",
-        description="Multi-perspective evaluation",
-        prompt="How can renewable energy address climate change?",
-        min_length=200,
-        max_length=1200,
-        iterations=3
-    )
+    """Run N-Critics improvement example."""
     
-    await runner.run(
-        model="llama-3.3-70b-versatile",  # Groq for generation
-        critic_model="gemini-1.5-pro",  # Gemini for critique
-        show_improvement_prompt=True,  # See how multiple perspectives combine
+    # Business proposal that needs multiple perspectives
+    text = """
+    We should invest all our money in cryptocurrency because it's the future. 
+    Traditional investments are outdated. Bitcoin will definitely go to a million 
+    dollars, so we can't lose. We should act fast before it's too late.
+    """
+    
+    print("Original text:")
+    print(text)
+    print("\n" + "="*80 + "\n")
+    
+    try:
+        # Run improvement with N-Critics for diverse perspectives
+        result = await improve(
+            text,
+            critics=["n_critics"],
+            max_iterations=3
+        )
         
-        # Other available options (with defaults):
-        # temperature=0.7,  # Generation temperature (0.0-2.0)
-        # critic_temperature=0.3,  # Critic temperature (usually lower for consistency)
-        # force_improvements=True,  # Always run critics even if validation passes
-        # timeout_seconds=300,  # Maximum time for the entire process
-        # storage=None,  # Custom storage backend (default: MemoryStorage)
-        # validators=None,  # Custom validators (default: LengthValidator)
-    )
+        print("Improved text:")
+        print(result.final_text)
+        print(f"\nIterations: {result.iteration}")
+        print(f"Processing time: {result.processing_time:.2f}s")
+        
+        # Show different perspectives from the ensemble
+        print("\nEnsemble perspectives:")
+        seen_feedback = set()
+        for critique in result.critiques:
+            if critique.critic == "n_critics" and critique.feedback not in seen_feedback:
+                seen_feedback.add(critique.feedback)
+                print(f"\n- Perspective: {critique.feedback[:100]}...")
+                print(f"  Confidence: {critique.confidence:.2f}")
+    
+    except Exception as e:
+        print(f"Error: {type(e).__name__}: {str(e)}")
 
 if __name__ == "__main__":
     asyncio.run(main())

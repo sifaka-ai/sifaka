@@ -154,18 +154,17 @@ class CriticCache:
         temperature: float,
         iteration: int = 0
     ) -> str:
-        """Generate cache key for critic response."""
-        # Create deterministic key
-        key_data = {
-            "text": text[:1000],  # Limit text length for key
-            "critic": critic_name,
-            "model": model,
-            "temperature": temperature,
-            "iteration": iteration
-        }
-        
-        key_str = json.dumps(key_data, sort_keys=True)
-        return hashlib.sha256(key_str.encode()).hexdigest()
+        """Generate simple cache key for critic response."""
+        # Simple key: critic_name + model + first 100 chars of text + iteration
+        key_parts = [
+            critic_name,
+            model,
+            str(temperature),
+            str(iteration),
+            text[:100]
+        ]
+        key_str = "|".join(key_parts)
+        return hashlib.md5(key_str.encode()).hexdigest()
     
     async def get_critique(
         self,

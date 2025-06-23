@@ -1,38 +1,59 @@
-"""Meta-Rewarding example using Gemini generator and Anthropic critic."""
+"""Example of using Meta-Rewarding critic with validators.
+
+Meta-Rewarding uses two-stage judgment with meta-evaluation of evaluation quality.
+"""
 
 import asyncio
-from sifaka import Runner
-from sifaka.validators import LengthValidator, ReadabilityValidator
+from sifaka import improve
+from sifaka.validators import LengthValidator
 
 async def main():
-    runner = Runner(
-        critic_name="meta_rewarding",
-        description="Two-stage meta-evaluation critique",
-        prompt="Describe the future of work in the age of AI",
-        min_length=200,
-        max_length=1200,
-        iterations=3
-    )
+    """Run Meta-Rewarding improvement example with validators."""
     
-    # Custom validators for meta-evaluation
-    validators = [
-        LengthValidator(min_length=200, max_length=1200),
-        ReadabilityValidator(min_score=50)  # Ensure readability
-    ]
+    # Academic abstract that needs improvement
+    text = """
+    This paper is about AI. We studied how AI works. We found that AI is good 
+    at some things. Our results show AI can be useful. More research is needed.
+    """
     
-    await runner.run(
-        model="gemini-1.5-flash-latest",  # Gemini for generation
-        critic_model="claude-3-5-sonnet-20241022",  # Anthropic for critique
-        validators=validators,  # Custom validation criteria
-        force_improvements=True,  # Always apply meta-evaluation
+    print("Original text:")
+    print(text)
+    print("\n" + "="*80 + "\n")
+    
+    try:
+        # Run improvement with Meta-Rewarding critic and validators
+        validators = [
+            LengthValidator(min_length=150, max_length=250)
+        ]
         
-        # Other available options (with defaults):
-        # temperature=0.7,  # Generation temperature (0.0-2.0)
-        # critic_temperature=0.3,  # Critic temperature (usually lower for consistency)
-        # show_improvement_prompt=True,  # Display the prompts sent to improve text
-        # timeout_seconds=300,  # Maximum time for the entire process
-        # storage=None,  # Custom storage backend (default: MemoryStorage)
-    )
+        result = await improve(
+            text,
+            critics=["meta_rewarding"],
+            max_iterations=3,
+            validators=validators
+        )
+        
+        print("Improved text:")
+        print(result.final_text)
+        print(f"\nIterations: {result.iteration}")
+        print(f"Processing time: {result.processing_time:.2f}s")
+        
+        # Show validation results
+        print("\nValidation results:")
+        for validation in result.validations:
+            status = "✓ Passed" if validation.passed else "✗ Failed"
+            print(f"{status} - {validation.validator}: {validation.details}")
+        
+        # Show meta-evaluation process
+        print("\nMeta-evaluation insights:")
+        for critique in result.critiques:
+            if critique.critic == "meta_rewarding" and critique.metadata:
+                if "meta_evaluation" in critique.metadata:
+                    print(f"\n- Meta-evaluation: {critique.metadata['meta_evaluation']}")
+                print(f"  Final confidence: {critique.confidence:.2f}")
+    
+    except Exception as e:
+        print(f"Error: {type(e).__name__}: {str(e)}")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -4,155 +4,112 @@ Based on: Self-Refine: Iterative Refinement with Self-Feedback
 Paper: https://arxiv.org/abs/2303.17651
 Authors: Madaan et al. (2023)
 
-Self-Refine enables models to iteratively improve their outputs
-through self-generated feedback and refinement.
+Self-Refine uses iterative self-feedback to improve outputs without
+additional training or external feedback.
 
 ## Similarity to Original Paper:
-- DIRECT: Most faithful implementation to the paper
-- PRESERVED: Iterative self-improvement without external feedback
-- PRESERVED: Model critiques its own output
-- PRESERVED: No additional training required
+- PRESERVED: Core iterative self-feedback loop
+- PRESERVED: Quality-focused refinement criteria
+- SIMPLIFIED: Single feedback generation per iteration
+- ADAPTED: Focus on general text improvement vs task-specific
 
 ## Implementation Choices:
-1. 5 evaluation dimensions: clarity, content, structure, engagement, completeness
-2. Quality score threshold of 0.8 to determine if refinement needed
-3. Iteration context tracks refinement history
-4. Each dimension scored 0.0-1.0 for granular feedback
-5. Overall quality score in metadata for refinement decisions
+1. Emphasis on quality dimensions: clarity, completeness, coherence
+2. Concrete actionable feedback prioritized
+3. Tracks refinement history to avoid loops
+4. Balances between minor edits and substantial improvements
 
 ## Why This Approach:
-- Self-Refine naturally fits text improvement use case
-- Dimensional evaluation provides structured self-feedback
-- Iteration tracking helps avoid repetitive suggestions
-- Quality threshold prevents over-refinement
-- No external data or models needed - pure self-improvement
+- Self-refinement is natural for text improvement
+- No need for external feedback sources
+- Works well in iterative improvement loops
+- Simple yet effective for quality enhancement
 """
 
-from typing import Optional, Union
+from typing import Optional, Union, List, Dict
 
 from ..core.models import SifakaResult
 from ..core.llm_client import Provider
-from .base import BaseCritic, CriticConfig, create_prompt_with_format
+from .core.base import BaseCritic
+from .core.config import CriticConfig
 
 
 class SelfRefineCritic(BaseCritic):
-    """Implements Self-Refine iterative improvement through self-feedback."""
+    """Implements Self-Refine iterative refinement approach."""
 
     def __init__(
         self,
         model: str = "gpt-4o-mini",
-        temperature: float = 0.5,
+        temperature: float = 0.7,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
         config: Optional[CriticConfig] = None,
     ):
-        # Initialize with custom config for self-refine
+        # Initialize with custom config
         if config is None:
-            config = CriticConfig(
-                response_format="json",
-                base_confidence=0.6,
-                context_weight=0.2,  # Higher weight for iterative context
-                depth_weight=0.15,
-                domain_weight=0.05,
-            )
+            config = CriticConfig(response_format="json")
         super().__init__(model, temperature, config, provider, api_key)
 
     @property
     def name(self) -> str:
         return "self_refine"
 
-    async def _generate_critique(self, text: str, result: SifakaResult) -> str:
-        """Generate self-refinement critique."""
-        # Build iteration context
-        iteration_context = self._build_iteration_context(result)
+    async def _create_messages(self, text: str, result: SifakaResult) -> List[Dict[str, str]]:
+        """Create messages for self-refinement evaluation."""
+        # Get refinement history
+        refinement_context = self._get_refinement_context(result)
+        
+        # Get previous context
+        previous_context = self._get_previous_context(result)
+        
+        user_prompt = f"""You are tasked with providing self-refinement feedback for this text.
 
-        base_prompt = f"""You are using the Self-Refine technique to iteratively improve text.
+{refinement_context}
 
-{iteration_context}
-
-Text to refine:
+Current text to refine:
 {text}
+{previous_context}
 
-Evaluate the text across these dimensions:
-1. Clarity and readability
-2. Content quality and accuracy
-3. Structure and organization
-4. Engagement and flow
-5. Completeness
+Evaluate the text across these quality dimensions:
 
-Provide specific, actionable feedback for refinement. Focus on what can be improved in the next iteration.
-Rate the overall quality (0.0-1.0) and identify specific areas for refinement."""
+1. **Clarity**: Is the text clear and easy to understand?
+2. **Completeness**: Does it cover all necessary aspects?
+3. **Coherence**: Is it well-structured and logically organized?
+4. **Engagement**: Is it interesting and compelling?
+5. **Accuracy**: Are claims supported and reasonable?
+6. **Conciseness**: Is it appropriately concise without losing meaning?
 
-        prompt = create_prompt_with_format(
-            base_prompt, self.config.response_format, include_examples=True
-        )
+Provide specific, actionable feedback for refinement. Focus on the most impactful improvements that would enhance the text quality."""
 
-        response = await self.client.complete(
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert text refiner using the Self-Refine technique.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=self.temperature,
-        )
+        return [
+            {
+                "role": "system",
+                "content": "You are a Self-Refine critic that provides iterative refinement feedback to improve text quality across multiple dimensions."
+            },
+            {
+                "role": "user",
+                "content": user_prompt
+            }
+        ]
 
-        return response.content
-
-    def _build_iteration_context(self, result: SifakaResult) -> str:
-        """Build context from iteration history."""
-        if result.iteration == 0:
-            return "This is the first iteration. Focus on identifying all areas for improvement."
-
-        context_parts = [f"This is iteration {result.iteration + 1} of refinement."]
-
-        # Include last critique if available
-        if result.critiques:
-            last_critique = list(result.critiques)[-1]
+    def _get_refinement_context(self, result: SifakaResult) -> str:
+        """Get context about the refinement process."""
+        if not result.generations:
+            return "This is the initial text requiring refinement."
+        
+        context_parts = [f"The text has undergone {len(result.generations)} refinement iterations."]
+        
+        # Note text evolution
+        if len(result.generations) >= 2:
+            first_gen = result.generations[0]
+            last_gen = result.generations[-1]
+            
+            # Calculate text growth
+            growth = len(last_gen.text) - len(first_gen.text)
+            growth_pct = (growth / len(first_gen.text) * 100) if len(first_gen.text) > 0 else 0
+            
             context_parts.append(
-                f"\nPrevious feedback: {last_critique.feedback[:200]}..."
+                f"Text has {'grown' if growth > 0 else 'shrunk'} by {abs(growth)} characters ({abs(growth_pct):.1f}%)"
             )
-            if last_critique.suggestions:
-                context_parts.append(
-                    f"Previous key suggestion: {last_critique.suggestions[0]}"
-                )
-
-        # Track improvement trajectory
-        if len(result.generations) > 1:
-            context_parts.append(
-                f"\nThe text has been refined {len(result.generations)} times."
-            )
-            context_parts.append(
-                "Focus on whether previous suggestions were addressed and identify remaining issues."
-            )
-
+        
         return "\n".join(context_parts)
-
-    def _parse_json_response(self, response: str) -> "CriticResponse":
-        """Parse JSON response with self-refine specific handling."""
-        try:
-            critic_response = super()._parse_json_response(response)
-
-            # Extract quality score from metadata if available
-            quality_score = critic_response.metadata.get("quality_score", None)
-            if quality_score is not None:
-                # Adjust confidence based on quality score
-                critic_response.confidence = min(0.9, quality_score + 0.1)
-
-                # Override needs_improvement based on quality
-                if quality_score < 0.8:
-                    critic_response.needs_improvement = True
-
-            # Self-refine specific: more suggestions usually means more refinement needed
-            if len(critic_response.suggestions) > 3:
-                critic_response.needs_improvement = True
-                critic_response.confidence *= (
-                    0.9  # Slightly lower confidence with many issues
-                )
-
-            return critic_response
-
-        except Exception:
-            # Fallback to standard parsing
-            return super()._parse_json_response(response)

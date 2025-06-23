@@ -1,200 +1,120 @@
 """Prompt-based critic implementation.
 
-A configurable critic that allows users to define custom evaluation
-criteria through prompts for domain-specific text assessment.
+The PromptCritic allows users to define custom evaluation criteria through
+natural language prompts, making it highly flexible and adaptable.
+
+## Implementation Choices:
+1. User-defined evaluation criteria via prompt
+2. Structured JSON response format
+3. Context-aware evaluation
+4. Configurable confidence calculation
+
+## Why This Approach:
+- Maximum flexibility for custom use cases
+- No need to create new critic classes
+- Natural language interface
+- Easy to experiment with different criteria
 """
 
-from typing import List, Optional, Union
-import openai
+from typing import Optional, Union, List, Dict
 
 from ..core.models import SifakaResult
 from ..core.llm_client import Provider
-from .base import BaseCritic, CriticConfig, create_prompt_with_format
+from .core.base import BaseCritic
+from .core.config import CriticConfig
 
 
 class PromptCritic(BaseCritic):
-    """Configurable prompt-based critic for custom evaluation criteria."""
+    """Flexible critic that uses custom prompts for evaluation."""
 
     def __init__(
         self,
+        custom_prompt: str = "Evaluate this text for quality and suggest improvements.",
         model: str = "gpt-4o-mini",
-        temperature: float = 0.5,
-        custom_prompt: Optional[str] = None,
-        criteria: Optional[List[str]] = None,
-        name_suffix: str = "",
+        temperature: float = 0.7,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
         config: Optional[CriticConfig] = None,
     ):
-        # Initialize with custom config for prompt critic
+        # Initialize with custom config
         if config is None:
-            # Adjust base confidence based on criteria specificity
-            base_conf = 0.7 if custom_prompt else (0.6 if criteria else 0.5)
-            config = CriticConfig(
-                response_format="json",
-                base_confidence=base_conf,
-                context_weight=0.05,
-                depth_weight=0.1,
-                domain_weight=0.15 if name_suffix else 0.05,
-            )
-        super().__init__(model, temperature, config, provider=provider, api_key=api_key)
+            config = CriticConfig(response_format="json")
+        
+        super().__init__(model, temperature, config, provider, api_key)
         self.custom_prompt = custom_prompt
-        self.criteria = criteria or []
-        self.name_suffix = name_suffix
 
     @property
     def name(self) -> str:
-        base_name = "prompt"
-        return f"{base_name}_{self.name_suffix}" if self.name_suffix else base_name
+        return "prompt"
 
-    async def _generate_critique(self, text: str, result: SifakaResult) -> str:
-        """Generate critique using custom prompt or criteria."""
-        if self.custom_prompt:
-            base_prompt = f"""{self.custom_prompt}
-
-Text to evaluate:
-{text}
-
-Please provide your assessment following the specified criteria."""
-        else:
-            base_prompt = self._build_criteria_prompt(text)
-
-        # Add specific instructions for JSON format if needed
-        if self.config.response_format == "json":
-            prompt = (
-                base_prompt
-                + """
-
-Provide your response in this JSON format:
-{
-    "feedback": "Your detailed evaluation",
-    "suggestions": ["Specific improvement 1", "Specific improvement 2", ...],
-    "needs_improvement": true/false,
-    "confidence": 0.0-1.0,
-    "metadata": {
-        "criteria_met": true/false,
-        "criteria_scores": {"criterion1": "pass/fail", ...}
-    }
-}"""
-            )
-        else:
-            prompt = create_prompt_with_format(base_prompt, self.config.response_format)
-
-        response = await self.client.complete(
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a text critic applying custom evaluation criteria.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=self.temperature,
-        )
-
-        return response.content
-
-    def _build_criteria_prompt(self, text: str) -> str:
-        """Build a prompt from the provided criteria."""
-        if not self.criteria:
-            # Default generic evaluation
-            criteria_text = """1. Clarity and readability
-2. Accuracy and factual correctness
-3. Completeness and thoroughness
-4. Structure and organization
-5. Appropriateness for intended audience"""
-        else:
-            criteria_text = "\n".join(
-                f"{i+1}. {criterion}" for i, criterion in enumerate(self.criteria)
-            )
-
-        return f"""Evaluate this text against the following custom criteria:
-
-EVALUATION CRITERIA:
-{criteria_text}
+    async def _create_messages(self, text: str, result: SifakaResult) -> List[Dict[str, str]]:
+        """Create messages using the custom prompt."""
+        # Get previous context
+        previous_context = self._get_previous_context(result)
+        
+        user_prompt = f"""{self.custom_prompt}
 
 Text to evaluate:
 {text}
+{previous_context}
 
-For each criterion, assess whether the text meets the requirement.
-Provide specific feedback and improvement suggestions."""
+Please provide specific, actionable feedback based on the evaluation criteria."""
 
-    def _parse_json_response(self, response: str) -> "CriticResponse":
-        """Parse JSON response with prompt-specific handling."""
-        try:
-            critic_response = super()._parse_json_response(response)
-
-            # Extract criteria met from metadata
-            criteria_met = critic_response.metadata.get("criteria_met", None)
-            if criteria_met is not None and not criteria_met:
-                # Override needs_improvement if criteria not met
-                critic_response.needs_improvement = True
-
-            # Enhance confidence based on domain specificity
-            if self.name_suffix:
-                domain_indicators = self._get_domain_indicators()
-                if domain_indicators:
-                    # Check if feedback contains domain-specific terms
-                    feedback_lower = critic_response.feedback.lower()
-                    domain_matches = sum(
-                        1 for ind in domain_indicators if ind in feedback_lower
-                    )
-                    if domain_matches > 0:
-                        critic_response.confidence *= 1.0 + min(
-                            0.2, domain_matches * 0.05
-                        )
-
-            return critic_response
-
-        except Exception:
-            # Fallback to standard parsing
-            return super()._parse_json_response(response)
-
-    def _get_domain_indicators(self) -> List[str]:
-        """Get domain-specific indicators based on name suffix."""
-        domain_map = {
-            "academic": [
-                "thesis",
-                "research",
-                "methodology",
-                "citation",
-                "peer-review",
-                "hypothesis",
-            ],
-            "business": [
-                "roi",
-                "strategy",
-                "stakeholder",
-                "revenue",
-                "growth",
-                "market",
-                "professional",
-            ],
-            "technical": [
-                "implementation",
-                "architecture",
-                "performance",
-                "scalability",
-                "algorithm",
-            ],
-            "creative": ["narrative", "character", "plot", "imagery", "style", "voice"],
-        }
-
-        return domain_map.get(self.name_suffix.lower(), [])
+        return [
+            {
+                "role": "system",
+                "content": "You are a customizable text critic that evaluates based on user-defined criteria."
+            },
+            {
+                "role": "user",
+                "content": user_prompt
+            }
+        ]
 
 
 def create_academic_critic(
-    model: str = "gpt-4o-mini", temperature: float = 0.5
+    model: str = "gpt-4o-mini",
+    temperature: float = 0.7,
+    **kwargs
 ) -> PromptCritic:
-    """Factory function to create an academic-focused critic."""
-    criteria = [
-        "Clear thesis statement and research objectives",
-        "Proper academic tone and formal language",
-        "Logical argument structure and flow",
-        "Adequate evidence and citations",
-        "Critical analysis and original insights",
-        "Proper academic formatting and conventions",
-    ]
+    """Create a critic for academic writing."""
+    prompt = """Evaluate this text as an academic paper excerpt. Consider:
+1. Clarity and precision of language
+2. Logical flow and argumentation
+3. Use of evidence and citations
+4. Academic tone and style
+5. Contribution to the field"""
+    
+    return PromptCritic(custom_prompt=prompt, model=model, temperature=temperature, **kwargs)
 
-    return PromptCritic(
-        model=model, temperature=temperature, criteria=criteria, name_suffix="academic"
-    )
+
+def create_business_critic(
+    model: str = "gpt-4o-mini",
+    temperature: float = 0.7,
+    **kwargs
+) -> PromptCritic:
+    """Create a critic for business documents."""
+    prompt = """Evaluate this business document. Consider:
+1. Clarity of message and call-to-action
+2. Professional tone and language
+3. Value proposition and benefits
+4. Structure and organization
+5. Persuasiveness and impact"""
+    
+    return PromptCritic(custom_prompt=prompt, model=model, temperature=temperature, **kwargs)
+
+
+def create_creative_critic(
+    model: str = "gpt-4o-mini",
+    temperature: float = 0.7,
+    **kwargs
+) -> PromptCritic:
+    """Create a critic for creative writing."""
+    prompt = """Evaluate this creative writing. Consider:
+1. Narrative flow and pacing
+2. Character development and voice
+3. Descriptive language and imagery
+4. Emotional impact and engagement
+5. Originality and creativity"""
+    
+    return PromptCritic(custom_prompt=prompt, model=model, temperature=temperature, **kwargs)

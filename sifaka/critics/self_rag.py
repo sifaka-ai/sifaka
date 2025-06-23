@@ -4,141 +4,89 @@ Based on: Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Re
 Paper: https://arxiv.org/abs/2310.11511
 Authors: Asai et al. (2023)
 
-Self-RAG enables models to reflect on their outputs and determine when
-additional retrieval would improve content quality.
+Self-RAG teaches LLMs to retrieve, generate, and critique text passages
+to improve factual accuracy and quality.
 
 ## Similarity to Original Paper:
-- ADAPTED: Retrieval decision without actual retrieval implementation
-- PRESERVED: Self-reflection on content support and utility
-- PRESERVED: Evaluation of when external information needed
-- SIMPLIFIED: No actual RAG pipeline; focuses on identifying needs
+- PRESERVED: Self-critique of factual accuracy
+- PRESERVED: Focus on verifiability and relevance
+- SIMPLIFIED: No actual retrieval system integration
+- ADAPTED: General critique vs retrieval-specific
 
 ## Implementation Choices:
-1. 4 evaluation aspects: Retrieval need, Relevance, Support, Utility
-2. Binary YES/NO decision for retrieval needs
-3. Uses older Critic interface (not BaseCritic) - simpler structure
-4. Confidence based on how many aspects need improvement
-5. Flags content that would benefit from external sources
+1. Focuses on factual claims and verifiability
+2. Evaluates need for supporting evidence
+3. Critiques relevance and accuracy
+4. Suggests where retrieval would help
 
 ## Why This Approach:
-- Identifies when text lacks factual support or references
-- Useful for flagging content needing fact-checking
-- Simpler than implementing full retrieval pipeline
-- Can be used to guide human reviewers to add sources
-- Preserves the "self-aware of knowledge gaps" concept
-
+- Factual accuracy is crucial for quality text
+- Self-critique improves reliability
+- Works without external retrieval system
+- Guides users on information gaps
 """
 
-from typing import List, Optional, Union
+from typing import Optional, Union, List, Dict
 
 from ..core.models import SifakaResult
 from ..core.llm_client import Provider
-from .base import BaseCritic, CriticConfig, create_prompt_with_format, CriticResponse
+from .core.base import BaseCritic
+from .core.config import CriticConfig
 
 
 class SelfRAGCritic(BaseCritic):
-    """Implements Self-RAG approach for retrieval-augmented critique."""
+    """Implements Self-RAG critique for factual accuracy."""
 
     def __init__(
         self,
         model: str = "gpt-4o-mini",
-        temperature: float = 0.4,
+        temperature: float = 0.7,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
         config: Optional[CriticConfig] = None,
     ):
-        # Initialize with custom config for self-rag
+        # Initialize with custom config
         if config is None:
-            config = CriticConfig(
-                response_format="structured",
-                base_confidence=0.7,
-                context_weight=0.1,
-                depth_weight=0.2,
-            )
+            config = CriticConfig(response_format="json")
         super().__init__(model, temperature, config, provider, api_key)
 
     @property
     def name(self) -> str:
         return "self_rag"
 
-    async def _generate_critique(self, text: str, result: SifakaResult) -> str:
-        """Generate critique focusing on retrieval needs."""
-        base_prompt = f"""Using the Self-RAG technique, evaluate this text for factual accuracy, completeness, and retrieval needs:
+    async def _create_messages(self, text: str, result: SifakaResult) -> List[Dict[str, str]]:
+        """Create messages for RAG-style critique."""
+        # Get previous context
+        previous_context = self._get_previous_context(result)
+        
+        user_prompt = f"""You are a Self-RAG critic focused on factual accuracy and verifiability.
 
-Text to assess:
+Text to evaluate:
 {text}
+{previous_context}
 
-Please evaluate:
-1. RETRIEVAL NEED: Does this text need additional information retrieval?
-2. RELEVANCE: Are the current facts relevant and well-supported?
-3. SUPPORT: Is the content well-supported by evidence?
-4. UTILITY: How useful and complete is the current information?
+Analyze the text for:
 
-Consider these aspects:
-- Factual accuracy and potential knowledge gaps
-- Currency of information and need for updates  
-- Completeness of coverage for the topic
-- Evidence quality and source reliability"""
+1. **Factual Claims**: Identify all factual assertions
+2. **Verifiability**: Which claims need supporting evidence?
+3. **Accuracy Concerns**: Any potentially inaccurate statements?
+4. **Information Gaps**: Where would retrieval/citations help?
+5. **Relevance**: Is all information relevant to the topic?
 
-        prompt = create_prompt_with_format(
-            base_prompt, self.config.response_format, include_examples=False
-        )
+For each issue found:
+- Explain why it's problematic
+- Suggest how to improve accuracy
+- Identify where external sources would help
 
-        # Add format-specific instructions
-        if self.config.response_format == "structured":
-            prompt += """\n\nFormat your response as:
-RETRIEVAL_NEEDED: [YES/NO and explanation]
-FEEDBACK: [Detailed evaluation of factual accuracy and completeness]
-SUGGESTIONS:
-1. [Specific improvement or retrieval query]
-2. [Another suggestion]"""
-        
-        # Get evaluation from model
-        response = await self.client.complete(
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert text critic using the Self-RAG technique for retrieval-augmented evaluation.",
-                },
-                {"role": "user", "content": prompt},
-            ]
-        )
-        return response.content
+Focus on improving the text's reliability and factual grounding."""
 
-    def _parse_structured_response(self, response: str) -> CriticResponse:
-        """Parse Self-RAG specific structured response."""
-        # First try the base parsing
-        base_response = super()._parse_structured_response(response)
-        
-        # Enhance with Self-RAG specific parsing
-        retrieval_needed = False
-        if "RETRIEVAL_NEEDED:" in response:
-            retrieval_line = response.split("RETRIEVAL_NEEDED:")[1].split("\n")[0]
-            retrieval_needed = "YES" in retrieval_line.upper()
-        
-        # Update metadata
-        base_response.metadata.update({
-            "retrieval_needed": retrieval_needed,
-            "aspects_evaluated": ["retrieval_need", "relevance", "support", "utility"]
-        })
-        
-        # Override needs_improvement based on retrieval decision
-        base_response.needs_improvement = retrieval_needed
-        
-        # Adjust confidence based on retrieval need
-        if retrieval_needed:
-            base_response.confidence = min(0.9, base_response.confidence + 0.1)
-        
-        return base_response
-
-    def _calculate_confidence(self, feedback: str, full_response: str) -> float:
-        """Calculate confidence with Self-RAG specific logic."""
-        # Start with base confidence calculation
-        confidence = super()._calculate_confidence(feedback, full_response)
-        
-        # Boost confidence if retrieval assessment is clear
-        retrieval_indicators = ["retrieval needed", "needs retrieval", "requires additional", "missing information"]
-        if any(ind in feedback.lower() for ind in retrieval_indicators):
-            confidence = min(1.0, confidence + 0.1)
-        
-        return confidence
+        return [
+            {
+                "role": "system",
+                "content": "You are a Self-RAG critic that evaluates text for factual accuracy, verifiability, and identifies where retrieval of external information would improve quality."
+            },
+            {
+                "role": "user",
+                "content": user_prompt
+            }
+        ]

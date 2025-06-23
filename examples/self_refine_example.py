@@ -1,31 +1,50 @@
-"""Self-Refine example using Anthropic generator and OpenAI critic."""
+"""Example of using Self-Refine critic for iterative self-improvement.
+
+Self-Refine focuses on quality improvements through iterative refinement.
+"""
 
 import asyncio
-from sifaka import Runner
+from sifaka import improve
 
 async def main():
-    runner = Runner(
-        critic_name="self_refine",
-        description="Iterative refinement across multiple dimensions",
-        prompt="Describe the impact of climate change on global agriculture",
-        min_length=200,
-        max_length=1200,
-        iterations=3
-    )
+    """Run Self-Refine improvement example."""
     
-    await runner.run(
-        model="claude-3-5-sonnet-20241022",  # Anthropic for generation
-        critic_model="gpt-4-turbo",  # OpenAI for critique
-        temperature=0.8,  # Higher temp for creative generation
-        critic_temperature=0.2,  # Lower temp for consistent critique
+    # Technical explanation that needs refinement
+    text = """
+    Quantum computers are different from regular computers. They use qubits instead 
+    of bits. This makes them faster for some things. They might be useful for 
+    breaking encryption and drug discovery.
+    """
+    
+    print("Original text:")
+    print(text)
+    print("\n" + "="*80 + "\n")
+    
+    try:
+        # Run improvement with Self-Refine critic
+        result = await improve(
+            text,
+            critics=["self_refine"],
+            max_iterations=3
+        )
         
-        # Other available options (with defaults):
-        # force_improvements=True,  # Always run critics even if validation passes
-        # show_improvement_prompt=True,  # Display the prompts sent to improve text
-        # timeout_seconds=300,  # Maximum time for the entire process
-        # storage=None,  # Custom storage backend (default: MemoryStorage)
-        # validators=None,  # Custom validators (default: LengthValidator)
-    )
+        print("Refined text:")
+        print(result.final_text)
+        print(f"\nIterations: {result.iteration}")
+        print(f"Processing time: {result.processing_time:.2f}s")
+        
+        # Show refinement progression
+        print("\nRefinement process:")
+        for i, generation in enumerate(result.generations):
+            print(f"\nIteration {i + 1}:")
+            print(f"  Length: {len(generation.text)} characters")
+            if i > 0:
+                prev_len = len(result.generations[i-1].text)
+                change = len(generation.text) - prev_len
+                print(f"  Change: {change:+d} characters")
+    
+    except Exception as e:
+        print(f"Error: {type(e).__name__}: {str(e)}")
 
 if __name__ == "__main__":
     asyncio.run(main())

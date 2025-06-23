@@ -1,31 +1,49 @@
-"""Reflexion example using OpenAI generator and Anthropic critic."""
+"""Example of using Reflexion critic for iterative text improvement.
+
+Reflexion uses self-reflection on previous attempts to identify and correct mistakes.
+"""
 
 import asyncio
-from sifaka import Runner
+from sifaka import improve
 
 async def main():
-    runner = Runner(
-        critic_name="reflexion",
-        description="Self-reflection based improvement",
-        prompt="Write a brief introduction to machine learning",
-        min_length=200,
-        max_length=1200,
-        iterations=3
-    )
+    """Run Reflexion improvement example."""
     
-    await runner.run(
-        model="gpt-4o-mini",  # OpenAI for generation
-        critic_model="claude-3-5-sonnet-20241022",  # Anthropic for critique
+    # Original text to improve
+    text = """
+    Climate change is a big problem. It's getting hotter and the ice is melting. 
+    We should probably do something about it soon or things will get worse.
+    """
+    
+    print("Original text:")
+    print(text)
+    print("\n" + "="*80 + "\n")
+    
+    try:
+        # Run improvement with Reflexion critic
+        result = await improve(
+            text,
+            critics=["reflexion"],
+            max_iterations=3
+        )
         
-        # Other available options (with defaults):
-        # temperature=0.7,  # Generation temperature (0.0-2.0)
-        # critic_temperature=0.3,  # Critic temperature (usually lower for consistency)
-        # force_improvements=True,  # Always run critics even if validation passes
-        # show_improvement_prompt=True,  # Display the prompts sent to improve text
-        # timeout_seconds=300,  # Maximum time for the entire process
-        # storage=None,  # Custom storage backend (default: MemoryStorage)
-        # validators=None,  # Custom validators (default: LengthValidator)
-    )
+        print("Improved text:")
+        print(result.final_text)
+        print(f"\nIterations: {result.iteration}")
+        print(f"Processing time: {result.processing_time:.2f}s")
+        
+        # Show critique feedback
+        print("\nCritique feedback:")
+        for critique in result.critiques:
+            print(f"\n- {critique.critic} (confidence: {critique.confidence:.2f}):")
+            print(f"  {critique.feedback}")
+            if critique.suggestions:
+                print("  Suggestions:")
+                for suggestion in critique.suggestions:
+                    print(f"    * {suggestion}")
+    
+    except Exception as e:
+        print(f"Error: {type(e).__name__}: {str(e)}")
 
 if __name__ == "__main__":
     asyncio.run(main())

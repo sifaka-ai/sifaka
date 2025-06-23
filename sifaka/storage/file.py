@@ -7,12 +7,11 @@ from typing import Optional, List
 from datetime import datetime
 
 from .base import StorageBackend
-from .mixins import SearchMixin
 from ..core.models import SifakaResult
 from ..core.exceptions import StorageError
 
 
-class FileStorage(StorageBackend, SearchMixin):
+class FileStorage(StorageBackend):
     """File-based storage backend for persistent storage."""
 
     def __init__(self, storage_dir: str = "./sifaka_thoughts"):
@@ -91,27 +90,25 @@ class FileStorage(StorageBackend, SearchMixin):
 
     async def search(self, query: str, limit: int = 10) -> List[str]:
         """Search results by text content."""
-        scored_results = []
+        matches = []
+        query_lower = query.lower()
 
         for file_path in self.storage_dir.glob("*.json"):
             try:
-                # Load the result to search properly
                 result = await self.load(file_path.stem)
                 if result:
-                    # Build searchable text using mixin
-                    searchable_text = self._build_searchable_text(result)
-                    
-                    # Check if matches query
-                    if self._text_matches_query(searchable_text, query):
-                        # Calculate relevance score
-                        score = self._calculate_relevance_score(result, query, searchable_text)
-                        scored_results.append((file_path.stem, score))
+                    # Simple text search
+                    if (query_lower in result.original_text.lower() or 
+                        query_lower in result.final_text.lower()):
+                        matches.append(file_path.stem)
+                        
+                    if len(matches) >= limit:
+                        break
 
             except Exception:
                 continue
 
-        # Rank and limit results
-        return self._rank_search_results(scored_results, limit)
+        return matches
 
     def cleanup_old_files(self, days_old: int = 30) -> int:
         """Clean up files older than specified days.

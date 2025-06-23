@@ -26,18 +26,16 @@ consensus to improve reliability and identify inconsistencies.
 - Higher temperature ensures diverse critical perspectives
 - Variance metric naturally measures agreement
 - Trades computation cost for evaluation reliability
-
 """
 
 from typing import List, Optional, Union, Dict, Any
 from collections import Counter
-import re
 import asyncio
-import json
 
-from ..core.models import SifakaResult
+from ..core.models import SifakaResult, CritiqueResult
 from ..core.llm_client import Provider
-from .base import BaseCritic, CriticConfig, create_prompt_with_format, CriticResponse
+from .core.base import BaseCritic
+from .core.config import CriticConfig
 
 
 class SelfConsistencyCritic(BaseCritic):
@@ -46,7 +44,7 @@ class SelfConsistencyCritic(BaseCritic):
     def __init__(
         self,
         model: str = "gpt-4o-mini",
-        temperature: float = 0.8,
+        temperature: float = 0.8,  # Higher for diversity
         num_samples: int = 3,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
@@ -54,12 +52,7 @@ class SelfConsistencyCritic(BaseCritic):
     ):
         # Initialize with custom config for self-consistency
         if config is None:
-            config = CriticConfig(
-                response_format="json",
-                base_confidence=0.7,
-                context_weight=0.2,
-                depth_weight=0.1,
-            )
+            config = CriticConfig(response_format="json")
         # Higher temperature for diversity
         super().__init__(model, temperature, config, provider, api_key)
         self.num_samples = num_samples  # Number of independent evaluations
@@ -68,257 +61,196 @@ class SelfConsistencyCritic(BaseCritic):
     def name(self) -> str:
         return "self_consistency"
 
-    async def _generate_critique(self, text: str, result: SifakaResult) -> str:
-        """Generate critique using multiple independent evaluations."""
-        # Generate multiple evaluations in parallel (async batching)
+    async def critique(self, text: str, result: SifakaResult) -> CritiqueResult:
+        """Override critique to handle multiple evaluations."""
+        # Generate multiple evaluations in parallel
         evaluation_tasks = [
-            self._get_independent_evaluation(text, i + 1)
+            self._get_single_evaluation(text, result, i + 1)
             for i in range(self.num_samples)
         ]
-        evaluations = await asyncio.gather(*evaluation_tasks)
         
-        # Analyze consistency and build consensus
-        consensus_data = self._analyze_consistency(evaluations)
+        # Get all evaluations
+        evaluations = await asyncio.gather(*evaluation_tasks, return_exceptions=True)
         
-        # Format response based on config
-        if self.config.response_format == "json":
-            return json.dumps({
-                "feedback": consensus_data["feedback"],
-                "suggestions": consensus_data["suggestions"],
-                "needs_improvement": consensus_data["consistency_score"] < 0.7,
-                "confidence": consensus_data["consistency_score"],
-                "metadata": {
-                    "num_samples": self.num_samples,
-                    "consistency_score": consensus_data["consistency_score"],
-                    "common_themes": consensus_data["common_themes"],
-                    "score_variance": consensus_data["score_variance"]
-                }
-            })
-        else:
-            return self._format_as_text(consensus_data)
+        # Filter out any failed evaluations
+        valid_evaluations = []
+        for eval_result in evaluations:
+            if isinstance(eval_result, CritiqueResult) and not isinstance(eval_result, Exception):
+                valid_evaluations.append(eval_result)
+        
+        if not valid_evaluations:
+            # All evaluations failed
+            return CritiqueResult(
+                critic=self.name,
+                feedback="Failed to generate consistent evaluations",
+                suggestions=["Please try again"],
+                needs_improvement=True,
+                confidence=0.0
+            )
+        
+        # Build consensus from valid evaluations
+        return self._build_consensus(valid_evaluations)
 
-    async def _get_independent_evaluation(self, text: str, sample_num: int) -> str:
-        """Get one independent evaluation of the text."""
-        prompt = f"""Independently evaluate this text for quality and identify any issues:
+    async def _create_messages(self, text: str, result: SifakaResult) -> List[Dict[str, str]]:
+        """Create messages for a single evaluation."""
+        # Get previous context
+        previous_context = self._get_previous_context(result)
+        
+        user_prompt = f"""Evaluate this text for quality and identify areas for improvement.
 
 Text to evaluate:
 {text}
+{previous_context}
 
 Provide your assessment considering:
-1. Overall quality (rate 1-5)
-2. Key strengths
-3. Main weaknesses  
-4. Specific improvement areas
-5. Priority level for changes (HIGH/MEDIUM/LOW)
+1. Overall quality and effectiveness
+2. Key strengths of the text
+3. Main weaknesses or issues
+4. Specific suggestions for improvement
+5. How critical these improvements are
 
-Be thorough and specific in your evaluation.
+Be thorough and specific in your evaluation."""
 
-Format as:
-QUALITY_SCORE: [1-5]
-STRENGTHS: [key strengths]
-WEAKNESSES: [main issues]
-IMPROVEMENTS: [specific suggestions]
-PRIORITY: [HIGH/MEDIUM/LOW]"""
-
-        response = await self.client.complete(
-            messages=[
-                {
-                    "role": "system",
-                    "content": f"You are an independent text evaluator (Assessment #{sample_num}). Provide an honest, thorough evaluation.",
-                },
-                {"role": "user", "content": prompt},
-            ]
-        )
-
-        return response.content
-
-    def _analyze_consistency(self, evaluations: List[str]) -> Dict[str, Any]:
-        """Analyze consistency across multiple evaluations."""
-        # Extract key data from evaluations
-        scores = []
-        priorities = []
-        strengths = []
-        weaknesses = []
-        improvements = []
-
-        for eval_text in evaluations:
-            lines = eval_text.split("\n")
-            for line in lines:
-                line = line.strip()
-
-                # Extract quality scores
-                if line.startswith("QUALITY_SCORE:"):
-                    score_match = re.search(r"(\d+)", line)
-                    if score_match:
-                        scores.append(int(score_match.group(1)))
-
-                # Extract priorities
-                elif line.startswith("PRIORITY:"):
-                    priority = line.replace("PRIORITY:", "").strip()
-                    if priority in ["HIGH", "MEDIUM", "LOW"]:
-                        priorities.append(priority)
-
-                # Collect other feedback
-                elif line.startswith("STRENGTHS:"):
-                    strengths.append(line.replace("STRENGTHS:", "").strip())
-                elif line.startswith("WEAKNESSES:"):
-                    weaknesses.append(line.replace("WEAKNESSES:", "").strip())
-                elif line.startswith("IMPROVEMENTS:"):
-                    improvements.append(line.replace("IMPROVEMENTS:", "").strip())
-
-        # Calculate consistency metrics
-        score_consistency = self._calculate_score_consistency(scores)
-        priority_consistency = self._calculate_priority_consistency(priorities)
-
-        # Overall consistency (average of metrics)
-        consistency_score = (score_consistency + priority_consistency) / 2
-
-        # Build consensus feedback
-        feedback = self._build_consensus_feedback(
-            scores, priorities, strengths, weaknesses, consistency_score
-        )
-
-        # Build consensus suggestions
-        suggestions = self._build_consensus_suggestions(improvements, consistency_score)
-        
-        # Extract common themes
-        common_themes = self._extract_common_themes(weaknesses)
-        
-        # Calculate score variance
-        avg_score = sum(scores) / len(scores) if scores else 3.0
-        score_variance = sum((s - avg_score) ** 2 for s in scores) / len(scores) if scores else 0.0
-        
-        return {
-            "feedback": feedback,
-            "suggestions": suggestions,
-            "consistency_score": consistency_score,
-            "common_themes": common_themes,
-            "score_variance": score_variance
-        }
-    
-    def _format_as_text(self, consensus_data: Dict[str, Any]) -> str:
-        """Format consensus data as structured text."""
-        return f"""CONSENSUS EVALUATION:
-{consensus_data['feedback']}
-
-SUGGESTIONS:
-{chr(10).join('- ' + s for s in consensus_data['suggestions'])}
-
-CONSISTENCY: {consensus_data['consistency_score']:.2f}"""
-    
-    def _build_consensus_suggestions(self, improvements: List[str], consistency_score: float) -> List[str]:
-        """Build consensus suggestions from multiple evaluations."""
-        suggestions = []
-        
-        # Add consistency-based suggestions
-        if consistency_score < 0.5:
-            suggestions.append("High evaluation inconsistency detected - consider fundamental revision")
-        elif consistency_score < 0.7:
-            suggestions.append("Moderate evaluation inconsistency - review conflicting areas")
-        
-        # Extract common improvement themes
-        if improvements:
-            improvement_words = []
-            for improvement in improvements:
-                improvement_words.extend(improvement.lower().split())
-            
-            common_words = [
-                word for word, count in Counter(improvement_words).most_common(3)
-                if count > 1 and len(word) > 3
-            ]
-            
-            if common_words:
-                suggestions.append(f"Common improvement themes: {', '.join(common_words)}")
-        
-        # Fallback
-        if not suggestions:
-            suggestions = ["Multiple independent evaluations completed"]
-        
-        return suggestions
-    
-    def _extract_common_themes(self, weaknesses: List[str]) -> List[str]:
-        """Extract common themes from weaknesses."""
-        if not weaknesses:
-            return []
-        
-        # Simple theme extraction - can be enhanced
-        all_words = []
-        for weakness in weaknesses:
-            all_words.extend(weakness.lower().split())
-        
-        # Get words that appear multiple times
-        word_counts = Counter(all_words)
-        common_themes = [
-            word for word, count in word_counts.most_common(5)
-            if count > 1 and len(word) > 4 and word not in ["text", "that", "this", "with", "from"]
+        return [
+            {
+                "role": "system",
+                "content": "You are an independent text evaluator providing thorough, unbiased critique."
+            },
+            {
+                "role": "user",
+                "content": user_prompt
+            }
         ]
+
+    async def _get_single_evaluation(self, text: str, result: SifakaResult, sample_num: int) -> CritiqueResult:
+        """Get one independent evaluation."""
+        # Use the parent class critique method for a single evaluation
+        # Temporarily modify system message for diversity
+        original_name = self.name
+        self._temp_name = f"{self.name}_sample_{sample_num}"
+        
+        try:
+            # Call parent critique which will use _create_messages
+            critique_result = await super().critique(text, result)
+            return critique_result
+        finally:
+            self._temp_name = None
+
+    def _build_consensus(self, evaluations: List[CritiqueResult]) -> CritiqueResult:
+        """Build consensus from multiple evaluations."""
+        # Extract common themes
+        all_feedback = [e.feedback for e in evaluations]
+        all_suggestions = []
+        for e in evaluations:
+            all_suggestions.extend(e.suggestions)
+        
+        # Calculate agreement metrics
+        needs_improvement_votes = sum(1 for e in evaluations if e.needs_improvement)
+        consensus_needs_improvement = needs_improvement_votes > len(evaluations) / 2
+        
+        # Calculate average confidence
+        avg_confidence = sum(e.confidence for e in evaluations) / len(evaluations)
+        
+        # Extract common themes from feedback
+        common_themes = self._extract_common_themes(all_feedback)
+        
+        # Build consensus feedback
+        consensus_feedback = self._build_consensus_feedback(
+            evaluations, common_themes, consensus_needs_improvement
+        )
+        
+        # Get most common suggestions
+        suggestion_counts = Counter(all_suggestions)
+        top_suggestions = [s for s, _ in suggestion_counts.most_common(5)]
+        
+        # Create metadata
+        metadata = {
+            "num_evaluations": len(evaluations),
+            "agreement_rate": needs_improvement_votes / len(evaluations),
+            "common_themes": common_themes[:3],
+            "confidence_variance": self._calculate_confidence_variance(evaluations)
+        }
+        
+        return CritiqueResult(
+            critic=self.name,
+            feedback=consensus_feedback,
+            suggestions=top_suggestions,
+            needs_improvement=consensus_needs_improvement,
+            confidence=avg_confidence,
+            metadata=metadata
+        )
+
+    def _extract_common_themes(self, feedback_list: List[str]) -> List[str]:
+        """Extract common themes from feedback."""
+        # Simple word frequency analysis
+        all_words = []
+        for feedback in feedback_list:
+            # Basic tokenization
+            words = feedback.lower().split()
+            # Filter out common words and short words
+            filtered_words = [
+                w for w in words 
+                if len(w) > 4 and w not in {"about", "text", "this", "that", "with", "from", "have", "been", "will", "would", "could", "should"}
+            ]
+            all_words.extend(filtered_words)
+        
+        # Get most common meaningful words
+        word_counts = Counter(all_words)
+        common_themes = [word for word, count in word_counts.most_common(10) if count >= 2]
         
         return common_themes
 
-    def _calculate_score_consistency(self, scores: List[int]) -> float:
-        """Calculate consistency of quality scores."""
-        if len(scores) < 2:
-            return 1.0
-
-        # Calculate variance in scores
-        avg_score = sum(scores) / len(scores)
-        variance = sum((score - avg_score) ** 2 for score in scores) / len(scores)
-
-        # Convert variance to consistency (0-1, higher is more consistent)
-        # Max variance for 1-5 scale is 4, so we normalize
-        consistency = max(0.0, 1.0 - (variance / 4.0))
-        return consistency
-
-    def _calculate_priority_consistency(self, priorities: List[str]) -> float:
-        """Calculate consistency of priority assessments."""
-        if len(priorities) < 2:
-            return 1.0
-
-        # Count most common priority
-        priority_counts = Counter(priorities)
-        most_common_count = priority_counts.most_common(1)[0][1]
-
-        # Consistency is the proportion of majority agreement
-        consistency = most_common_count / len(priorities)
-        return consistency
-
     def _build_consensus_feedback(
-        self,
-        scores: List[int],
-        priorities: List[str],
-        strengths: List[str],
-        weaknesses: List[str],
-        consistency: float,
+        self, 
+        evaluations: List[CritiqueResult], 
+        common_themes: List[str],
+        consensus_needs_improvement: bool
     ) -> str:
-        """Build consensus feedback from multiple evaluations."""
+        """Build consensus feedback message."""
         feedback_parts = []
-
-        # Score consensus
-        if scores:
-            avg_score = sum(scores) / len(scores)
-            score_range = (
-                f"{min(scores)}-{max(scores)}"
-                if min(scores) != max(scores)
-                else str(scores[0])
-            )
+        
+        # Summary of evaluations
+        feedback_parts.append(
+            f"Based on {len(evaluations)} independent evaluations:"
+        )
+        
+        # Agreement level
+        needs_improvement_count = sum(1 for e in evaluations if e.needs_improvement)
+        if needs_improvement_count == len(evaluations):
+            feedback_parts.append("All evaluations agree that improvement is needed.")
+        elif needs_improvement_count == 0:
+            feedback_parts.append("All evaluations agree the text is satisfactory.")
+        else:
             feedback_parts.append(
-                f"Quality consensus: Average {avg_score:.1f}/5 (range: {score_range})"
+                f"{needs_improvement_count}/{len(evaluations)} evaluations suggest improvement."
             )
-
-        # Priority consensus
-        if priorities:
-            priority_counts = Counter(priorities)
-            most_common_priority = priority_counts.most_common(1)[0][0]
-            feedback_parts.append(f"Priority consensus: {most_common_priority}")
-
-        # Consistency assessment
-        feedback_parts.append(f"Evaluation consistency: {consistency:.2f}")
-
+        
         # Common themes
-        if strengths:
-            feedback_parts.append("Identified strengths across evaluations")
-        if weaknesses:
-            feedback_parts.append("Identified weaknesses across evaluations")
-
+        if common_themes:
+            feedback_parts.append(
+                f"Common themes identified: {', '.join(common_themes[:5])}"
+            )
+        
+        # Confidence assessment
+        avg_confidence = sum(e.confidence for e in evaluations) / len(evaluations)
+        confidence_variance = self._calculate_confidence_variance(evaluations)
+        
+        if confidence_variance < 0.05:
+            feedback_parts.append("Evaluations show high consistency.")
+        elif confidence_variance < 0.15:
+            feedback_parts.append("Evaluations show moderate consistency.")
+        else:
+            feedback_parts.append("Evaluations show significant variation.")
+        
         return " ".join(feedback_parts)
 
+    def _calculate_confidence_variance(self, evaluations: List[CritiqueResult]) -> float:
+        """Calculate variance in confidence scores."""
+        if len(evaluations) < 2:
+            return 0.0
+        
+        confidences = [e.confidence for e in evaluations]
+        avg_confidence = sum(confidences) / len(confidences)
+        variance = sum((c - avg_confidence) ** 2 for c in confidences) / len(confidences)
+        
+        return variance

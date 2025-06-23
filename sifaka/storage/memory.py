@@ -3,12 +3,11 @@
 from typing import Optional, List, Dict
 
 from .base import StorageBackend
-from .mixins import SearchMixin
 from ..core.models import SifakaResult
 from ..core.exceptions import StorageError
 
 
-class MemoryStorage(StorageBackend, SearchMixin):
+class MemoryStorage(StorageBackend):
     """In-memory storage backend (default, non-persistent)."""
 
     def __init__(self) -> None:
@@ -52,20 +51,19 @@ class MemoryStorage(StorageBackend, SearchMixin):
     async def search(self, query: str, limit: int = 10) -> List[str]:
         """Search results by text content."""
         try:
-            scored_results = []
-
+            matches = []
+            query_lower = query.lower()
+            
             for result_id, result in self._storage.items():
-                # Build searchable text using mixin
-                searchable_text = self._build_searchable_text(result)
-                
-                # Check if matches query
-                if self._text_matches_query(searchable_text, query):
-                    # Calculate relevance score
-                    score = self._calculate_relevance_score(result, query, searchable_text)
-                    scored_results.append((result_id, score))
-
-            # Rank and limit results
-            return self._rank_search_results(scored_results, limit)
+                # Simple text search in original and final text
+                if (query_lower in result.original_text.lower() or 
+                    query_lower in result.final_text.lower()):
+                    matches.append(result_id)
+                    
+                if len(matches) >= limit:
+                    break
+                    
+            return matches
         except Exception as e:
             raise StorageError(
                 f"Search failed for query: {query}",

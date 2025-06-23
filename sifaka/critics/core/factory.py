@@ -1,28 +1,10 @@
-"""Simple factory for creating critics."""
+"""Factory for creating critics using the registry."""
 
-from typing import Dict, Type, Optional, List, Union
+from typing import Optional, List, Union
 from ..core.llm_client import Provider
-from .base import CriticConfig, BaseCritic
-from .reflexion import ReflexionCritic
-from .constitutional import ConstitutionalCritic
-from .self_refine import SelfRefineCritic
-from .n_critics import NCriticsCritic
-from .self_rag import SelfRAGCritic
-from .meta_rewarding import MetaRewardingCritic
-from .self_consistency import SelfConsistencyCritic
-from .prompt import PromptCritic
-
-# Registry of available critics
-CRITIC_REGISTRY: Dict[str, Type[BaseCritic]] = {
-    "reflexion": ReflexionCritic,
-    "constitutional": ConstitutionalCritic,
-    "self_refine": SelfRefineCritic,
-    "n_critics": NCriticsCritic,
-    "self_rag": SelfRAGCritic,
-    "meta_rewarding": MetaRewardingCritic,
-    "self_consistency": SelfConsistencyCritic,
-    "prompt": PromptCritic,
-}
+from ..core.interfaces import Critic
+from .config import CriticConfig
+from .registry import CriticRegistry
 
 
 def create_critic(
@@ -32,7 +14,7 @@ def create_critic(
     config: Optional[CriticConfig] = None,
     provider: Optional[Union[str, Provider]] = None,
     api_key: Optional[str] = None,
-) -> BaseCritic:
+) -> Critic:
     """Create a critic instance by name.
     
     Args:
@@ -49,11 +31,11 @@ def create_critic(
     Raises:
         ValueError: If critic name is unknown
     """
-    if name not in CRITIC_REGISTRY:
-        available = ", ".join(sorted(CRITIC_REGISTRY.keys()))
+    critic_class = CriticRegistry.get(name)
+    if not critic_class:
+        available = ", ".join(CriticRegistry.list())
         raise ValueError(f"Unknown critic: '{name}'. Available: {available}")
     
-    critic_class = CRITIC_REGISTRY[name]
     return critic_class(
         model=model,
         temperature=temperature,
@@ -70,7 +52,7 @@ def create_critics(
     config: Optional[CriticConfig] = None,
     provider: Optional[Union[str, Provider]] = None,
     api_key: Optional[str] = None,
-) -> List[BaseCritic]:
+) -> List[Critic]:
     """Create multiple critic instances.
     
     Args:
@@ -92,7 +74,18 @@ def create_critics(
 
 def list_available_critics() -> List[str]:
     """Get list of available critic names."""
-    return sorted(CRITIC_REGISTRY.keys())
+    return CriticRegistry.list()
+
+
+def register_critic(name: str, critic_class: type, aliases: Optional[List[str]] = None) -> None:
+    """Register a custom critic.
+    
+    Args:
+        name: Primary name for the critic
+        critic_class: The critic class to register
+        aliases: Optional alternative names
+    """
+    CriticRegistry.register(name, critic_class, aliases)
 
 
 # For backwards compatibility
@@ -100,11 +93,11 @@ class CriticFactory:
     """Factory class for backwards compatibility."""
     
     @classmethod
-    def create(cls, critic_name: str, **kwargs) -> BaseCritic:
+    def create(cls, critic_name: str, **kwargs) -> Critic:
         return create_critic(critic_name, **kwargs)
     
     @classmethod
-    def create_multiple(cls, critic_names: List[str], **kwargs) -> List[BaseCritic]:
+    def create_multiple(cls, critic_names: List[str], **kwargs) -> List[Critic]:
         return create_critics(critic_names, **kwargs)
     
     @classmethod
