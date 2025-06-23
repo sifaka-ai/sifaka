@@ -8,6 +8,7 @@ from typing import List, Optional
 from .core.models import SifakaResult, Config
 from .core.interfaces import Validator
 from .core.engine import SifakaEngine
+from .core.retry import RetryConfig
 from .core.exceptions import (
     SifakaError,
     ConfigurationError,
@@ -41,6 +42,7 @@ async def improve(
     show_improvement_prompt: bool = False,
     critic_model: Optional[str] = None,
     critic_temperature: Optional[float] = None,
+    retry_config: Optional[RetryConfig] = None,
 ) -> SifakaResult:
     """Improve text through iterative critique and refinement.
 
@@ -60,6 +62,7 @@ async def improve(
         show_improvement_prompt: Print the prompt used for text improvements
         critic_model: Model to use for critics (default: same as model)
         critic_temperature: Temperature for critic model (default: same as temperature)
+        retry_config: Retry configuration for handling transient failures
 
     Returns:
         SifakaResult with improved text and complete audit trail
@@ -96,6 +99,7 @@ async def improve(
         show_improvement_prompt=show_improvement_prompt,
         critic_model=critic_model,
         critic_temperature=critic_temperature,
+        retry_config=retry_config,
     )
 
     # Create engine and run improvement
@@ -103,9 +107,11 @@ async def improve(
     return await engine.improve(text, validators)
 
 
+
 # Expose key classes for advanced usage
 __all__ = [
     "improve",
+    # Core classes
     "SifakaResult",
     "Config",
     "SifakaEngine",
@@ -113,6 +119,8 @@ __all__ = [
     "StorageBackend",
     "MemoryStorage",
     "FileStorage",
+    # Retry configuration
+    "RetryConfig",
     # Plugin system
     "register_storage_backend",
     "get_storage_backend",

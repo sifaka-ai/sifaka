@@ -1,96 +1,31 @@
-"""Self-Consistency example: Multiple evaluations ensure consistent critique."""
+"""Self-Consistency example using Anthropic generator and Gemini critic."""
 
 import asyncio
-import json
-from pathlib import Path
-from sifaka import improve
-from sifaka.validators import LengthValidator
-
+from sifaka import Runner
 
 async def main():
-    """Show how self-consistency uses multiple samples for reliable critique."""
-    
-    prompt = "Explain the concept of quantum computing to a general audience"
-    
-    print("SELF-CONSISTENCY EXAMPLE - Consensus Through Multiple Samples")
-    print("=" * 60)
-    print(f"Task: {prompt}")
-    print("\nSelf-consistency approach:")
-    print("- Generates multiple independent critiques")
-    print("- Finds consensus among evaluations")
-    print("- Provides high-confidence feedback")
-    print()
-    
-    validators = [
-        LengthValidator(min_length=150, max_length=500)
-    ]
-    
-    result = await improve(
-        prompt,
-        critics=["self_consistency"],
-        validators=validators,
-        max_iterations=3,
-        model="gpt-4o-mini",
-        show_improvement_prompt=True,
-        force_improvements=True
+    runner = Runner(
+        critic_name="self_consistency",
+        description="Multiple evaluations with consensus",
+        prompt="Write about the ethics of genetic engineering",
+        min_length=200,
+        max_length=1200,
+        iterations=4  # Extra iteration for consistency checking
     )
     
-    print(f"\n📝 Final text ({len(result.final_text)} chars):")
-    print(result.final_text)
-    
-    # Show consistency evaluation
-    print("\n\n🎯 CONSISTENCY EVALUATION:")
-    print("=" * 60)
-    
-    for i, critique in enumerate(result.critiques):
-        print(f"\n--- Iteration {i+1} ---")
+    await runner.run(
+        model="claude-3-haiku-20240307",  # Anthropic for generation
+        critic_model="gemini-1.5-pro-latest",  # Gemini for critique
+        critic_temperature=0.1,  # Very low temp for consistent evaluations
         
-        # Self-consistency provides aggregated feedback
-        print(f"📊 Consensus feedback (confidence: {critique.confidence}):")
-        print(f"  {critique.feedback[:200]}...")
-        
-        # Show if it mentions consistency metrics
-        if "consensus" in critique.feedback.lower() or "agreement" in critique.feedback.lower():
-            print(f"\n  ✓ Multiple evaluations showed agreement")
-        
-        print(f"\n  Consensus suggestions ({len(critique.suggestions)}):")
-        for j, suggestion in enumerate(critique.suggestions[:3], 1):
-            print(f"  {j}. {suggestion}")
-        
-        if i < len(result.generations):
-            gen = result.generations[i]
-            print(f"\n  Generator response:")
-            print(f"  - Text: {len(gen.text)} chars")
-            print(f"  - Implemented: {gen.suggestion_implementation['implementation_count'] if gen.suggestion_implementation else 0} suggestions")
-    
-    # Save thoughts
-    thoughts = {
-        "workflow": "self-consistency evaluation",
-        "prompt": prompt,
-        "critic": "self_consistency",
-        "approach": "multiple independent evaluations → consensus",
-        "iterations": result.iteration,
-        "final_text": result.final_text,
-        "consensus_evaluations": [
-            {
-                "iteration": i+1,
-                "consensus_feedback": crit.feedback,
-                "consensus_suggestions": crit.suggestions,
-                "consensus_confidence": crit.confidence,
-                "evaluation_agreement": "high" if crit.confidence > 0.8 else "moderate"
-            }
-            for i, crit in enumerate(result.critiques)
-        ]
-    }
-    
-    thoughts_dir = Path("thoughts")
-    thoughts_dir.mkdir(exist_ok=True)
-    
-    with open(thoughts_dir / "self_consistency_workflow.json", "w") as f:
-        json.dump(thoughts, f, indent=2)
-    
-    print(f"\n\n✅ Self-consistency evaluation saved to thoughts/self_consistency_workflow.json")
-
+        # Other available options (with defaults):
+        # temperature=0.7,  # Generation temperature (0.0-2.0)
+        # force_improvements=True,  # Always run critics even if validation passes
+        # show_improvement_prompt=True,  # Display the prompts sent to improve text
+        # timeout_seconds=300,  # Maximum time for the entire process
+        # storage=None,  # Custom storage backend (default: MemoryStorage)
+        # validators=None,  # Custom validators (default: LengthValidator)
+    )
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -9,6 +9,7 @@ from ..core.models import SifakaResult, Config
 from ..core.interfaces import Validator, Critic
 from ..core.exceptions import ValidationError, TimeoutError, classify_openai_error
 from ..core.llm_client import LLMManager
+from ..core.retry import RetryConfig, retry_async
 from ..validators import LengthValidator
 from ..storage import StorageBackend, MemoryStorage
 from ..critics import create_critics
@@ -248,15 +249,35 @@ Please provide an improved version that addresses the feedback while maintaining
                 temperature=self.config.temperature
             )
             
-            response = await client.complete(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": self.IMPROVEMENT_SYSTEM_PROMPT,
-                    },
-                    {"role": "user", "content": prompt},
-                ]
-            )
+            # Apply retry logic if enabled
+            if self.config.retry_enabled:
+                retry_config = RetryConfig(
+                    max_attempts=self.config.retry_max_attempts,
+                    initial_delay=self.config.retry_initial_delay,
+                    max_delay=self.config.retry_max_delay,
+                    exponential_base=self.config.retry_exponential_base
+                )
+                response = await retry_async(
+                    client.complete,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": self.IMPROVEMENT_SYSTEM_PROMPT,
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    config=retry_config
+                )
+            else:
+                response = await client.complete(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": self.IMPROVEMENT_SYSTEM_PROMPT,
+                        },
+                        {"role": "user", "content": prompt},
+                    ]
+                )
 
             improved_text = response.content.strip()
 

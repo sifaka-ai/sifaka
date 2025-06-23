@@ -96,6 +96,29 @@ result = await improve(
 )
 ```
 
+### Using the Runner Helper
+```python
+from sifaka.runner import Runner
+
+# The Runner provides standardized output and configuration
+runner = Runner(
+    critic_name="reflexion",
+    prompt="Write about climate change impacts",
+    min_length=300,
+    max_length=800,
+    iterations=3
+)
+
+# Run with default settings (force_improvements=True, show_improvement_prompt=True)
+result = await runner.run()
+
+# Runner automatically:
+# - Formats output nicely
+# - Saves thoughts to JSON files
+# - Shows improvement prompts
+# - Forces improvements even if validators pass
+```
+
 
 ## Validation Examples
 

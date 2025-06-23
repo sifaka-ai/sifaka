@@ -24,6 +24,10 @@ The main function for improving text through iterative critique.
 - `temperature` (float, default=0.7): Model temperature for generation
 - `timeout_seconds` (int, default=300): Timeout in seconds
 - `storage` (StorageBackend, optional): Storage backend for results
+- `force_improvements` (bool, default=False): Always run critics even if validation passes
+- `show_improvement_prompt` (bool, default=False): Display the prompts used for improvements
+- `critic_model` (str, optional): Model to use for critics (defaults to same as model)
+- `critic_temperature` (float, optional): Temperature for critic model (defaults to same as temperature)
 
 **Returns:**
 - `SifakaResult`: Complete result with audit trail
@@ -34,6 +38,61 @@ result = await improve(
     "Write about renewable energy",
     critics=["reflexion", "constitutional"],
     max_iterations=3
+)
+```
+
+## Runner Helper Class
+
+### `Runner(critic_name, description, prompt, **kwargs)`
+
+A helper class that simplifies running Sifaka improvements with standard formatting and output.
+
+**Parameters:**
+- `critic_name` (str): Name of the critic to use
+- `description` (str): Description of the improvement task
+- `prompt` (str): The prompt/text to improve
+- `min_length` (int, default=150): Minimum text length
+- `max_length` (int, default=600): Maximum text length
+- `iterations` (int, default=3): Number of improvement iterations
+
+**Methods:**
+
+### `run(**kwargs) -> SifakaResult`
+
+Run the improvement process with formatted output.
+
+**Parameters:**
+- `model` (str, optional): Override the generator model
+- `critic_model` (str, optional): Override the critic model
+- `temperature` (float, optional): Override generation temperature
+- `critic_temperature` (float, optional): Override critic temperature
+- `validators` (List[Validator], optional): Custom validators
+- `display_callback` (Callable, optional): Custom display function
+- `save_thoughts` (bool, default=True): Save results to JSON
+- `thoughts_dir` (str, default="thoughts"): Directory for saving thoughts
+- Any other parameters accepted by `improve()`
+
+**Default Behavior:**
+- `force_improvements=True` - Always attempts to improve text even if validation passes
+- `show_improvement_prompt=True` - Displays the prompts sent to the LLM
+- Automatically formats and displays the improvement cycle
+- Saves detailed thoughts to JSON files for analysis
+
+**Example:**
+```python
+from sifaka import Runner
+
+runner = Runner(
+    critic_name="reflexion",
+    description="Self-reflection based improvement",
+    prompt="Write about machine learning",
+    min_length=200,
+    max_length=1200
+)
+
+result = await runner.run(
+    model="gpt-4o-mini",
+    critic_model="claude-3-5-sonnet-20241022"
 )
 ```
 
@@ -338,6 +397,46 @@ except TimeoutError:
 except Exception as e:
     print(f"Unexpected error: {e}")
 ```
+
+## Runner Class
+
+### `Runner(critic_name, **kwargs)`
+
+A convenience class for running improvements with standardized configuration and output formatting.
+
+**Parameters:**
+- `critic_name` (str): Name of the critic to use
+- `description` (str, optional): Description of the critique
+- `prompt` (str): The prompt to improve
+- `min_length` (int, default=150): Minimum text length
+- `max_length` (int, default=600): Maximum text length
+- `iterations` (int, default=3): Number of improvement iterations
+
+**Default Behavior:**
+- `force_improvements=True`: Always attempts improvement even if validators pass
+- `show_improvement_prompt=True`: Displays improvement prompts in output
+- Automatically saves thoughts to JSON files for analysis
+- Provides formatted console output of the improvement cycle
+
+**Example:**
+```python
+from sifaka.runner import Runner
+
+runner = Runner(
+    critic_name="reflexion",
+    description="Self-reflection improvement",
+    prompt="Write about AI ethics",
+    iterations=3
+)
+
+result = await runner.run()
+```
+
+**Methods:**
+- `run(**kwargs)`: Execute the improvement process
+  - Returns: `SifakaResult`
+  - Optional parameters can override defaults
+  - Supports all `improve()` function parameters
 
 ## Advanced Usage
 

@@ -5,6 +5,24 @@ All notable changes to the Sifaka project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### ✨ Added
+- **Retry logic with exponential backoff** for handling transient API failures
+  - Configurable `RetryConfig` with max attempts, delays, and jitter
+  - Automatic retry for network errors and rate limits
+  - Per-operation retry statistics
+
+- **Caching layer** for critic responses
+  - In-memory LRU cache implementation
+  - Cache hit/miss statistics
+  - TTL-based expiration
+  - Optional global cache configuration
+
+### 🔧 Changed
+- Enhanced API to accept `retry_config` parameter
+- Integrated caching into base critic class
+
 ## [0.0.7] - 2024-06-22
 
 ### 🎯 Major Rewrite and Architecture Improvements

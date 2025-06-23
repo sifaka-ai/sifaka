@@ -190,6 +190,7 @@ result = await improve(
 )
 ```
 
+
 ### With Advanced Critics
 ```python
 # Ensemble critique with multiple perspectives
@@ -225,6 +226,22 @@ result = await improve(
     validators=[
         GuardrailsValidator(["toxic-language", "detect-pii"])
     ]
+)
+```
+
+
+### With Retry Logic
+```python
+from sifaka.core.retry import RetryConfig
+
+# Configure automatic retries for transient failures
+result = await improve(
+    "Write about AI ethics",
+    retry_config=RetryConfig(
+        max_attempts=3,
+        initial_delay=1.0,
+        exponential_base=2.0
+    )
 )
 ```
 

@@ -54,6 +54,9 @@ dev = [
 # All features
 all = ["sifaka[anthropic,gemini,guardrails]"]
 
+[project.scripts]
+sifaka = "sifaka.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sifaka*"]

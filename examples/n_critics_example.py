@@ -1,96 +1,31 @@
-"""N-Critics example: Multiple perspectives evaluate generated content."""
+"""N-Critics example using Groq generator and Gemini critic."""
 
 import asyncio
-import json
-from pathlib import Path
-from sifaka import improve
-from sifaka.validators import LengthValidator
-
+from sifaka import Runner
 
 async def main():
-    """Show how multiple critic perspectives improve generation."""
-    
-    prompt = "Explain how renewable energy can address climate change"
-    
-    print("N-CRITICS EXAMPLE - Multi-Perspective Evaluation")
-    print("=" * 60)
-    print(f"Task: {prompt}")
-    print("\nCritic perspectives:")
-    print("- Technical accuracy expert")
-    print("- General readability critic")
-    print("- Structure and flow editor")
-    print("- Subject matter specialist")
-    print()
-    
-    validators = [
-        LengthValidator(min_length=200, max_length=800)
-    ]
-    
-    result = await improve(
-        prompt,
-        critics=["n_critics"],
-        validators=validators,
-        max_iterations=3,
-        model="gpt-4o-mini",
-        show_improvement_prompt=True,
-        force_improvements=True
+    runner = Runner(
+        critic_name="n_critics",
+        description="Multi-perspective evaluation",
+        prompt="How can renewable energy address climate change?",
+        min_length=200,
+        max_length=1200,
+        iterations=3
     )
     
-    print(f"\n📝 Final text ({len(result.final_text)} chars):")
-    print(result.final_text)
-    
-    # Show multi-perspective evaluation
-    print("\n\n👥 MULTI-PERSPECTIVE EVALUATION:")
-    print("=" * 60)
-    
-    for i, critique in enumerate(result.critiques):
-        print(f"\n--- Iteration {i+1} ---")
-        print(f"🎭 Ensemble feedback (confidence: {critique.confidence}):")
-        print(f"  {critique.feedback[:200]}...")
+    await runner.run(
+        model="llama-3.3-70b-versatile",  # Groq for generation
+        critic_model="gemini-1.5-pro",  # Gemini for critique
+        show_improvement_prompt=True,  # See how multiple perspectives combine
         
-        print(f"\n  Consensus suggestions ({len(critique.suggestions)}):")
-        for j, suggestion in enumerate(critique.suggestions[:3], 1):  # Show first 3
-            print(f"  {j}. {suggestion}")
-        
-        if i < len(result.generations):
-            gen = result.generations[i]
-            print(f"\n  Generator response:")
-            print(f"  - Produced {len(gen.text)} chars")
-            print(f"  - Addressed {gen.suggestion_implementation['implementation_count'] if gen.suggestion_implementation else 0} suggestions")
-    
-    # Save thoughts
-    thoughts = {
-        "workflow": "multi-perspective critique",
-        "prompt": prompt,
-        "critic": "n_critics",
-        "perspectives": [
-            "Technical accuracy",
-            "General readability",
-            "Structure and flow",
-            "Subject expertise"
-        ],
-        "iterations": result.iteration,
-        "final_text": result.final_text,
-        "ensemble_evaluations": [
-            {
-                "iteration": i+1,
-                "consensus_feedback": crit.feedback,
-                "suggestions": crit.suggestions,
-                "ensemble_confidence": crit.confidence,
-                "needs_improvement": crit.needs_improvement
-            }
-            for i, crit in enumerate(result.critiques)
-        ]
-    }
-    
-    thoughts_dir = Path("thoughts")
-    thoughts_dir.mkdir(exist_ok=True)
-    
-    with open(thoughts_dir / "n_critics_workflow.json", "w") as f:
-        json.dump(thoughts, f, indent=2)
-    
-    print(f"\n\n✅ Multi-perspective evaluation saved to thoughts/n_critics_workflow.json")
-
+        # Other available options (with defaults):
+        # temperature=0.7,  # Generation temperature (0.0-2.0)
+        # critic_temperature=0.3,  # Critic temperature (usually lower for consistency)
+        # force_improvements=True,  # Always run critics even if validation passes
+        # timeout_seconds=300,  # Maximum time for the entire process
+        # storage=None,  # Custom storage backend (default: MemoryStorage)
+        # validators=None,  # Custom validators (default: LengthValidator)
+    )
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -8,6 +8,7 @@ import json
 from sifaka.core.models import CritiqueResult, SifakaResult
 from sifaka.core.interfaces import Critic
 from sifaka.core.llm_client import LLMClient, LLMManager, Provider
+from sifaka.core.cache import get_global_cache
 
 
 class CriticResponse(BaseModel):
@@ -244,7 +245,22 @@ class BaseCritic(Critic, ABC):
         return "You are an expert text critic."
 
     async def critique(self, text: str, result: SifakaResult) -> CritiqueResult:
-        """Standardized critique method."""
+        """Standardized critique method with caching support."""
+        # Check cache first
+        cache = get_global_cache()
+        if cache:
+            cached_result = await cache.get_critique(
+                text=text,
+                critic_name=self.name,
+                model=self.model,
+                temperature=self.temperature,
+                iteration=result.iteration
+            )
+            
+            if cached_result:
+                # Convert cached data back to CritiqueResult
+                return CritiqueResult(**cached_result)
+        
         try:
             # Generate critique
             raw_response = await self._generate_critique(text, result)
@@ -258,7 +274,7 @@ class BaseCritic(Critic, ABC):
                 critic_response = self._parse_text_response(raw_response)
 
             # Convert to CritiqueResult
-            return CritiqueResult(
+            critique_result = CritiqueResult(
                 critic=self.name,
                 feedback=critic_response.feedback,
                 suggestions=critic_response.suggestions,
@@ -266,6 +282,19 @@ class BaseCritic(Critic, ABC):
                 confidence=critic_response.confidence,
                 metadata=critic_response.metadata,
             )
+            
+            # Cache the result
+            if cache:
+                await cache.set_critique(
+                    text=text,
+                    critic_name=self.name,
+                    model=self.model,
+                    temperature=self.temperature,
+                    critique_data=critique_result.model_dump(),
+                    iteration=result.iteration
+                )
+            
+            return critique_result
 
         except Exception as e:
             # Fallback for errors

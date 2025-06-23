@@ -1,98 +1,38 @@
-"""Meta-Rewarding example: Critic evaluates its own critique quality."""
+"""Meta-Rewarding example using Gemini generator and Anthropic critic."""
 
 import asyncio
-import json
-from pathlib import Path
-from sifaka import improve
-from sifaka.validators import LengthValidator
-
+from sifaka import Runner
+from sifaka.validators import LengthValidator, ReadabilityValidator
 
 async def main():
-    """Show meta-level evaluation of critique quality."""
-    
-    prompt = "Describe the future of work in the age of AI"
-    
-    print("META-REWARDING EXAMPLE - Self-Evaluating Critique")
-    print("=" * 60)
-    print(f"Task: {prompt}")
-    print("\nMeta-rewarding evaluates:")
-    print("- Quality of its own critique")
-    print("- Reliability of feedback")
-    print("- Confidence in suggestions")
-    print()
-    
-    validators = [
-        LengthValidator(min_length=200, max_length=700)
-    ]
-    
-    result = await improve(
-        prompt,
-        critics=["meta_rewarding"],
-        validators=validators,
-        max_iterations=3,
-        model="gpt-4o-mini",
-        show_improvement_prompt=True,
-        force_improvements=True
+    runner = Runner(
+        critic_name="meta_rewarding",
+        description="Two-stage meta-evaluation critique",
+        prompt="Describe the future of work in the age of AI",
+        min_length=200,
+        max_length=1200,
+        iterations=3
     )
     
-    print(f"\n📝 Final text ({len(result.final_text)} chars):")
-    print(result.final_text)
+    # Custom validators for meta-evaluation
+    validators = [
+        LengthValidator(min_length=200, max_length=1200),
+        ReadabilityValidator(min_score=50)  # Ensure readability
+    ]
     
-    # Show meta-evaluation process
-    print("\n\n🔄 META-EVALUATION PROCESS:")
-    print("=" * 60)
-    
-    for i, critique in enumerate(result.critiques):
-        print(f"\n--- Iteration {i+1} ---")
+    await runner.run(
+        model="gemini-1.5-flash-latest",  # Gemini for generation
+        critic_model="claude-3-5-sonnet-20241022",  # Anthropic for critique
+        validators=validators,  # Custom validation criteria
+        force_improvements=True,  # Always apply meta-evaluation
         
-        # Extract meta-assessment from feedback
-        feedback_parts = critique.feedback.split("Meta-assessment:")
-        main_feedback = feedback_parts[0].strip()
-        meta_assessment = feedback_parts[1].strip() if len(feedback_parts) > 1 else "Not provided"
-        
-        print(f"📝 Primary critique:")
-        print(f"  {main_feedback[:150]}...")
-        
-        print(f"\n🔍 Meta-assessment of critique quality:")
-        print(f"  {meta_assessment[:200]}...")
-        
-        print(f"\n  Confidence: {critique.confidence}")
-        print(f"  Suggestions: {len(critique.suggestions)}")
-        
-        if i < len(result.generations):
-            gen = result.generations[i]
-            print(f"\n  Generator response: {len(gen.text)} chars")
-    
-    # Save thoughts
-    thoughts = {
-        "workflow": "meta-rewarding critique",
-        "prompt": prompt,
-        "critic": "meta_rewarding",
-        "meta_evaluation": True,
-        "iterations": result.iteration,
-        "final_text": result.final_text,
-        "meta_critiques": [
-            {
-                "iteration": i+1,
-                "primary_feedback": crit.feedback.split("Meta-assessment:")[0].strip() 
-                    if "Meta-assessment:" in crit.feedback else crit.feedback,
-                "meta_assessment": crit.feedback.split("Meta-assessment:")[1].strip() 
-                    if "Meta-assessment:" in crit.feedback else "Not provided",
-                "suggestions": crit.suggestions,
-                "self_assessed_confidence": crit.confidence
-            }
-            for i, crit in enumerate(result.critiques)
-        ]
-    }
-    
-    thoughts_dir = Path("thoughts")
-    thoughts_dir.mkdir(exist_ok=True)
-    
-    with open(thoughts_dir / "meta_rewarding_workflow.json", "w") as f:
-        json.dump(thoughts, f, indent=2)
-    
-    print(f"\n\n✅ Meta-evaluation process saved to thoughts/meta_rewarding_workflow.json")
-
+        # Other available options (with defaults):
+        # temperature=0.7,  # Generation temperature (0.0-2.0)
+        # critic_temperature=0.3,  # Critic temperature (usually lower for consistency)
+        # show_improvement_prompt=True,  # Display the prompts sent to improve text
+        # timeout_seconds=300,  # Maximum time for the entire process
+        # storage=None,  # Custom storage backend (default: MemoryStorage)
+    )
 
 if __name__ == "__main__":
     asyncio.run(main())

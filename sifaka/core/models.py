@@ -216,3 +216,10 @@ class Config(BaseModel):
 
     # Timeouts
     timeout_seconds: float = Field(default=300.0, ge=0.001, le=3600)
+    
+    # Retry configuration
+    retry_enabled: bool = True
+    retry_max_attempts: int = Field(default=3, ge=1, le=10)
+    retry_initial_delay: float = Field(default=1.0, ge=0.1, le=60.0)
+    retry_max_delay: float = Field(default=60.0, ge=1.0, le=300.0)
+    retry_exponential_base: float = Field(default=2.0, ge=1.1, le=10.0)
