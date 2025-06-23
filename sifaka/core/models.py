@@ -201,6 +201,10 @@ class Config(BaseModel):
     model: str = "gpt-4o-mini"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: Optional[int] = None
+    
+    # Critic model settings (optional, defaults to main model)
+    critic_model: Optional[str] = None
+    critic_temperature: Optional[float] = None
 
     # Iteration settings
     max_iterations: int = Field(default=3, ge=1, le=10)

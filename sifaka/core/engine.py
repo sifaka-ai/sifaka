@@ -110,10 +110,14 @@ class SifakaEngine:
 
     def _initialize_critics(self) -> List[Critic]:
         """Initialize critic instances from configuration."""
+        # Use critic-specific model/temperature if provided
+        critic_model = self.config.critic_model or self.config.model
+        critic_temp = self.config.critic_temperature if self.config.critic_temperature is not None else self.config.temperature
+        
         return create_critics(
             names=self.config.critics,
-            model=self.config.model,
-            temperature=self.config.temperature,
+            model=critic_model,
+            temperature=critic_temp,
         )
 
     async def _run_validators(

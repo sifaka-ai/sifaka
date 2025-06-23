@@ -39,6 +39,8 @@ async def improve(
     storage: Optional[StorageBackend] = None,
     force_improvements: bool = False,
     show_improvement_prompt: bool = False,
+    critic_model: Optional[str] = None,
+    critic_temperature: Optional[float] = None,
 ) -> SifakaResult:
     """Improve text through iterative critique and refinement.
 
@@ -56,6 +58,8 @@ async def improve(
         storage: Storage backend for persisting results (default: MemoryStorage)
         force_improvements: Always run critics and try to improve text, even if validation passes
         show_improvement_prompt: Print the prompt used for text improvements
+        critic_model: Model to use for critics (default: same as model)
+        critic_temperature: Temperature for critic model (default: same as temperature)
 
     Returns:
         SifakaResult with improved text and complete audit trail
@@ -90,6 +94,8 @@ async def improve(
         timeout_seconds=timeout_seconds,
         force_improvements=force_improvements,
         show_improvement_prompt=show_improvement_prompt,
+        critic_model=critic_model,
+        critic_temperature=critic_temperature,
     )
 
     # Create engine and run improvement
