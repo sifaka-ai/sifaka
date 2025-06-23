@@ -10,7 +10,7 @@ from typing import List
 
 from sifaka import improve
 from sifaka.core.engine import SifakaEngine
-from sifaka.core.models import Config
+from sifaka.core.config import Config
 from sifaka.core.models import SifakaResult, Generation, CritiqueResult
 from sifaka.storage import MemoryStorage, FileStorage
 from sifaka.validators import LengthValidator, ContentValidator

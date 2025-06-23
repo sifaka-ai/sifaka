@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.prompt import PromptCritic, create_academic_critic
-from sifaka.critics.base import CriticConfig
+from sifaka.core.config import Config
 from sifaka.core.models import SifakaResult, CritiqueResult
 
 

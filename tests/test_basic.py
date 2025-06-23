@@ -5,7 +5,8 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 from sifaka import improve
-from sifaka.core.models import SifakaResult, Config
+from sifaka.core.models import SifakaResult
+from sifaka.core.config import Config
 from sifaka.validators import LengthValidator, ContentValidator
 
 
@@ -84,19 +85,17 @@ class TestConfig:
     def test_config_validation(self):
         """Test config validation catches errors."""
         # Test invalid max_iterations
-        config = Config(max_iterations=0)
-        with pytest.raises(ValueError, match="max_iterations must be between 1 and 10"):
-            config.validate_config()
+        with pytest.raises(ValueError):
+            Config(max_iterations=0)
 
         # Test invalid temperature
-        config = Config(temperature=3.0)
-        with pytest.raises(ValueError, match="temperature must be between 0 and 2"):
-            config.validate_config()
+        with pytest.raises(ValueError):
+            Config(temperature=3.0)
 
-        # Test invalid critic
-        config = Config(critics=["invalid_critic"])
-        with pytest.raises(ValueError, match="Unknown critic"):
-            config.validate_config()
+        # Valid config should work
+        config = Config(max_iterations=3, temperature=0.5)
+        assert config.max_iterations == 3
+        assert config.temperature == 0.5
 
     def test_config_defaults(self):
         """Test default configuration values."""

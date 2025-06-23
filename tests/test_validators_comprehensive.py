@@ -5,7 +5,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import tempfile
 import json
 
-from sifaka.validators import LengthValidator, ContentValidator
+from sifaka.validators import (
+    LengthValidator, 
+    ContentValidator,
+    PatternValidator,
+    NumericRangeValidator,
+    create_percentage_validator,
+    create_price_validator,
+    create_age_validator,
+    create_code_validator,
+    create_citation_validator,
+    create_structured_validator,
+)
 from sifaka.core.interfaces import Validator
 from sifaka.core.models import ValidationResult, SifakaResult
 
@@ -941,3 +952,198 @@ class TestValidatorEdgeCases:
 
         assert len(results) == 10
         assert all(result.passed for result in results)
+
+
+class TestPatternValidator:
+    """Test PatternValidator thoroughly."""
+
+    def test_init(self):
+        """Test validator initialization."""
+        validator = PatternValidator()
+        assert validator.name == "pattern_validator"
+        assert len(validator.required_patterns) == 0
+        assert len(validator.forbidden_patterns) == 0
+
+    @pytest.mark.asyncio
+    async def test_required_patterns(self):
+        """Test required pattern matching."""
+        validator = PatternValidator(
+            required_patterns={"email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"}
+        )
+        text = "Contact: user@example.com"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is True
+        assert "1 pattern(s) validated successfully" in result.details
+
+    @pytest.mark.asyncio
+    async def test_missing_required_patterns(self):
+        """Test missing required patterns."""
+        validator = PatternValidator(
+            required_patterns={"phone": r"\d{3}-\d{3}-\d{4}"}
+        )
+        text = "No phone number here"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is False
+        assert "Required pattern 'phone' not found" in result.details
+
+    @pytest.mark.asyncio
+    async def test_forbidden_patterns(self):
+        """Test forbidden pattern detection."""
+        validator = PatternValidator(
+            forbidden_patterns={"ssn": r"\d{3}-\d{2}-\d{4}"}
+        )
+        text = "SSN: 123-45-6789"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is False
+        assert "Forbidden pattern 'ssn' found" in result.details
+
+    @pytest.mark.asyncio
+    async def test_pattern_counts(self):
+        """Test pattern occurrence counting."""
+        validator = PatternValidator(
+            required_patterns={"code_block": r"```[\w]*\n[\s\S]+?\n```"},
+            pattern_counts={"code_block": (2, 3)}
+        )
+        text = "```python\ncode1\n```\n\nOnly one code block"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is False
+        assert "must occur at least 2 times" in result.details
+
+    @pytest.mark.asyncio
+    async def test_code_validator_factory(self):
+        """Test code validator factory."""
+        validator = create_code_validator()
+        text = "Here's code:\n```python\nprint('hello')\n```"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is True
+
+    @pytest.mark.asyncio
+    async def test_citation_validator_factory(self):
+        """Test citation validator factory."""
+        validator = create_citation_validator()
+        text = "According to research [1], this is true (Smith, 2023)."
+        
+        result = await validator.validate(text, None)
+        assert result.passed is True
+
+    @pytest.mark.asyncio
+    async def test_structured_validator_factory(self):
+        """Test structured document validator factory."""
+        validator = create_structured_validator()
+        text = "# Main Heading\n\n- First point\n- Second point\n- Third point"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is True
+
+
+class TestNumericRangeValidator:
+    """Test NumericRangeValidator thoroughly."""
+
+    def test_init(self):
+        """Test validator initialization."""
+        validator = NumericRangeValidator()
+        assert validator.name == "numeric_range_validator"
+        assert validator.min_value is None
+        assert validator.max_value is None
+
+    @pytest.mark.asyncio
+    async def test_validate_in_range(self):
+        """Test validation of numbers in range."""
+        validator = NumericRangeValidator(min_value=0, max_value=100)
+        text = "The score is 85 out of 100."
+        
+        result = await validator.validate(text, None)
+        assert result.passed is True
+        assert "Validated 2 numeric value(s)" in result.details
+
+    @pytest.mark.asyncio
+    async def test_validate_out_of_range(self):
+        """Test validation of numbers out of range."""
+        validator = NumericRangeValidator(min_value=0, max_value=100)
+        text = "The temperature is -10 degrees."
+        
+        result = await validator.validate(text, None)
+        assert result.passed is False
+        assert "below minimum" in result.details
+
+    @pytest.mark.asyncio
+    async def test_validate_percentages(self):
+        """Test percentage validation."""
+        validator = NumericRangeValidator(check_percentages=True)
+        text = "Success rate: 95% but error rate: 150%"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is False
+        assert "Invalid percentage: 150" in result.details  # May be 150% or 150.0%
+
+    @pytest.mark.asyncio
+    async def test_validate_currency(self):
+        """Test currency validation."""
+        validator = NumericRangeValidator(check_currency=True, min_value=0)
+        text = "Price: $49.99 but cost: $150.00"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is True
+        assert "numeric value(s)" in result.details
+
+    @pytest.mark.asyncio
+    async def test_allowed_ranges(self):
+        """Test allowed ranges validation."""
+        validator = NumericRangeValidator(allowed_ranges=[(0, 10), (90, 100)])
+        text = "Values: 5, 50, 95"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is False
+        assert "outside allowed ranges" in result.details
+
+    @pytest.mark.asyncio
+    async def test_forbidden_ranges(self):
+        """Test forbidden ranges validation."""
+        validator = NumericRangeValidator(forbidden_ranges=[(13, 19), (666, 666)])
+        text = "Age: 15 and number: 666"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is False
+        assert "in forbidden range" in result.details
+
+    @pytest.mark.asyncio
+    async def test_percentage_validator_factory(self):
+        """Test percentage validator factory."""
+        validator = create_percentage_validator()
+        text = "Coverage: 98.5%"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is True
+
+    @pytest.mark.asyncio
+    async def test_price_validator_factory(self):
+        """Test price validator factory."""
+        validator = create_price_validator(max_price=1000)
+        text = "Product costs $599.99"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is True
+
+    @pytest.mark.asyncio
+    async def test_age_validator_factory(self):
+        """Test age validator factory."""
+        validator = create_age_validator()
+        text = "The person is 25 years old"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is True
+
+    @pytest.mark.asyncio
+    async def test_age_validator_unrealistic(self):
+        """Test age validator with unrealistic age."""
+        validator = create_age_validator()
+        text = "The artifact is 250 years old"
+        
+        result = await validator.validate(text, None)
+        assert result.passed is False
+        assert "forbidden range" in result.details

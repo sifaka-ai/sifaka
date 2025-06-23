@@ -38,6 +38,21 @@ class Config(BaseModel):
         description="Temperature for critics (default: same as temperature)"
     )
     
+    # Critic-specific settings
+    critic_base_confidence: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Base confidence level for critic assessments"
+    )
+    
+    critic_context_window: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Number of previous critiques to consider"
+    )
+    
     # Iteration settings
     max_iterations: int = Field(
         default=3,
@@ -70,6 +85,13 @@ class Config(BaseModel):
         description="Maximum processing time in seconds"
     )
     
+    critic_timeout_seconds: float = Field(
+        default=30.0,
+        ge=10.0,
+        le=300.0,
+        description="Timeout for individual critic operations"
+    )
+    
     # Retry configuration (simplified)
     retry_enabled: bool = Field(
         default=True,
@@ -95,4 +117,17 @@ class Config(BaseModel):
         ge=1.1,
         le=10.0,
         description="Exponential backoff base"
+    )
+    
+    # Special critic configurations
+    self_consistency_num_samples: int = Field(
+        default=3,
+        ge=2,
+        le=5,
+        description="Number of evaluation samples for Self-Consistency critic"
+    )
+    
+    constitutional_principles: Optional[List[str]] = Field(
+        default=None,
+        description="Custom principles for Constitutional AI critic"
     )

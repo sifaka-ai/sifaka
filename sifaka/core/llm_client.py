@@ -1,12 +1,14 @@
 """Simplified provider-agnostic LLM client."""
 
 import os
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Optional, List, Union, Any, cast
 from enum import Enum
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 import openai
-import httpx
+from openai.types.chat import ChatCompletionMessageParam
+
+from ..core.retry import with_retry, RETRY_STANDARD
 
 
 # Load environment variables
@@ -77,21 +79,25 @@ class LLMClient:
             Provider.GEMINI: "GEMINI_API_KEY",
             Provider.GROQ: "GROQ_API_KEY"
         }
-        return os.getenv(env_keys.get(provider))
+        env_var = env_keys.get(provider)
+        return os.getenv(env_var) if env_var else None
     
     def _get_provider_model(self) -> str:
         """Get provider-specific model name."""
         mappings = self.MODEL_MAPPINGS.get(self.provider, {})
         return mappings.get(self.model, self.model)
     
-    async def complete(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
+    @with_retry(RETRY_STANDARD)
+    async def complete(self, messages: List[Dict[str, str]], **kwargs: Any) -> LLMResponse:
         """Complete a conversation."""
         provider_model = self._get_provider_model()
         
         try:
+            # Cast messages to the expected type
+            typed_messages = cast(List[ChatCompletionMessageParam], messages)
             response = await self.client.chat.completions.create(
                 model=provider_model,
-                messages=messages,
+                messages=typed_messages,
                 temperature=kwargs.get("temperature", self.temperature),
                 **{k: v for k, v in kwargs.items() if k != 'temperature'}
             )
@@ -102,14 +108,27 @@ class LLMClient:
                 model=provider_model
             )
         except Exception as e:
-            # Simple error handling
+            # Convert to appropriate custom exception
+            from ..core.exceptions import ModelProviderError
+            
             error_msg = str(e).lower()
             if "rate limit" in error_msg:
-                raise RuntimeError("Rate limit exceeded. Please wait and retry.")
+                raise ModelProviderError(
+                    "Rate limit exceeded",
+                    provider=self.provider.value,
+                    error_code="rate_limit"
+                ) from e
             elif "api key" in error_msg or "unauthorized" in error_msg:
-                raise RuntimeError("Invalid API key.")
+                raise ModelProviderError(
+                    "Authentication failed",
+                    provider=self.provider.value,
+                    error_code="authentication"
+                ) from e
             else:
-                raise RuntimeError(f"LLM error: {str(e)}")
+                raise ModelProviderError(
+                    f"LLM API error: {str(e)}",
+                    provider=self.provider.value
+                ) from e
 
 
 class LLMManager:

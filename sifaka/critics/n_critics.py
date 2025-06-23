@@ -31,7 +31,7 @@ from typing import Optional, Union, List, Dict
 from ..core.models import SifakaResult
 from ..core.llm_client import Provider
 from .core.base import BaseCritic
-from .core.config import CriticConfig
+from ..core.config import Config
 
 
 # Define critic perspectives
@@ -53,11 +53,11 @@ class NCriticsCritic(BaseCritic):
         temperature: float = 0.7,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
-        config: Optional[CriticConfig] = None,
+        config: Optional[Config] = None,
     ):
         # Initialize with custom config
         if config is None:
-            config = CriticConfig(response_format="json")
+            config = Config()
         super().__init__(model, temperature, config, provider, api_key)
 
     @property

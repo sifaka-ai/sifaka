@@ -40,10 +40,6 @@ ERROR_TIMEOUT = "Operation timed out after {timeout} seconds"
 MSG_CRITIQUE_COMPLETE = "Critique completed successfully"
 MSG_IMPROVEMENT_COMPLETE = "Text improvement completed"
 
-# Cache keys
-CACHE_CRITIC_PREFIX = "critic"
-CACHE_TTL_DEFAULT = 3600
-
 # Plugin entry points
 ENTRY_POINT_CRITICS = "sifaka.critics"
 ENTRY_POINT_VALIDATORS = "sifaka.validators"

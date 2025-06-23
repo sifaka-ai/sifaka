@@ -1,11 +1,10 @@
 """Dynamic critic registry for extensibility."""
 
-from typing import Dict, Type, Optional, List, Callable
+from typing import Dict, Type, Optional, List
 import importlib.metadata
 
-from .base import BaseCritic
-from ..core.interfaces import Critic
-from ..core.constants import ENTRY_POINT_CRITICS
+from ...core.interfaces import Critic
+from ...core.constants import ENTRY_POINT_CRITICS
 
 
 class CriticRegistry:
@@ -67,7 +66,11 @@ class CriticRegistry:
         try:
             # Python 3.10+ with importlib.metadata
             entry_points = importlib.metadata.entry_points()
-            critic_eps = entry_points.select(group=ENTRY_POINT_CRITICS)
+            if hasattr(entry_points, 'select'):
+                critic_eps = entry_points.select(group=ENTRY_POINT_CRITICS)
+            else:
+                # Fallback for different versions
+                critic_eps = entry_points.get(ENTRY_POINT_CRITICS, [])
         except AttributeError:
             # Python 3.9 compatibility
             entry_points = importlib.metadata.entry_points()
@@ -89,7 +92,7 @@ class CriticRegistry:
 
 
 # Pre-register built-in critics
-def register_builtin_critics():
+def register_builtin_critics() -> None:
     """Register all built-in critics."""
     from ..reflexion import ReflexionCritic
     from ..constitutional import ConstitutionalCritic

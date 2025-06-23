@@ -4,12 +4,11 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Union
 
 from ...core.models import CritiqueResult, SifakaResult
+from ...core.config import Config
 from ...core.interfaces import Critic
 from ...core.llm_client import LLMClient, LLMManager, Provider
-from ...core.cache import get_global_cache
 
-from .config import CriticConfig
-from .response_parser import ResponseParser, CriticResponse
+from .response_parser import ResponseParser
 from .confidence import ConfidenceCalculator
 
 
@@ -20,21 +19,21 @@ class BaseCritic(Critic, ABC):
         self,
         model: str = "gpt-4o-mini",
         temperature: Optional[float] = None,
-        config: Optional[CriticConfig] = None,
+        config: Optional[Config] = None,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
     ):
         """Initialize critic with configuration."""
-        self.config = config or CriticConfig()
+        self.config = config or Config()
         self.model = model
-        self.temperature = temperature or self.config.temperature
+        self.temperature = temperature or self.config.critic_temperature or self.config.temperature
         self.provider = provider
         self._api_key = api_key
         self._client: Optional[LLMClient] = None
         
         # Components
         self._parser = ResponseParser()
-        self._confidence_calc = ConfidenceCalculator(self.config.base_confidence)
+        self._confidence_calc = ConfidenceCalculator(self.config.critic_base_confidence)
     
     @property
     def client(self) -> LLMClient:
@@ -68,7 +67,7 @@ class BaseCritic(Critic, ABC):
         pass
     
     async def critique(self, text: str, result: SifakaResult) -> CritiqueResult:
-        """Critique the text with caching support.
+        """Critique the text.
         
         Args:
             text: Text to critique
@@ -77,18 +76,6 @@ class BaseCritic(Critic, ABC):
         Returns:
             CritiqueResult with feedback and suggestions
         """
-        # Check cache
-        cache = get_global_cache()
-        if cache:
-            cached = await cache.get_critique(
-                text=text,
-                critic_name=self.name,
-                model=self.model,
-                temperature=self.temperature,
-                iteration=result.iteration
-            )
-            if cached:
-                return CritiqueResult(**cached)
         
         try:
             # Generate critique
@@ -103,7 +90,7 @@ class BaseCritic(Critic, ABC):
             # Call LLM
             response = await self.client.complete(
                 messages,
-                timeout=self.config.timeout_seconds
+                timeout=self.config.critic_timeout_seconds
             )
             
             # Parse response
@@ -119,7 +106,7 @@ class BaseCritic(Critic, ABC):
                 )
             
             # Create result
-            result = CritiqueResult(
+            critique_result = CritiqueResult(
                 critic=self.name,
                 feedback=critic_response.feedback,
                 suggestions=critic_response.suggestions,
@@ -128,18 +115,7 @@ class BaseCritic(Critic, ABC):
                 metadata=critic_response.metadata
             )
             
-            # Cache result
-            if cache:
-                await cache.set_critique(
-                    text=text,
-                    critic_name=self.name,
-                    model=self.model,
-                    temperature=self.temperature,
-                    critique_data=result.model_dump(),
-                    iteration=result.iteration
-                )
-            
-            return result
+            return critique_result
             
         except Exception as e:
             # Return error result
@@ -169,14 +145,14 @@ class BaseCritic(Critic, ABC):
         
         # Get recent critiques from this critic
         recent = []
-        for critique in list(result.critiques)[-self.config.context_window:]:
+        for critique in list(result.critiques)[-self.config.critic_context_window:]:
             if critique.critic == self.name:
                 recent.append(f"- {critique.feedback}")
         
         if not recent:
             return ""
         
-        return f"\n\nPrevious feedback:\n" + "\n".join(recent) + \
+        return "\n\nPrevious feedback:\n" + "\n".join(recent) + \
                "\n\nPlease provide NEW insights and avoid repetition."
 
 

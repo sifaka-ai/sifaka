@@ -3,7 +3,7 @@
 from typing import Dict, Type, List, Any
 import pkg_resources
 
-from .storage.base import StorageBackend
+from ..storage.base import StorageBackend
 
 
 class PluginRegistry:

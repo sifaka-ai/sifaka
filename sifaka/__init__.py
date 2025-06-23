@@ -3,13 +3,12 @@
 This is the main API for Sifaka - simple functions that do everything you need.
 """
 
-from typing import List, Optional
-
 # Core API
-from .core.api import improve, improve_sync, improve_advanced
+from .api import improve, improve_sync, improve_advanced
 
 # Core classes
-from .core.models import SifakaResult, Config
+from .core.models import SifakaResult
+from .core.config import Config
 from .core.interfaces import Validator
 from .core.engine import SifakaEngine
 from .core.retry import RetryConfig
@@ -19,6 +18,19 @@ from .storage import StorageBackend, MemoryStorage, FileStorage
 
 # Critics
 from .critics import register_critic, CriticRegistry
+
+# Middleware
+from .core.middleware import (
+    MiddlewarePipeline, 
+    LoggingMiddleware,
+    MetricsMiddleware,
+    CachingMiddleware,
+    RateLimitingMiddleware,
+    monitor as monitor_context
+)
+
+# Monitoring
+from .core.monitoring import monitor, get_global_monitor, PerformanceMetrics
 
 # Exceptions
 from .core.exceptions import (
@@ -73,4 +85,15 @@ __all__ = [
     "StorageError",
     "PluginError",
     "TimeoutError",
+    # Middleware
+    "MiddlewarePipeline",
+    "LoggingMiddleware",
+    "MetricsMiddleware",
+    "CachingMiddleware",
+    "RateLimitingMiddleware",
+    # Monitoring
+    "monitor",
+    "monitor_context",
+    "get_global_monitor",
+    "PerformanceMetrics",
 ]

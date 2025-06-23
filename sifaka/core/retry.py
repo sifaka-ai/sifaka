@@ -1,7 +1,7 @@
 """Simplified retry logic for Sifaka."""
 
 import asyncio
-from typing import TypeVar, Callable, Optional
+from typing import TypeVar, Callable, Optional, Any
 from functools import wraps
 
 from .exceptions import ModelProviderError
@@ -30,14 +30,14 @@ class RetryConfig:
         self.backoff = backoff
 
 
-def with_retry(config: Optional[RetryConfig] = None):
+def with_retry(config: Optional[RetryConfig] = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator for adding retry logic to async functions."""
     if config is None:
         config = RetryConfig()
     
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             last_error = None
             delay = config.delay
             
@@ -53,7 +53,10 @@ def with_retry(config: Optional[RetryConfig] = None):
                     else:
                         raise
             
-            raise last_error
+            # This should never be reached, but helps mypy
+            if last_error is not None:
+                raise last_error
+            raise RuntimeError("Retry failed unexpectedly")
         
         return wrapper
     return decorator

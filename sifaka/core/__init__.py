@@ -1,6 +1,7 @@
 """Core components for Sifaka."""
 
-from .models import SifakaResult, Config, Generation, ValidationResult, CritiqueResult
+from .models import SifakaResult, Generation, ValidationResult, CritiqueResult
+from .config import Config
 from .interfaces import Validator, Critic
 from .engine import SifakaEngine
 

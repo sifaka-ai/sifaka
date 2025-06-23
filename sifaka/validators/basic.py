@@ -3,8 +3,7 @@
 import re
 from typing import List, Optional, Tuple
 
-from ..core.models import SifakaResult, ValidationResult
-from ..core.interfaces import Validator
+from ..core.models import SifakaResult
 from .base import BaseValidator, ValidatorConfig
 
 

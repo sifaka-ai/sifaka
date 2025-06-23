@@ -16,12 +16,12 @@ natural language prompts, making it highly flexible and adaptable.
 - Easy to experiment with different criteria
 """
 
-from typing import Optional, Union, List, Dict
+from typing import Optional, Union, List, Dict, Any
 
 from ..core.models import SifakaResult
 from ..core.llm_client import Provider
 from .core.base import BaseCritic
-from .core.config import CriticConfig
+from ..core.config import Config
 
 
 class PromptCritic(BaseCritic):
@@ -34,11 +34,11 @@ class PromptCritic(BaseCritic):
         temperature: float = 0.7,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
-        config: Optional[CriticConfig] = None,
+        config: Optional[Config] = None,
     ):
         # Initialize with custom config
         if config is None:
-            config = CriticConfig(response_format="json")
+            config = Config()
         
         super().__init__(model, temperature, config, provider, api_key)
         self.custom_prompt = custom_prompt
@@ -75,7 +75,7 @@ Please provide specific, actionable feedback based on the evaluation criteria.""
 def create_academic_critic(
     model: str = "gpt-4o-mini",
     temperature: float = 0.7,
-    **kwargs
+    **kwargs: Any
 ) -> PromptCritic:
     """Create a critic for academic writing."""
     prompt = """Evaluate this text as an academic paper excerpt. Consider:
@@ -91,7 +91,7 @@ def create_academic_critic(
 def create_business_critic(
     model: str = "gpt-4o-mini",
     temperature: float = 0.7,
-    **kwargs
+    **kwargs: Any
 ) -> PromptCritic:
     """Create a critic for business documents."""
     prompt = """Evaluate this business document. Consider:
@@ -107,7 +107,7 @@ def create_business_critic(
 def create_creative_critic(
     model: str = "gpt-4o-mini",
     temperature: float = 0.7,
-    **kwargs
+    **kwargs: Any
 ) -> PromptCritic:
     """Create a critic for creative writing."""
     prompt = """Evaluate this creative writing. Consider:

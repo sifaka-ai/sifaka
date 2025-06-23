@@ -12,13 +12,13 @@ class ValidatorConfig(BaseModel):
     """Configuration for validator behavior."""
     
     # Score calculation
-    min_score: float = Field(0.0, ge=0.0, le=1.0)
-    max_score: float = Field(1.0, ge=0.0, le=1.0)
-    pass_threshold: float = Field(0.7, ge=0.0, le=1.0)
+    min_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    max_score: float = Field(default=1.0, ge=0.0, le=1.0)
+    pass_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
     
     # Behavior flags
-    strict_mode: bool = Field(False, description="Fail on any violation")
-    detailed_feedback: bool = Field(True, description="Provide detailed feedback")
+    strict_mode: bool = Field(default=False, description="Fail on any violation")
+    detailed_feedback: bool = Field(default=True, description="Provide detailed feedback")
 
 
 class BaseValidator(Validator, ABC):

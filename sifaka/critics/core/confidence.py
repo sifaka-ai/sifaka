@@ -1,6 +1,6 @@
 """Confidence calculation for critic assessments."""
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 
 class ConfidenceCalculator:
@@ -15,7 +15,7 @@ class ConfidenceCalculator:
         feedback: str,
         suggestions: List[str],
         response_length: int,
-        metadata: Optional[dict] = None
+        metadata: Optional[Dict[str, Any]] = None
     ) -> float:
         """Calculate confidence score based on multiple factors.
         

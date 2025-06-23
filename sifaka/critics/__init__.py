@@ -1,7 +1,7 @@
 """Research-backed critics for text improvement."""
 
-from .core.base import BaseCritic, create_prompt_with_format
-from .core.config import CriticConfig, ConstitutionalConfig, SelfConsistencyConfig, NCriticsConfig
+from .core.base import BaseCritic
+# Config imports removed - now using unified Config from core.config
 from .core.response_parser import CriticResponse
 from .reflexion import ReflexionCritic
 from .constitutional import ConstitutionalCritic
@@ -17,7 +17,6 @@ from .core.registry import CriticRegistry
 __all__ = [
     # Base classes
     "BaseCritic",
-    "CriticConfig",
     "CriticResponse",
     # Critics
     "ReflexionCritic",

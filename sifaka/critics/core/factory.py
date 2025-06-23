@@ -1,17 +1,18 @@
 """Factory for creating critics using the registry."""
 
-from typing import Optional, List, Union
-from ..core.llm_client import Provider
-from ..core.interfaces import Critic
-from .config import CriticConfig
+from typing import Optional, List, Union, Type, cast, Any
+from ...core.llm_client import Provider
+from ...core.interfaces import Critic
+from ...core.config import Config
 from .registry import CriticRegistry
+from .base import BaseCritic
 
 
 def create_critic(
     name: str,
     model: str = "gpt-4o-mini",
     temperature: Optional[float] = None,
-    config: Optional[CriticConfig] = None,
+    config: Optional[Config] = None,
     provider: Optional[Union[str, Provider]] = None,
     api_key: Optional[str] = None,
 ) -> Critic:
@@ -36,7 +37,9 @@ def create_critic(
         available = ", ".join(CriticRegistry.list())
         raise ValueError(f"Unknown critic: '{name}'. Available: {available}")
     
-    return critic_class(
+    # Cast to proper type for instantiation
+    critic_type = cast(Type[BaseCritic], critic_class)
+    return critic_type(
         model=model,
         temperature=temperature,
         config=config,
@@ -49,7 +52,7 @@ def create_critics(
     names: List[str],
     model: str = "gpt-4o-mini",
     temperature: Optional[float] = None,
-    config: Optional[CriticConfig] = None,
+    config: Optional[Config] = None,
     provider: Optional[Union[str, Provider]] = None,
     api_key: Optional[str] = None,
 ) -> List[Critic]:
@@ -93,11 +96,11 @@ class CriticFactory:
     """Factory class for backwards compatibility."""
     
     @classmethod
-    def create(cls, critic_name: str, **kwargs) -> Critic:
+    def create(cls, critic_name: str, **kwargs: Any) -> Critic:
         return create_critic(critic_name, **kwargs)
     
     @classmethod
-    def create_multiple(cls, critic_names: List[str], **kwargs) -> List[Critic]:
+    def create_multiple(cls, critic_names: List[str], **kwargs: Any) -> List[Critic]:
         return create_critics(critic_names, **kwargs)
     
     @classmethod

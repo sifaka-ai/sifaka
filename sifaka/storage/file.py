@@ -105,7 +105,11 @@ class FileStorage(StorageBackend):
                     if len(matches) >= limit:
                         break
 
-            except Exception:
+            except Exception as e:
+                # Log error but continue searching other files
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Error reading result file {file_path}: {e}")
                 continue
 
         return matches

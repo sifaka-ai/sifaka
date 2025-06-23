@@ -14,7 +14,7 @@ being helpful, harmless, and honest.
 - ADAPTED: Principles focused on text quality rather than safety alone
 
 ## Implementation Choices:
-1. Configurable principles via CriticConfig
+1. Configurable principles via Config
 2. Balance between safety and quality considerations
 3. Structured evaluation against each principle
 4. Clear feedback on constitutional violations
@@ -31,7 +31,7 @@ from typing import Optional, Union, List, Dict
 from ..core.models import SifakaResult
 from ..core.llm_client import Provider
 from .core.base import BaseCritic
-from .core.config import CriticConfig
+from ..core.config import Config
 
 
 # Default constitutional principles
@@ -54,17 +54,17 @@ class ConstitutionalCritic(BaseCritic):
         temperature: float = 0.7,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
-        config: Optional[CriticConfig] = None,
+        config: Optional[Config] = None,
         principles: Optional[List[str]] = None,
     ):
         # Initialize with custom config
         if config is None:
-            config = CriticConfig(response_format="json")
+            config = Config()
         
         super().__init__(model, temperature, config, provider, api_key)
         
-        # Use provided principles or defaults
-        self.principles = principles or DEFAULT_PRINCIPLES
+        # Use provided principles or config principles or defaults
+        self.principles = principles or (config.constitutional_principles if config else None) or DEFAULT_PRINCIPLES
 
     @property
     def name(self) -> str:

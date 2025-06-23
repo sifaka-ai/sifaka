@@ -1,14 +1,16 @@
 """Simplified API for Sifaka."""
 
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 import asyncio
 
-from ..core.models import SifakaResult
-from ..core.config import Config
-from ..core.interfaces import Validator
-from ..core.engine import SifakaEngine
-from ..core.constants import DEFAULT_CRITIC, DEFAULT_MAX_ITERATIONS, DEFAULT_MODEL
-from ..storage import StorageBackend
+from .core.models import SifakaResult
+from .core.config import Config
+from .core.interfaces import Validator
+from .core.engine import SifakaEngine
+from .core.constants import DEFAULT_CRITIC, DEFAULT_MAX_ITERATIONS, DEFAULT_MODEL
+from .core.retry import RetryConfig
+from .core.middleware import MiddlewarePipeline
+from .storage import StorageBackend
 
 
 async def improve(
@@ -19,6 +21,7 @@ async def improve(
     validators: Optional[List[Validator]] = None,
     config: Optional[Config] = None,
     storage: Optional[StorageBackend] = None,
+    middleware: Optional[MiddlewarePipeline] = None,
 ) -> SifakaResult:
     """Improve text through iterative critique - simplified API.
     
@@ -63,7 +66,23 @@ async def improve(
     
     # Run improvement
     engine = SifakaEngine(engine_config, storage)
-    return await engine.improve(text, validators)
+    
+    # If middleware is provided, use it
+    if middleware:
+        context = {
+            "critics": critics,
+            "validators": validators,
+            "model": config.model,
+            "temperature": config.temperature,
+            "config": engine_config
+        }
+        
+        async def final_handler(text: str) -> SifakaResult:
+            return await engine.improve(text, validators)
+        
+        return await middleware.execute(text, final_handler, context)
+    else:
+        return await engine.improve(text, validators)
 
 
 def improve_sync(
@@ -112,7 +131,7 @@ async def improve_advanced(
     show_improvement_prompt: bool = False,
     critic_model: Optional[str] = None,
     critic_temperature: Optional[float] = None,
-    retry_config: Optional[Union[dict, 'RetryConfig']] = None,
+    retry_config: Optional[Union[Dict[str, Any], 'RetryConfig']] = None,
 ) -> SifakaResult:
     """Advanced API with all parameters exposed.
     

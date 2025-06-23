@@ -30,8 +30,8 @@ from typing import Optional, Union, List, Dict
 
 from ..core.models import SifakaResult
 from ..core.llm_client import Provider
+from ..core.config import Config
 from .core.base import BaseCritic
-from .core.config import CriticConfig
 
 
 class ReflexionCritic(BaseCritic):
@@ -43,11 +43,11 @@ class ReflexionCritic(BaseCritic):
         temperature: float = 0.7,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
-        config: Optional[CriticConfig] = None,
+        config: Optional[Config] = None,
     ):
         # Initialize with custom config for reflexion
         if config is None:
-            config = CriticConfig(response_format="json")
+            config = Config()
         super().__init__(model, temperature, config, provider, api_key)
 
     @property

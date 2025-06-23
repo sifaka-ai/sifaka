@@ -28,14 +28,14 @@ consensus to improve reliability and identify inconsistencies.
 - Trades computation cost for evaluation reliability
 """
 
-from typing import List, Optional, Union, Dict, Any
+from typing import List, Optional, Union, Dict
 from collections import Counter
 import asyncio
 
 from ..core.models import SifakaResult, CritiqueResult
 from ..core.llm_client import Provider
 from .core.base import BaseCritic
-from .core.config import CriticConfig
+from ..core.config import Config
 
 
 class SelfConsistencyCritic(BaseCritic):
@@ -48,14 +48,15 @@ class SelfConsistencyCritic(BaseCritic):
         num_samples: int = 3,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
-        config: Optional[CriticConfig] = None,
+        config: Optional[Config] = None,
     ):
         # Initialize with custom config for self-consistency
         if config is None:
-            config = CriticConfig(response_format="json")
+            config = Config()
         # Higher temperature for diversity
         super().__init__(model, temperature, config, provider, api_key)
-        self.num_samples = num_samples  # Number of independent evaluations
+        # Use config value if available, otherwise use parameter
+        self.num_samples = config.self_consistency_num_samples if config else num_samples
 
     @property
     def name(self) -> str:
@@ -126,7 +127,6 @@ Be thorough and specific in your evaluation."""
         """Get one independent evaluation."""
         # Use the parent class critique method for a single evaluation
         # Temporarily modify system message for diversity
-        original_name = self.name
         self._temp_name = f"{self.name}_sample_{sample_num}"
         
         try:
@@ -134,7 +134,7 @@ Be thorough and specific in your evaluation."""
             critique_result = await super().critique(text, result)
             return critique_result
         finally:
-            self._temp_name = None
+            self._temp_name = self.name
 
     def _build_consensus(self, evaluations: List[CritiqueResult]) -> CritiqueResult:
         """Build consensus from multiple evaluations."""
@@ -149,7 +149,7 @@ Be thorough and specific in your evaluation."""
         consensus_needs_improvement = needs_improvement_votes > len(evaluations) / 2
         
         # Calculate average confidence
-        avg_confidence = sum(e.confidence for e in evaluations) / len(evaluations)
+        avg_confidence = sum(e.confidence or 0.0 for e in evaluations) / len(evaluations)
         
         # Extract common themes from feedback
         common_themes = self._extract_common_themes(all_feedback)
@@ -232,7 +232,6 @@ Be thorough and specific in your evaluation."""
             )
         
         # Confidence assessment
-        avg_confidence = sum(e.confidence for e in evaluations) / len(evaluations)
         confidence_variance = self._calculate_confidence_variance(evaluations)
         
         if confidence_variance < 0.05:
@@ -249,7 +248,7 @@ Be thorough and specific in your evaluation."""
         if len(evaluations) < 2:
             return 0.0
         
-        confidences = [e.confidence for e in evaluations]
+        confidences = [e.confidence or 0.0 for e in evaluations]
         avg_confidence = sum(confidences) / len(confidences)
         variance = sum((c - avg_confidence) ** 2 for c in confidences) / len(confidences)
         

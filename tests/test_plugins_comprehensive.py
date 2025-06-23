@@ -7,7 +7,7 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-from sifaka.plugins import (
+from sifaka.core.plugins import (
     register_storage_backend,
     create_storage_backend,
     list_storage_backends,

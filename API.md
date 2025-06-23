@@ -1,267 +1,218 @@
 # Sifaka API Reference
 
-## Core Function
+## Core Functions
 
-### `improve(text, **kwargs) -> SifakaResult`
+### `improve()`
 
-The main function for improving text through iterative critique.
+Asynchronously improve text through iterative critique.
+
+```python
+async def improve(
+    text: str,
+    *,
+    critics: Optional[List[str]] = None,
+    max_iterations: int = 3,
+    validators: Optional[List[Validator]] = None,
+    config: Optional[Config] = None,
+    storage: Optional[StorageBackend] = None,
+) -> SifakaResult
+```
 
 **Parameters:**
-
 - `text` (str): The text to improve
-- `critics` (List[str], optional): List of critics to use. Default: ["reflexion"]. Available options:
-  - `"reflexion"` - Self-reflection and learning from mistakes
-  - `"constitutional"` - Principle-based ethical evaluation
-  - `"self_refine"` - Iterative self-improvement
-  - `"n_critics"` - Multi-perspective ensemble critique
-  - `"self_rag"` - Retrieval-augmented critique
-  - `"meta_rewarding"` - Meta-evaluation of judgments
-  - `"self_consistency"` - Consensus-based evaluation
-  - `"prompt"` - Custom prompt-based critique
-- `max_iterations` (int, default=3): Maximum number of improvement iterations
-- `validators` (List[Validator], optional): Validation constraints
-- `config` (Config, optional): Advanced configuration options including model, temperature, timeouts, etc.
+- `critics` (List[str], optional): List of critic names. Default: ["reflexion"]
+- `max_iterations` (int): Maximum improvement iterations (1-10). Default: 3
+- `validators` (List[Validator], optional): Quality validators to apply
+- `config` (Config, optional): Advanced configuration options
 - `storage` (StorageBackend, optional): Storage backend for results
 
 **Returns:**
-- `SifakaResult`: Complete result with audit trail
+- `SifakaResult`: Object containing improved text and complete audit trail
 
 **Example:**
 ```python
+from sifaka import improve
+
 result = await improve(
-    "Write about renewable energy",
+    "Write about AI benefits",
     critics=["reflexion", "constitutional"],
     max_iterations=3
 )
+print(result.final_text)
 ```
 
-## Runner Helper Class
+### `improve_sync()`
 
-### `Runner(critic_name, description, prompt, **kwargs)`
+Synchronous wrapper for `improve()`.
 
-A helper class that simplifies running Sifaka improvements with standard formatting and output.
+```python
+def improve_sync(
+    text: str,
+    *,
+    critics: Optional[List[str]] = None,
+    max_iterations: int = 3,
+    validators: Optional[List[Validator]] = None,
+    config: Optional[Config] = None,
+    storage: Optional[StorageBackend] = None,
+) -> SifakaResult
+```
 
-**Parameters:**
-- `critic_name` (str): Name of the critic to use
-- `description` (str): Description of the improvement task
-- `prompt` (str): The prompt/text to improve
-- `min_length` (int, default=150): Minimum text length
-- `max_length` (int, default=600): Maximum text length
-- `iterations` (int, default=3): Number of improvement iterations
-
-**Methods:**
-
-### `run(**kwargs) -> SifakaResult`
-
-Run the improvement process with formatted output.
-
-**Parameters:**
-- `model` (str, optional): Override the generator model
-- `critic_model` (str, optional): Override the critic model
-- `temperature` (float, optional): Override generation temperature
-- `critic_temperature` (float, optional): Override critic temperature
-- `validators` (List[Validator], optional): Custom validators
-- `display_callback` (Callable, optional): Custom display function
-- `save_thoughts` (bool, default=True): Save results to JSON
-- `thoughts_dir` (str, default="thoughts"): Directory for saving thoughts
-- Any other parameters accepted by `improve()`
-
-**Default Behavior:**
-- `force_improvements=True` - Always attempts to improve text even if validation passes
-- `show_improvement_prompt=True` - Displays the prompts sent to the LLM
-- Automatically formats and displays the improvement cycle
-- Saves detailed thoughts to JSON files for analysis
+**Parameters:** Same as `improve()`
 
 **Example:**
 ```python
-from sifaka import Runner
+from sifaka import improve_sync
 
-runner = Runner(
-    critic_name="reflexion",
-    description="Self-reflection based improvement",
-    prompt="Write about machine learning",
-    min_length=200,
-    max_length=1200
-)
-
-result = await runner.run(
-    model="gpt-4o-mini",
-    critic_model="claude-3-5-sonnet-20241022"
-)
+result = improve_sync("Write about climate change")
+print(result.final_text)
 ```
 
 ## Critics
 
-### ReflexionCritic
-Implements self-reflection and learning from mistakes.
+### Available Critics
 
-**Research:** [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)
+- **`reflexion`** - Self-reflection and learning from mistakes (default)
+- **`constitutional`** - Principle-based ethical evaluation
+- **`self_refine`** - Iterative self-improvement
+- **`n_critics`** - Multi-perspective ensemble critique
+- **`self_rag`** - Retrieval-augmented critique for factual accuracy
+- **`meta_rewarding`** - Two-stage judgment with meta-evaluation
+- **`self_consistency`** - Consensus-based evaluation
+- **`prompt`** - Custom prompt-based critique
 
-**Usage:**
+### Using Critics
+
 ```python
-await improve(text, critics=["reflexion"])
+# Single critic
+result = await improve(text, critics=["reflexion"])
+
+# Multiple critics
+result = await improve(text, critics=["reflexion", "constitutional"])
+
+# Custom critic configuration
+from sifaka.critics import PromptCritic
+
+custom_critic = PromptCritic(
+    custom_prompt="Evaluate for technical accuracy and clarity"
+)
+result = await improve(text, critics=[custom_critic])
 ```
-
-**Features:**
-- Context-aware reflection
-- Dynamic confidence calculation
-- Learning from previous iterations
-
-### ConstitutionalCritic
-Principle-based evaluation following Constitutional AI approach.
-
-**Research:** [Constitutional AI: Harmlessness from AI Feedback](https://arxiv.org/abs/2212.08073)
-
-**Usage:**
-```python
-await improve(text, critics=["constitutional"])
-```
-
-**Features:**
-- Structured principle evaluation
-- Violation detection and scoring
-- Ethical compliance assessment
-
-### SelfRefineCritic
-Iterative self-improvement through self-feedback.
-
-**Research:** [Self-Refine: Iterative Refinement with Self-Feedback](https://arxiv.org/abs/2303.17651)
-
-**Usage:**
-```python
-await improve(text, critics=["self_refine"])
-```
-
-**Features:**
-- Quality-based assessment
-- Iterative refinement suggestions
-- Context from previous iterations
-
-### NCriticsCritic
-Multi-perspective ensemble critique.
-
-**Research:** [N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics](https://arxiv.org/abs/2310.18679)
-
-**Usage:**
-```python
-await improve(text, critics=["n_critics"])
-```
-
-**Features:**
-- Multiple critical perspectives
-- Consensus-based scoring
-- Configurable perspectives
-
-**Custom Perspectives:**
-```python
-from sifaka.critics.n_critics import NCriticsCritic
-
-custom_critic = NCriticsCritic(perspectives=[
-    "Technical accuracy: Focus on correctness",
-    "Clarity: Focus on readability",
-    "Completeness: Focus on thoroughness"
-])
-```
-
-### SelfRAGCritic
-Retrieval-augmented critique for factual accuracy.
-
-**Research:** [Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection](https://arxiv.org/abs/2310.11511)
-
-**Usage:**
-```python
-await improve(text, critics=["self_rag"])
-```
-
-**Features:**
-- Retrieval need assessment
-- Factual accuracy evaluation
-- Evidence quality analysis
-
-### MetaRewardingCritic
-Two-stage judgment with meta-evaluation.
-
-**Research:** [Meta-Rewarding: Learning to Judge Judges with Self-Generated Meta-Judgments](https://arxiv.org/abs/2407.19594)
-
-**Usage:**
-```python
-await improve(text, critics=["meta_rewarding"])
-```
-
-**Features:**
-- Initial judgment stage
-- Meta-judgment of evaluation quality
-- Reliability scoring
-
-### SelfConsistencyCritic
-Consensus-based evaluation through multiple independent assessments.
-
-**Research:** [Self-Consistency Improves Chain of Thought Reasoning in Language Models](https://arxiv.org/abs/2203.11171)
-
-**Usage:**
-```python
-await improve(text, critics=["self_consistency"])
-```
-
-**Features:**
-- Multiple independent evaluations
-- Consistency analysis
-- Majority consensus building
-
-### PromptCritic
-Custom prompt-based critique system.
-
-**Usage:**
-```python
-await improve(text, critics=["prompt"])
-```
-
-**Features:**
-- Customizable evaluation criteria
-- Flexible prompt templates
-- Domain-specific assessment
 
 ## Validators
 
-### LengthValidator
-Enforces text length constraints.
+### Built-in Validators
 
-**Usage:**
+#### LengthValidator
 ```python
 from sifaka.validators import LengthValidator
 
 validator = LengthValidator(min_length=100, max_length=1000)
-await improve(text, validators=[validator])
+result = await improve(text, validators=[validator])
 ```
 
-**Parameters:**
-- `min_length` (int): Minimum required length
-- `max_length` (int): Maximum allowed length
-
-### ContentValidator
-Validates presence of required terms and concepts.
-
-**Usage:**
+#### ContentValidator
 ```python
 from sifaka.validators import ContentValidator
 
 validator = ContentValidator(
-    required_terms=["methodology", "results", "conclusion"],
-    forbidden_terms=["maybe", "perhaps"]
+    required_keywords=["methodology", "results"],
+    forbidden_words=["maybe", "perhaps"],
+    min_sentences=5
 )
-await improve(text, validators=[validator])
+result = await improve(text, validators=[validator])
 ```
 
-**Parameters:**
-- `required_terms` (List[str]): Terms that must be present
-- `forbidden_terms` (List[str]): Terms that must not be present
+#### FormatValidator
+```python
+from sifaka.validators import FormatValidator
 
-## Storage Backends
+validator = FormatValidator(
+    require_punctuation=True,
+    allow_urls=True,
+    max_caps_ratio=0.1  # Max 10% caps
+)
+result = await improve(text, validators=[validator])
+```
 
-### MemoryStorage
-In-memory storage (default, non-persistent).
+#### PatternValidator
+```python
+from sifaka.validators import PatternValidator
 
-**Usage:**
+# Validate email format
+email_validator = PatternValidator(
+    pattern=r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+    description="Must include valid email"
+)
+result = await improve(text, validators=[email_validator])
+```
+
+#### NumericRangeValidator
+```python
+from sifaka.validators import NumericRangeValidator
+
+# Validate word count
+word_count_validator = NumericRangeValidator(
+    min_value=50,
+    max_value=100,
+    value_extractor=lambda text: len(text.split()),
+    description="Word count between 50-100"
+)
+result = await improve(text, validators=[word_count_validator])
+```
+
+### Validator Factories
+
+```python
+from sifaka.validators import (
+    create_percentage_validator,
+    create_price_validator,
+    create_age_validator
+)
+
+# Validate percentages (0-100%)
+percentage_val = create_percentage_validator()
+
+# Validate prices in range
+price_val = create_price_validator(min_price=10.0, max_price=1000.0)
+
+# Validate ages
+age_val = create_age_validator(min_age=18, max_age=65)
+```
+
+## Configuration
+
+### Config Class
+
+```python
+from sifaka.core.config import Config
+
+config = Config(
+    model="gpt-4",
+    temperature=0.7,
+    timeout_seconds=60,
+    max_iterations=5,
+    force_improvements=True,
+    show_improvement_prompt=True,
+    critic_model="gpt-4o-mini",
+    critic_temperature=0.3
+)
+
+result = await improve(text, config=config)
+```
+
+**Config Parameters:**
+- `model` (str): LLM model to use. Default: "gpt-4o-mini"
+- `temperature` (float): Generation temperature (0.0-2.0). Default: 0.7
+- `timeout_seconds` (int): Maximum processing time. Default: 300
+- `max_iterations` (int): Max improvement cycles. Default: 3
+- `force_improvements` (bool): Always run critics. Default: False
+- `show_improvement_prompt` (bool): Print prompts. Default: False
+- `critic_model` (str, optional): Override model for critics
+- `critic_temperature` (float, optional): Override temperature for critics
+
+## Storage
+
+### MemoryStorage (Default)
 ```python
 from sifaka.storage import MemoryStorage
 
@@ -270,27 +221,21 @@ result = await improve(text, storage=storage)
 ```
 
 ### FileStorage
-File-based persistent storage.
-
-**Usage:**
 ```python
 from sifaka.storage import FileStorage
 
-storage = FileStorage(storage_dir="./sifaka_results")
+storage = FileStorage(storage_dir="./results")
 result = await improve(text, storage=storage)
 
 # Load result later
 loaded = await storage.load(result.id)
 ```
 
-**Parameters:**
-- `storage_dir` (str): Directory to store results
-- `max_files` (int, default=1000): Maximum files to keep
-
 ## Models
 
 ### SifakaResult
-Complete result with audit trail.
+
+The complete result object returned by `improve()`.
 
 **Attributes:**
 - `final_text` (str): The final improved text
@@ -301,14 +246,16 @@ Complete result with audit trail.
 - `validations` (List[ValidationResult]): All validation results
 - `id` (str): Unique result identifier
 - `created_at` (datetime): Creation timestamp
-- `confidence` (float): Overall confidence score
+- `processing_time` (float): Total processing time
 
 **Properties:**
 - `current_text` (str): Most recent generation or original
 - `all_passed` (bool): Whether all validations passed
 - `needs_improvement` (bool): Whether critics suggest improvement
+- `confidence` (float): Overall confidence score
 
 ### CritiqueResult
+
 Individual critic feedback.
 
 **Attributes:**
@@ -316,10 +263,12 @@ Individual critic feedback.
 - `feedback` (str): Detailed feedback text
 - `suggestions` (List[str]): Specific improvement suggestions
 - `needs_improvement` (bool): Whether improvement is needed
-- `confidence` (float): Confidence in the assessment
+- `confidence` (float): Confidence in the assessment (0.0-1.0)
 - `timestamp` (datetime): When critique was created
+- `metadata` (dict): Additional critic-specific data
 
 ### ValidationResult
+
 Individual validation result.
 
 **Attributes:**
@@ -329,154 +278,83 @@ Individual validation result.
 - `details` (str): Detailed validation information
 - `timestamp` (datetime): When validation was performed
 
-## Configuration
-
-### Model Configuration
-Configure the underlying language model.
-
-**Supported Models:**
-- OpenAI: `gpt-4`, `gpt-4-turbo`, `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo`
-- Anthropic: `claude-3-opus`, `claude-3-sonnet`, `claude-3-haiku`
-- Gemini: `gemini-1.5-pro`, `gemini-1.5-flash`
-
-**Example:**
-```python
-result = await improve(
-    text,
-    model="gpt-4o",
-    temperature=0.3  # More deterministic
-)
-```
-
-### Timeout Management
-Control execution time with timeouts.
-
-**Example:**
-```python
-result = await improve(
-    text,
-    timeout_seconds=60,  # 1 minute timeout
-    critics=["reflexion"]
-)
-```
-
 ## Error Handling
 
-### SifakaError
-Base exception for all Sifaka errors.
+### Exception Types
 
-### ConfigurationError
-Raised for invalid configuration parameters.
-
-### ModelProviderError
-Raised for model provider API issues.
-
-### TimeoutError
-Raised when operation times out.
-
-### ValidationError
-Raised when validation fails.
-
-### CriticError
-Raised when critics fail to evaluate.
-
-**Example Error Handling:**
 ```python
-from sifaka.core.exceptions import TimeoutError
+from sifaka.core.exceptions import (
+    SifakaError,          # Base exception
+    ConfigurationError,   # Invalid configuration
+    ModelProviderError,   # LLM API issues
+    CriticError,         # Critic evaluation failures
+    ValidationError,     # Validation failures
+    TimeoutError,        # Operation timeouts
+    StorageError,        # Storage operation failures
+)
+```
+
+### Error Handling Example
+
+```python
+from sifaka.core.exceptions import TimeoutError, ModelProviderError
 
 try:
-    result = await improve(text)
-except TimeoutError:
-    print("Operation timed out")
+    result = await improve(text, max_iterations=5)
+except TimeoutError as e:
+    print(f"Operation timed out: {e}")
+    print(f"Suggestion: {e.suggestion}")
+except ModelProviderError as e:
+    print(f"API error: {e}")
 except Exception as e:
     print(f"Unexpected error: {e}")
 ```
 
-## Runner Class
-
-### `Runner(critic_name, **kwargs)`
-
-A convenience class for running improvements with standardized configuration and output formatting.
-
-**Parameters:**
-- `critic_name` (str): Name of the critic to use
-- `description` (str, optional): Description of the critique
-- `prompt` (str): The prompt to improve
-- `min_length` (int, default=150): Minimum text length
-- `max_length` (int, default=600): Maximum text length
-- `iterations` (int, default=3): Number of improvement iterations
-
-**Default Behavior:**
-- `force_improvements=True`: Always attempts improvement even if validators pass
-- `show_improvement_prompt=True`: Displays improvement prompts in output
-- Automatically saves thoughts to JSON files for analysis
-- Provides formatted console output of the improvement cycle
-
-**Example:**
-```python
-from sifaka.runner import Runner
-
-runner = Runner(
-    critic_name="reflexion",
-    description="Self-reflection improvement",
-    prompt="Write about AI ethics",
-    iterations=3
-)
-
-result = await runner.run()
-```
-
-**Methods:**
-- `run(**kwargs)`: Execute the improvement process
-  - Returns: `SifakaResult`
-  - Optional parameters can override defaults
-  - Supports all `improve()` function parameters
-
 ## Advanced Usage
 
 ### Custom Critics
-Create custom critics by implementing the Critic interface.
 
 ```python
-from sifaka.core.interfaces import Critic
-from sifaka.core.models import CritiqueResult
+from sifaka.critics.core.base import BaseCritic
+from sifaka.core.models import SifakaResult
+from typing import List, Dict
 
-class CustomCritic(Critic):
-    async def critique(self, text: str, result: SifakaResult) -> CritiqueResult:
-        # Your custom critique logic
-        return CritiqueResult(
-            critic="custom",
-            feedback="Custom feedback",
-            suggestions=["Custom suggestion"],
-            needs_improvement=True,
-            confidence=0.8
-        )
-    
+class CustomCritic(BaseCritic):
     @property
     def name(self) -> str:
         return "custom"
+    
+    async def _create_messages(
+        self, text: str, result: SifakaResult
+    ) -> List[Dict[str, str]]:
+        return [
+            {"role": "system", "content": "You are a custom critic."},
+            {"role": "user", "content": f"Evaluate this text: {text}"}
+        ]
 ```
 
-### Plugin System
-Register custom storage backends.
+### Custom Validators
 
 ```python
-from sifaka.core.plugins import register_storage_backend
-from sifaka.storage.base import StorageBackend
+from sifaka.validators.base import BaseValidator
+from sifaka.core.models import SifakaResult
 
-class CustomStorage(StorageBackend):
-    # Implement abstract methods
-    pass
-
-register_storage_backend("custom", CustomStorage)
-
-# Use it
-from sifaka.core.plugins import create_storage_backend
-storage = create_storage_backend("custom")
+class CustomValidator(BaseValidator):
+    @property
+    def name(self) -> str:
+        return "custom"
+    
+    async def _perform_validation(
+        self, text: str, result: SifakaResult
+    ) -> tuple[bool, float, str]:
+        # Your validation logic
+        passed = len(text) > 50
+        score = min(1.0, len(text) / 100)
+        details = "Custom validation details"
+        return passed, score, details
 ```
 
 ### Batch Processing
-Process multiple texts efficiently.
 
 ```python
 texts = ["Text 1", "Text 2", "Text 3"]
@@ -490,65 +368,41 @@ for text in texts:
     )
     results.append(result)
 
-# Analyze batch results
+# Analyze results
 avg_confidence = sum(r.confidence for r in results) / len(results)
 ```
-
-## Best Practices
-
-1. **Choose Critics Wisely**: Different critics serve different purposes
-   - Use `reflexion` for general improvement
-   - Use `constitutional` for ethical content
-   - Use `n_critics` for comprehensive analysis
-   - Use `self_rag` for factual content
-
-2. **Set Appropriate Limits**: Balance quality and iterations
-   - Use `max_iterations=3` for most cases
-   - Increase iterations for important content
-
-3. **Use Validators**: Enforce hard constraints
-   - Always validate length requirements
-   - Check for required terminology
-   - Prevent forbidden content
-
-4. **Monitor Performance**: Track quality
-   - Monitor confidence scores
-   - Analyze improvement patterns
-
-5. **Handle Errors Gracefully**: Plan for failures
-   - Handle timeout scenarios
-   - Provide fallback strategies
 
 ## Environment Variables
 
 - `OPENAI_API_KEY`: OpenAI API key for GPT models
-- `ANTHROPIC_API_KEY`: Anthropic API key for Claude models  
-- `GOOGLE_API_KEY`: Google API key for Gemini models
+- `ANTHROPIC_API_KEY`: Anthropic API key for Claude models
+- `GROQ_API_KEY`: Groq API key for Llama models
+- `GEMINI_API_KEY`: Google API key for Gemini models
 
-## Rate Limits
+## Best Practices
 
-Sifaka respects provider rate limits and includes built-in retry logic. For high-volume usage:
+1. **Choose Critics Wisely**
+   - Use `reflexion` for general improvement
+   - Use `constitutional` for ethical content
+   - Use `self_rag` for factual accuracy
+   - Use `n_critics` for comprehensive analysis
 
-1. Use cheaper models like `gpt-4o-mini`
-2. Implement delays between requests
-3. Consider batching strategies
-4. Monitor API quotas
+2. **Set Appropriate Limits**
+   - Most use cases: `max_iterations=3`
+   - Quick drafts: `max_iterations=1-2`
+   - Important content: `max_iterations=4-5`
 
-## Troubleshooting
+3. **Use Validators**
+   - Always validate length requirements
+   - Check for required terminology
+   - Enforce format constraints
 
-### Common Issues
+4. **Handle Errors**
+   - Always wrap in try/except
+   - Provide fallback strategies
+   - Log errors for debugging
 
-1. **Performance Issues**: Use lower iterations
-2. **Slow Performance**: Reduce max_iterations, use faster models
-3. **Low Quality**: Use better critics, increase iterations
-4. **API Errors**: Check API keys and quotas
-
-### Debug Mode
-
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-# Detailed logs for debugging
-result = await improve(text, critics=["reflexion"])
-```
+5. **Optimize Performance**
+   - Use faster models for drafts
+   - Reduce iterations for speed
+   - Batch process when possible

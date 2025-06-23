@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from sifaka import improve
 from sifaka.core.engine import SifakaEngine
-from sifaka.core.models import Config
+from sifaka.core.config import Config
 from sifaka.core.models import SifakaResult
 from sifaka.core.exceptions import ModelProviderError
 

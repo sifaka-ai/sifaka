@@ -4,15 +4,14 @@ import asyncio
 from typing import List, Optional, Tuple
 
 try:
-    import guardrails as gr
-    from guardrails.hub import install
+    import guardrails as gr  # type: ignore[import-not-found]
+    from guardrails.hub import install  # type: ignore[import-not-found]
 
     HAS_GUARDRAILS = True
 except ImportError:
     HAS_GUARDRAILS = False
 
-from ..core.interfaces import Validator
-from ..core.models import SifakaResult, ValidationResult
+from ..core.models import SifakaResult
 from .base import BaseValidator, ValidatorConfig
 
 
@@ -58,11 +57,11 @@ class GuardrailsValidator(BaseValidator):
 
         self.validators = validators
         self.on_fail = on_fail
-        self._installed_validators = set()
+        self._installed_validators: set[str] = set()
         self._guard = None
         self._lock = asyncio.Lock()  # Thread-safe access to shared state
 
-    def _ensure_validators_installed(self):
+    def _ensure_validators_installed(self) -> None:
         """Ensure all required validators are installed."""
         for validator_name in self.validators:
             if validator_name not in self._installed_validators:
@@ -75,7 +74,7 @@ class GuardrailsValidator(BaseValidator):
                         f"Failed to install GuardrailsAI validator '{validator_name}': {e}"
                     )
 
-    def _build_guard(self):
+    def _build_guard(self) -> None:
         """Build the Guard object with validators."""
         if self._guard is not None:
             return
@@ -83,7 +82,7 @@ class GuardrailsValidator(BaseValidator):
         self._ensure_validators_installed()
 
         # Create Guard with validators
-        rail_spec = f"""
+        rail_spec = """
 <rail version="0.1">
 <output>
     <string name="text" description="The validated text">
@@ -119,6 +118,8 @@ class GuardrailsValidator(BaseValidator):
 
         try:
             # Run validation
+            if self._guard is None:
+                raise RuntimeError("Guard not initialized")
             validated_output = self._guard.validate({"text": text})
 
             # Check if validation passed
@@ -140,7 +141,7 @@ class GuardrailsValidator(BaseValidator):
                 
                 return False, score, details
 
-        except Exception as e:
+        except Exception:
             # Let BaseValidator handle the error
             raise
 
