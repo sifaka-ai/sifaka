@@ -17,6 +17,14 @@ jobs:
       with:
         python-version: "3.11"
     
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -32,7 +40,7 @@ jobs:
       run: black --check sifaka/
     
     - name: Run mypy
-      run: mypy sifaka/ --ignore-missing-imports
+      run: mypy sifaka/ --strict
 
   test:
     runs-on: ubuntu-latest
@@ -48,6 +56,14 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -56,6 +72,10 @@ jobs:
     - name: Run tests with coverage
       run: |
         pytest tests/ --cov=sifaka --cov-report=xml --cov-report=term-missing
+    
+    - name: Check test coverage threshold
+      run: |
+        coverage report --fail-under=85
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
@@ -91,7 +111,6 @@ jobs:
 
   integration-test:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
     - uses: actions/checkout@v4
     
@@ -100,17 +119,29 @@ jobs:
       with:
         python-version: "3.11"
     
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e ".[dev]"
     
-    - name: Run integration tests
+    - name: Run integration tests with mocks
       env:
-        # Use a mock API key for testing
-        OPENAI_API_KEY: "sk-test-mock-key-for-ci"
+        CI: "true"
+        USE_MOCK_LLM: "true"
+        OPENAI_API_KEY: "mock-key"
+        ANTHROPIC_API_KEY: "mock-key"
+        GOOGLE_API_KEY: "mock-key"
+        INTEGRATION_TEST_TIMEOUT: "5.0"
       run: |
-        pytest tests/test_integration.py -v --tb=short
+        pytest tests/integration/ --integration -v --tb=short --cov=sifaka --cov-append
 
   build:
     runs-on: ubuntu-latest

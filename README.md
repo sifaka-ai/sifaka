@@ -5,6 +5,9 @@
 [![Python](https://img.shields.io/badge/python-3.9+-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.0.7-blue)](https://github.com/sifaka-ai/sifaka)
+[![CI](https://github.com/sifaka-ai/sifaka/workflows/CI/badge.svg)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-85%25+-brightgreen)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/sifaka)](https://pypi.org/project/sifaka/)
 
 ## What is Sifaka?
 
@@ -37,7 +40,7 @@ print(f"Improved through {result.iteration} iterations")
 ## Key Features
 
 - **🔬 Research-Backed**: Implements Reflexion, Constitutional AI, and Self-Refine
-- **👁️ Complete Observability**: Full audit trail of every improvement 
+- **👁️ Complete Observability**: Full audit trail of every improvement
 - **🎯 Simple API**: One function does everything you need
 - **💾 Memory-Safe**: Bounded history prevents memory leaks
 - **⚡ Fast**: Minimal dependencies, maximum performance
@@ -45,7 +48,7 @@ print(f"Improved through {result.iteration} iterations")
 ## How It Works
 
 1. **Generate**: Create initial text with your preferred model
-2. **Validate**: Check output against quality criteria  
+2. **Validate**: Check output against quality criteria
 3. **Critique**: Apply research-backed improvement techniques
 4. **Improve**: Iterate until quality standards are met
 5. **Observe**: Complete audit trail of the entire process
@@ -63,12 +66,12 @@ graph LR
     E -->|Yes| F["Revision Prompt"]
     F --> B
     E -->|No| G["Final Text"]
-    
+
     C --> H["Thought History"]
     D --> H
     F --> H
     H --> I["File Storage"]
-    
+
     style A fill:#e1f5fe
     style G fill:#c8e6c9
     style H fill:#fff3e0
@@ -106,7 +109,7 @@ async def improve(
 class SifakaResult:
     """Complete result with audit trail."""
     final_text: str
-    original_text: str  
+    original_text: str
     iteration: int
     generations: list[Generation]  # Max 10 items
     validations: list[ValidationResult]  # Max 10 items
@@ -155,7 +158,7 @@ result = await improve(
 
 # Self-consistency for reliable assessment
 result = await improve(
-    "Explain complex topic", 
+    "Explain complex topic",
     critics=["self_consistency"],
     max_iterations=3
 )
@@ -207,7 +210,7 @@ result = await improve(
 # Basic installation
 pip install sifaka
 
-# With Anthropic models  
+# With Anthropic models
 pip install sifaka[anthropic]
 
 # With Gemini models
@@ -235,23 +238,13 @@ export GOOGLE_API_KEY=your_key_here     # Optional
 Sifaka implements these research papers:
 
 - **[Reflexion](https://arxiv.org/abs/2303.11366)** - Self-reflection for iterative improvement
-- **[Constitutional AI](https://arxiv.org/abs/2212.08073)** - Principle-based evaluation  
+- **[Constitutional AI](https://arxiv.org/abs/2212.08073)** - Principle-based evaluation
 - **[Self-Refine](https://arxiv.org/abs/2303.17651)** - Iterative self-improvement
 - **[N-Critics](https://arxiv.org/abs/2310.18679)** - Ensemble of diverse critical perspectives
 - **[Self-RAG](https://arxiv.org/abs/2310.11511)** - Retrieval-augmented self-critique
 - **[Meta-Rewarding](https://arxiv.org/abs/2407.19594)** - Two-stage judgment with meta-evaluation
 - **[Self-Consistency](https://arxiv.org/abs/2203.11171)** - Multiple reasoning paths with consensus
 - **Prompt Critic** - Configurable custom evaluation criteria
-
-## What Changed?
-
-This is a complete rewrite focused on simplicity and production readiness:
-
-- ✅ **One simple API** instead of three confusing ones
-- ✅ **4 core dependencies** instead of 41 
-- ✅ **Memory-bounded** to prevent OOM crashes
-- ✅ **Working tests** that actually run
-- ✅ **Clear error messages** that help users
 
 ## Documentation
 
@@ -264,7 +257,7 @@ This is a complete rewrite focused on simplicity and production readiness:
 ### Architecture & Development
 - **[Architecture Overview](docs/architecture.md)** - System design and component relationships
 - **[Architecture Decisions](docs/decisions/)** - Key technical decisions and rationale
-- **[Plugin Development](docs/plugin-development.md)** - Guide for creating extensions
+- **[Plugin Development](docs/plugins.md)** - Guide for creating extensions
 - **[Research Papers](README.md#research-foundation)** - Papers implemented by each critic
 
 ## Development

@@ -9,9 +9,9 @@ This directory contains comprehensive documentation for the Sifaka project archi
 - **[Design Decisions](decisions/)** - Architectural Decision Records (ADRs) documenting key choices
 
 ### Development Documentation
-- **[Plugin Development](plugin-development.md)** - Guide for creating Sifaka plugins
+- **[Plugin Development](../examples/plugins/README.md)** - Guide for creating Sifaka plugins with examples
 - **[Contributing](../CONTRIBUTING.md)** - Guidelines for contributing to the project
-- **[Testing Strategy](testing-strategy.md)** - Testing approach and guidelines
+- **[FAQ](FAQ.md)** - Frequently asked questions and troubleshooting
 
 ## 🎯 Key Architectural Principles
 
@@ -91,7 +91,6 @@ Each critic implements a specific research methodology:
 1. **Start with the Quick Start Guide** (../QUICKSTART.md)
 2. **Reference the API Documentation** (../API.md) for details
 3. **Explore examples** (../examples/) for usage patterns
-4. **Check the FAQ** for common questions
 
 ## 🔗 Related Resources
 

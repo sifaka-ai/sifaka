@@ -23,6 +23,14 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -60,22 +68,24 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: twine upload dist/*
     
+    - name: Extract version changelog
+      id: changelog
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        CHANGELOG=$(sed -n "/^## \[$VERSION\]/,/^## \[/p" CHANGELOG.md | sed '$d')
+        echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
     - name: Create GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
         body: |
-          ## Changes
-          
-          See [CHANGELOG.md](CHANGELOG.md) for details.
+          ${{ steps.changelog.outputs.CHANGELOG }}
           
           ## Installation
           
           ```bash
           pip install sifaka==${{ github.ref_name }}
           ```
+        generate_release_notes: true
