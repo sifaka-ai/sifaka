@@ -1,181 +1,187 @@
-"""N-Critics implementation for ensemble critique.
+"""N-Critics ensemble critic implementation.
 
 Based on: N-Critics: Self-Refinement of Large Language Models with Ensemble of Critics
 Paper: https://arxiv.org/abs/2310.18679
-Authors: Chen et al. (2023)
+Authors: Tian et al. (2023)
 
-N-Critics uses multiple diverse critical perspectives to provide comprehensive
-feedback for text improvement.
+N-Critics uses multiple critical perspectives to provide comprehensive
+text evaluation through ensemble critique.
 
 ## Similarity to Original Paper:
-- PRESERVED: Multiple diverse critic perspectives
+- PRESERVED: Multiple critical perspectives for evaluation
 - PRESERVED: Ensemble approach to critique
-- SIMPLIFIED: Fixed set of perspectives vs dynamic generation
-- ADAPTED: Focus on text quality vs code generation
+- SIMPLIFIED: Perspectives instead of separate critic models
+- PRESERVED: Consensus building from multiple viewpoints
 
 ## Implementation Choices:
-1. 5 fixed perspectives: Technical, Creative, Clarity, Audience, Strategic
-2. Each perspective provides focused feedback
-3. Aggregates insights across perspectives
-4. Balances between depth and breadth of critique
+1. 4 default perspectives: Clarity, Accuracy, Completeness, Style
+2. Each perspective gets independent assessment and score
+3. Consensus score from averaging perspective scores
+4. Agreement factor from score variance (low variance = high agreement)
+5. Confidence combines consensus score (70%) + agreement (30%)
 
 ## Why This Approach:
-- Multiple perspectives catch different issues
-- Reduces blind spots in evaluation
-- Provides comprehensive feedback
-- Easy to understand and implement
+- Single model with multiple prompting perspectives is more efficient
+- Preserves multi-viewpoint evaluation without multiple models
+- Customizable perspectives for different domains
+- Variance-based agreement naturally measures consensus
+- Simpler than training/managing multiple critic models
 """
 
-from typing import Optional, Union, List, Dict
+from typing import List, Optional, Dict, Any, Union
+from pydantic import BaseModel, Field
 
 from ..core.models import SifakaResult
 from ..core.llm_client import Provider
-from .core.base import BaseCritic
 from ..core.config import Config
+from .core.base import BaseCritic
 
 
-# Default critic perspectives
-DEFAULT_PERSPECTIVES = {
-    "Technical Expert": "Focus on accuracy, logic, evidence, and technical correctness",
-    "Creative Writer": "Evaluate engagement, flow, style, and narrative quality",
-    "Clarity Editor": "Assess clarity, structure, organization, and readability",
-    "Target Audience": "Consider audience needs, accessibility, and relevance",
-    "Strategic Advisor": "Examine purpose, impact, persuasiveness, and goals",
-}
+class PerspectiveAssessment(BaseModel):
+    """Assessment from a single critical perspective."""
+
+    perspective: str = Field(..., description="The critical perspective name")
+    assessment: str = Field(..., description="Assessment from this perspective")
+    score: float = Field(
+        ..., ge=0.0, le=1.0, description="Quality score from this perspective"
+    )
+    suggestions: list[str] = Field(
+        default_factory=list, description="Suggestions from this perspective"
+    )
+
+
+class NCriticsResponse(BaseModel):
+    """Response model specific to N-Critics ensemble."""
+
+    feedback: str = Field(..., description="Synthesized feedback from all perspectives")
+    suggestions: list[str] = Field(
+        default_factory=list, description="Combined suggestions from all perspectives"
+    )
+    needs_improvement: bool = Field(
+        ..., description="Consensus on whether improvement is needed"
+    )
+    confidence: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Confidence based on perspective agreement",
+    )
+    perspective_assessments: list[PerspectiveAssessment] = Field(
+        default_factory=list, description="Individual assessments from each perspective"
+    )
+    consensus_score: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Overall consensus score from all perspectives",
+    )
+    agreement_level: str = Field(
+        default="moderate", description="Level of agreement: high, moderate, or low"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional ensemble data"
+    )
 
 
 class NCriticsCritic(BaseCritic):
-    """Implements N-Critics ensemble approach.
+    """Implements N-Critics ensemble approach for comprehensive evaluation.
 
-    ## When to Use This Critic:
-
-    ✅ When to use:
-    - Evaluating content from multiple stakeholder perspectives
-    - Complex documents requiring diverse viewpoints
-    - Identifying blind spots in evaluation
-    - Balancing technical accuracy with readability
-
-    ❌ When to avoid:
-    - Simple, straightforward text improvements
-    - When you need deep expertise in one specific area
-    - Time-sensitive evaluations (due to multiple perspectives)
-
-    🎯 Best for:
-    - Multi-audience content
-    - Cross-functional documentation
-    - Marketing materials requiring diverse appeal
-    - Comprehensive evaluation of complex topics
+    When to Use This Critic:
+    - ✅ Need multiple viewpoints on text quality
+    - ✅ Want comprehensive evaluation across dimensions
+    - ✅ Dealing with complex or multifaceted content
+    - ✅ Need to identify blind spots single critics might miss
+    - ❌ Quick single-dimension checks
+    - ❌ When perspectives would be redundant
+    - 🎯 Best for: Comprehensive reviews, final quality checks, complex documents
     """
+
+    # Default critical perspectives
+    DEFAULT_PERSPECTIVES = [
+        "Clarity: Focus on readability, structure, and comprehensibility",
+        "Accuracy: Focus on factual correctness and logical consistency",
+        "Completeness: Focus on thoroughness and adequate coverage",
+        "Style: Focus on tone, voice, and appropriateness for audience",
+    ]
 
     def __init__(
         self,
         model: str = "gpt-4o-mini",
-        temperature: float = 0.7,
+        temperature: float = 0.6,
+        perspectives: Optional[List[str]] = None,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
         config: Optional[Config] = None,
-        perspectives: Optional[Dict[str, str]] = None,
         auto_generate_perspectives: bool = False,
+        perspective_count: int = 4,
     ):
-        """Initialize N-Critics with configurable perspectives.
-
-        Args:
-            model: Model to use for critique
-            temperature: Temperature for generation
-            provider: LLM provider
-            api_key: API key for provider
-            config: Configuration object
-            perspectives: Custom perspectives dict {role: focus_description}
-            auto_generate_perspectives: Whether to generate perspectives based on text
-        """
         # Initialize with custom config
         if config is None:
             config = Config()
         super().__init__(model, temperature, config, provider, api_key)
 
-        self.perspectives = perspectives or DEFAULT_PERSPECTIVES
-        self.auto_generate = auto_generate_perspectives
+        self.auto_generate_perspectives = auto_generate_perspectives
+        self.perspective_count = perspective_count
+        self.perspectives = perspectives or self.DEFAULT_PERSPECTIVES
 
     @property
     def name(self) -> str:
         return "n_critics"
 
-    async def _generate_perspectives(self, text: str) -> Dict[str, str]:
-        """Generate perspectives dynamically based on the text."""
-        generation_prompt = f"""Based on this text, identify 3-5 distinct expert perspectives that would provide valuable critique:
-
-Text: {text[:500]}...
-
-For each perspective, provide:
-1. A role name (e.g., "Domain Expert", "Style Editor")
-2. Their focus area in 1-2 sentences
-
-Format as:
-Role Name: Focus description
-Role Name: Focus description
-..."""
-
-        messages = [
-            {
-                "role": "system",
-                "content": "You are an expert at identifying relevant perspectives for text critique.",
-            },
-            {"role": "user", "content": generation_prompt},
-        ]
-
-        response = await self.llm_client.complete(
-            messages, temperature=0.7, max_tokens=300
-        )
-
-        # Parse the response into perspectives
-        perspectives = {}
-        for line in response.strip().split("\n"):
-            if ":" in line:
-                role, focus = line.split(":", 1)
-                perspectives[role.strip()] = focus.strip()
-
-        # Fallback to defaults if parsing fails
-        return perspectives if len(perspectives) >= 3 else DEFAULT_PERSPECTIVES
+    def _get_response_type(self) -> type[BaseModel]:
+        """Use custom NCriticsResponse for structured output."""
+        return NCriticsResponse
 
     async def _create_messages(
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
-        """Create messages for ensemble critique."""
-        # Get perspectives (generate if needed)
-        if self.auto_generate:
-            perspectives_to_use = await self._generate_perspectives(text)
-        else:
-            perspectives_to_use = self.perspectives
+        """Generate ensemble critique from multiple perspectives."""
+        # Generate perspectives if requested
+        if self.auto_generate_perspectives:
+            self.perspectives = await self._generate_perspectives(text, result)
 
-        # Format perspectives
         perspectives_text = "\n".join(
-            f"- **{role}**: {focus}" for role, focus in perspectives_to_use.items()
+            f"{i+1}. {perspective}" for i, perspective in enumerate(self.perspectives)
         )
 
         # Get previous context
         previous_context = self._get_previous_context(result)
 
-        user_prompt = f"""You are an ensemble of critics providing feedback from multiple perspectives.
+        user_prompt = f"""Using the N-Critics ensemble technique, evaluate this text from multiple critical perspectives:
 
-Consider these critic perspectives:
+CRITICAL PERSPECTIVES:
 {perspectives_text}
 
 Text to evaluate:
 {text}
 {previous_context}
 
-Provide an integrated critique that:
-1. Synthesizes insights from all perspectives
-2. Identifies the most critical issues across perspectives
-3. Suggests improvements that address multiple concerns
-4. Balances different viewpoints constructively
+For EACH perspective:
+1. Provide a focused assessment from that viewpoint
+2. Identify specific strengths and weaknesses
+3. Give targeted suggestions for improvement
+4. Assign a quality score (0.0-1.0)
 
-Focus on actionable feedback that considers the text from all angles."""
+Then provide:
+- Overall synthesized feedback combining all perspectives
+- Consensus score (0.0-1.0) on overall text quality
+- Level of agreement between perspectives (high/moderate/low)
+- Key areas where perspectives agree or disagree
+
+Focus on constructive, actionable feedback that considers all viewpoints."""
 
         return [
             {
                 "role": "system",
-                "content": "You are an N-Critics ensemble that evaluates text from multiple expert perspectives to provide comprehensive feedback.",
+                "content": "You are an expert text critic using the N-Critics ensemble technique to evaluate text from multiple critical perspectives. Provide balanced, comprehensive feedback.",
             },
             {"role": "user", "content": user_prompt},
         ]
+
+    async def _generate_perspectives(
+        self, text: str, result: SifakaResult
+    ) -> List[str]:
+        """Generate context-appropriate perspectives for the text."""
+        # This would use the LLM to generate perspectives based on the text type
+        # For now, return defaults
+        return self.DEFAULT_PERSPECTIVES

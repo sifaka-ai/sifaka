@@ -1,12 +1,18 @@
 """Performance monitoring for Sifaka operations."""
 
+import os
 import time
 from typing import Dict, List, Optional, Any, AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from contextlib import asynccontextmanager
+import logfire
 
 from .models import SifakaResult
+
+# Configure logfire if token is available
+if os.getenv("LOGFIRE_TOKEN"):
+    logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
 
 
 @dataclass
@@ -166,40 +172,48 @@ class PerformanceMonitor:
         if not self.current_metrics:
             return await func()
 
-        start = time.time()
-        try:
-            result = await func()
-            self.current_metrics.llm_calls += 1
-            self.current_metrics.llm_time += time.time() - start
-            return result
-        except Exception as e:
-            self.current_metrics.errors.append(
-                {"type": "llm_error", "error": str(e), "timestamp": time.time()}
-            )
-            raise
+        with logfire.span("llm_call"):
+            start = time.time()
+            try:
+                result = await func()
+                self.current_metrics.llm_calls += 1
+                self.current_metrics.llm_time += time.time() - start
+                logfire.info("LLM call completed", duration=time.time() - start)
+                return result
+            except Exception as e:
+                self.current_metrics.errors.append(
+                    {"type": "llm_error", "error": str(e), "timestamp": time.time()}
+                )
+                logfire.error("LLM call failed", error=str(e))
+                raise
 
     async def track_critic_call(self, critic_name: str, func: Callable[[], Any]) -> Any:
         """Track a critic call."""
         if not self.current_metrics:
             return await func()
 
-        start = time.time()
-        try:
-            result = await func()
-            self.current_metrics.critic_calls += 1
-            self.current_metrics.critic_time += time.time() - start
-            self.current_metrics.critics_used.append(critic_name)
-            return result
-        except Exception as e:
-            self.current_metrics.errors.append(
-                {
-                    "type": "critic_error",
-                    "critic": critic_name,
-                    "error": str(e),
-                    "timestamp": time.time(),
-                }
-            )
-            raise
+        with logfire.span("critic_call", critic=critic_name):
+            start = time.time()
+            try:
+                result = await func()
+                self.current_metrics.critic_calls += 1
+                self.current_metrics.critic_time += time.time() - start
+                self.current_metrics.critics_used.append(critic_name)
+                logfire.info(
+                    f"Critic {critic_name} completed", duration=time.time() - start
+                )
+                return result
+            except Exception as e:
+                self.current_metrics.errors.append(
+                    {
+                        "type": "critic_error",
+                        "critic": critic_name,
+                        "error": str(e),
+                        "timestamp": time.time(),
+                    }
+                )
+                logfire.error(f"Critic {critic_name} failed", error=str(e))
+                raise
 
     async def track_validator_call(
         self, validator_name: str, func: Callable[[], Any]
@@ -296,14 +310,23 @@ async def monitor(
     """
     monitor = PerformanceMonitor()
 
-    # Could patch engine methods here for automatic tracking
-    # For now, manual tracking is required
+    # Start logfire span for the entire operation
+    with logfire.span("sifaka_improve"):
+        yield monitor
 
-    yield monitor
+        if print_summary and monitor.current_metrics:
+            metrics = monitor.end_monitoring()
+            print(metrics)
 
-    if print_summary and monitor.current_metrics:
-        metrics = monitor.end_monitoring()
-        print(metrics)
+            # Log summary to logfire
+            logfire.info(
+                "Improvement completed",
+                duration=metrics.total_duration,
+                iterations=metrics.iterations_completed,
+                confidence=metrics.final_confidence,
+                llm_calls=metrics.llm_calls,
+                critic_calls=metrics.critic_calls,
+            )
 
 
 def get_global_monitor() -> PerformanceMonitor:

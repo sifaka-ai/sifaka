@@ -8,9 +8,27 @@ from ...core.config import Config
 from ...core.interfaces import Critic
 from ...core.llm_client import LLMClient, LLMManager, Provider
 
-from .response_parser import ResponseParser
+from pydantic import BaseModel, Field
+from typing import Any
 from .confidence import ConfidenceCalculator
-from .confidence_advanced import AdvancedConfidenceCalculator
+
+
+class CriticResponse(BaseModel):
+    """Standardized response format for all critics."""
+
+    feedback: str = Field(..., description="Main feedback about the text")
+    suggestions: list[str] = Field(
+        default_factory=list, description="Specific improvement suggestions"
+    )
+    needs_improvement: bool = Field(
+        ..., description="Whether the text needs improvement"
+    )
+    confidence: float = Field(
+        0.7, ge=0.0, le=1.0, description="Confidence in the assessment"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional critic-specific data"
+    )
 
 
 class BaseCritic(Critic, ABC):
@@ -35,17 +53,7 @@ class BaseCritic(Critic, ABC):
         self._client: Optional[LLMClient] = None
 
         # Components
-        self._parser = ResponseParser()
-        # Use advanced calculator if available, otherwise fallback to simple
-        self._use_advanced_confidence = (
-            config.get("use_advanced_confidence", True) if config else True
-        )
-        if self._use_advanced_confidence:
-            self._confidence_calc = AdvancedConfidenceCalculator()
-        else:
-            self._confidence_calc = ConfidenceCalculator(
-                self.config.critic_base_confidence
-            )
+        self._confidence_calc = ConfidenceCalculator(self.config.critic_base_confidence)
 
     @property
     def client(self) -> LLMClient:
@@ -64,6 +72,14 @@ class BaseCritic(Critic, ABC):
     def name(self) -> str:
         """Return the critic's name."""
         pass
+
+    def _get_system_prompt(self) -> str:
+        """Get system prompt for PydanticAI agent. Override in subclasses for custom prompts."""
+        return f"You are an expert text critic using the {self.name} technique for text improvement."
+
+    def _get_response_type(self) -> type[BaseModel]:
+        """Get response type for structured output. Override in subclasses for custom types."""
+        return CriticResponse
 
     @abstractmethod
     async def _create_messages(
@@ -92,50 +108,41 @@ class BaseCritic(Critic, ABC):
         """
 
         try:
-            # Generate critique
+            # Always use PydanticAI for structured outputs
+            agent = self.client.create_agent(
+                system_prompt=self._get_system_prompt(),
+                result_type=self._get_response_type(),
+            )
+
+            # Get user prompt from messages
             messages = await self._create_messages(text, result)
+            user_prompt = messages[-1]["content"] if messages else text
 
-            # Add JSON format instruction
-            messages.append(
-                {"role": "system", "content": self._get_format_instruction()}
-            )
-
-            # Call LLM
-            response = await self.client.complete(
-                messages, timeout=self.config.critic_timeout_seconds
-            )
-
-            # Parse response
-            critic_response = self._parser.parse(response.content, "json")
+            # Run agent with structured output
+            agent_result = await agent.run(user_prompt)
+            critic_response = agent_result.output
 
             # Calculate confidence if not provided
             if critic_response.confidence == 0.7:  # Default value
-                if self._use_advanced_confidence:
-                    # Use advanced calculator with critic-specific strategy
-                    critic_response.confidence = self._confidence_calc.calculate(
-                        critic_name=self.name,
-                        feedback=critic_response.feedback,
-                        suggestions=critic_response.suggestions,
-                        response_length=len(response.content),
-                        metadata=critic_response.metadata,
-                    )
-                else:
-                    # Use simple calculator
-                    critic_response.confidence = self._confidence_calc.calculate(
-                        feedback=critic_response.feedback,
-                        suggestions=critic_response.suggestions,
-                        response_length=len(response.content),
-                        metadata=critic_response.metadata,
-                    )
+                critic_response.confidence = self._confidence_calc.calculate(
+                    feedback=critic_response.feedback,
+                    suggestions=critic_response.suggestions,
+                    response_length=len(str(critic_response)),
+                    metadata=critic_response.metadata,
+                )
 
-            # Create result
+            # Create result with all metadata
+            # Convert the entire response to dict to preserve all fields
+            response_dict = critic_response.model_dump()
+
+            # Extract standard fields
             critique_result = CritiqueResult(
                 critic=self.name,
-                feedback=critic_response.feedback,
-                suggestions=critic_response.suggestions,
-                needs_improvement=critic_response.needs_improvement,
-                confidence=critic_response.confidence,
-                metadata=critic_response.metadata,
+                feedback=response_dict.pop("feedback"),
+                suggestions=response_dict.pop("suggestions"),
+                needs_improvement=response_dict.pop("needs_improvement"),
+                confidence=response_dict.pop("confidence"),
+                metadata=response_dict,  # Everything else goes in metadata
             )
 
             return critique_result
@@ -150,16 +157,6 @@ class BaseCritic(Critic, ABC):
                 confidence=0.0,
                 metadata={"error": str(e)},
             )
-
-    def _get_format_instruction(self) -> str:
-        """Get JSON format instruction."""
-        return """Please provide your response in the following JSON format:
-{
-    "feedback": "Your main feedback about the text",
-    "suggestions": ["Specific suggestion 1", "Specific suggestion 2", ...],
-    "needs_improvement": true/false,
-    "confidence": 0.0-1.0  // Your confidence in this assessment
-}"""
 
     def _get_previous_context(self, result: SifakaResult) -> str:
         """Get context from previous critiques."""
@@ -181,40 +178,28 @@ class BaseCritic(Critic, ABC):
             + "\n\nPlease provide NEW insights and avoid repetition."
         )
 
+    def _build_user_prompt(
+        self, text: str, result: SifakaResult, instructions: str
+    ) -> str:
+        """Build a standard user prompt with text and instructions."""
+        previous_context = self._get_previous_context(result)
 
-def create_prompt_with_format(
-    base_prompt: str, response_format: str = "json", include_examples: bool = True
-) -> str:
-    """Create a prompt with JSON format instructions.
+        return f"""{instructions}
 
-    Args:
-        base_prompt: The base prompt text
-        response_format: Format type (json only)
-        include_examples: Whether to include examples
+Text to evaluate:
+{text}
+{previous_context}
 
-    Returns:
-        Formatted prompt with instructions
-    """
-    format_instruction = """
-Please provide your response in the following JSON format:
-{
-    "feedback": "Main feedback about the text",
-    "suggestions": ["Suggestion 1", "Suggestion 2", ...],
-    "needs_improvement": true/false,
-    "confidence": 0.0-1.0  // Your confidence in this assessment
-}"""
+Please provide specific, actionable feedback."""
 
-    prompt = base_prompt + "\n\n" + format_instruction
-
-    if include_examples:
-        prompt += """
-
-Example response:
-{
-    "feedback": "The text provides a good overview but lacks specific examples",
-    "suggestions": ["Add concrete examples", "Include data to support claims"],
-    "needs_improvement": true,
-    "confidence": 0.85
-}"""
-
-    return prompt
+    async def _simple_critique(
+        self, text: str, result: SifakaResult, instructions: str
+    ) -> List[Dict[str, str]]:
+        """Simplified message creation for most critics."""
+        return [
+            {"role": "system", "content": self._get_system_prompt()},
+            {
+                "role": "user",
+                "content": self._build_user_prompt(text, result, instructions),
+            },
+        ]

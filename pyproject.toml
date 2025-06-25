@@ -56,7 +56,7 @@ dev = [
     "ruff>=0.3.0",
 
     # Interactive development
-    "ipython>=8.26.0",
+    "ipython>=8.0.0",
     "rich>=13.7.1",  # Better terminal output
     "ipdb>=0.13.13",  # IPython debugger
 

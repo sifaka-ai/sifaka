@@ -1,4 +1,4 @@
-"""Simplified provider-agnostic LLM client."""
+"""Simplified provider-agnostic LLM client with PydanticAI integration."""
 
 import os
 from typing import Dict, Optional, List, Union, Any, cast
@@ -7,12 +7,19 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 import openai
 from openai.types.chat import ChatCompletionMessageParam
+from pydantic_ai import Agent
+from pydantic_ai.models import ModelSettings
+import logfire
 
 from ..core.retry import with_retry, RETRY_STANDARD
 
 
 # Load environment variables
 load_dotenv()
+
+# Configure logfire if token is available
+if os.getenv("LOGFIRE_TOKEN"):
+    logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
 
 
 class Provider(str, Enum):
@@ -91,6 +98,35 @@ class LLMClient:
         """Get provider-specific model name."""
         mappings = self.MODEL_MAPPINGS.get(self.provider, {})
         return mappings.get(self.model, self.model)
+
+    def create_agent(self, system_prompt: str, result_type: type[BaseModel]) -> Agent:
+        """Create a PydanticAI agent for structured outputs."""
+        # Map provider and model to PydanticAI format
+        provider_model = self._get_provider_model()
+
+        # Create model string for PydanticAI
+        if self.provider == Provider.OPENAI:
+            model_str = f"openai:{provider_model}"
+        elif self.provider == Provider.ANTHROPIC:
+            model_str = f"anthropic:{provider_model}"
+        elif self.provider == Provider.GEMINI:
+            model_str = f"gemini:{provider_model}"
+        elif self.provider == Provider.GROQ:
+            model_str = f"groq:{provider_model}"
+        else:
+            # Fallback to OpenAI
+            model_str = f"openai:{provider_model}"
+
+        # Create agent with structured output
+        return Agent(
+            model=model_str,
+            output_type=result_type,  # Use output_type instead of deprecated result_type
+            system_prompt=system_prompt,
+            model_settings=ModelSettings(
+                temperature=self.temperature,
+                api_key=self._api_key,
+            ),
+        )
 
     @with_retry(RETRY_STANDARD)
     async def complete(

@@ -98,6 +98,7 @@ class SifakaEngine:
                         suggestions=critique.suggestions,
                         needs_improvement=critique.needs_improvement,
                         confidence=critique.confidence,
+                        metadata=critique.metadata,
                     )
 
                 # Check if improvement needed

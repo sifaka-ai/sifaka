@@ -120,6 +120,7 @@ class SifakaResult(BaseModel):
         suggestions: List[str],
         needs_improvement: bool = True,
         confidence: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Add a critique result (automatically bounded by deque)."""
         result = CritiqueResult(
@@ -128,6 +129,7 @@ class SifakaResult(BaseModel):
             suggestions=suggestions,
             needs_improvement=needs_improvement,
             confidence=confidence,
+            metadata=metadata or {},
         )
         self.critiques.append(result)
         self.updated_at = datetime.now()

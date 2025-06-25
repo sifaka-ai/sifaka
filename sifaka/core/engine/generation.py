@@ -1,10 +1,22 @@
 """Text generation component of the Sifaka engine."""
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
+from pydantic import BaseModel, Field
 
 from ..models import SifakaResult
 from ..llm_client import LLMManager, LLMClient
-from ..constants import ROLE_SYSTEM, ROLE_USER
+
+
+class ImprovementResponse(BaseModel):
+    """Structured response for text improvements."""
+
+    improved_text: str = Field(..., description="The improved version of the text")
+    changes_made: list[str] = Field(
+        default_factory=list, description="List of changes made"
+    )
+    confidence: float = Field(
+        default=0.8, ge=0.0, le=1.0, description="Confidence in improvements"
+    )
 
 
 class TextGenerator:
@@ -55,21 +67,25 @@ class TextGenerator:
             print(prompt)
             print("=" * 80 + "\n")
 
-        # Generate improvement
-        messages = [
-            {"role": ROLE_SYSTEM, "content": self.IMPROVEMENT_SYSTEM_PROMPT},
-            {"role": ROLE_USER, "content": prompt},
-        ]
-
         try:
-            response = await self.client.complete(messages)
-            improved_text = response.content.strip()
+            # Create PydanticAI agent for structured improvement
+            agent = self.client.create_agent(
+                system_prompt=self.IMPROVEMENT_SYSTEM_PROMPT,
+                result_type=ImprovementResponse,
+            )
+
+            # Run agent to get structured improvement
+            agent_result = await agent.run(prompt)
+            improvement = agent_result.output
 
             # Validate improvement
-            if not improved_text or improved_text == current_text:
+            if (
+                not improvement.improved_text
+                or improvement.improved_text == current_text
+            ):
                 return None, prompt
 
-            return improved_text, prompt
+            return improvement.improved_text, prompt
 
         except Exception:
             # Return None on error, let engine handle it
@@ -134,4 +150,76 @@ class TextGenerator:
                     for suggestion in critique.suggestions[:3]:
                         feedback_lines.append(f"  * {suggestion}")
 
+                # Add critic-specific insights from metadata
+                if critique.metadata:
+                    self._add_critic_insights(critique, feedback_lines)
+
         return "\n".join(feedback_lines)
+
+    def _add_critic_insights(
+        self, critique: "CritiqueResult", lines: List[str]
+    ) -> None:
+        """Add critic-specific insights from metadata."""
+        metadata = critique.metadata
+
+        # SelfRAG: Add reflection assessments and retrieval opportunities
+        if critique.critic == "self_rag":
+            if "overall_relevance" in metadata and not metadata.get(
+                "overall_relevance"
+            ):
+                lines.append("  ⚠️ Content relevance issues detected (ISREL)")
+            if "overall_support" in metadata and not metadata.get("overall_support"):
+                lines.append("  ⚠️ Evidence support needed (ISSUP)")
+            if "retrieval_opportunities" in metadata:
+                opps = metadata.get("retrieval_opportunities", [])
+                if opps:
+                    lines.append("  Retrieval would help with:")
+                    for opp in opps[:2]:
+                        if isinstance(opp, dict):
+                            lines.append(
+                                f"  - {opp.get('location', 'Unknown')}: {opp.get('reason', '')}"
+                            )
+
+        # SelfRefine: Add refinement areas
+        elif critique.critic == "self_refine" and "refinement_areas" in metadata:
+            lines.append("  Areas needing refinement:")
+            for area in metadata.get("refinement_areas", [])[:3]:
+                if isinstance(area, dict) and "area" in area:
+                    lines.append(f"  - {area['area']}: {area.get('target_state', '')}")
+
+        # NCritics: Add perspective insights
+        elif critique.critic == "n_critics" and "perspective_assessments" in metadata:
+            consensus = metadata.get("consensus_score", 0)
+            if consensus < 0.5:
+                lines.append(
+                    f"  Low consensus ({consensus:.1f}) - consider diverse perspectives"
+                )
+
+        # Constitutional: Add principle violations and revisions
+        elif critique.critic == "constitutional":
+            if "revision_proposals" in metadata:
+                revisions = metadata.get("revision_proposals", [])
+                if revisions:
+                    lines.append("  Constitutional revisions available:")
+                    for rev in revisions[:2]:
+                        if isinstance(rev, dict):
+                            lines.append(
+                                f"  - {rev.get('original_snippet', '')[:30]}... → {rev.get('revised_snippet', '')[:30]}..."
+                            )
+            if "requires_major_revision" in metadata and metadata.get(
+                "requires_major_revision"
+            ):
+                lines.append("  ⚠️ Major constitutional revision required")
+
+        # MetaRewarding: Add meta-evaluation insights
+        elif critique.critic == "meta_rewarding":
+            if "improvement_delta" in metadata:
+                delta = metadata.get("improvement_delta", 0)
+                if delta > 0:
+                    lines.append(f"  ✓ Critique refined with {delta:.1%} improvement")
+            if "suggestion_preferences" in metadata:
+                prefs = metadata.get("suggestion_preferences", [])
+                if prefs and isinstance(prefs[0], dict):
+                    lines.append(
+                        f"  Top suggestion: {prefs[0].get('suggestion', '')[:50]}..."
+                    )

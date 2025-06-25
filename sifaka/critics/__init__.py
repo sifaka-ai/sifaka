@@ -1,9 +1,6 @@
 """Research-backed critics for text improvement."""
 
-from .core.base import BaseCritic
-
-# Config imports removed - now using unified Config from core.config
-from .core.response_parser import CriticResponse
+from .core.base import BaseCritic, CriticResponse
 from .reflexion import ReflexionCritic
 from .constitutional import ConstitutionalCritic
 from .self_refine import SelfRefineCritic

@@ -26,12 +26,54 @@ additional training or external feedback.
 - Simple yet effective for quality enhancement
 """
 
-from typing import Optional, Union, List, Dict
+from typing import Optional, Union, List, Dict, Any
+from pydantic import BaseModel, Field
 
 from ..core.models import SifakaResult
 from ..core.llm_client import Provider
 from .core.base import BaseCritic
 from ..core.config import Config
+
+
+class RefinementArea(BaseModel):
+    """A specific area identified for refinement."""
+
+    area: str = Field(..., description="The aspect needing refinement")
+    current_state: str = Field(..., description="Current state of this area")
+    target_state: str = Field(..., description="Desired improved state")
+    priority: str = Field(
+        default="medium", description="Priority level: high, medium, low"
+    )
+
+
+class SelfRefineResponse(BaseModel):
+    """Response model specific to Self-Refine critic."""
+
+    feedback: str = Field(..., description="Detailed refinement feedback")
+    suggestions: list[str] = Field(
+        default_factory=list, description="Specific refinement actions"
+    )
+    needs_improvement: bool = Field(
+        ..., description="Whether further refinement would benefit the text"
+    )
+    confidence: float = Field(
+        default=0.75, ge=0.0, le=1.0, description="Confidence in refinement assessment"
+    )
+    refinement_areas: list[RefinementArea] = Field(
+        default_factory=list, description="Specific areas needing refinement"
+    )
+    quality_score: float = Field(
+        default=0.7, ge=0.0, le=1.0, description="Overall quality score"
+    )
+    refinement_iterations_recommended: int = Field(
+        default=1,
+        ge=0,
+        le=5,
+        description="Number of additional refinement iterations recommended",
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional refinement data"
+    )
 
 
 class SelfRefineCritic(BaseCritic):
@@ -74,6 +116,14 @@ class SelfRefineCritic(BaseCritic):
     def name(self) -> str:
         return "self_refine"
 
+    def _get_response_type(self) -> type[BaseModel]:
+        """Use custom SelfRefineResponse for structured output."""
+        return SelfRefineResponse
+
+    def _get_system_prompt(self) -> str:
+        """Get system prompt for Self-Refine critic."""
+        return "You are a Self-Refine critic that provides iterative refinement feedback to improve text quality across multiple dimensions."
+
     async def _create_messages(
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
@@ -81,16 +131,9 @@ class SelfRefineCritic(BaseCritic):
         # Get refinement history
         refinement_context = self._get_refinement_context(result)
 
-        # Get previous context
-        previous_context = self._get_previous_context(result)
-
-        user_prompt = f"""You are tasked with providing self-refinement feedback for this text.
+        instructions = f"""You are tasked with providing self-refinement feedback for this text.
 
 {refinement_context}
-
-Current text to refine:
-{text}
-{previous_context}
 
 Evaluate the text across these quality dimensions:
 
@@ -103,13 +146,7 @@ Evaluate the text across these quality dimensions:
 
 Provide specific, actionable feedback for refinement. Focus on the most impactful improvements that would enhance the text quality."""
 
-        return [
-            {
-                "role": "system",
-                "content": "You are a Self-Refine critic that provides iterative refinement feedback to improve text quality across multiple dimensions.",
-            },
-            {"role": "user", "content": user_prompt},
-        ]
+        return await self._simple_critique(text, result, instructions)
 
     def _get_refinement_context(self, result: SifakaResult) -> str:
         """Get context about the refinement process."""

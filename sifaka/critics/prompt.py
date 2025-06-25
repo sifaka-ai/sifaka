@@ -17,11 +17,50 @@ natural language prompts, making it highly flexible and adaptable.
 """
 
 from typing import Optional, Union, List, Dict, Any
+from pydantic import BaseModel, Field
 
 from ..core.models import SifakaResult
 from ..core.llm_client import Provider
 from .core.base import BaseCritic
 from ..core.config import Config
+
+
+class CustomCriteria(BaseModel):
+    """A custom evaluation criterion."""
+
+    criterion: str = Field(..., description="The evaluation criterion")
+    assessment: str = Field(..., description="Assessment against this criterion")
+    score: float = Field(..., ge=0.0, le=1.0, description="Score for this criterion")
+    improvements: list[str] = Field(
+        default_factory=list, description="Improvements for this criterion"
+    )
+
+
+class PromptResponse(BaseModel):
+    """Response model for custom prompt-based critic."""
+
+    feedback: str = Field(..., description="Overall feedback based on custom criteria")
+    suggestions: list[str] = Field(
+        default_factory=list, description="Improvement suggestions"
+    )
+    needs_improvement: bool = Field(
+        ..., description="Whether the text needs improvement"
+    )
+    confidence: float = Field(
+        default=0.7, ge=0.0, le=1.0, description="Confidence in the assessment"
+    )
+    custom_criteria_results: list[CustomCriteria] = Field(
+        default_factory=list, description="Results for each custom criterion"
+    )
+    overall_score: float = Field(
+        default=0.7, ge=0.0, le=1.0, description="Overall score across all criteria"
+    )
+    key_findings: list[str] = Field(
+        default_factory=list, description="Key findings from the custom evaluation"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional custom evaluation data"
+    )
 
 
 class PromptCritic(BaseCritic):
@@ -66,6 +105,10 @@ class PromptCritic(BaseCritic):
     @property
     def name(self) -> str:
         return "prompt"
+
+    def _get_response_type(self) -> type[BaseModel]:
+        """Use custom PromptResponse for structured output."""
+        return PromptResponse
 
     async def _create_messages(
         self, text: str, result: SifakaResult

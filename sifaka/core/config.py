@@ -44,6 +44,11 @@ class Config(BaseModel):
         default=3, ge=1, le=10, description="Number of previous critiques to consider"
     )
 
+    # Logfire monitoring
+    logfire_token: Optional[str] = Field(
+        default=None, description="Logfire token for monitoring (optional)"
+    )
+
     # Iteration settings
     max_iterations: int = Field(
         default=3, ge=1, le=10, description="Maximum improvement iterations"

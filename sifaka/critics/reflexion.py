@@ -26,12 +26,42 @@ self-reflection and verbal feedback.
 - Works well with other critics in ensemble scenarios
 """
 
-from typing import Optional, Union, List, Dict
+from typing import Optional, Union, List, Dict, Any
+from pydantic import BaseModel, Field
 
 from ..core.models import SifakaResult
 from ..core.llm_client import Provider
 from ..core.config import Config
 from .core.base import BaseCritic
+
+
+class ReflexionResponse(BaseModel):
+    """Response model specific to Reflexion critic."""
+
+    feedback: str = Field(
+        ..., description="Reflective feedback on the text and its evolution"
+    )
+    suggestions: list[str] = Field(
+        default_factory=list, description="Specific improvements based on reflection"
+    )
+    needs_improvement: bool = Field(
+        ..., description="Whether further iterations would benefit the text"
+    )
+    confidence: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Confidence based on improvement trajectory",
+    )
+    evolution_summary: str = Field(
+        default="", description="Summary of how the text has evolved"
+    )
+    key_learnings: list[str] = Field(
+        default_factory=list, description="Key insights from previous iterations"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional reflection data"
+    )
 
 
 class ReflexionCritic(BaseCritic):
@@ -64,6 +94,14 @@ class ReflexionCritic(BaseCritic):
     def name(self) -> str:
         return "reflexion"
 
+    def _get_response_type(self) -> type[BaseModel]:
+        """Use custom ReflexionResponse for structured output."""
+        return ReflexionResponse
+
+    def _get_system_prompt(self) -> str:
+        """Get system prompt for Reflexion critic."""
+        return "You are an expert text critic using the Reflexion technique for self-improvement through iterative reflection."
+
     async def _create_messages(
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
@@ -71,18 +109,10 @@ class ReflexionCritic(BaseCritic):
         # Build context from previous iterations
         context = self._build_context(result)
 
-        # Get previous feedback to avoid repetition
-        previous_context = self._get_previous_context(result)
-
-        # Create reflection prompt
-        user_prompt = f"""You are a thoughtful critic using self-reflection to improve text.
+        instructions = f"""You are a thoughtful critic using self-reflection to improve text.
 
 Context from previous iterations:
 {context}
-{previous_context}
-
-Current text to evaluate:
-{text}
 
 Reflect on this text and identify:
 1. What aspects work well
@@ -92,13 +122,7 @@ Reflect on this text and identify:
 
 Focus on being constructive and specific. Analyze the text's strengths, weaknesses, clarity, engagement, and completeness."""
 
-        return [
-            {
-                "role": "system",
-                "content": "You are an expert text critic using the Reflexion technique for self-improvement through iterative reflection.",
-            },
-            {"role": "user", "content": user_prompt},
-        ]
+        return await self._simple_critique(text, result, instructions)
 
     def _build_context(self, result: SifakaResult) -> str:
         """Build context from previous iterations."""

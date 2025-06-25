@@ -28,14 +28,70 @@ consensus to improve reliability and identify inconsistencies.
 - Trades computation cost for evaluation reliability
 """
 
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union, Dict, Any
 from collections import Counter
 import asyncio
+from pydantic import BaseModel, Field
 
 from ..core.models import SifakaResult, CritiqueResult
 from ..core.llm_client import Provider
 from .core.base import BaseCritic
 from ..core.config import Config
+
+
+class ConsistencyEvaluation(BaseModel):
+    """Individual evaluation in the consistency check."""
+
+    feedback: str = Field(..., description="Feedback from this evaluation")
+    suggestions: list[str] = Field(
+        default_factory=list, description="Suggestions from this evaluation"
+    )
+    needs_improvement: bool = Field(
+        ..., description="Whether improvement needed per this evaluation"
+    )
+    confidence: float = Field(
+        ..., ge=0.0, le=1.0, description="Confidence of this evaluation"
+    )
+    key_points: list[str] = Field(
+        default_factory=list, description="Key points identified"
+    )
+
+
+class SelfConsistencyResponse(BaseModel):
+    """Response model specific to Self-Consistency critic."""
+
+    feedback: str = Field(..., description="Consensus feedback from all evaluations")
+    suggestions: list[str] = Field(
+        default_factory=list, description="Most common suggestions across evaluations"
+    )
+    needs_improvement: bool = Field(
+        ..., description="Consensus on whether improvement is needed"
+    )
+    confidence: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description="Confidence based on evaluation consistency",
+    )
+    individual_evaluations: list[ConsistencyEvaluation] = Field(
+        default_factory=list, description="Individual evaluation results"
+    )
+    consistency_score: float = Field(
+        default=0.7, ge=0.0, le=1.0, description="How consistent the evaluations were"
+    )
+    common_themes: list[str] = Field(
+        default_factory=list,
+        description="Themes that appeared across multiple evaluations",
+    )
+    divergent_points: list[str] = Field(
+        default_factory=list, description="Points where evaluations disagreed"
+    )
+    evaluation_variance: float = Field(
+        default=0.2, ge=0.0, le=1.0, description="Variance in evaluation scores"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional consistency data"
+    )
 
 
 class SelfConsistencyCritic(BaseCritic):
@@ -83,6 +139,10 @@ class SelfConsistencyCritic(BaseCritic):
     @property
     def name(self) -> str:
         return "self_consistency"
+
+    def _get_response_type(self) -> type[BaseModel]:
+        """Use custom SelfConsistencyResponse for structured output."""
+        return SelfConsistencyResponse
 
     async def critique(self, text: str, result: SifakaResult) -> CritiqueResult:
         """Override critique to handle multiple evaluations."""
