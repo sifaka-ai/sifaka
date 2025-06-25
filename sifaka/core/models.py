@@ -20,7 +20,7 @@ class Generation(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     tokens_used: int = 0
     processing_time: float = 0.0
-    
+
     # Improvement metrics
     improvement_metrics: Optional[Dict[str, Any]] = None
     suggestion_implementation: Optional[Dict[str, Any]] = None
@@ -59,7 +59,9 @@ class SifakaResult(BaseModel):
 
     # Audit trail (automatically memory-bounded using deque)
     generations: Deque[Generation] = Field(default_factory=lambda: deque(maxlen=10))
-    validations: Deque[ValidationResult] = Field(default_factory=lambda: deque(maxlen=20))
+    validations: Deque[ValidationResult] = Field(
+        default_factory=lambda: deque(maxlen=20)
+    )
     critiques: Deque[CritiqueResult] = Field(default_factory=lambda: deque(maxlen=20))
 
     # Metadata
@@ -82,11 +84,9 @@ class SifakaResult(BaseModel):
         recent_critique = self._get_most_recent_critique()
         if recent_critique and recent_critique.suggestions:
             suggestion_implementation = analyze_suggestion_implementation(
-                recent_critique.suggestions,
-                self.current_text,
-                text
+                recent_critique.suggestions, self.current_text, text
             )
-        
+
         gen = Generation(
             text=text,
             model=model,
@@ -145,7 +145,9 @@ class SifakaResult(BaseModel):
     @property
     def current_text(self) -> str:
         """Get the most recent generation or original text."""
-        return list(self.generations)[-1].text if self.generations else self.original_text
+        return (
+            list(self.generations)[-1].text if self.generations else self.original_text
+        )
 
     @property
     def all_passed(self) -> bool:
@@ -170,24 +172,24 @@ class SifakaResult(BaseModel):
             if crit.critic not in recent_critiques:
                 recent_critiques[crit.critic] = crit.needs_improvement
         return any(recent_critiques.values())
-    
+
     def _get_most_recent_critique(self) -> Optional[CritiqueResult]:
         """Get the most recent critique."""
         if not self.critiques:
             return None
         critiques_list = list(self.critiques)
         return critiques_list[-1] if critiques_list else None
-    
+
     def get_quality_progression(self) -> Dict[str, List[int]]:
         """Get basic progression metrics across all versions."""
         # Simple length and word count progression
         text_lengths = [len(self.original_text)]
         word_counts = [len(self.original_text.split())]
-        
+
         for gen in self.generations:
             text_lengths.append(len(gen.text))
             word_counts.append(len(gen.text.split()))
-        
+
         return {
             "text_length_progression": text_lengths,
             "word_count_progression": word_counts,

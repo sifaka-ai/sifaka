@@ -70,31 +70,31 @@ from sifaka.core.models import SifakaResult
 
 class MyDBStorage(StorageBackend):
     """Custom database storage backend."""
-    
+
     def __init__(self, connection_string: str):
         self.connection_string = connection_string
         # Initialize your database connection
-    
+
     async def save(self, result: SifakaResult) -> str:
         """Save result to your database."""
         # Implement save logic
         return result.id
-    
+
     async def load(self, result_id: str) -> Optional[SifakaResult]:
         """Load result from your database."""
         # Implement load logic
         return None
-    
+
     async def list(self, limit: int = 100, offset: int = 0) -> List[str]:
         """List stored result IDs."""
         # Implement list logic
         return []
-    
+
     async def delete(self, result_id: str) -> bool:
         """Delete a stored result."""
         # Implement delete logic
         return False
-    
+
     async def search(self, query: str, limit: int = 10) -> List[str]:
         """Search results by content."""
         # Implement search logic

@@ -11,25 +11,25 @@ from sifaka.core.config import ModelConfig
 
 class AcademicWritingCritic(BaseCritic):
     """A critic specialized for improving academic writing.
-    
+
     This critic focuses on:
     - Clarity and precision of language
     - Proper citation format
     - Academic tone and objectivity
     - Logical argument structure
     """
-    
+
     name = "academic_writing"
-    
+
     def __init__(
         self,
         model_config: Optional[ModelConfig] = None,
         citation_style: str = "APA",
         formality_level: str = "high",
-        **kwargs
+        **kwargs,
     ):
         """Initialize the academic writing critic.
-        
+
         Args:
             model_config: LLM configuration
             citation_style: Citation format (APA, MLA, Chicago, etc.)
@@ -39,16 +39,16 @@ class AcademicWritingCritic(BaseCritic):
         super().__init__(model_config, **kwargs)
         self.citation_style = citation_style
         self.formality_level = formality_level
-    
+
     def _build_critique_prompt(
         self,
         original_text: str,
         current_text: str,
         attempt: int,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Build the critique prompt for academic writing."""
-        
+
         prompt = f"""You are an expert academic writing critic. Review the following text and provide specific feedback for improvement.
 
 Focus on these aspects:
@@ -67,17 +67,17 @@ Current Version (Attempt {attempt}):
 Provide a detailed critique identifying specific areas for improvement. Be constructive and specific about what needs to be changed and why."""
 
         return prompt
-    
+
     def _build_improvement_prompt(
         self,
         original_text: str,
         current_text: str,
         critique: str,
         attempt: int,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Build the improvement prompt based on critique."""
-        
+
         prompt = f"""You are an expert academic writer. Improve the following text based on the critique provided.
 
 Ensure the improved version:
@@ -96,64 +96,68 @@ Critique:
 Provide only the improved text, without any explanations or meta-commentary."""
 
         return prompt
-    
+
     def _parse_critique_response(self, response: str) -> str:
         """Parse the critique from the model response."""
         # For academic writing, we want to preserve detailed feedback
         return response.strip()
-    
+
     def _parse_improvement_response(self, response: str) -> str:
         """Parse the improved text from the model response."""
         # Remove any potential meta-commentary
-        lines = response.strip().split('\n')
-        
+        lines = response.strip().split("\n")
+
         # Filter out lines that look like headers or explanations
         filtered_lines = []
         for line in lines:
-            if not (line.startswith('Improved') or 
-                    line.startswith('Here') or 
-                    line.startswith('Version') or
-                    line.strip() == ''):
+            if not (
+                line.startswith("Improved")
+                or line.startswith("Here")
+                or line.startswith("Version")
+                or line.strip() == ""
+            ):
                 filtered_lines.append(line)
-        
-        return '\n'.join(filtered_lines).strip()
+
+        return "\n".join(filtered_lines).strip()
 
 
 class TechnicalDocumentationCritic(BaseCritic):
     """A critic specialized for technical documentation.
-    
+
     This critic focuses on:
     - Code examples and their correctness
     - API documentation completeness
     - Step-by-step instructions clarity
     - Technical accuracy
     """
-    
+
     name = "technical_docs"
-    
+
     def __init__(
         self,
         model_config: Optional[ModelConfig] = None,
         programming_language: Optional[str] = None,
         doc_style: str = "sphinx",  # sphinx, doxygen, markdown
-        **kwargs
+        **kwargs,
     ):
         """Initialize the technical documentation critic."""
         super().__init__(model_config, **kwargs)
         self.programming_language = programming_language
         self.doc_style = doc_style
-    
+
     def _build_critique_prompt(
         self,
         original_text: str,
         current_text: str,
         attempt: int,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Build critique prompt for technical documentation."""
-        
-        lang_context = f" for {self.programming_language}" if self.programming_language else ""
-        
+
+        lang_context = (
+            f" for {self.programming_language}" if self.programming_language else ""
+        )
+
         prompt = f"""You are an expert technical writer{lang_context}. Review this documentation and provide specific feedback.
 
 Evaluate these aspects:
@@ -174,17 +178,17 @@ Current Version (Attempt {attempt}):
 Provide specific feedback on what needs improvement and why."""
 
         return prompt
-    
+
     def _build_improvement_prompt(
         self,
         original_text: str,
         current_text: str,
         critique: str,
         attempt: int,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Build improvement prompt for technical documentation."""
-        
+
         prompt = f"""You are an expert technical writer. Improve this documentation based on the critique.
 
 Requirements:
@@ -203,11 +207,11 @@ Critique:
 Provide only the improved documentation text."""
 
         return prompt
-    
+
     def _parse_critique_response(self, response: str) -> str:
         """Parse critique response."""
         return response.strip()
-    
+
     def _parse_improvement_response(self, response: str) -> str:
         """Parse improvement response."""
         return response.strip()
@@ -230,23 +234,22 @@ Provide only the improved documentation text."""
 
 if __name__ == "__main__":
     # Example usage
-    from sifaka import improve_sync
     from sifaka.critics import register_critic
-    
+
     # Register custom critics
     register_critic("academic_writing", AcademicWritingCritic)
     register_critic("technical_docs", TechnicalDocumentationCritic)
-    
+
     # Example 1: Improve academic writing
     academic_text = """
-    Machine learning is really cool and lots of people use it. 
+    Machine learning is really cool and lots of people use it.
     It can do amazing things like recognize pictures and translate languages.
     According to some researchers, it's getting better every day.
     """
-    
+
     print("Academic Writing Example:")
     print("Original:", academic_text)
-    
+
     # This would make actual API calls in practice
     # result = improve_sync(
     #     academic_text,
@@ -255,17 +258,17 @@ if __name__ == "__main__":
     #     critic_kwargs={"citation_style": "APA", "formality_level": "high"}
     # )
     # print("Improved:", result.final_text)
-    
+
     # Example 2: Improve technical documentation
     tech_docs = """
     This function does some stuff with data.
     It takes some parameters and returns something.
     You should probably check for errors.
     """
-    
+
     print("\nTechnical Documentation Example:")
     print("Original:", tech_docs)
-    
+
     # result = improve_sync(
     #     tech_docs,
     #     critics=["technical_docs"],

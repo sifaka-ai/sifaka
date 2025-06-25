@@ -5,12 +5,8 @@ import json
 import tempfile
 import os
 from unittest.mock import patch, MagicMock, AsyncMock
-from datetime import datetime, timezone
-import uuid
 
 from sifaka import improve
-from sifaka.core.engine import SifakaEngine
-from sifaka.core.config import Config
 from sifaka.core.models import (
     SifakaResult,
     Generation,
@@ -18,11 +14,7 @@ from sifaka.core.models import (
     ValidationResult,
 )
 from sifaka.core.exceptions import (
-    SifakaError,
-    ConfigurationError,
-    ModelProviderError,
     TimeoutError,
-    ValidationError,
     CriticError,
 )
 from sifaka.validators import LengthValidator, ContentValidator

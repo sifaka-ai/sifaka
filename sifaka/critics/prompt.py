@@ -25,7 +25,27 @@ from ..core.config import Config
 
 
 class PromptCritic(BaseCritic):
-    """Flexible critic that uses custom prompts for evaluation."""
+    """Flexible critic that uses custom prompts for evaluation.
+
+    ## When to Use This Critic:
+
+    ✅ When to use:
+    - Implementing custom evaluation criteria
+    - Domain-specific requirements not covered by other critics
+    - Experimenting with new evaluation approaches
+    - Highly specialized content types
+
+    ❌ When to avoid:
+    - When standard critics already meet your needs
+    - If you're unsure about evaluation criteria
+    - When consistency across evaluations is critical
+
+    🎯 Best for:
+    - Custom business requirements
+    - Experimental evaluation criteria
+    - Niche content types
+    - Rapid prototyping of new critic ideas
+    """
 
     def __init__(
         self,
@@ -39,7 +59,7 @@ class PromptCritic(BaseCritic):
         # Initialize with custom config
         if config is None:
             config = Config()
-        
+
         super().__init__(model, temperature, config, provider, api_key)
         self.custom_prompt = custom_prompt
 
@@ -47,11 +67,13 @@ class PromptCritic(BaseCritic):
     def name(self) -> str:
         return "prompt"
 
-    async def _create_messages(self, text: str, result: SifakaResult) -> List[Dict[str, str]]:
+    async def _create_messages(
+        self, text: str, result: SifakaResult
+    ) -> List[Dict[str, str]]:
         """Create messages using the custom prompt."""
         # Get previous context
         previous_context = self._get_previous_context(result)
-        
+
         user_prompt = f"""{self.custom_prompt}
 
 Text to evaluate:
@@ -63,19 +85,14 @@ Please provide specific, actionable feedback based on the evaluation criteria.""
         return [
             {
                 "role": "system",
-                "content": "You are a customizable text critic that evaluates based on user-defined criteria."
+                "content": "You are a customizable text critic that evaluates based on user-defined criteria.",
             },
-            {
-                "role": "user",
-                "content": user_prompt
-            }
+            {"role": "user", "content": user_prompt},
         ]
 
 
 def create_academic_critic(
-    model: str = "gpt-4o-mini",
-    temperature: float = 0.7,
-    **kwargs: Any
+    model: str = "gpt-4o-mini", temperature: float = 0.7, **kwargs: Any
 ) -> PromptCritic:
     """Create a critic for academic writing."""
     prompt = """Evaluate this text as an academic paper excerpt. Consider:
@@ -84,14 +101,14 @@ def create_academic_critic(
 3. Use of evidence and citations
 4. Academic tone and style
 5. Contribution to the field"""
-    
-    return PromptCritic(custom_prompt=prompt, model=model, temperature=temperature, **kwargs)
+
+    return PromptCritic(
+        custom_prompt=prompt, model=model, temperature=temperature, **kwargs
+    )
 
 
 def create_business_critic(
-    model: str = "gpt-4o-mini",
-    temperature: float = 0.7,
-    **kwargs: Any
+    model: str = "gpt-4o-mini", temperature: float = 0.7, **kwargs: Any
 ) -> PromptCritic:
     """Create a critic for business documents."""
     prompt = """Evaluate this business document. Consider:
@@ -100,14 +117,14 @@ def create_business_critic(
 3. Value proposition and benefits
 4. Structure and organization
 5. Persuasiveness and impact"""
-    
-    return PromptCritic(custom_prompt=prompt, model=model, temperature=temperature, **kwargs)
+
+    return PromptCritic(
+        custom_prompt=prompt, model=model, temperature=temperature, **kwargs
+    )
 
 
 def create_creative_critic(
-    model: str = "gpt-4o-mini",
-    temperature: float = 0.7,
-    **kwargs: Any
+    model: str = "gpt-4o-mini", temperature: float = 0.7, **kwargs: Any
 ) -> PromptCritic:
     """Create a critic for creative writing."""
     prompt = """Evaluate this creative writing. Consider:
@@ -116,5 +133,7 @@ def create_creative_critic(
 3. Descriptive language and imagery
 4. Emotional impact and engagement
 5. Originality and creativity"""
-    
-    return PromptCritic(custom_prompt=prompt, model=model, temperature=temperature, **kwargs)
+
+    return PromptCritic(
+        custom_prompt=prompt, model=model, temperature=temperature, **kwargs
+    )

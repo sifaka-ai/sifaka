@@ -1,4 +1,4 @@
-"""Self-RAG critic implementation.
+"""Self-RAG critic implementation (Basic version without retrieval).
 
 Based on: Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection
 Paper: https://arxiv.org/abs/2310.11511
@@ -6,6 +6,9 @@ Authors: Asai et al. (2023)
 
 Self-RAG teaches LLMs to retrieve, generate, and critique text passages
 to improve factual accuracy and quality.
+
+NOTE: This is the basic implementation that identifies claims needing verification.
+      For the enhanced version with actual retrieval support, see self_rag_enhanced.py
 
 ## Similarity to Original Paper:
 - PRESERVED: Self-critique of factual accuracy
@@ -35,7 +38,27 @@ from ..core.config import Config
 
 
 class SelfRAGCritic(BaseCritic):
-    """Implements Self-RAG critique for factual accuracy."""
+    """Implements Self-RAG critique for factual accuracy.
+
+    ## When to Use This Critic:
+
+    ✅ When to use:
+    - Fact-checking and verifying claims
+    - Identifying unsupported assertions
+    - Academic or research content requiring citations
+    - Content where accuracy is paramount
+
+    ❌ When to avoid:
+    - Creative or fictional writing
+    - Opinion pieces or personal narratives
+    - When external verification isn't needed
+
+    🎯 Best for:
+    - Technical documentation
+    - Research papers and reports
+    - News articles and factual content
+    - Educational materials requiring accuracy
+    """
 
     def __init__(
         self,
@@ -54,11 +77,13 @@ class SelfRAGCritic(BaseCritic):
     def name(self) -> str:
         return "self_rag"
 
-    async def _create_messages(self, text: str, result: SifakaResult) -> List[Dict[str, str]]:
+    async def _create_messages(
+        self, text: str, result: SifakaResult
+    ) -> List[Dict[str, str]]:
         """Create messages for RAG-style critique."""
         # Get previous context
         previous_context = self._get_previous_context(result)
-        
+
         user_prompt = f"""You are a Self-RAG critic focused on factual accuracy and verifiability.
 
 Text to evaluate:
@@ -83,10 +108,7 @@ Focus on improving the text's reliability and factual grounding."""
         return [
             {
                 "role": "system",
-                "content": "You are a Self-RAG critic that evaluates text for factual accuracy, verifiability, and identifies where retrieval of external information would improve quality."
+                "content": "You are a Self-RAG critic that evaluates text for factual accuracy, verifiability, and identifies where retrieval of external information would improve quality.",
             },
-            {
-                "role": "user",
-                "content": user_prompt
-            }
+            {"role": "user", "content": user_prompt},
         ]

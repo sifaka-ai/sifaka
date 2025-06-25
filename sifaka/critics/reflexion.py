@@ -35,7 +35,17 @@ from .core.base import BaseCritic
 
 
 class ReflexionCritic(BaseCritic):
-    """Implements Reflexion self-reflection for text improvement."""
+    """Implements Reflexion self-reflection for text improvement.
+
+    When to Use This Critic:
+    - ✅ Content needs progressive refinement through multiple attempts
+    - ✅ Previous iterations provide valuable learning context
+    - ✅ You have budget for 3-5 iterations
+    - ✅ Writing tasks that benefit from "trial and error" approach
+    - ❌ Single-shot improvements with no iteration budget
+    - ❌ Content where history isn't relevant (e.g., standalone facts)
+    - 🎯 Best for: Creative writing, complex arguments, iterative drafts
+    """
 
     def __init__(
         self,
@@ -54,14 +64,16 @@ class ReflexionCritic(BaseCritic):
     def name(self) -> str:
         return "reflexion"
 
-    async def _create_messages(self, text: str, result: SifakaResult) -> List[Dict[str, str]]:
+    async def _create_messages(
+        self, text: str, result: SifakaResult
+    ) -> List[Dict[str, str]]:
         """Create messages for the LLM using reflection approach."""
         # Build context from previous iterations
         context = self._build_context(result)
 
         # Get previous feedback to avoid repetition
         previous_context = self._get_previous_context(result)
-        
+
         # Create reflection prompt
         user_prompt = f"""You are a thoughtful critic using self-reflection to improve text.
 
@@ -83,12 +95,9 @@ Focus on being constructive and specific. Analyze the text's strengths, weakness
         return [
             {
                 "role": "system",
-                "content": "You are an expert text critic using the Reflexion technique for self-improvement through iterative reflection."
+                "content": "You are an expert text critic using the Reflexion technique for self-improvement through iterative reflection.",
             },
-            {
-                "role": "user",
-                "content": user_prompt
-            }
+            {"role": "user", "content": user_prompt},
         ]
 
     def _build_context(self, result: SifakaResult) -> str:
@@ -102,7 +111,7 @@ Focus on being constructive and specific. Analyze the text's strengths, weakness
         # Convert deque to list for slicing
         critiques_list = list(result.critiques)
         recent_critiques = critiques_list[-3:]  # Last 3 critiques
-        
+
         for i, critique in enumerate(recent_critiques, 1):
             context_parts.append(f"\nIteration {i} ({critique.critic}):")
             context_parts.append(f"  Feedback: {critique.feedback[:200]}...")

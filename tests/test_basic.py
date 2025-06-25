@@ -1,7 +1,6 @@
 """Basic tests for Sifaka functionality."""
 
 import pytest
-import asyncio
 from unittest.mock import AsyncMock, patch
 
 from sifaka import improve

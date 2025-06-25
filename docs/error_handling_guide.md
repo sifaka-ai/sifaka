@@ -203,7 +203,7 @@ from sifaka.core.exceptions import ValidationError
 def test_invalid_config_raises_error():
     with pytest.raises(ValidationError) as exc_info:
         validate_config(Config(max_iterations=-1))
-    
+
     assert "must be at least 1" in str(exc_info.value)
     assert exc_info.value.suggestion is not None
 ```

@@ -133,10 +133,10 @@ def test_descriptive_name():
     """Test that the feature works as expected."""
     # Arrange
     input_text = "test input"
-    
+
     # Act
     result = improve(input_text)
-    
+
     # Assert
     assert result.improved_text != input_text
 ```
@@ -215,15 +215,15 @@ def improve_text(
     timeout: Optional[float] = None,
 ) -> ImproveResult:
     """Improve the given text using AI-powered critique.
-    
+
     Args:
         text: The text to improve.
         max_iterations: Maximum number of improvement iterations.
         timeout: Optional timeout in seconds.
-        
+
     Returns:
         ImproveResult containing the improved text and metadata.
-        
+
     Raises:
         ValueError: If text is empty or max_iterations < 1.
         TimeoutError: If the operation exceeds the timeout.

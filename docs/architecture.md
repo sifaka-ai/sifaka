@@ -21,12 +21,12 @@ graph LR
     E -->|Yes| F["Revision Prompt"]
     F --> B
     E -->|No| G["Final Text"]
-    
+
     C --> H["Thought History"]
     D --> H
     F --> H
     H --> I["File Storage"]
-    
+
     style A fill:#e1f5fe
     style G fill:#c8e6c9
     style H fill:#fff3e0
@@ -136,7 +136,7 @@ class Validator(ABC):
     @abstractmethod
     def name(self) -> str:
         pass
-    
+
     @abstractmethod
     async def validate(self, text: str, result: SifakaResult) -> ValidationResult:
         pass
@@ -158,7 +158,7 @@ class StorageBackend(ABC):
     @abstractmethod
     async def save(self, result: SifakaResult) -> str:
         pass
-    
+
     @abstractmethod
     async def load(self, result_id: str) -> Optional[SifakaResult]:
         pass

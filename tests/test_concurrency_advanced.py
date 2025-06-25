@@ -2,19 +2,17 @@
 
 import pytest
 import asyncio
-import threading
 import concurrent.futures
 import time
 from unittest.mock import patch, MagicMock, AsyncMock
-from typing import List, Dict, Any
+from typing import List
 import random
 
 from sifaka import improve
-from sifaka.core.engine import SifakaEngine
-from sifaka.core.models import SifakaResult, Generation, CritiqueResult
+from sifaka.core.models import SifakaResult
 from sifaka.core.config import Config
 from sifaka.storage import MemoryStorage, FileStorage
-from sifaka.validators import LengthValidator, ContentValidator
+from sifaka.validators import LengthValidator
 
 
 class TestBasicConcurrency:

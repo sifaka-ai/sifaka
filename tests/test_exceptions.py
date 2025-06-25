@@ -1,6 +1,5 @@
 """Tests for Sifaka exception handling."""
 
-import pytest
 from sifaka.core.exceptions import (
     SifakaError,
     ConfigurationError,

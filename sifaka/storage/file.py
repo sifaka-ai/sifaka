@@ -98,16 +98,19 @@ class FileStorage(StorageBackend):
                 result = await self.load(file_path.stem)
                 if result:
                     # Simple text search
-                    if (query_lower in result.original_text.lower() or 
-                        query_lower in result.final_text.lower()):
+                    if (
+                        query_lower in result.original_text.lower()
+                        or query_lower in result.final_text.lower()
+                    ):
                         matches.append(file_path.stem)
-                        
+
                     if len(matches) >= limit:
                         break
 
             except Exception as e:
                 # Log error but continue searching other files
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Error reading result file {file_path}: {e}")
                 continue

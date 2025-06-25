@@ -35,7 +35,27 @@ from ..core.config import Config
 
 
 class MetaRewardingCritic(BaseCritic):
-    """Implements Meta-Rewarding two-stage critique."""
+    """Implements Meta-Rewarding two-stage critique.
+
+    ## When to Use This Critic:
+
+    ✅ When to use:
+    - High-stakes content requiring thorough review
+    - Documents where critique quality itself matters
+    - Complex evaluations needing self-reflection
+    - Final quality assurance before publication
+
+    ❌ When to avoid:
+    - Quick iterative improvements
+    - Simple text corrections
+    - When single-pass evaluation is sufficient
+
+    🎯 Best for:
+    - Executive communications
+    - Legal or compliance documents
+    - Published articles or white papers
+    - Critical business proposals
+    """
 
     def __init__(
         self,
@@ -54,11 +74,13 @@ class MetaRewardingCritic(BaseCritic):
     def name(self) -> str:
         return "meta_rewarding"
 
-    async def _create_messages(self, text: str, result: SifakaResult) -> List[Dict[str, str]]:
+    async def _create_messages(
+        self, text: str, result: SifakaResult
+    ) -> List[Dict[str, str]]:
         """Create messages for two-stage meta-rewarding critique."""
         # Get previous context
         previous_context = self._get_previous_context(result)
-        
+
         user_prompt = f"""You are a Meta-Rewarding critic that performs two-stage evaluation.
 
 Text to evaluate:
@@ -85,10 +107,7 @@ Integrate both stages into a refined critique that reflects your meta-evaluation
         return [
             {
                 "role": "system",
-                "content": "You are a Meta-Rewarding critic that uses two-stage evaluation: first critiquing the text, then evaluating your own critique quality to provide refined feedback."
+                "content": "You are a Meta-Rewarding critic that uses two-stage evaluation: first critiquing the text, then evaluating your own critique quality to provide refined feedback.",
             },
-            {
-                "role": "user",
-                "content": user_prompt
-            }
+            {"role": "user", "content": user_prompt},
         ]

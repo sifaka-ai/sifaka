@@ -133,7 +133,7 @@ class MyMonitoringMiddleware(BaseMiddleware):
     async def pre_improve(self, text: str, **kwargs):
         # Called before improvement starts
         return {"start_time": time.time()}
-    
+
     async def post_improve(self, result, context, error=None):
         # Called after improvement completes
         duration = time.time() - context["start_time"]
@@ -294,14 +294,14 @@ rate(sifaka_improvements_total[5m])
 slis:
   - name: availability
     query: 1 - (rate(errors[5m]) / rate(requests[5m]))
-    
+
   - name: latency
     query: histogram_quantile(0.95, improvement_duration_bucket) < 10
 
 slos:
   - sli: availability
     objective: 0.999  # 99.9%
-    
+
   - sli: latency
     objective: 0.95   # 95% of requests under 10s
 ```
@@ -339,12 +339,12 @@ services:
     image: prom/prometheus
     ports:
       - "9090:9090"
-      
+
   grafana:
     image: grafana/grafana
     ports:
       - "3000:3000"
-      
+
   jaeger:
     image: jaegertracing/all-in-one
     ports:
@@ -365,7 +365,7 @@ async def synthetic_monitor():
         except Exception as e:
             metrics.increment("synthetic.failure")
             logger.error(f"Synthetic check failed: {e}")
-        
+
         await asyncio.sleep(60)  # Every minute
 ```
 

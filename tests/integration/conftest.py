@@ -3,19 +3,14 @@
 import os
 import pytest
 from typing import Optional
-from unittest.mock import patch
 
 
 def pytest_configure(config):
     """Register custom markers."""
     config.addinivalue_line(
-        "markers",
-        "integration: mark test as integration test (requires API keys)"
+        "markers", "integration: mark test as integration test (requires API keys)"
     )
-    config.addinivalue_line(
-        "markers", 
-        "slow: mark test as slow running"
-    )
+    config.addinivalue_line("markers", "slow: mark test as slow running")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -49,21 +44,23 @@ def pytest_addoption(parser):
 def api_key(request) -> Optional[str]:
     """Get API key for the selected provider."""
     provider = request.config.getoption("--llm-provider")
-    
+
     key_mapping = {
         "openai": "OPENAI_API_KEY",
         "anthropic": "ANTHROPIC_API_KEY",
         "google": "GOOGLE_API_KEY",
     }
-    
+
     env_var = key_mapping.get(provider)
     if not env_var:
         pytest.skip(f"Unknown provider: {provider}")
-    
+
     api_key = os.getenv(env_var)
     if not api_key:
-        pytest.skip(f"No API key found for {provider}. Set {env_var} environment variable.")
-    
+        pytest.skip(
+            f"No API key found for {provider}. Set {env_var} environment variable."
+        )
+
     return api_key
 
 
@@ -82,7 +79,10 @@ def integration_timeout() -> float:
 @pytest.fixture
 def use_mocks() -> bool:
     """Check if mocks should be used (for CI environments)."""
-    return os.getenv("CI", "false").lower() == "true" or os.getenv("USE_MOCK_LLM", "false").lower() == "true"
+    return (
+        os.getenv("CI", "false").lower() == "true"
+        or os.getenv("USE_MOCK_LLM", "false").lower() == "true"
+    )
 
 
 @pytest.fixture
@@ -90,6 +90,7 @@ def mock_llm_provider(use_mocks, llm_provider):
     """Provide mock LLM for CI testing."""
     if not use_mocks:
         return None
-    
+
     from .mock_responses import create_mock_llm
+
     return create_mock_llm(llm_provider)

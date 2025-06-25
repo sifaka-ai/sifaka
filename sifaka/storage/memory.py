@@ -53,16 +53,18 @@ class MemoryStorage(StorageBackend):
         try:
             matches = []
             query_lower = query.lower()
-            
+
             for result_id, result in self._storage.items():
                 # Simple text search in original and final text
-                if (query_lower in result.original_text.lower() or 
-                    query_lower in result.final_text.lower()):
+                if (
+                    query_lower in result.original_text.lower()
+                    or query_lower in result.final_text.lower()
+                ):
                     matches.append(result_id)
-                    
+
                 if len(matches) >= limit:
                     break
-                    
+
             return matches
         except Exception as e:
             raise StorageError(

@@ -2,14 +2,9 @@
 
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
-import json
-from typing import Dict, Any
 
 from sifaka import improve
-from sifaka.core.engine import SifakaEngine
-from sifaka.core.config import Config
 from sifaka.core.models import SifakaResult
-from sifaka.core.exceptions import ModelProviderError
 
 
 class TestOpenAIModels:

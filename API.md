@@ -80,6 +80,18 @@ print(result.final_text)
 - **`self_consistency`** - Consensus-based evaluation
 - **`prompt`** - Custom prompt-based critique
 
+### Choosing Critics
+
+📖 **[Critic Selection Guide](docs/CRITIC_SELECTION_GUIDE.md)** - Detailed guidance on when to use each critic
+📊 **[Critic Comparison Table](docs/CRITIC_COMPARISON_TABLE.md)** - Performance, cost, and suitability analysis
+
+**Quick Recommendations:**
+- **General improvement**: `["self_refine", "constitutional"]`
+- **Academic/Research**: `["self_rag", "self_consistency", "constitutional"]`
+- **Creative writing**: `["reflexion", "self_refine", "meta_rewarding"]`
+- **Technical docs**: `["self_rag", "constitutional", "n_critics"]`
+- **Marketing**: `["n_critics", "self_refine", "constitutional"]`
+
 ### Using Critics
 
 ```python
@@ -323,7 +335,7 @@ class CustomCritic(BaseCritic):
     @property
     def name(self) -> str:
         return "custom"
-    
+
     async def _create_messages(
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
@@ -343,7 +355,7 @@ class CustomValidator(BaseValidator):
     @property
     def name(self) -> str:
         return "custom"
-    
+
     async def _perform_validation(
         self, text: str, result: SifakaResult
     ) -> tuple[bool, float, str]:

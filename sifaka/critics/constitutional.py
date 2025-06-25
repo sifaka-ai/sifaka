@@ -1,6 +1,6 @@
 """Constitutional AI critic implementation.
 
-Based on: Constitutional AI: Harmlessness from AI Feedback  
+Based on: Constitutional AI: Harmlessness from AI Feedback
 Paper: https://arxiv.org/abs/2212.08073
 Authors: Bai et al. (2022)
 
@@ -46,7 +46,17 @@ DEFAULT_PRINCIPLES = [
 
 
 class ConstitutionalCritic(BaseCritic):
-    """Implements Constitutional AI principles for text evaluation."""
+    """Implements Constitutional AI principles for text evaluation.
+
+    When to Use This Critic:
+    - ✅ Safety and accuracy are paramount
+    - ✅ You have specific principles/guidelines to follow
+    - ✅ Ethical considerations matter
+    - ✅ Need consistent principle-based evaluation
+    - ❌ Creative freedom is the priority
+    - ❌ Principles might constrain innovation
+    - 🎯 Best for: Public content, educational material, compliance docs
+    """
 
     def __init__(
         self,
@@ -60,26 +70,32 @@ class ConstitutionalCritic(BaseCritic):
         # Initialize with custom config
         if config is None:
             config = Config()
-        
+
         super().__init__(model, temperature, config, provider, api_key)
-        
+
         # Use provided principles or config principles or defaults
-        self.principles = principles or (config.constitutional_principles if config else None) or DEFAULT_PRINCIPLES
+        self.principles = (
+            principles
+            or (config.constitutional_principles if config else None)
+            or DEFAULT_PRINCIPLES
+        )
 
     @property
     def name(self) -> str:
         return "constitutional"
 
-    async def _create_messages(self, text: str, result: SifakaResult) -> List[Dict[str, str]]:
+    async def _create_messages(
+        self, text: str, result: SifakaResult
+    ) -> List[Dict[str, str]]:
         """Create messages for constitutional evaluation."""
         # Format principles
         principles_text = "\n".join(
             f"{i+1}. {principle}" for i, principle in enumerate(self.principles)
         )
-        
+
         # Get previous context
         previous_context = self._get_previous_context(result)
-        
+
         user_prompt = f"""Please evaluate the following text against these constitutional principles:
 
 {principles_text}
@@ -98,10 +114,7 @@ Focus on constructive feedback that helps improve the text while maintaining the
         return [
             {
                 "role": "system",
-                "content": "You are a Constitutional AI critic that evaluates text against a set of principles for safety, quality, and effectiveness."
+                "content": "You are a Constitutional AI critic that evaluates text against a set of principles for safety, quality, and effectiveness.",
             },
-            {
-                "role": "user",
-                "content": user_prompt
-            }
+            {"role": "user", "content": user_prompt},
         ]

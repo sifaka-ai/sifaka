@@ -23,7 +23,7 @@ class BoundedList:
     def __init__(self, max_size: int, size_fn: Callable = len):
         self.max_size = max_size
         self.size_fn = size_fn
-        
+
     def append(self, item):
         while self._current_size() + self.size_fn(item) > self.max_size:
             self._items.pop(0)  # FIFO eviction
@@ -98,7 +98,7 @@ class MemoryMonitor:
 
 ### Default Limits
 - Max history size: 1MB
-- Max critique length: 10KB  
+- Max critique length: 10KB
 - Max text length: 100KB
 - Max iterations: 10
 

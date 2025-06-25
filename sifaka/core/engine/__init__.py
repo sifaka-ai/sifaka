@@ -6,6 +6,6 @@ from .orchestration import CriticOrchestrator
 
 __all__ = [
     "SifakaEngine",
-    "TextGenerator", 
+    "TextGenerator",
     "CriticOrchestrator",
 ]

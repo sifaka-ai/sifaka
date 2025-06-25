@@ -1,6 +1,7 @@
 """Research-backed critics for text improvement."""
 
 from .core.base import BaseCritic
+
 # Config imports removed - now using unified Config from core.config
 from .core.response_parser import CriticResponse
 from .reflexion import ReflexionCritic
@@ -11,7 +12,13 @@ from .self_rag import SelfRAGCritic
 from .meta_rewarding import MetaRewardingCritic
 from .self_consistency import SelfConsistencyCritic
 from .prompt import PromptCritic, create_academic_critic
-from .core.factory import CriticFactory, create_critic, create_critics, list_available_critics, register_critic
+from .core.factory import (
+    CriticFactory,
+    create_critic,
+    create_critics,
+    list_available_critics,
+    register_critic,
+)
 from .core.registry import CriticRegistry
 
 __all__ = [

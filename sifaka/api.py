@@ -24,7 +24,7 @@ async def improve(
     middleware: Optional[MiddlewarePipeline] = None,
 ) -> SifakaResult:
     """Improve text through iterative critique - simplified API.
-    
+
     Args:
         text: The text to improve
         critics: List of critics to use (default: ["reflexion"])
@@ -32,10 +32,10 @@ async def improve(
         validators: Optional quality validators
         config: Advanced configuration options
         storage: Optional storage backend
-        
+
     Returns:
         SifakaResult with improved text and audit trail
-        
+
     Example:
         result = await improve(
             "Write about AI",
@@ -46,10 +46,10 @@ async def improve(
     # Set defaults
     if critics is None:
         critics = [DEFAULT_CRITIC]
-    
+
     if config is None:
         config = Config()
-    
+
     # Create engine config
     engine_config = Config(
         model=config.model,
@@ -63,10 +63,10 @@ async def improve(
         critic_temperature=config.critic_temperature,
         # retry_config handled in Config directly
     )
-    
+
     # Run improvement
     engine = SifakaEngine(engine_config, storage)
-    
+
     # If middleware is provided, use it
     if middleware:
         context = {
@@ -74,12 +74,12 @@ async def improve(
             "validators": validators,
             "model": config.model,
             "temperature": config.temperature,
-            "config": engine_config
+            "config": engine_config,
         }
-        
+
         async def final_handler(text: str) -> SifakaResult:
             return await engine.improve(text, validators)
-        
+
         return await middleware.execute(text, final_handler, context)
     else:
         return await engine.improve(text, validators)
@@ -95,9 +95,9 @@ def improve_sync(
     storage: Optional[StorageBackend] = None,
 ) -> SifakaResult:
     """Synchronous wrapper for improve().
-    
+
     Same arguments as improve() but runs synchronously.
-    
+
     Example:
         result = improve_sync(
             "Write about AI",
@@ -131,15 +131,15 @@ async def improve_advanced(
     show_improvement_prompt: bool = False,
     critic_model: Optional[str] = None,
     critic_temperature: Optional[float] = None,
-    retry_config: Optional[Union[Dict[str, Any], 'RetryConfig']] = None,
+    retry_config: Optional[Union[Dict[str, Any], "RetryConfig"]] = None,
 ) -> SifakaResult:
     """Advanced API with all parameters exposed.
-    
+
     This is the original API with all parameters for backwards compatibility
     and advanced use cases.
     """
     # RetryConfig removed - handled in Config
-    
+
     # Create config
     config = Config(
         model=model,
@@ -151,7 +151,7 @@ async def improve_advanced(
         show_improvement_prompt=show_improvement_prompt,
         # retry config embedded in Config
     )
-    
+
     return await improve(
         text,
         critics=critics,

@@ -162,7 +162,7 @@ raise APIError("All providers failed")
 # Good
 "Failed to improve text: OpenAI API returned 429 (rate limit). Wait 60s or switch providers."
 
-# Bad  
+# Bad
 "Error occurred"
 "Something went wrong"
 "API failed"

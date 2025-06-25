@@ -21,12 +21,12 @@ from .critics import register_critic, CriticRegistry
 
 # Middleware
 from .core.middleware import (
-    MiddlewarePipeline, 
+    MiddlewarePipeline,
     LoggingMiddleware,
     MetricsMiddleware,
     CachingMiddleware,
     RateLimitingMiddleware,
-    monitor as monitor_context
+    monitor as monitor_context,
 )
 
 # Monitoring

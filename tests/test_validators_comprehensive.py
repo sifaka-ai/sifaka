@@ -1,12 +1,9 @@
 """Comprehensive tests for all validators."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-import tempfile
-import json
 
 from sifaka.validators import (
-    LengthValidator, 
+    LengthValidator,
     ContentValidator,
     PatternValidator,
     NumericRangeValidator,
@@ -968,10 +965,12 @@ class TestPatternValidator:
     async def test_required_patterns(self):
         """Test required pattern matching."""
         validator = PatternValidator(
-            required_patterns={"email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"}
+            required_patterns={
+                "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+            }
         )
         text = "Contact: user@example.com"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is True
         assert "1 pattern(s) validated successfully" in result.details
@@ -979,11 +978,9 @@ class TestPatternValidator:
     @pytest.mark.asyncio
     async def test_missing_required_patterns(self):
         """Test missing required patterns."""
-        validator = PatternValidator(
-            required_patterns={"phone": r"\d{3}-\d{3}-\d{4}"}
-        )
+        validator = PatternValidator(required_patterns={"phone": r"\d{3}-\d{3}-\d{4}"})
         text = "No phone number here"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is False
         assert "Required pattern 'phone' not found" in result.details
@@ -991,11 +988,9 @@ class TestPatternValidator:
     @pytest.mark.asyncio
     async def test_forbidden_patterns(self):
         """Test forbidden pattern detection."""
-        validator = PatternValidator(
-            forbidden_patterns={"ssn": r"\d{3}-\d{2}-\d{4}"}
-        )
+        validator = PatternValidator(forbidden_patterns={"ssn": r"\d{3}-\d{2}-\d{4}"})
         text = "SSN: 123-45-6789"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is False
         assert "Forbidden pattern 'ssn' found" in result.details
@@ -1005,10 +1000,10 @@ class TestPatternValidator:
         """Test pattern occurrence counting."""
         validator = PatternValidator(
             required_patterns={"code_block": r"```[\w]*\n[\s\S]+?\n```"},
-            pattern_counts={"code_block": (2, 3)}
+            pattern_counts={"code_block": (2, 3)},
         )
         text = "```python\ncode1\n```\n\nOnly one code block"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is False
         assert "must occur at least 2 times" in result.details
@@ -1018,7 +1013,7 @@ class TestPatternValidator:
         """Test code validator factory."""
         validator = create_code_validator()
         text = "Here's code:\n```python\nprint('hello')\n```"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is True
 
@@ -1027,7 +1022,7 @@ class TestPatternValidator:
         """Test citation validator factory."""
         validator = create_citation_validator()
         text = "According to research [1], this is true (Smith, 2023)."
-        
+
         result = await validator.validate(text, None)
         assert result.passed is True
 
@@ -1036,7 +1031,7 @@ class TestPatternValidator:
         """Test structured document validator factory."""
         validator = create_structured_validator()
         text = "# Main Heading\n\n- First point\n- Second point\n- Third point"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is True
 
@@ -1056,7 +1051,7 @@ class TestNumericRangeValidator:
         """Test validation of numbers in range."""
         validator = NumericRangeValidator(min_value=0, max_value=100)
         text = "The score is 85 out of 100."
-        
+
         result = await validator.validate(text, None)
         assert result.passed is True
         assert "Validated 2 numeric value(s)" in result.details
@@ -1066,7 +1061,7 @@ class TestNumericRangeValidator:
         """Test validation of numbers out of range."""
         validator = NumericRangeValidator(min_value=0, max_value=100)
         text = "The temperature is -10 degrees."
-        
+
         result = await validator.validate(text, None)
         assert result.passed is False
         assert "below minimum" in result.details
@@ -1076,7 +1071,7 @@ class TestNumericRangeValidator:
         """Test percentage validation."""
         validator = NumericRangeValidator(check_percentages=True)
         text = "Success rate: 95% but error rate: 150%"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is False
         assert "Invalid percentage: 150" in result.details  # May be 150% or 150.0%
@@ -1086,7 +1081,7 @@ class TestNumericRangeValidator:
         """Test currency validation."""
         validator = NumericRangeValidator(check_currency=True, min_value=0)
         text = "Price: $49.99 but cost: $150.00"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is True
         assert "numeric value(s)" in result.details
@@ -1096,7 +1091,7 @@ class TestNumericRangeValidator:
         """Test allowed ranges validation."""
         validator = NumericRangeValidator(allowed_ranges=[(0, 10), (90, 100)])
         text = "Values: 5, 50, 95"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is False
         assert "outside allowed ranges" in result.details
@@ -1106,7 +1101,7 @@ class TestNumericRangeValidator:
         """Test forbidden ranges validation."""
         validator = NumericRangeValidator(forbidden_ranges=[(13, 19), (666, 666)])
         text = "Age: 15 and number: 666"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is False
         assert "in forbidden range" in result.details
@@ -1116,7 +1111,7 @@ class TestNumericRangeValidator:
         """Test percentage validator factory."""
         validator = create_percentage_validator()
         text = "Coverage: 98.5%"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is True
 
@@ -1125,7 +1120,7 @@ class TestNumericRangeValidator:
         """Test price validator factory."""
         validator = create_price_validator(max_price=1000)
         text = "Product costs $599.99"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is True
 
@@ -1134,7 +1129,7 @@ class TestNumericRangeValidator:
         """Test age validator factory."""
         validator = create_age_validator()
         text = "The person is 25 years old"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is True
 
@@ -1143,7 +1138,7 @@ class TestNumericRangeValidator:
         """Test age validator with unrealistic age."""
         validator = create_age_validator()
         text = "The artifact is 250 years old"
-        
+
         result = await validator.validate(text, None)
         assert result.passed is False
         assert "forbidden range" in result.details

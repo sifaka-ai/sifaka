@@ -40,6 +40,7 @@ __all__ = [
 # Optional GuardrailsAI validator
 try:
     from .guardrails import GuardrailsValidator  # noqa: F401
+
     __all__.append("GuardrailsValidator")
 except ImportError:
     # GuardrailsAI not installed, that's okay

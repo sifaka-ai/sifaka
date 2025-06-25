@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.prompt import PromptCritic, create_academic_critic
-from sifaka.core.config import Config
 from sifaka.core.models import SifakaResult, CritiqueResult
 
 
@@ -341,7 +340,6 @@ class TestConstitutionalCritic:
 
     def test_parse_json_with_violations(self):
         """Test parsing JSON response with violations."""
-        from sifaka.critics.constitutional import PrincipleViolation
 
         critic = ConstitutionalCritic()
         json_response = """{

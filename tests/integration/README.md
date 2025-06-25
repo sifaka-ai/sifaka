@@ -116,7 +116,7 @@ def test_critic_with_mock_support(api_key, llm_provider, use_mocks):
         api_key=api_key,
         critics=["reflexion"],
     )
-    
+
     # Assertions work for both mock and real responses
     assert result.improved_text != "Test text"
     assert result.iterations >= 1

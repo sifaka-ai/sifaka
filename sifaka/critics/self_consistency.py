@@ -39,7 +39,27 @@ from ..core.config import Config
 
 
 class SelfConsistencyCritic(BaseCritic):
-    """Implements Self-Consistency approach for consensus-based critique."""
+    """Implements Self-Consistency approach for consensus-based critique.
+
+    ## When to Use This Critic:
+
+    ✅ When to use:
+    - Building consensus on content quality
+    - Reducing evaluation variance and bias
+    - Important decisions requiring reliable feedback
+    - When consistency across evaluations matters
+
+    ❌ When to avoid:
+    - Time-critical evaluations (due to multiple samples)
+    - Simple, obvious improvements
+    - When computational resources are limited
+
+    🎯 Best for:
+    - Content strategy decisions
+    - A/B testing and comparison
+    - Establishing evaluation baselines
+    - Mission-critical content review
+    """
 
     def __init__(
         self,
@@ -56,7 +76,9 @@ class SelfConsistencyCritic(BaseCritic):
         # Higher temperature for diversity
         super().__init__(model, temperature, config, provider, api_key)
         # Use config value if available, otherwise use parameter
-        self.num_samples = config.self_consistency_num_samples if config else num_samples
+        self.num_samples = (
+            config.self_consistency_num_samples if config else num_samples
+        )
 
     @property
     def name(self) -> str:
@@ -69,16 +91,18 @@ class SelfConsistencyCritic(BaseCritic):
             self._get_single_evaluation(text, result, i + 1)
             for i in range(self.num_samples)
         ]
-        
+
         # Get all evaluations
         evaluations = await asyncio.gather(*evaluation_tasks, return_exceptions=True)
-        
+
         # Filter out any failed evaluations
         valid_evaluations = []
         for eval_result in evaluations:
-            if isinstance(eval_result, CritiqueResult) and not isinstance(eval_result, Exception):
+            if isinstance(eval_result, CritiqueResult) and not isinstance(
+                eval_result, Exception
+            ):
                 valid_evaluations.append(eval_result)
-        
+
         if not valid_evaluations:
             # All evaluations failed
             return CritiqueResult(
@@ -86,17 +110,19 @@ class SelfConsistencyCritic(BaseCritic):
                 feedback="Failed to generate consistent evaluations",
                 suggestions=["Please try again"],
                 needs_improvement=True,
-                confidence=0.0
+                confidence=0.0,
             )
-        
+
         # Build consensus from valid evaluations
         return self._build_consensus(valid_evaluations)
 
-    async def _create_messages(self, text: str, result: SifakaResult) -> List[Dict[str, str]]:
+    async def _create_messages(
+        self, text: str, result: SifakaResult
+    ) -> List[Dict[str, str]]:
         """Create messages for a single evaluation."""
         # Get previous context
         previous_context = self._get_previous_context(result)
-        
+
         user_prompt = f"""Evaluate this text for quality and identify areas for improvement.
 
 Text to evaluate:
@@ -115,20 +141,19 @@ Be thorough and specific in your evaluation."""
         return [
             {
                 "role": "system",
-                "content": "You are an independent text evaluator providing thorough, unbiased critique."
+                "content": "You are an independent text evaluator providing thorough, unbiased critique.",
             },
-            {
-                "role": "user",
-                "content": user_prompt
-            }
+            {"role": "user", "content": user_prompt},
         ]
 
-    async def _get_single_evaluation(self, text: str, result: SifakaResult, sample_num: int) -> CritiqueResult:
+    async def _get_single_evaluation(
+        self, text: str, result: SifakaResult, sample_num: int
+    ) -> CritiqueResult:
         """Get one independent evaluation."""
         # Use the parent class critique method for a single evaluation
         # Temporarily modify system message for diversity
         self._temp_name = f"{self.name}_sample_{sample_num}"
-        
+
         try:
             # Call parent critique which will use _create_messages
             critique_result = await super().critique(text, result)
@@ -143,41 +168,43 @@ Be thorough and specific in your evaluation."""
         all_suggestions = []
         for e in evaluations:
             all_suggestions.extend(e.suggestions)
-        
+
         # Calculate agreement metrics
         needs_improvement_votes = sum(1 for e in evaluations if e.needs_improvement)
         consensus_needs_improvement = needs_improvement_votes > len(evaluations) / 2
-        
+
         # Calculate average confidence
-        avg_confidence = sum(e.confidence or 0.0 for e in evaluations) / len(evaluations)
-        
+        avg_confidence = sum(e.confidence or 0.0 for e in evaluations) / len(
+            evaluations
+        )
+
         # Extract common themes from feedback
         common_themes = self._extract_common_themes(all_feedback)
-        
+
         # Build consensus feedback
         consensus_feedback = self._build_consensus_feedback(
             evaluations, common_themes, consensus_needs_improvement
         )
-        
+
         # Get most common suggestions
         suggestion_counts = Counter(all_suggestions)
         top_suggestions = [s for s, _ in suggestion_counts.most_common(5)]
-        
+
         # Create metadata
         metadata = {
             "num_evaluations": len(evaluations),
             "agreement_rate": needs_improvement_votes / len(evaluations),
             "common_themes": common_themes[:3],
-            "confidence_variance": self._calculate_confidence_variance(evaluations)
+            "confidence_variance": self._calculate_confidence_variance(evaluations),
         }
-        
+
         return CritiqueResult(
             critic=self.name,
             feedback=consensus_feedback,
             suggestions=top_suggestions,
             needs_improvement=consensus_needs_improvement,
             confidence=avg_confidence,
-            metadata=metadata
+            metadata=metadata,
         )
 
     def _extract_common_themes(self, feedback_list: List[str]) -> List[str]:
@@ -189,31 +216,47 @@ Be thorough and specific in your evaluation."""
             words = feedback.lower().split()
             # Filter out common words and short words
             filtered_words = [
-                w for w in words 
-                if len(w) > 4 and w not in {"about", "text", "this", "that", "with", "from", "have", "been", "will", "would", "could", "should"}
+                w
+                for w in words
+                if len(w) > 4
+                and w
+                not in {
+                    "about",
+                    "text",
+                    "this",
+                    "that",
+                    "with",
+                    "from",
+                    "have",
+                    "been",
+                    "will",
+                    "would",
+                    "could",
+                    "should",
+                }
             ]
             all_words.extend(filtered_words)
-        
+
         # Get most common meaningful words
         word_counts = Counter(all_words)
-        common_themes = [word for word, count in word_counts.most_common(10) if count >= 2]
-        
+        common_themes = [
+            word for word, count in word_counts.most_common(10) if count >= 2
+        ]
+
         return common_themes
 
     def _build_consensus_feedback(
-        self, 
-        evaluations: List[CritiqueResult], 
+        self,
+        evaluations: List[CritiqueResult],
         common_themes: List[str],
-        consensus_needs_improvement: bool
+        consensus_needs_improvement: bool,
     ) -> str:
         """Build consensus feedback message."""
         feedback_parts = []
-        
+
         # Summary of evaluations
-        feedback_parts.append(
-            f"Based on {len(evaluations)} independent evaluations:"
-        )
-        
+        feedback_parts.append(f"Based on {len(evaluations)} independent evaluations:")
+
         # Agreement level
         needs_improvement_count = sum(1 for e in evaluations if e.needs_improvement)
         if needs_improvement_count == len(evaluations):
@@ -224,32 +267,36 @@ Be thorough and specific in your evaluation."""
             feedback_parts.append(
                 f"{needs_improvement_count}/{len(evaluations)} evaluations suggest improvement."
             )
-        
+
         # Common themes
         if common_themes:
             feedback_parts.append(
                 f"Common themes identified: {', '.join(common_themes[:5])}"
             )
-        
+
         # Confidence assessment
         confidence_variance = self._calculate_confidence_variance(evaluations)
-        
+
         if confidence_variance < 0.05:
             feedback_parts.append("Evaluations show high consistency.")
         elif confidence_variance < 0.15:
             feedback_parts.append("Evaluations show moderate consistency.")
         else:
             feedback_parts.append("Evaluations show significant variation.")
-        
+
         return " ".join(feedback_parts)
 
-    def _calculate_confidence_variance(self, evaluations: List[CritiqueResult]) -> float:
+    def _calculate_confidence_variance(
+        self, evaluations: List[CritiqueResult]
+    ) -> float:
         """Calculate variance in confidence scores."""
         if len(evaluations) < 2:
             return 0.0
-        
+
         confidences = [e.confidence or 0.0 for e in evaluations]
         avg_confidence = sum(confidences) / len(confidences)
-        variance = sum((c - avg_confidence) ** 2 for c in confidences) / len(confidences)
-        
+        variance = sum((c - avg_confidence) ** 2 for c in confidences) / len(
+            confidences
+        )
+
         return variance

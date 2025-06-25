@@ -17,7 +17,7 @@ def create_critic(
     api_key: Optional[str] = None,
 ) -> Critic:
     """Create a critic instance by name.
-    
+
     Args:
         name: Name of the critic (e.g., "reflexion", "constitutional")
         model: LLM model to use
@@ -25,10 +25,10 @@ def create_critic(
         config: Critic configuration
         provider: LLM provider
         api_key: API key for the provider
-        
+
     Returns:
         Initialized critic instance
-        
+
     Raises:
         ValueError: If critic name is unknown
     """
@@ -36,7 +36,7 @@ def create_critic(
     if not critic_class:
         available = ", ".join(CriticRegistry.list())
         raise ValueError(f"Unknown critic: '{name}'. Available: {available}")
-    
+
     # Cast to proper type for instantiation
     critic_type = cast(Type[BaseCritic], critic_class)
     return critic_type(
@@ -57,7 +57,7 @@ def create_critics(
     api_key: Optional[str] = None,
 ) -> List[Critic]:
     """Create multiple critic instances.
-    
+
     Args:
         names: List of critic names
         model: LLM model to use
@@ -65,7 +65,7 @@ def create_critics(
         config: Shared critic configuration
         provider: LLM provider
         api_key: API key for the provider
-        
+
     Returns:
         List of initialized critic instances
     """
@@ -80,9 +80,11 @@ def list_available_critics() -> List[str]:
     return CriticRegistry.list()
 
 
-def register_critic(name: str, critic_class: type, aliases: Optional[List[str]] = None) -> None:
+def register_critic(
+    name: str, critic_class: type, aliases: Optional[List[str]] = None
+) -> None:
     """Register a custom critic.
-    
+
     Args:
         name: Primary name for the critic
         critic_class: The critic class to register
@@ -94,15 +96,15 @@ def register_critic(name: str, critic_class: type, aliases: Optional[List[str]] 
 # For backwards compatibility
 class CriticFactory:
     """Factory class for backwards compatibility."""
-    
+
     @classmethod
     def create(cls, critic_name: str, **kwargs: Any) -> Critic:
         return create_critic(critic_name, **kwargs)
-    
+
     @classmethod
     def create_multiple(cls, critic_names: List[str], **kwargs: Any) -> List[Critic]:
         return create_critics(critic_names, **kwargs)
-    
+
     @classmethod
     def list_critics(cls) -> List[str]:
         return list_available_critics()

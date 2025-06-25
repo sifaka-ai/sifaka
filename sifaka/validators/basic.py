@@ -14,7 +14,7 @@ class LengthValidator(BaseValidator):
         self,
         min_length: Optional[int] = None,
         max_length: Optional[int] = None,
-        config: Optional[ValidatorConfig] = None
+        config: Optional[ValidatorConfig] = None,
     ):
         super().__init__(config)
         self.min_length = min_length
@@ -45,22 +45,22 @@ class LengthValidator(BaseValidator):
         length = len(text)
         passed = True
         details_parts = [f"Text length: {length} characters"]
-        
+
         # Calculate score based on how well length matches requirements
         score = 1.0
-        
+
         if self.min_length is not None and length < self.min_length:
             passed = False
             details_parts.append(f"(minimum required: {self.min_length})")
             score = length / self.min_length
-        
+
         if self.max_length is not None and length > self.max_length:
             passed = False
             details_parts.append(f"(maximum allowed: {self.max_length})")
             # Don't reduce score if we're already over min length
             if self.min_length is None or length >= self.min_length:
                 score = self.max_length / length
-        
+
         # Perfect score if within range
         if passed and self.min_length is not None and self.max_length is not None:
             # Calculate how centered the length is within the range
@@ -69,7 +69,7 @@ class LengthValidator(BaseValidator):
                 center = (self.min_length + self.max_length) / 2
                 deviation = abs(length - center) / (range_size / 2)
                 score = 1.0 - (deviation * 0.1)  # Small penalty for being off-center
-        
+
         details = " ".join(details_parts)
         return passed, score, details
 
@@ -82,7 +82,7 @@ class ContentValidator(BaseValidator):
         required_terms: Optional[List[str]] = None,
         forbidden_terms: Optional[List[str]] = None,
         case_sensitive: bool = False,
-        config: Optional[ValidatorConfig] = None
+        config: Optional[ValidatorConfig] = None,
     ):
         super().__init__(config)
         self.required_terms = required_terms or []
@@ -173,7 +173,7 @@ class FormatValidator(BaseValidator):
         required_sections: Optional[List[str]] = None,
         min_paragraphs: Optional[int] = None,
         max_paragraphs: Optional[int] = None,
-        config: Optional[ValidatorConfig] = None
+        config: Optional[ValidatorConfig] = None,
     ):
         super().__init__(config)
         self.required_sections = required_sections or []

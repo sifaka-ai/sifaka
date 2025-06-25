@@ -31,8 +31,12 @@ ROLE_ASSISTANT = "assistant"
 
 # Error messages
 ERROR_UNKNOWN_CRITIC = "Unknown critic: '{name}'. Available: {available}"
-ERROR_INVALID_ITERATIONS = f"max_iterations must be between {MIN_ITERATIONS} and {MAX_ITERATIONS}"
-ERROR_INVALID_TEMPERATURE = f"temperature must be between {MIN_TEMPERATURE} and {MAX_TEMPERATURE}"
+ERROR_INVALID_ITERATIONS = (
+    f"max_iterations must be between {MIN_ITERATIONS} and {MAX_ITERATIONS}"
+)
+ERROR_INVALID_TEMPERATURE = (
+    f"temperature must be between {MIN_TEMPERATURE} and {MAX_TEMPERATURE}"
+)
 ERROR_NO_PROVIDER = "No provider specified and unable to determine from model name"
 ERROR_TIMEOUT = "Operation timed out after {timeout} seconds"
 

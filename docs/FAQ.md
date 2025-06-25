@@ -70,7 +70,7 @@ import asyncpg
 class PostgresBackend(StorageBackend):
     def __init__(self, connection_string):
         self.conn_string = connection_string
-    
+
     async def save(self, result):
         conn = await asyncpg.connect(self.conn_string)
         await conn.execute('''
@@ -127,7 +127,7 @@ async def stream_improvements(text):
 
 ### How can I reduce API costs?
 
-1. **Use cheaper models for critique**: 
+1. **Use cheaper models for critique**:
    ```python
    improve_sync(text, generation_model="gpt-4", critique_model="gpt-3.5-turbo")
    ```
@@ -140,7 +140,7 @@ async def stream_improvements(text):
 3. **Use caching**:
    ```python
    from sifaka.middleware import CacheMiddleware
-   
+
    improve_sync(
        text,
        middleware=[CacheMiddleware(ttl=3600)]
@@ -161,7 +161,7 @@ async def stream_improvements(text):
    ```python
    # Process multiple texts concurrently
    import asyncio
-   
+
    texts = ["text1", "text2", "text3"]
    tasks = [improve_async(text) for text in texts]
    results = await asyncio.gather(*tasks)
@@ -176,7 +176,7 @@ async def stream_improvements(text):
    ```python
    # Quick improvement for drafts
    draft_result = improve_sync(text, critics=["prompt"], max_iterations=1)
-   
+
    # Thorough improvement for final version
    final_result = improve_sync(
        draft_result.final_text,
@@ -326,7 +326,7 @@ class MyStrategy(ImprovementStrategy):
     def should_continue(self, iteration, result):
         # Custom logic for when to stop
         return iteration < 5 and "perfect" not in result.final_text
-    
+
     def select_next_critic(self, history):
         # Custom critic selection logic
         if len(history) == 0:
@@ -366,7 +366,7 @@ import mlflow
 # Track improvements in MLflow
 with mlflow.start_run():
     result = improve_sync(text)
-    
+
     mlflow.log_param("critics", ["reflexion"])
     mlflow.log_metric("iterations", result.iterations)
     mlflow.log_metric("improvement_score", result.metadata.get("score", 0))

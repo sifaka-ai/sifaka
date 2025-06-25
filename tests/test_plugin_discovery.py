@@ -1,15 +1,12 @@
 """Tests for plugin discovery mechanism and entry point registration."""
 
-import pytest
-from unittest.mock import patch, MagicMock, call
-import pkg_resources
+from unittest.mock import patch, MagicMock
 from typing import Optional, List
 
 from sifaka.core.plugins import (
     PluginRegistry,
     discover_storage_plugins,
     list_storage_backends,
-    get_storage_backend,
     create_storage_backend,
 )
 from sifaka.storage.base import StorageBackend
@@ -85,7 +82,11 @@ class TestPluginDiscovery:
         mock_entry_point3.load.return_value = MockStorageBackend
 
         with patch("pkg_resources.iter_entry_points") as mock_iter:
-            mock_iter.return_value = [mock_entry_point1, mock_entry_point2, mock_entry_point3]
+            mock_iter.return_value = [
+                mock_entry_point1,
+                mock_entry_point2,
+                mock_entry_point3,
+            ]
 
             # Capture print output
             with patch("builtins.print") as mock_print:
@@ -101,7 +102,9 @@ class TestPluginDiscovery:
                 # Verify warning was printed
                 mock_print.assert_called()
                 warning_call = mock_print.call_args_list[0]
-                assert "Failed to load storage plugin 'broken_backend'" in str(warning_call)
+                assert "Failed to load storage plugin 'broken_backend'" in str(
+                    warning_call
+                )
 
     def test_discover_plugins_called_once(self):
         """Test that discover_plugins is only called once."""
@@ -113,7 +116,7 @@ class TestPluginDiscovery:
             mock_iter.return_value = [mock_entry_point]
 
             registry = PluginRegistry()
-            
+
             # Call discover_plugins multiple times
             registry.discover_plugins()
             registry.discover_plugins()
@@ -124,12 +127,15 @@ class TestPluginDiscovery:
 
     def test_discover_plugins_no_pkg_resources(self):
         """Test plugin discovery when pkg_resources is not available."""
-        with patch("pkg_resources.iter_entry_points", side_effect=ImportError("No pkg_resources")):
+        with patch(
+            "pkg_resources.iter_entry_points",
+            side_effect=ImportError("No pkg_resources"),
+        ):
             registry = PluginRegistry()
-            
+
             # Should not raise an error
             registry.discover_plugins()
-            
+
             # Registry should still work with manual registration
             registry.register("manual", MockStorageBackend)
             assert "manual" in registry.list_backends()
@@ -144,16 +150,16 @@ class TestPluginDiscovery:
             mock_iter.return_value = [mock_entry_point]
 
             registry = PluginRegistry()
-            
+
             # Discovery should not have happened yet
             assert registry._discovered is False
-            
+
             # Getting a backend should trigger discovery
             try:
                 registry.get_backend("lazy_backend")
             except KeyError:
                 pass  # Expected if backend wasn't manually registered
-            
+
             # Verify discovery was triggered
             assert registry._discovered is True
             mock_iter.assert_called_once()
@@ -168,13 +174,13 @@ class TestPluginDiscovery:
             mock_iter.return_value = [mock_entry_point]
 
             registry = PluginRegistry()
-            
+
             # Discovery should not have happened yet
             assert registry._discovered is False
-            
+
             # Listing backends should trigger discovery
             backends = registry.list_backends()
-            
+
             # Verify discovery was triggered
             assert registry._discovered is True
             assert "lazy_backend" in backends
@@ -182,8 +188,10 @@ class TestPluginDiscovery:
 
     def test_entry_point_with_invalid_backend(self):
         """Test handling of entry points that don't return StorageBackend."""
+
         class NotABackend:
             """Not a storage backend."""
+
             pass
 
         mock_entry_point = MagicMock()
@@ -203,7 +211,9 @@ class TestPluginDiscovery:
                 # Warning should be printed
                 mock_print.assert_called()
                 warning_call = mock_print.call_args_list[0]
-                assert "Failed to load storage plugin 'invalid_backend'" in str(warning_call)
+                assert "Failed to load storage plugin 'invalid_backend'" in str(
+                    warning_call
+                )
 
     def test_global_plugin_discovery(self):
         """Test the global plugin discovery function."""
@@ -216,12 +226,13 @@ class TestPluginDiscovery:
 
             # Reset the global registry
             from sifaka.core.plugins import _registry
+
             _registry._discovered = False
             _registry._backends.clear()
 
             # Use the global function
             discover_storage_plugins()
-            
+
             # Verify plugin was discovered
             backends = list_storage_backends()
             assert "global_test" in backends
@@ -237,16 +248,17 @@ class TestPluginDiscovery:
 
             # Reset the global registry
             from sifaka.core.plugins import _registry
+
             _registry._discovered = False
             _registry._backends.clear()
 
             # Try to create a backend
             backend = create_storage_backend("auto_discovered", config="test")
-            
+
             # Verify backend was created
             assert isinstance(backend, MockStorageBackend)
             assert backend.config == "test"
-            
+
             # Verify discovery happened
             mock_iter.assert_called_once()
 
@@ -257,32 +269,32 @@ class TestPluginRegistrationEdgeCases:
     def test_register_with_empty_name(self):
         """Test registering a plugin with empty name."""
         from sifaka.core.plugins import _registry
-        
+
         # Should allow empty string (though not recommended)
         _registry.register("", MockStorageBackend)
         assert "" in _registry.list_backends()
-        
+
         # Clean up
         _registry._backends.pop("", None)
 
     def test_register_overwrites_existing(self):
         """Test that registering overwrites existing plugins."""
         from sifaka.core.plugins import _registry
-        
+
         class Backend1(MockStorageBackend):
             version = 1
-            
+
         class Backend2(MockStorageBackend):
             version = 2
-        
+
         _registry.register("overwrite_test", Backend1)
         backend_class = _registry.get_backend("overwrite_test")
         assert backend_class.version == 1
-        
+
         _registry.register("overwrite_test", Backend2)
         backend_class = _registry.get_backend("overwrite_test")
         assert backend_class.version == 2
-        
+
         # Clean up
         _registry._backends.pop("overwrite_test", None)
 
@@ -290,10 +302,10 @@ class TestPluginRegistrationEdgeCases:
         """Test that the correct entry point group name is used."""
         with patch("pkg_resources.iter_entry_points") as mock_iter:
             mock_iter.return_value = []
-            
+
             registry = PluginRegistry()
             registry.discover_plugins()
-            
+
             # Verify the correct group name was used
             mock_iter.assert_called_once_with("sifaka.storage")
 
@@ -305,10 +317,10 @@ class TestPluginIsolation:
         """Test that plugin registries are isolated."""
         registry1 = PluginRegistry()
         registry2 = PluginRegistry()
-        
+
         registry1.register("isolated1", MockStorageBackend)
         registry2.register("isolated2", MockStorageBackend)
-        
+
         assert "isolated1" in registry1.list_backends()
         assert "isolated1" not in registry2.list_backends()
         assert "isolated2" in registry2.list_backends()
@@ -324,13 +336,13 @@ class TestPluginIsolation:
             mock_iter.return_value = [mock_entry_point]
 
             registry = PluginRegistry()
-            
+
             # Manually register a plugin
             registry.register("manual", MockStorageBackend)
-            
+
             # Trigger discovery
             registry.discover_plugins()
-            
+
             # Both should be available
             backends = registry.list_backends()
             assert "manual" in backends

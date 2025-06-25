@@ -35,7 +35,27 @@ from ..core.config import Config
 
 
 class SelfRefineCritic(BaseCritic):
-    """Implements Self-Refine iterative refinement approach."""
+    """Implements Self-Refine iterative refinement approach.
+
+    ## When to Use This Critic:
+
+    ✅ When to use:
+    - Improving general text quality and polish
+    - Iterative refinement of existing content
+    - Enhancing clarity, completeness, and coherence
+    - Making text more engaging and professional
+
+    ❌ When to avoid:
+    - When specific domain expertise is required
+    - For fact-checking or accuracy verification
+    - When you need multiple perspectives simultaneously
+
+    🎯 Best for:
+    - General content improvement
+    - Readability enhancement
+    - Professional document polishing
+    - Iterative quality improvement cycles
+    """
 
     def __init__(
         self,
@@ -54,14 +74,16 @@ class SelfRefineCritic(BaseCritic):
     def name(self) -> str:
         return "self_refine"
 
-    async def _create_messages(self, text: str, result: SifakaResult) -> List[Dict[str, str]]:
+    async def _create_messages(
+        self, text: str, result: SifakaResult
+    ) -> List[Dict[str, str]]:
         """Create messages for self-refinement evaluation."""
         # Get refinement history
         refinement_context = self._get_refinement_context(result)
-        
+
         # Get previous context
         previous_context = self._get_previous_context(result)
-        
+
         user_prompt = f"""You are tasked with providing self-refinement feedback for this text.
 
 {refinement_context}
@@ -84,32 +106,33 @@ Provide specific, actionable feedback for refinement. Focus on the most impactfu
         return [
             {
                 "role": "system",
-                "content": "You are a Self-Refine critic that provides iterative refinement feedback to improve text quality across multiple dimensions."
+                "content": "You are a Self-Refine critic that provides iterative refinement feedback to improve text quality across multiple dimensions.",
             },
-            {
-                "role": "user",
-                "content": user_prompt
-            }
+            {"role": "user", "content": user_prompt},
         ]
 
     def _get_refinement_context(self, result: SifakaResult) -> str:
         """Get context about the refinement process."""
         if not result.generations:
             return "This is the initial text requiring refinement."
-        
-        context_parts = [f"The text has undergone {len(result.generations)} refinement iterations."]
-        
+
+        context_parts = [
+            f"The text has undergone {len(result.generations)} refinement iterations."
+        ]
+
         # Note text evolution
         if len(result.generations) >= 2:
             first_gen = result.generations[0]
             last_gen = result.generations[-1]
-            
+
             # Calculate text growth
             growth = len(last_gen.text) - len(first_gen.text)
-            growth_pct = (growth / len(first_gen.text) * 100) if len(first_gen.text) > 0 else 0
-            
+            growth_pct = (
+                (growth / len(first_gen.text) * 100) if len(first_gen.text) > 0 else 0
+            )
+
             context_parts.append(
                 f"Text has {'grown' if growth > 0 else 'shrunk'} by {abs(growth)} characters ({abs(growth_pct):.1f}%)"
             )
-        
+
         return "\n".join(context_parts)

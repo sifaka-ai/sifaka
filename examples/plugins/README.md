@@ -144,19 +144,19 @@ class MyStorageBackend(StorageBackend):
     async def save(self, result):
         # Implementation
         pass
-    
+
     async def load(self, result_id):
         # Implementation
         pass
-    
+
     async def list(self, limit=100, offset=0):
         # Implementation
         pass
-    
+
     async def delete(self, result_id):
         # Implementation
         pass
-    
+
     async def search(self, query, limit=10):
         # Implementation
         pass
@@ -169,11 +169,11 @@ from sifaka.critics.core.base import BaseCritic
 
 class MyCritic(BaseCritic):
     name = "my_critic"
-    
+
     def _build_critique_prompt(self, original_text, current_text, attempt, metadata=None):
         # Return critique prompt
         pass
-    
+
     def _build_improvement_prompt(self, original_text, current_text, critique, attempt, metadata=None):
         # Return improvement prompt
         pass

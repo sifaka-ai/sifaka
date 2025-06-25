@@ -41,7 +41,12 @@ class GuardrailsValidator(BaseValidator):
         ```
     """
 
-    def __init__(self, validators: List[str], on_fail: str = "fix", config: Optional[ValidatorConfig] = None):
+    def __init__(
+        self,
+        validators: List[str],
+        on_fail: str = "fix",
+        config: Optional[ValidatorConfig] = None,
+    ):
         """Initialize GuardrailsValidator.
 
         Args:
@@ -133,12 +138,16 @@ class GuardrailsValidator(BaseValidator):
                         failures.append(f"{fail.validator_name}: {fail.failure_reason}")
 
                 details = "; ".join(failures) if failures else "Validation failed"
-                
+
                 # Calculate score based on how many validators passed
                 total_validators = len(self.validators)
                 failed_count = len(failures)
-                score = max(0.0, (total_validators - failed_count) / total_validators) if total_validators > 0 else 0.0
-                
+                score = (
+                    max(0.0, (total_validators - failed_count) / total_validators)
+                    if total_validators > 0
+                    else 0.0
+                )
+
                 return False, score, details
 
         except Exception:

@@ -1,10 +1,7 @@
 """Comprehensive tests for the plugin system."""
 
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-import tempfile
-import json
-import os
+from unittest.mock import patch
 from typing import Any, Dict, List, Optional
 
 from sifaka.core.plugins import (
@@ -16,9 +13,6 @@ from sifaka.core.plugins import (
 from sifaka.storage.base import StorageBackend
 from sifaka.core.models import (
     SifakaResult,
-    Generation,
-    CritiqueResult,
-    ValidationResult,
 )
 from sifaka.core.exceptions import ConfigurationError
 
@@ -53,12 +47,12 @@ class TestStorageBackend:
                 return False
 
             async def list(self, limit: int = 100, offset: int = 0) -> List[str]:
-                return list(self.data.keys())[offset:offset+limit]
+                return list(self.data.keys())[offset : offset + limit]
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    # Simple search implementation
-                    # Could implement actual search logic here
-                    return []
+                # Simple search implementation
+                # Could implement actual search logic here
+                return []
 
         # Should be able to instantiate concrete implementation
         backend = CustomStorageBackend()
@@ -87,12 +81,12 @@ class TestStorageBackend:
                 return self.storage.pop(result_id, None) is not None
 
             async def list(self, limit: int = 100, offset: int = 0) -> List[str]:
-                return list(self.storage.keys())[offset:offset+limit]
+                return list(self.storage.keys())[offset : offset + limit]
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    # Simple search implementation
-                    # Could implement actual search logic here
-                    return []
+                # Simple search implementation
+                # Could implement actual search logic here
+                return []
 
         backend = TestStorageBackend()
 
@@ -161,7 +155,7 @@ class TestPluginRegistration:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         register_storage_backend("test", TestBackend)
 
@@ -185,7 +179,7 @@ class TestPluginRegistration:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         class TestBackend2(StorageBackend):
             async def save(self, result: SifakaResult) -> str:
@@ -201,7 +195,7 @@ class TestPluginRegistration:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         # First registration should work
         register_storage_backend("test", TestBackend1)
@@ -244,7 +238,7 @@ class TestPluginRegistration:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         class Backend2(StorageBackend):
             async def save(self, result: SifakaResult) -> str:
@@ -260,7 +254,7 @@ class TestPluginRegistration:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         register_storage_backend("backend1", Backend1)
         register_storage_backend("backend2", Backend2)
@@ -302,7 +296,7 @@ class TestPluginFactory:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         register_storage_backend("test", TestBackend)
 
@@ -342,7 +336,7 @@ class TestPluginFactory:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         register_storage_backend("configurable", ConfigurableBackend)
 
@@ -370,7 +364,7 @@ class TestPluginFactory:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         register_storage_backend("simple", SimpleBackend)
 
@@ -413,12 +407,12 @@ class TestPluginIntegration:
                 return self.storage.pop(result_id, None) is not None
 
             async def list(self, limit: int = 100, offset: int = 0) -> List[str]:
-                return list(self.storage.keys())[offset:offset+limit]
+                return list(self.storage.keys())[offset : offset + limit]
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    # Simple search implementation
-                    # Could implement actual search logic here
-                    return []
+                # Simple search implementation
+                # Could implement actual search logic here
+                return []
 
         register_storage_backend("memory", MemoryStorageBackend)
         storage = create_storage_backend("memory")
@@ -477,7 +471,7 @@ class TestPluginIntegration:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         register_storage_backend("strict", StrictBackend)
 
@@ -521,7 +515,7 @@ class TestAdvancedPluginFeatures:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         class ExtendedBackend(BaseBackend):
             def __init__(self, name: str = "extended", prefix: str = "ext"):
@@ -567,7 +561,7 @@ class TestAdvancedPluginFeatures:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         register_storage_backend("async_init", AsyncInitBackend)
         backend = create_storage_backend("async_init")
@@ -615,7 +609,7 @@ class TestAdvancedPluginFeatures:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         register_storage_backend("complex", ComplexBackend)
 
@@ -662,7 +656,7 @@ class TestAdvancedPluginFeatures:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         register_storage_backend("error_prone", ErrorProneBackend)
 
@@ -705,7 +699,7 @@ class TestAdvancedPluginFeatures:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         # The current implementation allows None as a name
         # This might not be ideal, but we test the actual behavior
@@ -740,7 +734,7 @@ class TestAdvancedPluginFeatures:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         register_storage_backend("isolation_test", TestBackend)
 
@@ -775,7 +769,7 @@ class TestAdvancedPluginFeatures:
                 return []
 
             async def search(self, query: str, limit: int = 10) -> List[str]:
-                    return []
+                return []
 
         register_storage_backend("stateful", StatefulBackend)
 
