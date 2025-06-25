@@ -7,6 +7,7 @@ from ...core.models import CritiqueResult, SifakaResult
 from ...core.config import Config
 from ...core.interfaces import Critic
 from ...core.llm_client import LLMClient, LLMManager, Provider
+from ...tools.base import ToolInterface
 
 from pydantic import BaseModel, Field
 from typing import Any
@@ -41,6 +42,7 @@ class BaseCritic(Critic, ABC):
         config: Optional[Config] = None,
         provider: Optional[Union[str, Provider]] = None,
         api_key: Optional[str] = None,
+        enable_tools: Optional[bool] = None,
     ):
         """Initialize critic with configuration."""
         self.config = config or Config()
@@ -54,6 +56,12 @@ class BaseCritic(Critic, ABC):
 
         # Components
         self._confidence_calc = ConfidenceCalculator(self.config.critic_base_confidence)
+        
+        # Tool support
+        self.enable_tools = enable_tools if enable_tools is not None else getattr(self.config, 'enable_tools', False)
+        self.tools: List[ToolInterface] = []
+        if self.enable_tools:
+            self.tools = self._get_available_tools()
 
     @property
     def client(self) -> LLMClient:
@@ -72,6 +80,10 @@ class BaseCritic(Critic, ABC):
     def name(self) -> str:
         """Return the critic's name."""
         pass
+    
+    def _get_available_tools(self) -> List[ToolInterface]:
+        """Override to specify which tools this critic can use."""
+        return []
 
     def _get_system_prompt(self) -> str:
         """Get system prompt for PydanticAI agent. Override in subclasses for custom prompts."""

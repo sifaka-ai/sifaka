@@ -4,13 +4,13 @@ import pytest
 from sifaka import improve
 from sifaka.critics import (
     ReflexionCritic,
-    ConstitutionalAICritic,
+    ConstitutionalCritic,
     SelfRefineCritic,
-    CRITICCritic,
-    ChainOfThoughtCritic,
-    StepByStepCritic,
-    DebateCritic,
-    ExpertIterationCritic,
+    NCriticsCritic,
+    SelfRAGCritic,
+    MetaRewardingCritic,
+    SelfConsistencyCritic,
+    PromptCritic,
 )
 
 
@@ -20,15 +20,15 @@ from sifaka.critics import (
     [
         (ReflexionCritic, {}),
         (
-            ConstitutionalAICritic,
+            ConstitutionalCritic,
             {"principles": ["Be helpful", "Be harmless", "Be honest"]},
         ),
         (SelfRefineCritic, {}),
-        (CRITICCritic, {}),
-        (ChainOfThoughtCritic, {}),
-        (StepByStepCritic, {}),
-        (DebateCritic, {"num_debaters": 2}),
-        (ExpertIterationCritic, {}),
+        (NCriticsCritic, {}),
+        (SelfRAGCritic, {}),
+        (MetaRewardingCritic, {}),
+        (SelfConsistencyCritic, {}),
+        (PromptCritic, {"prompt": "Improve clarity and conciseness"}),
     ],
 )
 def test_critic_integration(

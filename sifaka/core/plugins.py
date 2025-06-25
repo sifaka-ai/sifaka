@@ -1,7 +1,11 @@
 """Plugin discovery and registration system for Sifaka storage backends."""
 
 from typing import Dict, Type, List, Any
-import pkg_resources
+try:
+    from importlib import metadata
+except ImportError:
+    # Python 3.7 compatibility
+    import importlib_metadata as metadata
 
 from ..storage.base import StorageBackend
 
@@ -60,7 +64,17 @@ class PluginRegistry:
 
         try:
             # Look for entry points in the 'sifaka.storage' group
-            for entry_point in pkg_resources.iter_entry_points("sifaka.storage"):
+            entry_points = metadata.entry_points()
+            
+            # Handle different return types in different Python versions
+            if hasattr(entry_points, 'select'):
+                # Python 3.10+
+                storage_entries = entry_points.select(group='sifaka.storage')
+            else:
+                # Python 3.8-3.9
+                storage_entries = entry_points.get('sifaka.storage', [])
+            
+            for entry_point in storage_entries:
                 try:
                     backend_class = entry_point.load()
                     self.register(entry_point.name, backend_class)
@@ -70,7 +84,7 @@ class PluginRegistry:
                         f"Warning: Failed to load storage plugin '{entry_point.name}': {e}"
                     )
         except Exception:
-            # pkg_resources might not be available in some environments
+            # Entry points might not be available in some environments
             pass
 
         self._discovered = True

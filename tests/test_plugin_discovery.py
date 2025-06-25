@@ -112,8 +112,10 @@ class TestPluginDiscovery:
         mock_entry_point.name = "test_backend"
         mock_entry_point.load.return_value = MockStorageBackend
 
-        with patch("pkg_resources.iter_entry_points") as mock_iter:
-            mock_iter.return_value = [mock_entry_point]
+        with patch("sifaka.core.plugins.metadata.entry_points") as mock_entry_points:
+            mock_eps = MagicMock()
+            mock_eps.select.return_value = [mock_entry_point]
+            mock_entry_points.return_value = mock_eps
 
             registry = PluginRegistry()
 
@@ -146,8 +148,10 @@ class TestPluginDiscovery:
         mock_entry_point.name = "lazy_backend"
         mock_entry_point.load.return_value = MockStorageBackend
 
-        with patch("pkg_resources.iter_entry_points") as mock_iter:
-            mock_iter.return_value = [mock_entry_point]
+        with patch("sifaka.core.plugins.metadata.entry_points") as mock_entry_points:
+            mock_eps = MagicMock()
+            mock_eps.select.return_value = [mock_entry_point]
+            mock_entry_points.return_value = mock_eps
 
             registry = PluginRegistry()
 
@@ -170,8 +174,10 @@ class TestPluginDiscovery:
         mock_entry_point.name = "lazy_backend"
         mock_entry_point.load.return_value = MockStorageBackend
 
-        with patch("pkg_resources.iter_entry_points") as mock_iter:
-            mock_iter.return_value = [mock_entry_point]
+        with patch("sifaka.core.plugins.metadata.entry_points") as mock_entry_points:
+            mock_eps = MagicMock()
+            mock_eps.select.return_value = [mock_entry_point]
+            mock_entry_points.return_value = mock_eps
 
             registry = PluginRegistry()
 
@@ -198,8 +204,10 @@ class TestPluginDiscovery:
         mock_entry_point.name = "invalid_backend"
         mock_entry_point.load.return_value = NotABackend
 
-        with patch("pkg_resources.iter_entry_points") as mock_iter:
-            mock_iter.return_value = [mock_entry_point]
+        with patch("sifaka.core.plugins.metadata.entry_points") as mock_entry_points:
+            mock_eps = MagicMock()
+            mock_eps.select.return_value = [mock_entry_point]
+            mock_entry_points.return_value = mock_eps
 
             with patch("builtins.print") as mock_print:
                 registry = PluginRegistry()
@@ -221,8 +229,10 @@ class TestPluginDiscovery:
         mock_entry_point.name = "global_test"
         mock_entry_point.load.return_value = MockStorageBackend
 
-        with patch("pkg_resources.iter_entry_points") as mock_iter:
-            mock_iter.return_value = [mock_entry_point]
+        with patch("sifaka.core.plugins.metadata.entry_points") as mock_entry_points:
+            mock_eps = MagicMock()
+            mock_eps.select.return_value = [mock_entry_point]
+            mock_entry_points.return_value = mock_eps
 
             # Reset the global registry
             from sifaka.core.plugins import _registry
@@ -243,8 +253,10 @@ class TestPluginDiscovery:
         mock_entry_point.name = "auto_discovered"
         mock_entry_point.load.return_value = MockStorageBackend
 
-        with patch("pkg_resources.iter_entry_points") as mock_iter:
-            mock_iter.return_value = [mock_entry_point]
+        with patch("sifaka.core.plugins.metadata.entry_points") as mock_entry_points:
+            mock_eps = MagicMock()
+            mock_eps.select.return_value = [mock_entry_point]
+            mock_entry_points.return_value = mock_eps
 
             # Reset the global registry
             from sifaka.core.plugins import _registry
@@ -332,8 +344,10 @@ class TestPluginIsolation:
         mock_entry_point.name = "discovered"
         mock_entry_point.load.return_value = MockStorageBackend
 
-        with patch("pkg_resources.iter_entry_points") as mock_iter:
-            mock_iter.return_value = [mock_entry_point]
+        with patch("sifaka.core.plugins.metadata.entry_points") as mock_entry_points:
+            mock_eps = MagicMock()
+            mock_eps.select.return_value = [mock_entry_point]
+            mock_entry_points.return_value = mock_eps
 
             registry = PluginRegistry()
 

@@ -1,0 +1,105 @@
+site_name: Sifaka Documentation
+site_url: https://sifaka.readthedocs.io/
+site_description: AI text improvement through research-backed critique
+site_author: Evan Volgas
+
+repo_name: sifaka/sifaka
+repo_url: https://github.com/sifaka/sifaka
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_bases: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.mark
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home:
+    - index.md
+    - quickstart.md
+    - installation.md
+  - User Guide:
+    - guide/basic-usage.md
+    - guide/critics.md
+    - guide/validators.md
+    - guide/configuration.md
+    - guide/advanced-usage.md
+  - Critics:
+    - critics/overview.md
+    - critics/reflexion.md
+    - critics/self-rag.md
+    - critics/constitutional.md
+    - critics/meta-rewarding.md
+    - critics/self-consistency.md
+    - critics/self-refine.md
+    - critics/selection-guide.md
+  - API Reference:
+    - api/core.md
+    - api/critics.md
+    - api/validators.md
+    - api/config.md
+    - api/models.md
+  - Development:
+    - dev/plugin-development.md
+    - dev/contributing.md
+    - dev/architecture.md
+    - dev/testing.md
+  - About:
+    - about/changelog.md
+    - about/license.md
+    - about/faq.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sifaka/sifaka
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/sifaka/

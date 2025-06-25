@@ -41,6 +41,9 @@ gemini = ["google-generativeai>=0.8.5"]
 # Validation
 guardrails = ["guardrails-ai @ git+https://github.com/guardrails-ai/guardrails.git@main"]
 
+# Tool support (temporarily disabled until sifaka-tools is published)
+# tools = ["sifaka-tools>=0.0.1"]
+
 # Development tools
 dev = [
     # Testing

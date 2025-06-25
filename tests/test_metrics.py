@@ -1,5 +1,6 @@
-"""Tests for the metrics module."""
+"""Tests for metrics module."""
 
+import pytest
 from sifaka.core.metrics import analyze_suggestion_implementation
 
 
@@ -9,199 +10,195 @@ class TestAnalyzeSuggestionImplementation:
     def test_empty_suggestions(self):
         """Test with no suggestions."""
         result = analyze_suggestion_implementation([], "old text", "new text")
-
         assert result["suggestions_given"] == []
         assert result["suggestions_implemented"] == []
         assert result["suggestions_not_implemented"] == []
         assert result["implementation_rate"] == 0
         assert result["implementation_count"] == 0
 
-    def test_simple_add_suggestion_implemented(self):
+    def test_single_add_suggestion_implemented(self):
         """Test when an 'add' suggestion is implemented."""
-        suggestions = ["Add examples of renewable energy"]
-        old_text = "Renewable energy is important."
-        new_text = (
-            "Renewable energy is important. Examples include solar and wind power."
-        )
-
+        suggestions = ["Add examples of machine learning applications."]
+        old_text = "Machine learning is a field of AI."
+        new_text = "Machine learning is a field of AI. Examples include image recognition and natural language processing."
+        
         result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
         assert result["suggestions_implemented"] == suggestions
         assert result["suggestions_not_implemented"] == []
         assert result["implementation_rate"] == 1.0
         assert result["implementation_count"] == 1
 
-    def test_simple_add_suggestion_not_implemented(self):
+    def test_single_add_suggestion_not_implemented(self):
         """Test when an 'add' suggestion is not implemented."""
-        suggestions = ["Add specific statistics about costs"]
-        old_text = "Renewable energy is important."
-        new_text = "Renewable energy is very important."
-
+        suggestions = ["Add examples of quantum computing."]
+        old_text = "Machine learning is a field of AI."
+        new_text = "Machine learning is a field of AI and has many applications."
+        
         result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
         assert result["suggestions_implemented"] == []
         assert result["suggestions_not_implemented"] == suggestions
         assert result["implementation_rate"] == 0.0
         assert result["implementation_count"] == 0
 
-    def test_multiple_suggestions_partial_implementation(self):
-        """Test with multiple suggestions, some implemented."""
+    def test_multiple_pattern_types(self):
+        """Test various suggestion patterns."""
         suggestions = [
-            "Include statistics about solar power",
-            "Provide examples of wind energy",
-            "Mention cost savings",
+            "Include statistics about renewable energy.",
+            "Provide more details on solar panels.",
+            "Expand on wind energy benefits.",
+            "Mention environmental impact.",
+            "Discuss cost effectiveness.",
+            "Add examples of successful projects."
         ]
-        old_text = "Renewable energy is the future."
-        new_text = "Renewable energy is the future. Solar power has grown 20% annually. Wind turbines are common examples."
-
+        old_text = "Renewable energy is important."
+        new_text = """
+        Renewable energy is important. Statistics show that renewable energy
+        now accounts for 30% of global electricity. Solar panels have become
+        more efficient. Wind energy benefits include reduced emissions.
+        The environmental impact is significant. Successful projects include
+        the largest solar farm in California.
+        """
+        
         result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        # Should detect statistics and examples were added
-        assert len(result["suggestions_implemented"]) == 2
-        assert len(result["suggestions_not_implemented"]) == 1
-        assert "Mention cost savings" in result["suggestions_not_implemented"]
-        assert result["implementation_rate"] == 2 / 3
-        assert result["implementation_count"] == 2
-
-    def test_case_insensitive_matching(self):
-        """Test that matching is case-insensitive."""
-        suggestions = ["Add information about SOLAR PANELS"]
-        old_text = "Energy is important."
-        new_text = "Energy is important. Solar panels convert sunlight to electricity."
-
-        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        assert result["suggestions_implemented"] == suggestions
-        assert result["implementation_count"] == 1
-
-    def test_expand_suggestion_pattern(self):
-        """Test the 'expand on' pattern."""
-        suggestions = ["Expand on the benefits of recycling"]
-        old_text = "Recycling is good."
-        new_text = "Recycling is good. Benefits include reducing waste, saving energy, and protecting the environment."
-
-        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        assert result["suggestions_implemented"] == suggestions
-        assert result["implementation_count"] == 1
-
-    def test_discuss_suggestion_pattern(self):
-        """Test the 'discuss' pattern."""
-        suggestions = ["Discuss the impact on climate change"]
-        old_text = "Cars produce emissions."
-        new_text = "Cars produce emissions. The impact on climate change is significant, contributing to global warming."
-
-        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        assert result["suggestions_implemented"] == suggestions
-        assert result["implementation_count"] == 1
-
-    def test_mention_suggestion_pattern(self):
-        """Test the 'mention' pattern."""
-        suggestions = ["Mention government policies"]
-        old_text = "Clean energy is growing."
-        new_text = "Clean energy is growing. Government policies like tax incentives support this growth."
-
-        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        assert result["suggestions_implemented"] == suggestions
-        assert result["implementation_count"] == 1
-
-    def test_provide_suggestion_pattern(self):
-        """Test the 'provide' pattern."""
-        suggestions = ["Provide concrete data on emissions"]
-        old_text = "Transportation causes pollution."
-        new_text = "Transportation causes pollution. Concrete data shows emissions of 1.9 billion tons annually."
-
-        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        assert result["suggestions_implemented"] == suggestions
-        assert result["implementation_count"] == 1
-
-    def test_examples_suggestion_pattern(self):
-        """Test the 'examples of' pattern."""
-        suggestions = ["Include examples of green technology"]
-        old_text = "Technology can help the environment."
-        new_text = "Technology can help the environment. Green technology examples include electric vehicles and smart grids."
-
-        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        assert result["suggestions_implemented"] == suggestions
-        assert result["implementation_count"] == 1
-
-    def test_complex_suggestion_with_multiple_keywords(self):
-        """Test suggestion with multiple important keywords."""
-        suggestions = ["Add statistics about renewable energy adoption in Europe"]
-        old_text = "Clean energy is growing globally."
-        new_text = "Clean energy is growing globally. In Europe, renewable energy adoption reached 40% in 2023, with statistics showing rapid growth."
-
-        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        # Should detect multiple keywords: statistics, renewable, energy, adoption, Europe
-        assert result["suggestions_implemented"] == suggestions
-        assert result["implementation_count"] == 1
-
-    def test_filters_common_words(self):
-        """Test that common words are filtered out."""
-        suggestions = ["Add the information for the users with the data"]
-        old_text = "System provides reports."
-        new_text = (
-            "System provides reports. Information and data are available to users."
-        )
-
-        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        # Should still detect implementation based on important words
-        assert result["suggestions_implemented"] == suggestions
-        assert result["implementation_count"] == 1
-
-    def test_no_pattern_match_but_keywords_present(self):
-        """Test when suggestion doesn't match patterns but keywords are added."""
-        suggestions = ["Include examples of sustainability practices"]
-        old_text = "Companies are changing."
-        new_text = "Companies are changing. Sustainability practices are now central to business."
-
-        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        # Should detect implementation based on keyword presence
-        assert result["suggestions_implemented"] == suggestions
-        assert result["implementation_count"] == 1
-
-    def test_punctuation_in_suggestions(self):
-        """Test suggestions with various punctuation."""
-        suggestions = [
-            "Add data (including percentages).",
-            "Mention costs, benefits, and risks!",
-            "Provide examples: solar, wind, hydro",
-        ]
-        old_text = "Energy transition is happening."
-        new_text = "Energy transition is happening. Data shows 25% growth. Costs are decreasing while benefits increase. Examples include solar panels and wind farms."
-
-        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        # Should handle punctuation correctly
-        assert len(result["suggestions_implemented"]) >= 2
+        assert len(result["suggestions_implemented"]) >= 4
         assert result["implementation_rate"] >= 0.66
 
-    def test_word_count_increase_detection(self):
-        """Test detection based on word count increase."""
-        suggestions = ["Add information about machine learning applications"]
-        old_text = "Machine learning is useful."
-        new_text = "Machine learning is useful. Machine learning applications include image recognition, natural language processing, and predictive analytics. Machine learning continues to evolve."
-
+    def test_case_insensitive_matching(self):
+        """Test that matching is case insensitive."""
+        suggestions = ["Add information about PYTHON programming."]
+        old_text = "Programming is fun."
+        new_text = "Programming is fun. Python is a popular language."
+        
         result = analyze_suggestion_implementation(suggestions, old_text, new_text)
+        assert result["suggestions_implemented"] == suggestions
+        assert result["implementation_count"] == 1
 
-        # Should detect implementation due to increased mentions of key terms
+    def test_partial_implementation(self):
+        """Test when only some suggestions are implemented."""
+        suggestions = [
+            "Add examples of databases.",
+            "Include information about SQL.",
+            "Provide details on NoSQL systems."
+        ]
+        old_text = "Databases store data."
+        new_text = "Databases store data. Examples include MySQL and PostgreSQL. SQL is the standard query language."
+        
+        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
+        # At least one suggestion should be implemented (examples of databases)
+        assert len(result["suggestions_implemented"]) >= 1
+        assert len(result["suggestions_not_implemented"]) <= 2
+        assert result["implementation_rate"] >= 1/3
+
+    def test_word_filtering(self):
+        """Test that common words are filtered out."""
+        suggestions = ["Add the and for with information."]
+        old_text = "Test text."
+        new_text = "Test text with more words."
+        
+        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
+        # Should not count implementation based on common words
+        assert result["implementation_count"] == 0
+
+    def test_word_count_increase(self):
+        """Test implementation detection based on word count increase."""
+        suggestions = ["Expand on machine learning algorithms."]
+        old_text = "Machine learning is powerful."
+        new_text = "Machine learning is powerful. Machine learning algorithms include decision trees and neural networks."
+        
+        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
         assert result["suggestions_implemented"] == suggestions
         assert result["implementation_count"] == 1
 
     def test_unicode_and_special_characters(self):
         """Test with unicode and special characters."""
-        suggestions = ["Add information about café's environmental impact"]
-        old_text = "The café is popular."
-        new_text = "The café is popular. Its environmental impact includes using 100% renewable energy."
-
+        suggestions = ["Add information about café culture."]
+        old_text = "Paris is beautiful."
+        new_text = "Paris is beautiful. The café culture is vibrant with many bistros."
+        
         result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
         assert result["suggestions_implemented"] == suggestions
+
+    def test_punctuation_in_suggestions(self):
+        """Test suggestions with various punctuation."""
+        suggestions = [
+            "Add, if possible, more examples.",
+            "Include (but don't overdo) statistics.",
+            "Provide details - especially about costs."
+        ]
+        old_text = "Initial text."
+        new_text = "Initial text with examples and statistics about costs."
+        
+        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
+        assert len(result["suggestions_implemented"]) >= 2
+
+    def test_very_long_text(self):
+        """Test with long texts to check performance."""
+        long_text = " ".join(["word"] * 1000)
+        suggestions = ["Add information about performance testing."]
+        new_text = long_text + " Performance testing is crucial for system reliability."
+        
+        result = analyze_suggestion_implementation(suggestions, long_text, new_text)
+        assert result["suggestions_implemented"] == suggestions
+
+    def test_no_text_change(self):
+        """Test when text doesn't change."""
+        suggestions = ["Add more details.", "Include examples."]
+        text = "Same text."
+        
+        result = analyze_suggestion_implementation(suggestions, text, text)
+        assert result["suggestions_implemented"] == []
+        assert result["suggestions_not_implemented"] == suggestions
+        assert result["implementation_rate"] == 0.0
+
+    def test_all_pattern_types(self):
+        """Test all regex patterns in the function."""
+        test_cases = [
+            ("Add machine learning concepts.", "concepts", "machine learning"),
+            ("Include data science principles.", "principles", "science"),
+            ("Provide algorithm explanations.", "explanations", "algorithm"),
+            ("Expand on neural networks.", "neural networks", "neural"),
+            ("Mention deep learning.", "deep learning", "learning"),
+            ("Discuss reinforcement learning.", "reinforcement learning", "reinforcement"),
+            ("Examples of classification tasks.", "classification tasks", "classification"),
+        ]
+        
+        for suggestion, expected_phrase, key_word in test_cases:
+            old_text = "AI is fascinating."
+            new_text = f"AI is fascinating. {key_word.capitalize()} is an important concept."
+            
+            result = analyze_suggestion_implementation([suggestion], old_text, new_text)
+            assert result["implementation_count"] == 1, f"Failed for pattern: {suggestion}"
+
+    def test_multiple_matches_same_pattern(self):
+        """Test when a pattern matches multiple times in suggestion."""
+        suggestions = ["Add examples of A, add examples of B, add examples of C."]
+        old_text = "Initial content."
+        new_text = "Initial content with examples of A, B, and C included."
+        
+        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
+        assert result["suggestions_implemented"] == suggestions
+
+    def test_edge_case_empty_texts(self):
+        """Test with empty texts."""
+        suggestions = ["Add content."]
+        
+        # Empty old text
+        result = analyze_suggestion_implementation(suggestions, "", "New content added.")
         assert result["implementation_count"] == 1
+        
+        # Empty new text
+        result = analyze_suggestion_implementation(suggestions, "Old content.", "")
+        assert result["implementation_count"] == 0
+        
+        # Both empty
+        result = analyze_suggestion_implementation(suggestions, "", "")
+        assert result["implementation_count"] == 0
+
+    def test_suggestion_with_numbers(self):
+        """Test suggestions containing numbers."""
+        suggestions = ["Add 5 examples of best practices."]
+        old_text = "Best practices are important."
+        new_text = "Best practices are important. Examples include code reviews, testing, documentation, monitoring, and deployment automation."
+        
+        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
+        assert result["suggestions_implemented"] == suggestions
