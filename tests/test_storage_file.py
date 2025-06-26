@@ -6,8 +6,6 @@ import tempfile
 import shutil
 from pathlib import Path
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, AsyncMock, mock_open
-import aiofiles
 
 from sifaka.storage.file import FileStorage
 from sifaka.core.models import SifakaResult
@@ -36,7 +34,7 @@ class TestFileStorage:
             original_text="Original text for testing",
             final_text="Improved text after processing",
             iteration=2,
-            was_improved=True
+            was_improved=True,
         )
 
     def test_initialization(self, temp_dir):
@@ -62,30 +60,30 @@ class TestFileStorage:
     async def test_save_success(self, storage, sample_result):
         """Test successful save operation."""
         result_id = await storage.save(sample_result)
-        
+
         assert result_id == sample_result.id
-        
+
         # Verify file was created
         file_path = storage._get_file_path(result_id)
         assert file_path.exists()
-        
+
         # Verify content
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             data = json.load(f)
-            assert data['id'] == sample_result.id
-            assert data['original_text'] == sample_result.original_text
-            assert data['final_text'] == sample_result.final_text
+            assert data["id"] == sample_result.id
+            assert data["original_text"] == sample_result.original_text
+            assert data["final_text"] == sample_result.final_text
 
     @pytest.mark.asyncio
     async def test_save_io_error(self, storage, sample_result):
         """Test save with IO error."""
         # Make directory read-only to cause permission error
         storage.storage_dir.chmod(0o444)
-        
+
         try:
             with pytest.raises(StorageError) as exc_info:
                 await storage.save(sample_result)
-            
+
             assert "Failed to save result" in str(exc_info.value)
             assert exc_info.value.storage_type == "file"
             assert exc_info.value.operation == "save"
@@ -98,10 +96,10 @@ class TestFileStorage:
         """Test loading an existing result."""
         # Save first
         await storage.save(sample_result)
-        
+
         # Load
         loaded = await storage.load(sample_result.id)
-        
+
         assert loaded is not None
         assert loaded.id == sample_result.id
         assert loaded.original_text == sample_result.original_text
@@ -118,12 +116,12 @@ class TestFileStorage:
         """Test loading a file with corrupted JSON."""
         # Create a corrupted file
         file_path = storage._get_file_path("corrupted-id")
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             f.write("{ invalid json content")
-        
+
         with pytest.raises(StorageError) as exc_info:
             await storage.load("corrupted-id")
-        
+
         assert "Failed to parse result" in str(exc_info.value)
         assert exc_info.value.storage_type == "file"
         assert exc_info.value.operation == "load"
@@ -133,12 +131,12 @@ class TestFileStorage:
         """Test loading a file with invalid model data."""
         # Create a file with invalid data structure
         file_path = storage._get_file_path("invalid-id")
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             json.dump({"id": "invalid-id", "missing": "required_fields"}, f)
-        
+
         with pytest.raises(StorageError) as exc_info:
             await storage.load("invalid-id")
-        
+
         assert "Failed to parse result" in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -154,12 +152,11 @@ class TestFileStorage:
         results = []
         for i in range(5):
             result = SifakaResult(
-                original_text=f"Original {i}",
-                final_text=f"Final {i}"
+                original_text=f"Original {i}", final_text=f"Final {i}"
             )
             results.append(result)
             await storage.save(result)
-        
+
         # List all
         ids = await storage.list()
         assert len(ids) == 5
@@ -171,15 +168,14 @@ class TestFileStorage:
         # Create 10 results
         for i in range(10):
             result = SifakaResult(
-                original_text=f"Original {i}",
-                final_text=f"Final {i}"
+                original_text=f"Original {i}", final_text=f"Final {i}"
             )
             await storage.save(result)
-        
+
         # Test limit
         ids = await storage.list(limit=3)
         assert len(ids) == 3
-        
+
         # Test offset
         ids_offset = await storage.list(limit=3, offset=3)
         assert len(ids_offset) == 3
@@ -191,14 +187,15 @@ class TestFileStorage:
         # Create results with delays
         result1 = SifakaResult(original_text="First", final_text="First")
         await storage.save(result1)
-        
+
         # Small delay to ensure different modification times
         import asyncio
+
         await asyncio.sleep(0.01)
-        
+
         result2 = SifakaResult(original_text="Second", final_text="Second")
         await storage.save(result2)
-        
+
         ids = await storage.list()
         # Most recent should be first
         assert ids[0] == result2.id
@@ -211,7 +208,7 @@ class TestFileStorage:
         await storage.save(sample_result)
         file_path = storage._get_file_path(sample_result.id)
         assert file_path.exists()
-        
+
         # Delete
         deleted = await storage.delete(sample_result.id)
         assert deleted is True
@@ -228,22 +225,17 @@ class TestFileStorage:
         """Test searching in original text."""
         # Create results with specific content
         result1 = SifakaResult(
-            original_text="Machine learning is fascinating",
-            final_text="AI is amazing"
+            original_text="Machine learning is fascinating", final_text="AI is amazing"
         )
         result2 = SifakaResult(
-            original_text="Deep learning networks",
-            final_text="Neural networks"
+            original_text="Deep learning networks", final_text="Neural networks"
         )
-        result3 = SifakaResult(
-            original_text="Data science",
-            final_text="Analytics"
-        )
-        
+        result3 = SifakaResult(original_text="Data science", final_text="Analytics")
+
         await storage.save(result1)
         await storage.save(result2)
         await storage.save(result3)
-        
+
         # Search for "learning"
         matches = await storage.search("learning")
         assert len(matches) == 2
@@ -254,17 +246,15 @@ class TestFileStorage:
     async def test_search_in_final_text(self, storage):
         """Test searching in final text."""
         result1 = SifakaResult(
-            original_text="Original 1",
-            final_text="Machine learning applications"
+            original_text="Original 1", final_text="Machine learning applications"
         )
         result2 = SifakaResult(
-            original_text="Original 2",
-            final_text="Deep learning models"
+            original_text="Original 2", final_text="Deep learning models"
         )
-        
+
         await storage.save(result1)
         await storage.save(result2)
-        
+
         # Search in final text
         matches = await storage.search("learning")
         assert len(matches) == 2
@@ -272,17 +262,14 @@ class TestFileStorage:
     @pytest.mark.asyncio
     async def test_search_case_insensitive(self, storage):
         """Test case-insensitive search."""
-        result = SifakaResult(
-            original_text="MACHINE LEARNING",
-            final_text="Final text"
-        )
+        result = SifakaResult(original_text="MACHINE LEARNING", final_text="Final text")
         await storage.save(result)
-        
+
         # Search with different cases
         matches1 = await storage.search("machine")
         matches2 = await storage.search("MACHINE")
         matches3 = await storage.search("MaChInE")
-        
+
         assert len(matches1) == 1
         assert len(matches2) == 1
         assert len(matches3) == 1
@@ -293,11 +280,10 @@ class TestFileStorage:
         # Create many matching results
         for i in range(20):
             result = SifakaResult(
-                original_text=f"Machine learning example {i}",
-                final_text="Final"
+                original_text=f"Machine learning example {i}", final_text="Final"
             )
             await storage.save(result)
-        
+
         # Search with limit
         matches = await storage.search("machine", limit=5)
         assert len(matches) == 5
@@ -307,21 +293,20 @@ class TestFileStorage:
         """Test that search continues despite errors."""
         # Create a valid result
         result = SifakaResult(
-            original_text="Valid content with search term",
-            final_text="Final"
+            original_text="Valid content with search term", final_text="Final"
         )
         await storage.save(result)
-        
+
         # Create a corrupted file
         corrupted_path = storage._get_file_path("corrupted-id")
-        with open(corrupted_path, 'w') as f:
+        with open(corrupted_path, "w") as f:
             f.write("invalid json")
-        
+
         # Search should still find the valid result
         matches = await storage.search("search term")
         assert len(matches) == 1
         assert result.id in matches
-        
+
         # Check that warning was logged
         assert "Error reading result file" in caplog.text
 
@@ -329,23 +314,24 @@ class TestFileStorage:
         """Test cleanup of old files."""
         # Create files with different ages
         now = datetime.now()
-        
+
         # Create old file (40 days old)
         old_path = storage._get_file_path("old-id")
         old_path.touch()
         old_time = (now - timedelta(days=40)).timestamp()
         import os
+
         os.utime(old_path, (old_time, old_time))
-        
+
         # Create recent file (10 days old)
         recent_path = storage._get_file_path("recent-id")
         recent_path.touch()
         recent_time = (now - timedelta(days=10)).timestamp()
         os.utime(recent_path, (recent_time, recent_time))
-        
+
         # Cleanup files older than 30 days
         deleted_count = storage.cleanup_old_files(days_old=30)
-        
+
         assert deleted_count == 1
         assert not old_path.exists()
         assert recent_path.exists()
@@ -360,12 +346,12 @@ class TestFileStorage:
         """Test saving with special characters in content."""
         result = SifakaResult(
             original_text='Text with "quotes" and \nnewlines\tand tabs',
-            final_text="Unicode: 你好 🎉"
+            final_text="Unicode: 你好 🎉",
         )
-        
+
         result_id = await storage.save(result)
         loaded = await storage.load(result_id)
-        
+
         assert loaded.original_text == result.original_text
         assert loaded.final_text == result.final_text
 
@@ -373,23 +359,20 @@ class TestFileStorage:
     async def test_concurrent_operations(self, storage):
         """Test concurrent save/load operations."""
         import asyncio
-        
+
         # Create multiple results
         results = [
-            SifakaResult(
-                original_text=f"Text {i}",
-                final_text=f"Final {i}"
-            )
+            SifakaResult(original_text=f"Text {i}", final_text=f"Final {i}")
             for i in range(5)
         ]
-        
+
         # Save concurrently
         save_tasks = [storage.save(r) for r in results]
         await asyncio.gather(*save_tasks)
-        
+
         # Load concurrently
         load_tasks = [storage.load(r.id) for r in results]
         loaded_results = await asyncio.gather(*load_tasks)
-        
+
         assert all(loaded is not None for loaded in loaded_results)
         assert len(loaded_results) == 5

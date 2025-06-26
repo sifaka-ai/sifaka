@@ -38,7 +38,7 @@ class BaseCritic:
         self.tools = []
         if enable_tools:
             self.tools = self._get_available_tools()
-    
+
     def _get_available_tools(self) -> List[Tool]:
         """Override to specify which tools this critic can use."""
         return []
@@ -52,20 +52,20 @@ from typing import Protocol, List, Dict, Any, Optional
 
 class ToolInterface(Protocol):
     """Protocol for PydanticAI-compatible tools."""
-    
+
     async def __call__(
-        self, 
-        query: str, 
+        self,
+        query: str,
         **kwargs: Any
     ) -> List[Dict[str, Any]]:
         """Execute tool query and return results."""
         ...
-    
+
     @property
     def name(self) -> str:
         """Tool name for identification."""
         ...
-    
+
     @property
     def description(self) -> str:
         """Tool description for LLM context."""
@@ -78,24 +78,24 @@ class ToolInterface(Protocol):
 # In sifaka/tools/base.py
 class StorageInterface(Protocol):
     """Protocol for tool storage backends."""
-    
+
     async def get(self, key: str) -> Optional[Any]:
         """Retrieve value by key."""
         ...
-    
+
     async def set(
-        self, 
-        key: str, 
-        value: Any, 
+        self,
+        key: str,
+        value: Any,
         ttl: Optional[int] = None
     ) -> None:
         """Store value with optional TTL."""
         ...
-    
+
     async def delete(self, key: str) -> None:
         """Delete value by key."""
         ...
-    
+
     async def exists(self, key: str) -> bool:
         """Check if key exists."""
         ...
@@ -109,19 +109,19 @@ from typing import Dict, Type, Optional
 
 class ToolRegistry:
     """Registry for tool implementations."""
-    
+
     _tools: Dict[str, Type[ToolInterface]] = {}
-    
+
     @classmethod
     def register(cls, name: str, tool_class: Type[ToolInterface]) -> None:
         """Register a tool implementation."""
         cls._tools[name] = tool_class
-    
+
     @classmethod
     def get(cls, name: str) -> Optional[Type[ToolInterface]]:
         """Get a tool by name."""
         return cls._tools.get(name)
-    
+
     @classmethod
     def list_available(cls) -> List[str]:
         """List all registered tools."""
@@ -145,7 +145,7 @@ class ToolRegistry:
 
 ### Phase 3: Storage Backends (In sifaka-tools)
 1. Implement Redis storage backend
-2. Implement mem0 storage backend  
+2. Implement mem0 storage backend
 3. Implement PostgreSQL storage backend
 4. Add backend selection logic
 
@@ -159,17 +159,17 @@ class Config:
         default=False,
         description="Enable tool usage for critics"
     )
-    
+
     tool_timeout: float = Field(
         default=5.0,
         description="Maximum time for tool calls"
     )
-    
+
     tool_cache_ttl: int = Field(
         default=3600,
         description="Tool result cache TTL in seconds"
     )
-    
+
     # Per-critic tool settings
     critic_tool_settings: Dict[str, Dict[str, Any]] = Field(
         default_factory=lambda: {
@@ -216,7 +216,7 @@ class CustomSearchTool:
     async def __call__(self, query: str, **kwargs):
         # Custom implementation
         return [{"content": "result", "source": "custom"}]
-    
+
     @property
     def name(self):
         return "custom_search"
@@ -247,10 +247,10 @@ ToolRegistry.register("custom_search", CustomSearchTool)
 async def critique_with_tools(self, text):
     # Start tool calls in background
     tool_futures = self._start_tool_calls(text)
-    
+
     # Do normal critique while tools run
     base_critique = await self._base_critique(text)
-    
+
     # Gather tool results with timeout
     if tool_futures:
         tool_results = await asyncio.wait_for(
@@ -258,7 +258,7 @@ async def critique_with_tools(self, text):
             timeout=self.config.tool_timeout
         )
         return self._enhance_critique(base_critique, tool_results)
-    
+
     return base_critique
 ```
 

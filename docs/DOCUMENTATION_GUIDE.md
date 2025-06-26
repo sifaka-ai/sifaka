@@ -76,7 +76,7 @@ sifaka/
    ```markdown
    ```python
    from sifaka import improve
-   
+
    result = await improve("Your text here")
    ```
    ```
@@ -85,7 +85,7 @@ sifaka/
    ```markdown
    !!! warning "Important"
        This feature requires Python 3.9+
-   
+
    !!! note
        See the [configuration guide](../guide/configuration.md) for details.
    ```
@@ -120,7 +120,7 @@ This will automatically document the `sifaka.api` module.
    on:
      push:
        branches: [main]
-   
+
    jobs:
      deploy:
        runs-on: ubuntu-latest

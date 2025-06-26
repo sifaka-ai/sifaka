@@ -24,7 +24,7 @@ class TestFactualClaim:
             isuse=True,
             confidence_level="high",
             retrieval_needed=False,
-            suggested_query=""
+            suggested_query="",
         )
         assert claim.claim == "Python was created in 1991"
         assert claim.isrel is True
@@ -42,7 +42,7 @@ class TestFactualClaim:
             isuse=True,
             confidence_level="low",
             retrieval_needed=True,
-            suggested_query="Python latest version features 2024"
+            suggested_query="Python latest version features 2024",
         )
         assert claim.issup is False
         assert claim.retrieval_needed is True
@@ -58,7 +58,7 @@ class TestRetrievalOpportunity:
             location="Third paragraph discussing performance",
             reason="Specific performance metrics needed",
             expected_benefit="Would provide concrete evidence for claims",
-            priority="high"
+            priority="high",
         )
         assert "Third paragraph" in opportunity.location
         assert "performance metrics" in opportunity.reason
@@ -67,9 +67,7 @@ class TestRetrievalOpportunity:
     def test_default_priority(self):
         """Test default priority."""
         opportunity = RetrievalOpportunity(
-            location="Somewhere",
-            reason="Some reason",
-            expected_benefit="Some benefit"
+            location="Somewhere", reason="Some reason", expected_benefit="Some benefit"
         )
         assert opportunity.priority == "medium"
 
@@ -85,7 +83,7 @@ class TestSelfRAGResponse:
             needs_improvement=True,
             overall_relevance=True,
             overall_support=False,
-            overall_utility=True
+            overall_utility=True,
         )
         assert response.feedback == "Content needs more evidence"
         assert response.overall_support is False
@@ -99,14 +97,14 @@ class TestSelfRAGResponse:
             issup=True,
             isuse=True,
             confidence_level="high",
-            retrieval_needed=False
+            retrieval_needed=False,
         )
         opportunity = RetrievalOpportunity(
             location="Introduction",
             reason="Needs context",
-            expected_benefit="Better understanding"
+            expected_benefit="Better understanding",
         )
-        
+
         response = SelfRAGResponse(
             feedback="Detailed feedback",
             suggestions=["Add sources", "Verify claims"],
@@ -120,9 +118,9 @@ class TestSelfRAGResponse:
             relevance_score=0.9,
             support_score=0.4,
             utility_score=0.8,
-            metadata={"extra": "data"}
+            metadata={"extra": "data"},
         )
-        
+
         assert len(response.factual_claims) == 1
         assert len(response.retrieval_opportunities) == 1
         assert response.relevance_score == 0.9
@@ -135,10 +133,7 @@ class TestSelfRAGCritic:
     @pytest.fixture
     def sample_result(self):
         """Create a sample SifakaResult."""
-        return SifakaResult(
-            original_text="Original text",
-            final_text="Final text"
-        )
+        return SifakaResult(original_text="Original text", final_text="Final text")
 
     def test_initialization_default(self):
         """Test default initialization."""
@@ -156,11 +151,7 @@ class TestSelfRAGCritic:
 
     def test_initialization_with_params(self):
         """Test initialization with custom parameters."""
-        critic = SelfRAGCritic(
-            model="gpt-4",
-            temperature=0.3,
-            api_key="test-key"
-        )
+        critic = SelfRAGCritic(model="gpt-4", temperature=0.3, api_key="test-key")
         assert critic.model == "gpt-4"
         assert critic.temperature == 0.3
 
@@ -174,12 +165,12 @@ class TestSelfRAGCritic:
         """Test message creation for Self-RAG evaluation."""
         critic = SelfRAGCritic()
         messages = await critic._create_messages("Test text about AI", sample_result)
-        
+
         assert len(messages) == 2
         assert messages[0]["role"] == "system"
         assert "Self-RAG critic" in messages[0]["content"]
         assert "ISREL, ISSUP, ISUSE" in messages[0]["content"]
-        
+
         assert messages[1]["role"] == "user"
         user_content = messages[1]["content"]
         assert "Self-RAG's reflection framework" in user_content
@@ -197,13 +188,13 @@ class TestSelfRAGCritic:
             CritiqueResult(
                 critic="self_rag",
                 feedback="Previous Self-RAG feedback",
-                suggestions=["Add sources"]
+                suggestions=["Add sources"],
             )
         )
-        
+
         critic = SelfRAGCritic()
         messages = await critic._create_messages("Test text", sample_result)
-        
+
         user_content = messages[1]["content"]
         assert "Previous feedback:" in user_content
         assert "Previous Self-RAG feedback" in user_content
@@ -212,11 +203,14 @@ class TestSelfRAGCritic:
     async def test_critique_success(self, sample_result):
         """Test successful critique flow."""
         critic = SelfRAGCritic()
-        
+
         # Mock the LLM response
         mock_response = SelfRAGResponse(
             feedback="Content has good relevance but lacks supporting evidence",
-            suggestions=["Add citations for the claim about AI impact", "Include specific examples"],
+            suggestions=[
+                "Add citations for the claim about AI impact",
+                "Include specific examples",
+            ],
             needs_improvement=True,
             confidence=0.8,
             overall_relevance=True,
@@ -230,7 +224,7 @@ class TestSelfRAGCritic:
                     isuse=True,
                     confidence_level="medium",
                     retrieval_needed=True,
-                    suggested_query="AI industry transformation statistics 2024"
+                    suggested_query="AI industry transformation statistics 2024",
                 )
             ],
             retrieval_opportunities=[
@@ -238,24 +232,24 @@ class TestSelfRAGCritic:
                     location="First paragraph",
                     reason="Lacks specific examples",
                     expected_benefit="Concrete evidence would strengthen claims",
-                    priority="high"
+                    priority="high",
                 )
             ],
             relevance_score=0.9,
             support_score=0.4,
-            utility_score=0.8
+            utility_score=0.8,
         )
-        
+
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
-        
+
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
-        
-        with patch.object(critic.client, 'create_agent', return_value=mock_agent):
+
+        with patch.object(critic.client, "create_agent", return_value=mock_agent):
             result = await critic.critique("Test text about AI", sample_result)
-            
+
             assert result.critic == "self_rag"
             assert result.feedback == mock_response.feedback
             assert len(result.suggestions) == 2
@@ -270,7 +264,7 @@ class TestSelfRAGCritic:
     async def test_critique_all_criteria_pass(self, sample_result):
         """Test when all Self-RAG criteria pass."""
         critic = SelfRAGCritic()
-        
+
         mock_response = SelfRAGResponse(
             feedback="Content is relevant, well-supported, and useful",
             suggestions=[],
@@ -286,25 +280,25 @@ class TestSelfRAGCritic:
                     issup=True,
                     isuse=True,
                     confidence_level="high",
-                    retrieval_needed=False
+                    retrieval_needed=False,
                 )
             ],
             retrieval_opportunities=[],
             relevance_score=0.95,
             support_score=0.95,
-            utility_score=0.95
+            utility_score=0.95,
         )
-        
+
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
-        
+
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
-        
-        with patch.object(critic.client, 'create_agent', return_value=mock_agent):
+
+        with patch.object(critic.client, "create_agent", return_value=mock_agent):
             result = await critic.critique("Well-written text", sample_result)
-            
+
             assert result.needs_improvement is False
             assert len(result.suggestions) == 0
             assert result.confidence > 0.9
@@ -314,7 +308,7 @@ class TestSelfRAGCritic:
     async def test_critique_multiple_claims(self, sample_result):
         """Test critique with multiple factual claims."""
         critic = SelfRAGCritic()
-        
+
         mock_response = SelfRAGResponse(
             feedback="Multiple claims need verification",
             suggestions=["Verify statistics", "Add sources"],
@@ -330,7 +324,7 @@ class TestSelfRAGCritic:
                     issup=True,
                     isuse=True,
                     confidence_level="high",
-                    retrieval_needed=False
+                    retrieval_needed=False,
                 ),
                 FactualClaim(
                     claim="Claim 2",
@@ -339,34 +333,34 @@ class TestSelfRAGCritic:
                     isuse=True,
                     confidence_level="low",
                     retrieval_needed=True,
-                    suggested_query="verify claim 2"
-                )
+                    suggested_query="verify claim 2",
+                ),
             ],
             retrieval_opportunities=[],
             relevance_score=0.9,
             support_score=0.5,
-            utility_score=0.8
+            utility_score=0.8,
         )
-        
+
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
-        
+
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
-        
-        with patch.object(critic.client, 'create_agent', return_value=mock_agent):
+
+        with patch.object(critic.client, "create_agent", return_value=mock_agent):
             result = await critic.critique("Text with multiple claims", sample_result)
-            
+
             assert len(result.metadata["factual_claims"]) == 2
             assert result.metadata["factual_claims"][1]["retrieval_needed"] is True
 
     def test_provider_configuration(self):
         """Test provider configuration."""
         from sifaka.core.llm_client import Provider
-        
+
         critic = SelfRAGCritic(provider=Provider.ANTHROPIC)
         assert critic.provider == Provider.ANTHROPIC
-        
+
         critic = SelfRAGCritic(provider="openai")
         assert critic.provider == Provider.OPENAI

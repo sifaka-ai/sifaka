@@ -108,32 +108,27 @@ class Config(BaseModel):
     constitutional_principles: Optional[List[str]] = Field(
         default=None, description="Custom principles for Constitutional AI critic"
     )
-    
+
     # Tool settings
     enable_tools: bool = Field(
-        default=False,
-        description="Enable tool usage for critics"
+        default=False, description="Enable tool usage for critics"
     )
-    
-    tool_timeout: float = Field(
-        default=5.0,
-        description="Maximum time for tool calls"
-    )
-    
+
+    tool_timeout: float = Field(default=5.0, description="Maximum time for tool calls")
+
     tool_cache_ttl: int = Field(
-        default=3600,
-        description="Tool result cache TTL in seconds"
+        default=3600, description="Tool result cache TTL in seconds"
     )
-    
+
     # Per-critic tool settings
     critic_tool_settings: Dict[str, Dict[str, Any]] = Field(
         default_factory=lambda: {
-            "self_rag": {"enable_tools": True},      # On by default
+            "self_rag": {"enable_tools": True},  # On by default
             "constitutional": {"enable_tools": False},
             "meta_rewarding": {"enable_tools": False},
             "reflexion": {"enable_tools": False},
             "self_consistency": {"enable_tools": False},
             "self_refine": {"enable_tools": False},
         },
-        description="Per-critic tool configuration"
+        description="Per-critic tool configuration",
     )

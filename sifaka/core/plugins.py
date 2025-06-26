@@ -1,6 +1,7 @@
 """Plugin discovery and registration system for Sifaka storage backends."""
 
 from typing import Dict, Type, List, Any
+
 try:
     from importlib import metadata
 except ImportError:
@@ -65,15 +66,15 @@ class PluginRegistry:
         try:
             # Look for entry points in the 'sifaka.storage' group
             entry_points = metadata.entry_points()
-            
+
             # Handle different return types in different Python versions
-            if hasattr(entry_points, 'select'):
+            if hasattr(entry_points, "select"):
                 # Python 3.10+
-                storage_entries = entry_points.select(group='sifaka.storage')
+                storage_entries = entry_points.select(group="sifaka.storage")
             else:
                 # Python 3.8-3.9
-                storage_entries = entry_points.get('sifaka.storage', [])
-            
+                storage_entries = entry_points.get("sifaka.storage", [])
+
             for entry_point in storage_entries:
                 try:
                     backend_class = entry_point.load()

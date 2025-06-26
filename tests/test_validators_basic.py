@@ -16,10 +16,7 @@ class TestLengthValidator:
     @pytest.fixture
     def sample_result(self):
         """Create a sample SifakaResult."""
-        return SifakaResult(
-            original_text="Original text",
-            final_text="Final text"
-        )
+        return SifakaResult(original_text="Original text", final_text="Final text")
 
     def test_initialization_valid(self):
         """Test valid initialization."""
@@ -39,7 +36,9 @@ class TestLengthValidator:
 
     def test_initialization_min_greater_than_max(self):
         """Test initialization with min > max."""
-        with pytest.raises(ValueError, match="min_length cannot be greater than max_length"):
+        with pytest.raises(
+            ValueError, match="min_length cannot be greater than max_length"
+        ):
             LengthValidator(min_length=100, max_length=50)
 
     def test_name_property(self):
@@ -89,7 +88,7 @@ class TestLengthValidator:
         text = "This text is too long"  # 21 chars
         result = await validator.validate(text, sample_result)
         assert result.passed is False
-        assert result.score == pytest.approx(10/21)
+        assert result.score == pytest.approx(10 / 21)
         assert "maximum allowed: 10" in result.details
 
     @pytest.mark.asyncio
@@ -106,15 +105,15 @@ class TestLengthValidator:
     async def test_centering_score(self, sample_result):
         """Test centering score calculation."""
         validator = LengthValidator(min_length=10, max_length=30)
-        
+
         # Text at exact center (20 chars)
         result = await validator.validate("x" * 20, sample_result)
         assert result.score == 1.0
-        
+
         # Text near edges gets slightly lower score
         result = await validator.validate("x" * 11, sample_result)
         assert 0.9 < result.score < 1.0
-        
+
         result = await validator.validate("x" * 29, sample_result)
         assert 0.9 < result.score < 1.0
 
@@ -148,10 +147,7 @@ class TestContentValidator:
     @pytest.fixture
     def sample_result(self):
         """Create a sample SifakaResult."""
-        return SifakaResult(
-            original_text="Original text",
-            final_text="Final text"
-        )
+        return SifakaResult(original_text="Original text", final_text="Final text")
 
     def test_initialization_default(self):
         """Test default initialization."""
@@ -165,7 +161,7 @@ class TestContentValidator:
         validator = ContentValidator(
             required_terms=["hello", "world"],
             forbidden_terms=["bad", "word"],
-            case_sensitive=True
+            case_sensitive=True,
         )
         assert validator.required_terms == ["hello", "world"]
         assert validator.forbidden_terms == ["bad", "word"]
@@ -210,7 +206,7 @@ class TestContentValidator:
         validator = ContentValidator(required_terms=["hello", "world", "python"])
         result = await validator.validate("Hello world", sample_result)
         assert result.passed is False
-        assert result.score == pytest.approx(2/3)
+        assert result.score == pytest.approx(2 / 3)
         assert "Missing required terms: ['python']" in result.details
 
     @pytest.mark.asyncio
@@ -234,14 +230,13 @@ class TestContentValidator:
     async def test_case_sensitive_matching(self, sample_result):
         """Test case-sensitive matching."""
         validator = ContentValidator(
-            required_terms=["Hello", "World"],
-            case_sensitive=True
+            required_terms=["Hello", "World"], case_sensitive=True
         )
-        
+
         # Exact case match
         result = await validator.validate("Hello World", sample_result)
         assert result.passed is True
-        
+
         # Wrong case
         result = await validator.validate("hello world", sample_result)
         assert result.passed is False
@@ -251,14 +246,13 @@ class TestContentValidator:
     async def test_case_insensitive_matching(self, sample_result):
         """Test case-insensitive matching (default)."""
         validator = ContentValidator(
-            required_terms=["hello", "world"],
-            forbidden_terms=["BAD"]
+            required_terms=["hello", "world"], forbidden_terms=["BAD"]
         )
-        
+
         # Different case should still match
         result = await validator.validate("HELLO WORLD", sample_result)
         assert result.passed is True
-        
+
         # Forbidden term in different case
         result = await validator.validate("This is bad", sample_result)
         assert result.passed is False
@@ -267,15 +261,14 @@ class TestContentValidator:
     async def test_mixed_requirements(self, sample_result):
         """Test with both required and forbidden terms."""
         validator = ContentValidator(
-            required_terms=["python", "code"],
-            forbidden_terms=["error", "bug"]
+            required_terms=["python", "code"], forbidden_terms=["error", "bug"]
         )
-        
+
         # All requirements met
         result = await validator.validate("Python code is great", sample_result)
         assert result.passed is True
         assert result.score == 1.0
-        
+
         # Missing required and has forbidden
         result = await validator.validate("Code has an error", sample_result)
         assert result.passed is False
@@ -303,17 +296,14 @@ class TestFormatValidator:
     @pytest.fixture
     def sample_result(self):
         """Create a sample SifakaResult."""
-        return SifakaResult(
-            original_text="Original text",
-            final_text="Final text"
-        )
+        return SifakaResult(original_text="Original text", final_text="Final text")
 
     def test_initialization(self):
         """Test initialization."""
         validator = FormatValidator(
             required_sections=["Introduction", "Conclusion"],
             min_paragraphs=2,
-            max_paragraphs=10
+            max_paragraphs=10,
         )
         assert validator.required_sections == ["Introduction", "Conclusion"]
         assert validator.min_paragraphs == 2
@@ -406,7 +396,9 @@ Conclusion: This wraps it up."""
     @pytest.mark.asyncio
     async def test_required_sections_missing(self, sample_result):
         """Test with missing required sections."""
-        validator = FormatValidator(required_sections=["Introduction", "Methods", "Results"])
+        validator = FormatValidator(
+            required_sections=["Introduction", "Methods", "Results"]
+        )
         text = """Introduction: Here we begin.
 
 Some content without other sections."""
@@ -428,9 +420,9 @@ Some content without other sections."""
         validator = FormatValidator(
             required_sections=["Intro", "Body", "Conclusion"],
             min_paragraphs=2,
-            max_paragraphs=5
+            max_paragraphs=5,
         )
-        
+
         # All requirements met (5 total checks)
         text = """Intro: Start here.
 
@@ -439,7 +431,7 @@ Body: Main content.
 Conclusion: The end."""
         result = await validator.validate(text, sample_result)
         assert result.score == 1.0
-        
+
         # 3/5 requirements met
         text = "Just intro here with body"
         result = await validator.validate(text, sample_result)
@@ -461,8 +453,8 @@ Second paragraph."""  # Extra blank line
         """Test that whitespace-only paragraphs are ignored."""
         validator = FormatValidator()
         text = """First paragraph.
-   
-   
+
+
 Second paragraph."""
         result = await validator.validate(text, sample_result)
         assert "Paragraphs: 2" in result.details

@@ -1,6 +1,5 @@
 """Tests for confidence calculator."""
 
-import pytest
 from sifaka.critics.core.confidence import ConfidenceCalculator
 
 
@@ -23,7 +22,7 @@ class TestConfidenceCalculator:
         confidence = calc.calculate(
             feedback="This is some feedback.",
             suggestions=["Do this", "Do that"],
-            response_length=200
+            response_length=200,
         )
         # Should be close to base confidence with minor adjustments
         assert 0.65 <= confidence <= 0.75
@@ -34,7 +33,7 @@ class TestConfidenceCalculator:
         confidence = calc.calculate(
             feedback="This is some feedback.",
             suggestions=["Do this"],
-            response_length=600  # > 500
+            response_length=600,  # > 500
         )
         # Should get +0.1 bonus
         assert confidence > 0.7
@@ -43,9 +42,7 @@ class TestConfidenceCalculator:
         """Test that short responses decrease confidence."""
         calc = ConfidenceCalculator(base_confidence=0.7)
         confidence = calc.calculate(
-            feedback="Brief.",
-            suggestions=["Do this"],
-            response_length=50  # < 100
+            feedback="Brief.", suggestions=["Do this"], response_length=50  # < 100
         )
         # Should get -0.1 penalty
         assert confidence < 0.7
@@ -56,7 +53,7 @@ class TestConfidenceCalculator:
         confidence = calc.calculate(
             feedback="Feedback",
             suggestions=["One", "Two", "Three", "Four"],  # > 3
-            response_length=200
+            response_length=200,
         )
         # Should get +0.05 bonus
         assert confidence > 0.7
@@ -65,9 +62,7 @@ class TestConfidenceCalculator:
         """Test that no suggestions decrease confidence."""
         calc = ConfidenceCalculator(base_confidence=0.7)
         confidence = calc.calculate(
-            feedback="Feedback",
-            suggestions=[],  # No suggestions
-            response_length=200
+            feedback="Feedback", suggestions=[], response_length=200  # No suggestions
         )
         # Should get -0.1 penalty
         assert confidence < 0.7
@@ -81,9 +76,7 @@ class TestConfidenceCalculator:
         the text clearly needs more concrete examples.
         """
         confidence = calc.calculate(
-            feedback=feedback,
-            suggestions=["Add examples"],
-            response_length=200
+            feedback=feedback, suggestions=["Add examples"], response_length=200
         )
         # Should get bonus from specificity
         assert confidence > 0.75
@@ -91,14 +84,23 @@ class TestConfidenceCalculator:
     def test_specificity_scoring_multiple_indicators(self):
         """Test all specificity indicators."""
         calc = ConfidenceCalculator()
-        
+
         # Test each indicator
         indicators = [
-            "specifically", "particularly", "exactly", "precisely",
-            "clearly", "definitely", "certainly", "for example",
-            "such as", "including", "namely", "in particular"
+            "specifically",
+            "particularly",
+            "exactly",
+            "precisely",
+            "clearly",
+            "definitely",
+            "certainly",
+            "for example",
+            "such as",
+            "including",
+            "namely",
+            "in particular",
         ]
-        
+
         for indicator in indicators:
             score = calc._score_specificity(f"The text {indicator} mentions this.")
             assert score > 0
@@ -111,9 +113,7 @@ class TestConfidenceCalculator:
         possibly consider adding more content. It seems somewhat unclear.
         """
         confidence = calc.calculate(
-            feedback=feedback,
-            suggestions=["Maybe add content"],
-            response_length=200
+            feedback=feedback, suggestions=["Maybe add content"], response_length=200
         )
         # Should get penalty from uncertainty
         assert confidence < 0.65
@@ -121,14 +121,25 @@ class TestConfidenceCalculator:
     def test_uncertainty_scoring_multiple_indicators(self):
         """Test all uncertainty indicators."""
         calc = ConfidenceCalculator()
-        
+
         # Test each indicator
         indicators = [
-            "might", "maybe", "perhaps", "possibly", "could be",
-            "seems", "appears", "somewhat", "relatively", "fairly",
-            "probably", "potentially", "unclear if", "not sure"
+            "might",
+            "maybe",
+            "perhaps",
+            "possibly",
+            "could be",
+            "seems",
+            "appears",
+            "somewhat",
+            "relatively",
+            "fairly",
+            "probably",
+            "potentially",
+            "unclear if",
+            "not sure",
         ]
-        
+
         for indicator in indicators:
             score = calc._score_uncertainty(f"The text {indicator} is good.")
             assert score > 0
@@ -155,7 +166,7 @@ class TestConfidenceCalculator:
         confidence = calc.calculate(
             feedback="Specifically and precisely perfect in particular.",
             suggestions=["One", "Two", "Three", "Four", "Five"],
-            response_length=1000
+            response_length=1000,
         )
         assert confidence <= 1.0
 
@@ -165,18 +176,18 @@ class TestConfidenceCalculator:
         confidence = calc.calculate(
             feedback="Maybe possibly might be unclear if good.",
             suggestions=[],
-            response_length=50
+            response_length=50,
         )
         assert confidence >= 0.0
 
     def test_case_insensitive_matching(self):
         """Test that indicator matching is case insensitive."""
         calc = ConfidenceCalculator()
-        
+
         # Test uppercase
         score1 = calc._score_specificity("SPECIFICALLY mentioned")
         assert score1 > 0
-        
+
         # Test mixed case
         score2 = calc._score_uncertainty("MaYbE this is good")
         assert score2 > 0
@@ -188,7 +199,7 @@ class TestConfidenceCalculator:
             feedback="Good feedback",
             suggestions=["Suggestion"],
             response_length=200,
-            metadata={"extra": "data", "score": 0.8}
+            metadata={"extra": "data", "score": 0.8},
         )
         assert 0.0 <= confidence <= 1.0
 
@@ -196,9 +207,7 @@ class TestConfidenceCalculator:
         """Test with empty feedback."""
         calc = ConfidenceCalculator()
         confidence = calc.calculate(
-            feedback="",
-            suggestions=["Suggestion"],
-            response_length=0
+            feedback="", suggestions=["Suggestion"], response_length=0
         )
         # Should handle gracefully
         assert 0.0 <= confidence <= 1.0
@@ -217,12 +226,10 @@ class TestConfidenceCalculator:
             "Include background information",
             "Strengthen the conclusion",
             "Add specific call-to-action",
-            "Include next steps for reader"
+            "Include next steps for reader",
         ]
         confidence = calc.calculate(
-            feedback=feedback,
-            suggestions=suggestions,
-            response_length=len(feedback)
+            feedback=feedback, suggestions=suggestions, response_length=len(feedback)
         )
         # Should have high confidence
         assert confidence > 0.8
@@ -233,9 +240,7 @@ class TestConfidenceCalculator:
         feedback = "Maybe okay, possibly could be better somehow."
         suggestions = []
         confidence = calc.calculate(
-            feedback=feedback,
-            suggestions=suggestions,
-            response_length=len(feedback)
+            feedback=feedback, suggestions=suggestions, response_length=len(feedback)
         )
         # Should have low confidence
         assert confidence < 0.6

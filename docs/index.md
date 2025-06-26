@@ -53,19 +53,19 @@ Named after the [Sifaka lemur](https://en.wikipedia.org/wiki/Sifaka) known for i
 <div class="grid cards" markdown>
 
 - :material-rocket-launch: **[Quickstart Guide](quickstart.md)**
-  
+
     Get up and running in 5 minutes
 
 - :material-book-open-variant: **[User Guide](guide/basic-usage.md)**
-  
+
     Learn the core concepts
 
 - :material-brain: **[Critics Guide](critics/overview.md)**
-  
+
     Understand different critique methods
 
 - :material-api: **[API Reference](api/core.md)**
-  
+
     Detailed API documentation
 
 </div>

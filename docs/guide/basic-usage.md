@@ -33,7 +33,7 @@ async def main():
     result = await improve("Write about climate change")
     print(result.improved_text)
 
-# Sync version  
+# Sync version
 from sifaka import improve_sync
 result = improve_sync("Write about climate change")
 ```
@@ -95,7 +95,7 @@ print(result.improved_text)
 # See all critiques
 for critique in result.critiques:
     print(f"{critique.critic}: {critique.feedback}")
-    
+
 # Check validation results
 for validation in result.validations:
     print(f"{validation.validator}: {'✓' if validation.passed else '✗'}")
@@ -135,11 +135,11 @@ config = Config(
     model="gpt-4",              # LLM model to use
     temperature=0.7,            # Creativity (0.0-2.0)
     max_tokens=1000,            # Max response length
-    
+
     # Critic settings
     critic_temperature=0.3,     # Lower = more consistent
     critic_context_window=3,    # Previous critiques to consider
-    
+
     # Behavior settings
     max_iterations=3,           # Max improvement cycles
     force_improvements=False,   # Improve even if valid

@@ -19,7 +19,7 @@ class TestValidationRule:
             name="test_rule",
             check=lambda text: len(text) > 0,
             score_func=lambda text: 1.0,
-            detail_func=lambda text: "Non-empty"
+            detail_func=lambda text: "Non-empty",
         )
         assert rule.name == "test_rule"
         assert rule.check("hello") is True
@@ -34,10 +34,7 @@ class TestComposableValidator:
     @pytest.fixture
     def sample_result(self):
         """Create a sample SifakaResult."""
-        return SifakaResult(
-            original_text="Original text",
-            final_text="Final text"
-        )
+        return SifakaResult(original_text="Original text", final_text="Final text")
 
     def test_initialization(self):
         """Test initialization."""
@@ -54,7 +51,9 @@ class TestComposableValidator:
     async def test_no_rules(self, sample_result):
         """Test validation with no rules."""
         validator = ComposableValidator("empty")
-        passed, score, details = await validator._perform_validation("text", sample_result)
+        passed, score, details = await validator._perform_validation(
+            "text", sample_result
+        )
         assert passed is True
         assert score == 1.0
         assert details == "No validation rules"
@@ -66,11 +65,13 @@ class TestComposableValidator:
             name="length_check",
             check=lambda text: len(text) > 5,
             score_func=lambda text: 1.0,
-            detail_func=lambda text: f"Length is {len(text)}"
+            detail_func=lambda text: f"Length is {len(text)}",
         )
         validator = ComposableValidator("test", [rule])
-        
-        passed, score, details = await validator._perform_validation("hello world", sample_result)
+
+        passed, score, details = await validator._perform_validation(
+            "hello world", sample_result
+        )
         assert passed is True
         assert score == 1.0
         assert "length_check: Length is 11" in details
@@ -82,11 +83,13 @@ class TestComposableValidator:
             name="length_check",
             check=lambda text: len(text) > 10,
             score_func=lambda text: len(text) / 10,
-            detail_func=lambda text: f"Too short"
+            detail_func=lambda text: "Too short",
         )
         validator = ComposableValidator("test", [rule])
-        
-        passed, score, details = await validator._perform_validation("short", sample_result)
+
+        passed, score, details = await validator._perform_validation(
+            "short", sample_result
+        )
         assert passed is False
         assert score == 0.0
         assert "length_check: Too short" in details
@@ -99,18 +102,20 @@ class TestComposableValidator:
                 name="length",
                 check=lambda text: len(text) > 5,
                 score_func=lambda text: 1.0,
-                detail_func=lambda text: "Length OK"
+                detail_func=lambda text: "Length OK",
             ),
             ValidationRule(
                 name="contains_hello",
                 check=lambda text: "hello" in text.lower(),
                 score_func=lambda text: 1.0,
-                detail_func=lambda text: "Contains hello"
-            )
+                detail_func=lambda text: "Contains hello",
+            ),
         ]
         validator = ComposableValidator("test", rules)
-        
-        passed, score, details = await validator._perform_validation("Hello world!", sample_result)
+
+        passed, score, details = await validator._perform_validation(
+            "Hello world!", sample_result
+        )
         assert passed is True
         assert score == 1.0
         assert "length: Length OK" in details
@@ -124,18 +129,20 @@ class TestComposableValidator:
                 name="rule1",
                 check=lambda text: True,
                 score_func=lambda text: 0.8,
-                detail_func=lambda text: "Rule 1 passed"
+                detail_func=lambda text: "Rule 1 passed",
             ),
             ValidationRule(
                 name="rule2",
                 check=lambda text: False,
                 score_func=lambda text: 0.5,
-                detail_func=lambda text: "Rule 2 failed"
-            )
+                detail_func=lambda text: "Rule 2 failed",
+            ),
         ]
         validator = ComposableValidator("test", rules)
-        
-        passed, score, details = await validator._perform_validation("any text", sample_result)
+
+        passed, score, details = await validator._perform_validation(
+            "any text", sample_result
+        )
         assert passed is False
         assert score == 0.4  # (0.8 + 0) / 2
         assert "rule1: Rule 1 passed" in details
@@ -144,18 +151,21 @@ class TestComposableValidator:
     @pytest.mark.asyncio
     async def test_rule_exception_handling(self, sample_result):
         """Test handling of exceptions in rules."""
+
         def bad_check(text):
             raise ValueError("Test error")
-        
+
         rule = ValidationRule(
             name="bad_rule",
             check=bad_check,
             score_func=lambda text: 1.0,
-            detail_func=lambda text: "Should not reach"
+            detail_func=lambda text: "Should not reach",
         )
         validator = ComposableValidator("test", [rule])
-        
-        passed, score, details = await validator._perform_validation("text", sample_result)
+
+        passed, score, details = await validator._perform_validation(
+            "text", sample_result
+        )
         assert "bad_rule: Error - Test error" in details
 
     def test_and_operator(self):
@@ -163,7 +173,7 @@ class TestComposableValidator:
         v1 = ComposableValidator("v1", [])
         v2 = ComposableValidator("v2", [])
         combined = v1 & v2
-        
+
         assert combined.name == "(v1 AND v2)"
         assert len(combined.rules) == 0  # Both had no rules
 
@@ -171,11 +181,11 @@ class TestComposableValidator:
         """Test AND operator combines rules."""
         rule1 = ValidationRule("r1", lambda x: True, lambda x: 1.0, lambda x: "r1")
         rule2 = ValidationRule("r2", lambda x: True, lambda x: 1.0, lambda x: "r2")
-        
+
         v1 = ComposableValidator("v1", [rule1])
         v2 = ComposableValidator("v2", [rule2])
         combined = v1 & v2
-        
+
         assert combined.name == "(v1 AND v2)"
         assert len(combined.rules) == 2
         assert combined.rules[0].name == "r1"
@@ -186,15 +196,17 @@ class TestComposableValidator:
         """Test combining validators with OR."""
         rule1 = ValidationRule("r1", lambda x: True, lambda x: 0.8, lambda x: "Pass")
         rule2 = ValidationRule("r2", lambda x: False, lambda x: 0.5, lambda x: "Fail")
-        
+
         v1 = ComposableValidator("v1", [rule1])
         v2 = ComposableValidator("v2", [rule2])
         combined = v1 | v2
-        
+
         assert "(v1 OR v2)" in combined.name
-        
+
         # Test OR logic - should pass if either passes
-        passed, score, details = await combined._perform_validation("text", sample_result)
+        passed, score, details = await combined._perform_validation(
+            "text", sample_result
+        )
         assert passed is True  # v1 passes
         assert score == 0.8  # max of scores
         assert "Left:" in details
@@ -205,12 +217,14 @@ class TestComposableValidator:
         """Test OR when both validators fail."""
         rule1 = ValidationRule("r1", lambda x: False, lambda x: 0.3, lambda x: "Fail")
         rule2 = ValidationRule("r2", lambda x: False, lambda x: 0.2, lambda x: "Fail")
-        
+
         v1 = ComposableValidator("v1", [rule1])
         v2 = ComposableValidator("v2", [rule2])
         combined = v1 | v2
-        
-        passed, score, details = await combined._perform_validation("text", sample_result)
+
+        passed, score, details = await combined._perform_validation(
+            "text", sample_result
+        )
         assert passed is False
         assert score == 0.0  # Both failed, so 0
 
@@ -220,17 +234,19 @@ class TestComposableValidator:
             "positive_length",
             lambda x: len(x) > 0,
             lambda x: 1.0,
-            lambda x: "Non-empty"
+            lambda x: "Non-empty",
         )
         validator = ComposableValidator("test", [rule])
         inverted = ~validator
-        
+
         assert inverted.name == "NOT test"
         assert len(inverted.rules) == 1
         assert inverted.rules[0].name == "NOT positive_length"
-        
+
         # Test inverted logic
-        assert inverted.rules[0].check("hello") is False  # Original passes, inverted fails
+        assert (
+            inverted.rules[0].check("hello") is False
+        )  # Original passes, inverted fails
         assert inverted.rules[0].check("") is True  # Original fails, inverted passes
 
 
@@ -247,7 +263,7 @@ class TestValidatorBuilder:
         """Test adding length validation."""
         builder = ValidatorBuilder()
         builder.length(min_length=10, max_length=100)
-        
+
         assert len(builder.rules) == 1
         rule = builder.rules[0]
         assert rule.name == "length"
@@ -259,7 +275,7 @@ class TestValidatorBuilder:
         """Test contains validation with 'all' mode."""
         builder = ValidatorBuilder()
         builder.contains(["hello", "world"], mode="all")
-        
+
         rule = builder.rules[0]
         assert rule.check("Hello World!") is True
         assert rule.check("hello there") is False
@@ -270,7 +286,7 @@ class TestValidatorBuilder:
         """Test contains validation with 'any' mode."""
         builder = ValidatorBuilder()
         builder.contains(["python", "java"], mode="any")
-        
+
         rule = builder.rules[0]
         assert rule.check("I love Python") is True
         assert rule.check("Java is good") is True
@@ -280,7 +296,7 @@ class TestValidatorBuilder:
         """Test regex pattern matching."""
         builder = ValidatorBuilder()
         builder.matches(r"\d{3}-\d{3}-\d{4}", "phone")
-        
+
         rule = builder.rules[0]
         assert rule.name == "matches_phone"
         assert rule.check("Call 123-456-7890") is True
@@ -294,9 +310,9 @@ class TestValidatorBuilder:
             name="uppercase",
             check=lambda text: any(c.isupper() for c in text),
             score=lambda text: sum(1 for c in text if c.isupper()) / len(text),
-            detail=lambda text: f"Has uppercase: {any(c.isupper() for c in text)}"
+            detail=lambda text: f"Has uppercase: {any(c.isupper() for c in text)}",
         )
-        
+
         rule = builder.rules[0]
         assert rule.name == "uppercase"
         assert rule.check("Hello") is True
@@ -306,7 +322,7 @@ class TestValidatorBuilder:
         """Test sentence count validation."""
         builder = ValidatorBuilder()
         builder.sentences(min_sentences=2, max_sentences=5)
-        
+
         rule = builder.rules[0]
         assert rule.check("One sentence.") is False
         assert rule.check("First. Second.") is True
@@ -316,7 +332,7 @@ class TestValidatorBuilder:
         """Test word count validation."""
         builder = ValidatorBuilder()
         builder.words(min_words=5, max_words=20)
-        
+
         rule = builder.rules[0]
         assert rule.check("Too few") is False
         assert rule.check("This is just the right length") is True
@@ -324,12 +340,14 @@ class TestValidatorBuilder:
 
     def test_chaining(self):
         """Test method chaining."""
-        validator = (ValidatorBuilder("essay")
+        validator = (
+            ValidatorBuilder("essay")
             .length(100, 1000)
             .sentences(5, 50)
             .contains(["introduction", "conclusion"])
-            .build())
-        
+            .build()
+        )
+
         assert validator.name == "essay"
         assert len(validator.rules) == 3
 
@@ -338,7 +356,7 @@ class TestValidatorBuilder:
         builder = ValidatorBuilder("test")
         builder.length(10, 100)
         validator = builder.build()
-        
+
         assert isinstance(validator, ComposableValidator)
         assert validator.name == "test"
         assert len(validator.rules) == 1
@@ -390,20 +408,17 @@ class TestValidatorFactory:
         # Create composite validator
         length_validator = Validator.length(50, 200)
         keyword_validator = Validator.contains(["AI", "ML"], mode="any")
-        
+
         # Combine with AND
         combined = length_validator & keyword_validator
-        
-        sample_result = SifakaResult(
-            original_text="Original",
-            final_text="Final"
-        )
-        
+
+        sample_result = SifakaResult(original_text="Original", final_text="Final")
+
         # Test text that passes both
         text1 = "x" * 100 + " AI is great"
         passed, score, _ = await combined._perform_validation(text1, sample_result)
         assert passed is True
-        
+
         # Test text that fails length
         text2 = "AI"
         passed, score, _ = await combined._perform_validation(text2, sample_result)
@@ -413,9 +428,8 @@ class TestValidatorFactory:
         """Test complex validator composition."""
         # (Length AND Keywords) OR Email
         validator = (
-            Validator.length(20, 100) & 
-            Validator.contains(["important"])
+            Validator.length(20, 100) & Validator.contains(["important"])
         ) | Validator.matches(r"\b[\w.-]+@[\w.-]+\.\w+\b", "email")
-        
+
         assert "OR" in validator.name
         assert "AND" in validator.name

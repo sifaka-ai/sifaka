@@ -125,7 +125,7 @@ class CustomCritic(BaseCritic):
     @property
     def name(self) -> str:
         return "custom"
-    
+
     async def _create_messages(self, text, result):
         # Your critique logic here
         pass

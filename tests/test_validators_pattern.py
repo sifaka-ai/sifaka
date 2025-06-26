@@ -16,10 +16,7 @@ class TestPatternValidator:
     @pytest.fixture
     def sample_result(self):
         """Create a sample SifakaResult."""
-        return SifakaResult(
-            original_text="Original text",
-            final_text="Final text"
-        )
+        return SifakaResult(original_text="Original text", final_text="Final text")
 
     def test_initialization_empty(self):
         """Test initialization with no patterns."""
@@ -31,9 +28,11 @@ class TestPatternValidator:
     def test_initialization_with_patterns(self):
         """Test initialization with patterns."""
         validator = PatternValidator(
-            required_patterns={"email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"},
+            required_patterns={
+                "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+            },
             forbidden_patterns={"profanity": r"\b(bad|words)\b"},
-            pattern_counts={"email": (1, 5)}
+            pattern_counts={"email": (1, 5)},
         )
         assert len(validator.required_patterns) == 1
         assert len(validator.forbidden_patterns) == 1
@@ -58,7 +57,9 @@ class TestPatternValidator:
     async def test_required_pattern_found(self, sample_result):
         """Test with required pattern that is found."""
         validator = PatternValidator(
-            required_patterns={"email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"}
+            required_patterns={
+                "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+            }
         )
         text = "Contact us at test@example.com for more info."
         result = await validator.validate(text, sample_result)
@@ -70,7 +71,9 @@ class TestPatternValidator:
     async def test_required_pattern_not_found(self, sample_result):
         """Test with required pattern that is not found."""
         validator = PatternValidator(
-            required_patterns={"email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"}
+            required_patterns={
+                "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+            }
         )
         text = "Contact us for more info."
         result = await validator.validate(text, sample_result)
@@ -105,8 +108,10 @@ class TestPatternValidator:
     async def test_pattern_count_minimum_met(self, sample_result):
         """Test pattern count with minimum requirement met."""
         validator = PatternValidator(
-            required_patterns={"email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"},
-            pattern_counts={"email": (2, None)}
+            required_patterns={
+                "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+            },
+            pattern_counts={"email": (2, None)},
         )
         text = "Contact test@example.com or admin@example.com"
         result = await validator.validate(text, sample_result)
@@ -116,8 +121,10 @@ class TestPatternValidator:
     async def test_pattern_count_minimum_not_met(self, sample_result):
         """Test pattern count with minimum requirement not met."""
         validator = PatternValidator(
-            required_patterns={"email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"},
-            pattern_counts={"email": (2, None)}
+            required_patterns={
+                "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+            },
+            pattern_counts={"email": (2, None)},
         )
         text = "Contact test@example.com"
         result = await validator.validate(text, sample_result)
@@ -128,8 +135,10 @@ class TestPatternValidator:
     async def test_pattern_count_maximum_exceeded(self, sample_result):
         """Test pattern count with maximum limit exceeded."""
         validator = PatternValidator(
-            required_patterns={"email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"},
-            pattern_counts={"email": (1, 2)}
+            required_patterns={
+                "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+            },
+            pattern_counts={"email": (1, 2)},
         )
         text = "Contact test@example.com, admin@example.com, and support@example.com"
         result = await validator.validate(text, sample_result)
@@ -140,8 +149,10 @@ class TestPatternValidator:
     async def test_pattern_count_range_met(self, sample_result):
         """Test pattern count within specified range."""
         validator = PatternValidator(
-            required_patterns={"email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"},
-            pattern_counts={"email": (1, 3)}
+            required_patterns={
+                "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+            },
+            pattern_counts={"email": (1, 3)},
         )
         text = "Contact test@example.com or admin@example.com"
         result = await validator.validate(text, sample_result)
@@ -153,11 +164,11 @@ class TestPatternValidator:
         validator = PatternValidator(
             required_patterns={
                 "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
-                "url": r"https?://[\w.-]+(?:\.[\w\.-]+)+"
+                "url": r"https?://[\w.-]+(?:\.[\w\.-]+)+",
             },
             forbidden_patterns={
                 "script": r"<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>"
-            }
+            },
         )
         text = "Visit https://example.com or email test@example.com"
         result = await validator.validate(text, sample_result)
@@ -170,7 +181,7 @@ class TestPatternValidator:
         validator = PatternValidator(
             required_patterns={
                 "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
-                "phone": r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b"
+                "phone": r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b",
             }
         )
         text = "Email test@example.com but no phone"
@@ -182,9 +193,7 @@ class TestPatternValidator:
     async def test_multiline_pattern(self, sample_result):
         """Test pattern matching across multiple lines."""
         validator = PatternValidator(
-            required_patterns={
-                "code_block": r"```[\w]*\n[\s\S]+?\n```"
-            }
+            required_patterns={"code_block": r"```[\w]*\n[\s\S]+?\n```"}
         )
         text = """Here is some code:
 ```python
@@ -199,11 +208,11 @@ def hello():
     async def test_forbidden_pattern_truncation(self, sample_result):
         """Test long forbidden pattern match is truncated."""
         validator = PatternValidator(
-            forbidden_patterns={
-                "long_text": r"This is a very long text.*pattern"
-            }
+            forbidden_patterns={"long_text": r"This is a very long text.*pattern"}
         )
-        text = "This is a very long text that goes on and on and on with more text pattern"
+        text = (
+            "This is a very long text that goes on and on and on with more text pattern"
+        )
         result = await validator.validate(text, sample_result)
         assert result.passed is False
         assert "..." in result.details  # Should truncate long match
@@ -228,15 +237,13 @@ def hello():
     @pytest.mark.asyncio
     async def test_case_sensitive_patterns(self, sample_result):
         """Test case-sensitive pattern matching."""
-        validator = PatternValidator(
-            required_patterns={"uppercase": r"[A-Z]+"}
-        )
-        
+        validator = PatternValidator(required_patterns={"uppercase": r"[A-Z]+"})
+
         # Should find uppercase
         text1 = "This has UPPERCASE letters"
         result1 = await validator.validate(text1, sample_result)
         assert result1.passed is True
-        
+
         # Should not find uppercase
         text2 = "this has no uppercase letters"
         result2 = await validator.validate(text2, sample_result)
@@ -249,10 +256,7 @@ class TestValidatorFactories:
     @pytest.fixture
     def sample_result(self):
         """Create a sample SifakaResult."""
-        return SifakaResult(
-            original_text="Original text",
-            final_text="Final text"
-        )
+        return SifakaResult(original_text="Original text", final_text="Final text")
 
     def test_create_code_validator(self):
         """Test code validator factory."""

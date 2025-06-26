@@ -56,9 +56,13 @@ class BaseCritic(Critic, ABC):
 
         # Components
         self._confidence_calc = ConfidenceCalculator(self.config.critic_base_confidence)
-        
+
         # Tool support
-        self.enable_tools = enable_tools if enable_tools is not None else getattr(self.config, 'enable_tools', False)
+        self.enable_tools = (
+            enable_tools
+            if enable_tools is not None
+            else getattr(self.config, "enable_tools", False)
+        )
         self.tools: List[ToolInterface] = []
         if self.enable_tools:
             self.tools = self._get_available_tools()
@@ -80,7 +84,7 @@ class BaseCritic(Critic, ABC):
     def name(self) -> str:
         """Return the critic's name."""
         pass
-    
+
     def _get_available_tools(self) -> List[ToolInterface]:
         """Override to specify which tools this critic can use."""
         return []

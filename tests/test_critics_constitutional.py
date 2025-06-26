@@ -24,7 +24,7 @@ class TestPrincipleEvaluation:
             passed=True,
             severity=0.0,
             violations=[],
-            improvements=[]
+            improvements=[],
         )
         assert eval.principle == "Be helpful"
         assert eval.category == "helpful"
@@ -39,7 +39,7 @@ class TestPrincipleEvaluation:
             passed=False,
             severity=0.7,
             violations=["Contains unverified claims"],
-            improvements=["Add sources", "Qualify statements"]
+            improvements=["Add sources", "Qualify statements"],
         )
         assert eval.passed is False
         assert eval.severity == 0.7
@@ -56,7 +56,7 @@ class TestRevisionProposal:
             original_snippet="This is definitely true",
             revised_snippet="This appears to be true based on current evidence",
             principles_addressed=["Promote accuracy"],
-            improvement_rationale="Adds appropriate qualification"
+            improvement_rationale="Adds appropriate qualification",
         )
         assert "definitely" in proposal.original_snippet
         assert "appears to be" in proposal.revised_snippet
@@ -69,9 +69,7 @@ class TestConstitutionalResponse:
     def test_creation_minimal(self):
         """Test creating response with minimal fields."""
         response = ConstitutionalResponse(
-            feedback="Text is generally good",
-            suggestions=[],
-            needs_improvement=False
+            feedback="Text is generally good", suggestions=[], needs_improvement=False
         )
         assert response.feedback == "Text is generally good"
         assert response.needs_improvement is False
@@ -80,17 +78,15 @@ class TestConstitutionalResponse:
     def test_creation_full(self):
         """Test creating response with all fields."""
         eval = PrincipleEvaluation(
-            principle="Test principle",
-            category="helpful",
-            passed=True
+            principle="Test principle", category="helpful", passed=True
         )
         proposal = RevisionProposal(
             original_snippet="old",
             revised_snippet="new",
             principles_addressed=["Test"],
-            improvement_rationale="Better"
+            improvement_rationale="Better",
         )
-        
+
         response = ConstitutionalResponse(
             feedback="Detailed feedback",
             suggestions=["Suggestion 1"],
@@ -103,9 +99,9 @@ class TestConstitutionalResponse:
             honesty_score=0.7,
             requires_major_revision=False,
             self_critique_notes="Good improvements",
-            metadata={"key": "value"}
+            metadata={"key": "value"},
         )
-        
+
         assert len(response.principle_evaluations) == 1
         assert len(response.revision_proposals) == 1
         assert response.helpfulness_score == 0.8
@@ -118,10 +114,7 @@ class TestConstitutionalCritic:
     @pytest.fixture
     def sample_result(self):
         """Create a sample SifakaResult."""
-        return SifakaResult(
-            original_text="Original text",
-            final_text="Final text"
-        )
+        return SifakaResult(original_text="Original text", final_text="Final text")
 
     def test_initialization_default(self):
         """Test default initialization."""
@@ -149,11 +142,11 @@ class TestConstitutionalCritic:
         config = Config()
         config.constitutional_principles = ["From config"]
         custom = ["From custom"]
-        
+
         # Custom takes precedence
         critic = ConstitutionalCritic(config=config, principles=custom)
         assert critic.principles == custom
-        
+
         # Config takes precedence over default
         critic = ConstitutionalCritic(config=config)
         assert critic.principles == ["From config"]
@@ -168,11 +161,11 @@ class TestConstitutionalCritic:
         """Test message creation for constitutional evaluation."""
         critic = ConstitutionalCritic(principles=["Principle 1", "Principle 2"])
         messages = await critic._create_messages("Test text", sample_result)
-        
+
         assert len(messages) == 2
         assert messages[0]["role"] == "system"
         assert "Constitutional AI critic" in messages[0]["content"]
-        
+
         assert messages[1]["role"] == "user"
         user_content = messages[1]["content"]
         assert "Constitutional Principles:" in user_content
@@ -189,13 +182,13 @@ class TestConstitutionalCritic:
             CritiqueResult(
                 critic="constitutional",
                 feedback="Previous feedback",
-                suggestions=["Previous suggestion"]
+                suggestions=["Previous suggestion"],
             )
         )
-        
+
         critic = ConstitutionalCritic()
         messages = await critic._create_messages("Test text", sample_result)
-        
+
         user_content = messages[1]["content"]
         assert "Previous feedback:" in user_content
         assert "Previous feedback" in user_content
@@ -204,7 +197,7 @@ class TestConstitutionalCritic:
     async def test_critique_success(self, sample_result):
         """Test successful critique flow."""
         critic = ConstitutionalCritic()
-        
+
         # Mock the LLM response
         mock_response = ConstitutionalResponse(
             feedback="Text follows constitutional principles well",
@@ -218,24 +211,24 @@ class TestConstitutionalCritic:
                     passed=False,
                     severity=0.3,
                     violations=["Some claims lack sources"],
-                    improvements=["Add citations"]
+                    improvements=["Add citations"],
                 )
             ],
             helpfulness_score=0.9,
             harmlessness_score=1.0,
-            honesty_score=0.7
+            honesty_score=0.7,
         )
-        
+
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
-        
+
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
-        
-        with patch.object(critic.client, 'create_agent', return_value=mock_agent):
+
+        with patch.object(critic.client, "create_agent", return_value=mock_agent):
             result = await critic.critique("Test text", sample_result)
-            
+
             assert result.critic == "constitutional"
             assert result.feedback == mock_response.feedback
             assert len(result.suggestions) == 1
@@ -248,7 +241,7 @@ class TestConstitutionalCritic:
     async def test_critique_with_revision_proposals(self, sample_result):
         """Test critique with revision proposals."""
         critic = ConstitutionalCritic()
-        
+
         mock_response = ConstitutionalResponse(
             feedback="Text needs constitutional revisions",
             suggestions=["Apply proposed revisions"],
@@ -258,22 +251,22 @@ class TestConstitutionalCritic:
                     original_snippet="Everyone knows",
                     revised_snippet="Many experts believe",
                     principles_addressed=["Avoid misinformation"],
-                    improvement_rationale="More accurate phrasing"
+                    improvement_rationale="More accurate phrasing",
                 )
             ],
-            requires_major_revision=True
+            requires_major_revision=True,
         )
-        
+
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
-        
+
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
-        
-        with patch.object(critic.client, 'create_agent', return_value=mock_agent):
+
+        with patch.object(critic.client, "create_agent", return_value=mock_agent):
             result = await critic.critique("Test text", sample_result)
-            
+
             assert result.needs_improvement is True
             assert "revision_proposals" in result.metadata
             assert len(result.metadata["revision_proposals"]) == 1
@@ -283,7 +276,7 @@ class TestConstitutionalCritic:
     async def test_critique_all_principles_pass(self, sample_result):
         """Test when all principles pass."""
         critic = ConstitutionalCritic(principles=["Be helpful", "Be clear"])
-        
+
         mock_response = ConstitutionalResponse(
             feedback="Text adheres to all constitutional principles",
             suggestions=[],
@@ -294,49 +287,43 @@ class TestConstitutionalCritic:
                     principle="Be helpful",
                     category="helpful",
                     passed=True,
-                    severity=0.0
+                    severity=0.0,
                 ),
                 PrincipleEvaluation(
-                    principle="Be clear",
-                    category="helpful",
-                    passed=True,
-                    severity=0.0
-                )
+                    principle="Be clear", category="helpful", passed=True, severity=0.0
+                ),
             ],
             helpfulness_score=0.95,
             harmlessness_score=0.95,
-            honesty_score=0.95
+            honesty_score=0.95,
         )
-        
+
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
-        
+
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
-        
-        with patch.object(critic.client, 'create_agent', return_value=mock_agent):
+
+        with patch.object(critic.client, "create_agent", return_value=mock_agent):
             result = await critic.critique("Test text", sample_result)
-            
+
             assert result.needs_improvement is False
             assert len(result.suggestions) == 0
             assert result.confidence > 0.9
 
     def test_model_parameters(self):
         """Test model parameter configuration."""
-        critic = ConstitutionalCritic(
-            model="gpt-4",
-            temperature=0.5
-        )
+        critic = ConstitutionalCritic(model="gpt-4", temperature=0.5)
         assert critic.model == "gpt-4"
         assert critic.temperature == 0.5
 
     def test_provider_configuration(self):
         """Test provider configuration."""
         from sifaka.core.llm_client import Provider
-        
+
         critic = ConstitutionalCritic(provider=Provider.ANTHROPIC)
         assert critic.provider == Provider.ANTHROPIC
-        
+
         critic = ConstitutionalCritic(provider="openai")
         assert critic.provider == Provider.OPENAI

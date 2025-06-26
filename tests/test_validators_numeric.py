@@ -16,10 +16,7 @@ class TestNumericRangeValidator:
     @pytest.fixture
     def sample_result(self):
         """Create a sample SifakaResult."""
-        return SifakaResult(
-            original_text="Original text",
-            final_text="Final text"
-        )
+        return SifakaResult(original_text="Original text", final_text="Final text")
 
     def test_initialization_default(self):
         """Test default initialization."""
@@ -39,7 +36,7 @@ class TestNumericRangeValidator:
             allowed_ranges=[(10, 20), (30, 40)],
             forbidden_ranges=[(50, 60)],
             check_percentages=False,
-            check_currency=False
+            check_currency=False,
         )
         assert validator.min_value == 0
         assert validator.max_value == 100
@@ -172,10 +169,7 @@ class TestNumericRangeValidator:
     async def test_mixed_numeric_types(self, sample_result):
         """Test with mixed numeric types."""
         validator = NumericRangeValidator(
-            min_value=0,
-            max_value=1000,
-            check_percentages=True,
-            check_currency=True
+            min_value=0, max_value=1000, check_percentages=True, check_currency=True
         )
         text = "The price is $250, with a 20% discount, leaving 200 to pay."
         result = await validator.validate(text, sample_result)
@@ -198,9 +192,7 @@ class TestNumericRangeValidator:
     async def test_percentage_not_validated_as_general_number(self, sample_result):
         """Test that percentages are not validated against general min/max."""
         validator = NumericRangeValidator(
-            min_value=0,
-            max_value=10,
-            check_percentages=True
+            min_value=0, max_value=10, check_percentages=True
         )
         text = "The success rate was 85%."
         result = await validator.validate(text, sample_result)
@@ -225,7 +217,7 @@ class TestNumericRangeValidator:
             max_value=1000,
             forbidden_ranges=[(666, 666)],
             check_percentages=True,
-            check_currency=True
+            check_currency=True,
         )
         text = """
         In 2023, our revenue was $500 million, up 25% from last year.
@@ -253,10 +245,7 @@ class TestValidatorFactories:
     @pytest.fixture
     def sample_result(self):
         """Create a sample SifakaResult."""
-        return SifakaResult(
-            original_text="Original text",
-            final_text="Final text"
-        )
+        return SifakaResult(original_text="Original text", final_text="Final text")
 
     def test_create_percentage_validator(self):
         """Test percentage validator factory."""
@@ -268,12 +257,12 @@ class TestValidatorFactories:
     async def test_percentage_validator_usage(self, sample_result):
         """Test using percentage validator."""
         validator = create_percentage_validator()
-        
+
         # Valid percentages
         text = "Success rate: 95%"
         result = await validator.validate(text, sample_result)
         assert result.passed is True
-        
+
         # Invalid percentage
         text = "Increase: 200%"
         result = await validator.validate(text, sample_result)
@@ -296,12 +285,12 @@ class TestValidatorFactories:
     async def test_price_validator_usage(self, sample_result):
         """Test using price validator."""
         validator = create_price_validator(max_price=100.0)
-        
+
         # Valid price
         text = "The item costs $50."
         result = await validator.validate(text, sample_result)
         assert result.passed is True
-        
+
         # Price too high
         text = "The luxury item costs $500."
         result = await validator.validate(text, sample_result)
@@ -319,18 +308,18 @@ class TestValidatorFactories:
     async def test_age_validator_usage(self, sample_result):
         """Test using age validator."""
         validator = create_age_validator()
-        
+
         # Valid ages
         text = "The participants were 25, 45, and 65 years old."
         result = await validator.validate(text, sample_result)
         assert result.passed is True
-        
+
         # Invalid age (too high)
         text = "The person claimed to be 200 years old."
         result = await validator.validate(text, sample_result)
         assert result.passed is False
         assert "200 is above maximum 150" in result.details
-        
+
         # Also in forbidden range
         text = "Ages: 250 and 300."
         result = await validator.validate(text, sample_result)
