@@ -6,7 +6,7 @@ from sifaka.validators import (
     LengthValidator,
     FormatValidator,
     ContentValidator,
-    CompositeValidator,
+    ComposableValidator,
 )
 
 
@@ -56,7 +56,7 @@ def test_format_validator_integration(api_key, llm_provider, integration_timeout
 
     # Check format
     lines = result.improved_text.strip().split("\n")
-    bullet_lines = [l for l in lines if l.strip().startswith(("•", "-", "*"))]
+    bullet_lines = [line for line in lines if line.strip().startswith(("•", "-", "*"))]
     assert 3 <= len(bullet_lines) <= 5
 
 
@@ -101,7 +101,7 @@ def test_composite_validator_integration(api_key, llm_provider, integration_time
         ContentValidator(required_elements=["functions", "classes", "modules"]),
     ]
 
-    composite = CompositeValidator(validators=validators)
+    composite = ComposableValidator(validators=validators)
 
     result = improve(
         original_text,

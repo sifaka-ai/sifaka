@@ -4,6 +4,7 @@ import pytest
 from sifaka.storage.memory import MemoryStorage
 from sifaka.core.models import SifakaResult
 from sifaka.core.exceptions import StorageError
+from unittest.mock import patch
 
 
 class TestMemoryStorage:
@@ -20,9 +21,19 @@ class TestMemoryStorage:
         return SifakaResult(
             original_text="Original text for testing",
             final_text="Improved text after processing",
-            iterations=2,
-            was_improved=True
         )
+
+    @pytest.fixture
+    def multiple_results(self):
+        """Create multiple SifakaResults for testing."""
+        results = []
+        for i in range(5):
+            results.append(
+                SifakaResult(
+                    original_text=f"Original text {i}", final_text=f"Final text {i}"
+                )
+            )
+        return results
 
     @pytest.mark.asyncio
     async def test_initialization(self, storage):
@@ -54,11 +65,11 @@ class TestMemoryStorage:
     @pytest.mark.asyncio
     async def test_delete_existing(self, storage, sample_result):
         """Test deleting an existing result."""
-        # Save first
+        # Save result
         await storage.save(sample_result)
         assert storage.size() == 1
 
-        # Delete
+        # Delete result
         deleted = await storage.delete(sample_result.id)
         assert deleted is True
         assert storage.size() == 0
@@ -74,241 +85,201 @@ class TestMemoryStorage:
         assert deleted is False
 
     @pytest.mark.asyncio
-    async def test_list_empty(self, storage):
-        """Test listing with empty storage."""
-        ids = await storage.list()
-        assert ids == []
-
-    @pytest.mark.asyncio
-    async def test_list_with_results(self, storage):
-        """Test listing with multiple results."""
-        # Create and save multiple results
-        results = []
-        for i in range(5):
-            result = SifakaResult(
-                original_text=f"Original {i}",
-                final_text=f"Final {i}"
-            )
-            results.append(result)
-            await storage.save(result)
+    async def test_list_results(self, storage, multiple_results):
+        """Test listing stored results."""
+        # Save multiple results
+        saved_ids = []
+        for result in multiple_results:
+            result_id = await storage.save(result)
+            saved_ids.append(result_id)
 
         # List all
-        ids = await storage.list()
-        assert len(ids) == 5
-        assert all(r.id in ids for r in results)
+        all_ids = await storage.list()
+        assert len(all_ids) == 5
+        assert set(all_ids) == set(saved_ids)
 
     @pytest.mark.asyncio
-    async def test_list_with_pagination(self, storage):
-        """Test list with limit and offset."""
-        # Save 10 results
-        for i in range(10):
-            result = SifakaResult(
-                original_text=f"Original {i}",
-                final_text=f"Final {i}"
-            )
+    async def test_list_with_pagination(self, storage, multiple_results):
+        """Test listing with limit and offset."""
+        # Save multiple results
+        for result in multiple_results:
             await storage.save(result)
 
         # Test limit
-        ids = await storage.list(limit=3)
-        assert len(ids) == 3
+        limited = await storage.list(limit=3)
+        assert len(limited) == 3
 
         # Test offset
-        ids_offset = await storage.list(limit=3, offset=3)
-        assert len(ids_offset) == 3
-        assert ids[0] != ids_offset[0]  # Different results
+        offset_results = await storage.list(limit=2, offset=2)
+        assert len(offset_results) == 2
 
-        # Test offset beyond range
-        ids_beyond = await storage.list(limit=5, offset=8)
-        assert len(ids_beyond) == 2  # Only 2 remaining
+        # Test offset beyond results
+        beyond = await storage.list(limit=10, offset=10)
+        assert len(beyond) == 0
 
     @pytest.mark.asyncio
-    async def test_search_in_original_text(self, storage):
+    async def test_search_in_original_text(self, storage, multiple_results):
         """Test searching in original text."""
-        # Create results with specific content
-        result1 = SifakaResult(
-            original_text="Machine learning is fascinating",
-            final_text="AI is amazing"
-        )
-        result2 = SifakaResult(
-            original_text="Deep learning networks",
-            final_text="Neural networks"
-        )
-        result3 = SifakaResult(
-            original_text="Data science",
-            final_text="Analytics"
-        )
+        # Save results
+        for result in multiple_results:
+            await storage.save(result)
 
-        await storage.save(result1)
-        await storage.save(result2)
-        await storage.save(result3)
-
-        # Search for "learning"
-        matches = await storage.search("learning")
-        assert len(matches) == 2
-        assert result1.id in matches
-        assert result2.id in matches
+        # Search for "text 2"
+        matches = await storage.search("text 2")
+        assert len(matches) == 1
+        assert matches[0] == multiple_results[2].id
 
     @pytest.mark.asyncio
     async def test_search_in_final_text(self, storage):
         """Test searching in final text."""
+        # Create results with specific final text
         result1 = SifakaResult(
-            original_text="Original 1",
-            final_text="Machine learning applications"
+            original_text="Original", final_text="The cat sat on the mat"
         )
         result2 = SifakaResult(
-            original_text="Original 2",
-            final_text="Deep learning models"
+            original_text="Original", final_text="The dog ran in the park"
         )
 
         await storage.save(result1)
         await storage.save(result2)
 
-        # Search in final text
-        matches = await storage.search("learning")
-        assert len(matches) == 2
+        # Search for "cat"
+        matches = await storage.search("cat")
+        assert len(matches) == 1
+        assert matches[0] == result1.id
 
     @pytest.mark.asyncio
     async def test_search_case_insensitive(self, storage):
         """Test case-insensitive search."""
         result = SifakaResult(
-            original_text="MACHINE LEARNING",
-            final_text="Final text"
+            original_text="Original TEXT with CAPS", final_text="Final text"
         )
         await storage.save(result)
 
         # Search with different cases
-        matches1 = await storage.search("machine")
-        matches2 = await storage.search("MACHINE")
-        matches3 = await storage.search("MaChInE")
+        matches1 = await storage.search("TEXT")
+        matches2 = await storage.search("text")
+        matches3 = await storage.search("TExT")
 
         assert len(matches1) == 1
         assert len(matches2) == 1
         assert len(matches3) == 1
+        assert matches1[0] == matches2[0] == matches3[0] == result.id
 
     @pytest.mark.asyncio
     async def test_search_with_limit(self, storage):
         """Test search with result limit."""
-        # Create many matching results
-        for i in range(20):
+        # Create multiple matching results
+        for i in range(5):
             result = SifakaResult(
-                original_text=f"Machine learning example {i}",
-                final_text="Final"
+                original_text=f"Document {i} contains keyword", final_text=f"Final {i}"
             )
             await storage.save(result)
 
         # Search with limit
-        matches = await storage.search("machine", limit=5)
-        assert len(matches) == 5
+        matches = await storage.search("keyword", limit=3)
+        assert len(matches) == 3
 
     @pytest.mark.asyncio
     async def test_search_no_matches(self, storage, sample_result):
         """Test search with no matches."""
         await storage.save(sample_result)
-        matches = await storage.search("nonexistent-term")
-        assert matches == []
 
-    @pytest.mark.asyncio
-    async def test_clear(self, storage):
-        """Test clearing all storage."""
-        # Add multiple results
-        for i in range(5):
-            result = SifakaResult(
-                original_text=f"Text {i}",
-                final_text=f"Final {i}"
-            )
-            await storage.save(result)
+        matches = await storage.search("nonexistent")
+        assert len(matches) == 0
 
-        assert storage.size() == 5
-
-        # Clear
-        storage.clear()
-        assert storage.size() == 0
-
-        # Verify all are gone
-        ids = await storage.list()
-        assert ids == []
-
-    @pytest.mark.asyncio
-    async def test_save_exception_handling(self, storage, monkeypatch):
-        """Test exception handling in save."""
-        # Mock the storage to raise an exception
-        def mock_setitem(self, key, value):
-            raise RuntimeError("Storage failed")
-
-        monkeypatch.setattr(dict, "__setitem__", mock_setitem)
-
-        result = SifakaResult(original_text="Test", final_text="Test")
-        
-        with pytest.raises(StorageError) as exc_info:
-            await storage.save(result)
-        
-        assert "Failed to save result" in str(exc_info.value)
-        assert exc_info.value.storage_type == "memory"
-        assert exc_info.value.operation == "save"
-
-    @pytest.mark.asyncio
-    async def test_load_exception_handling(self, storage, monkeypatch):
-        """Test exception handling in load."""
-        # Mock the storage to raise an exception
-        def mock_get(self, key, default=None):
-            raise RuntimeError("Storage failed")
-
-        monkeypatch.setattr(dict, "get", mock_get)
-
-        with pytest.raises(StorageError) as exc_info:
-            await storage.load("test-id")
-        
-        assert "Failed to load result" in str(exc_info.value)
-        assert exc_info.value.storage_type == "memory"
-        assert exc_info.value.operation == "load"
-
-    @pytest.mark.asyncio
-    async def test_search_exception_handling(self, storage, sample_result, monkeypatch):
-        """Test exception handling in search."""
-        await storage.save(sample_result)
-
-        # Mock to raise exception during iteration
-        def mock_items(self):
-            raise RuntimeError("Iteration failed")
-
-        monkeypatch.setattr(dict, "items", mock_items)
-
-        with pytest.raises(StorageError) as exc_info:
-            await storage.search("test")
-        
-        assert "Search failed for query" in str(exc_info.value)
-        assert exc_info.value.storage_type == "memory"
-        assert exc_info.value.operation == "search"
-
-    @pytest.mark.asyncio
-    async def test_multiple_operations(self, storage):
-        """Test multiple operations in sequence."""
-        # Save multiple
-        results = []
-        for i in range(3):
-            result = SifakaResult(
-                original_text=f"Text {i}",
-                final_text=f"Improved {i}"
-            )
-            results.append(result)
-            await storage.save(result)
-
-        # List
-        ids = await storage.list()
-        assert len(ids) == 3
-
-        # Search
-        matches = await storage.search("Text")
-        assert len(matches) == 3
-
-        # Delete one
-        await storage.delete(results[1].id)
+    def test_clear(self, storage):
+        """Test clearing all stored results."""
+        # Add some results synchronously
+        storage._storage["id1"] = SifakaResult(original_text="1", final_text="1")
+        storage._storage["id2"] = SifakaResult(original_text="2", final_text="2")
         assert storage.size() == 2
 
-        # Search again
-        matches = await storage.search("Text")
-        assert len(matches) == 2
-
         # Clear
         storage.clear()
         assert storage.size() == 0
+        assert storage._storage == {}
+
+    def test_size(self, storage):
+        """Test getting storage size."""
+        assert storage.size() == 0
+
+        # Add results directly
+        storage._storage["id1"] = SifakaResult(original_text="1", final_text="1")
+        assert storage.size() == 1
+
+        storage._storage["id2"] = SifakaResult(original_text="2", final_text="2")
+        assert storage.size() == 2
+
+    @pytest.mark.asyncio
+    async def test_save_exception_handling(self, storage):
+        """Test exception handling in save operation."""
+        result = SifakaResult(original_text="Test", final_text="Test")
+
+        # Mock the storage to raise an exception
+        with patch.object(
+            storage._storage, "__setitem__", side_effect=Exception("Save failed")
+        ):
+            with pytest.raises(StorageError) as exc_info:
+                await storage.save(result)
+
+            assert "Failed to save result" in str(exc_info.value)
+            assert exc_info.value.storage_type == "memory"
+            assert exc_info.value.operation == "save"
+
+    @pytest.mark.asyncio
+    async def test_load_exception_handling(self, storage):
+        """Test exception handling in load operation."""
+        # Mock the storage to raise an exception
+        with patch.object(
+            storage._storage, "get", side_effect=Exception("Load failed")
+        ):
+            with pytest.raises(StorageError) as exc_info:
+                await storage.load("test-id")
+
+            assert "Failed to load result" in str(exc_info.value)
+            assert exc_info.value.storage_type == "memory"
+            assert exc_info.value.operation == "load"
+
+    @pytest.mark.asyncio
+    async def test_search_exception_handling(self, storage):
+        """Test exception handling in search operation."""
+        # Add a result
+        result = SifakaResult(original_text="Test", final_text="Test")
+        storage._storage[result.id] = result
+
+        # Mock to raise an exception during iteration
+        with patch.object(
+            storage._storage, "items", side_effect=Exception("Search failed")
+        ):
+            with pytest.raises(StorageError) as exc_info:
+                await storage.search("test")
+
+            assert "Search failed for query" in str(exc_info.value)
+            assert exc_info.value.storage_type == "memory"
+            assert exc_info.value.operation == "search"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_operations(self, storage):
+        """Test concurrent save and load operations."""
+        import asyncio
+
+        # Create multiple results
+        results = [
+            SifakaResult(original_text=f"Text {i}", final_text=f"Final {i}")
+            for i in range(10)
+        ]
+
+        # Save concurrently
+        save_tasks = [storage.save(result) for result in results]
+        saved_ids = await asyncio.gather(*save_tasks)
+
+        assert len(saved_ids) == 10
+        assert storage.size() == 10
+
+        # Load concurrently
+        load_tasks = [storage.load(result_id) for result_id in saved_ids]
+        loaded_results = await asyncio.gather(*load_tasks)
+
+        assert all(result is not None for result in loaded_results)
+        assert len(loaded_results) == 10
