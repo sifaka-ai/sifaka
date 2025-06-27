@@ -6,7 +6,7 @@ try:
     from importlib import metadata
 except ImportError:
     # Python 3.7 compatibility
-    import importlib_metadata as metadata
+    import importlib_metadata as metadata  # type: ignore[no-redef]
 
 from ..storage.base import StorageBackend
 

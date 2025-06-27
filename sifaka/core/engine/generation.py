@@ -3,7 +3,7 @@
 from typing import Optional, Tuple, List
 from pydantic import BaseModel, Field
 
-from ..models import SifakaResult
+from ..models import SifakaResult, CritiqueResult
 from ..llm_client import LLMManager, LLMClient
 
 
