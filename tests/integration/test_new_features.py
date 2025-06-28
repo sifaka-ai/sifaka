@@ -289,7 +289,7 @@ class TestMiddlewareIntegration:
         pipeline.add(CachingMiddleware(max_size=10))
 
         # Test with middleware
-        text = "The quick brown fox jumps over the lazy dog."
+        _text = "The quick brown fox jumps over the lazy dog."
 
         # Note: improve() API would need to support middleware parameter
         # For now, test middleware components directly
@@ -487,7 +487,7 @@ class TestPerformanceWithProviders:
             start = asyncio.get_event_loop().time()
 
             try:
-                result = await improve(
+                await improve(
                     text,
                     critics=["reflexion"],
                     max_iterations=1,

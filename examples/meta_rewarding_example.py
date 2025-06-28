@@ -7,7 +7,7 @@ import asyncio
 from sifaka import improve
 
 
-async def main():
+async def main() -> None:
     """Run Meta-Rewarding improvement example."""
 
     # Technical explanation that needs quality evaluation

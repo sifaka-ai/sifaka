@@ -9,7 +9,7 @@ from sifaka.validators.composable import Validator
 from sifaka.storage.file import FileStorage
 
 
-async def main():
+async def main() -> None:
     """Run validator examples."""
 
     print("🎯 Validators Example - Quality control")

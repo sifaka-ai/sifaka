@@ -199,7 +199,6 @@ Be thorough and specific in your evaluation."""
     def _build_consensus(self, evaluations: List[CritiqueResult]) -> CritiqueResult:
         """Build consensus from multiple evaluations."""
         # Extract common themes
-        all_feedback = [e.feedback for e in evaluations]
         all_suggestions = []
         for e in evaluations:
             all_suggestions.extend(e.suggestions)

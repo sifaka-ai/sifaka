@@ -7,7 +7,7 @@ import asyncio
 from sifaka import improve
 
 
-async def main():
+async def main() -> None:
     """Run Self-Refine improvement example."""
 
     # Generic text that needs polish

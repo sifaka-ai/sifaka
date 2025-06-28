@@ -67,7 +67,7 @@ class FileStorage(StorageBackend):
                 result = await self._load_from_path(f)
                 if result and result.id == result_id:
                     return result
-            except:
+            except Exception:
                 continue
 
         return None

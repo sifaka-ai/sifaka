@@ -7,7 +7,7 @@ import asyncio
 from sifaka import improve
 
 
-async def main():
+async def main() -> None:
     """Run Reflexion improvement example."""
 
     # Original text to improve

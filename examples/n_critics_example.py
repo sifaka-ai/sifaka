@@ -5,10 +5,9 @@ N-Critics uses multiple critical perspectives to provide comprehensive feedback.
 
 import asyncio
 from sifaka import improve
-from sifaka.critics.n_critics import NCriticsCritic
 
 
-async def main():
+async def main() -> None:
     """Run N-Critics improvement example."""
 
     # Business proposal that needs multiple perspectives
@@ -34,13 +33,8 @@ async def main():
 
     # Approach 2: Custom perspectives
     print("\n2️⃣ Using custom perspectives...")
-    custom_critic = NCriticsCritic(
-        perspectives={
-            "Risk Analyst": "Evaluate financial risks and portfolio diversification",
-            "Tech Expert": "Assess cryptocurrency technology and market maturity",
-            "Financial Advisor": "Consider long-term wealth preservation strategies",
-        }
-    )
+    # Note: For this example, we'll use default n_critics
+    # Custom perspectives require direct critic instantiation
 
     result2 = await improve(text, critics=["n_critics"], max_iterations=2)
 

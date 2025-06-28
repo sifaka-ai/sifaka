@@ -7,7 +7,7 @@ import asyncio
 from sifaka import improve
 
 
-async def main():
+async def main() -> None:
     """Run Constitutional AI improvement example."""
 
     # Text that might need safety improvements

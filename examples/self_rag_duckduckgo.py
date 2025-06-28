@@ -18,7 +18,7 @@ from sifaka.storage.file import FileStorage
 from sifaka.tools import ToolRegistry
 
 
-async def main():
+async def main() -> None:
     """Run Self-RAG with DuckDuckGo fact-checking."""
 
     # Check available tools (DuckDuckGo is auto-registered by sifaka-tools)

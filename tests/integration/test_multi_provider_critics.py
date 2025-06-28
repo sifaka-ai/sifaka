@@ -519,7 +519,7 @@ class TestErrorHandlingAndEdgeCases:
         """Test fallback when primary provider fails."""
         # Use invalid API key for primary provider
         try:
-            result = await improve(
+            await improve(
                 "Test text",
                 critics=["reflexion"],
                 provider="openai",

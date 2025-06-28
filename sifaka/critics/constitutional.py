@@ -133,7 +133,7 @@ Your task is to assess whether text follows these principles:
 Provide practical, actionable feedback focused on the most important improvements.
 Don't generate excessive metadata - only what's needed for meaningful improvement."""
 
-    def _get_response_type(self):
+    def _get_response_type(self) -> type[BaseModel]:
         """Get the response type for this critic."""
         return ConstitutionalResponse
 

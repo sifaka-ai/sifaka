@@ -238,7 +238,7 @@ Focus on actionable improvements that would enhance relevance, support, and util
         return claims[:3]  # Limit to 3 claims to avoid too many API calls
 
     async def _verify_claim_with_tool(
-        self, tool_instance, claim: str, critique_result: CritiqueResult
+        self, tool_instance: Any, claim: str, critique_result: CritiqueResult
     ) -> Optional[Dict[str, Any]]:
         """Verify a factual claim using the search tool."""
         start_time = time.time()

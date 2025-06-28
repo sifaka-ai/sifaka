@@ -7,7 +7,7 @@ import asyncio
 from sifaka import improve
 
 
-async def main():
+async def main() -> None:
     """Run Self-Consistency improvement example."""
 
     # Complex reasoning that benefits from consistency checking
