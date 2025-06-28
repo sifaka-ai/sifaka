@@ -44,6 +44,8 @@ result = await improve(
 Enhance research papers and academic content:
 
 ```python
+from sifaka.validators import LengthValidator
+
 result = await improve(
     "Write an abstract for machine learning research",
     critics=["n_critics", "self_rag"],
@@ -66,10 +68,13 @@ result = await improve(
 Enhance narratives and creative content:
 
 ```python
+from sifaka import Config
+
+config = Config(temperature=0.8)  # More creative
 result = await improve(
     "Write a short story about time travel",
     critics=["reflexion", "self_consistency"],
-    temperature=0.8  # More creative
+    config=config
 )
 ```
 
@@ -78,45 +83,38 @@ result = await improve(
 ### Fast Processing
 ```python
 # Quick turnaround
-result = await improve(
-    text,
-    model="gpt-4o-mini",  # Fast model
-    max_iterations=2      # Fewer iterations
-)
+config = Config(model="gpt-4o-mini", max_iterations=2)
+result = await improve(text, config=config)
 ```
 
 ### Quality Focus
 ```python
 # High-quality output
+config = Config(model="gpt-4o", max_iterations=5)
 result = await improve(
     text,
-    model="gpt-4o",              # Better model
-    critics=["reflexion", "constitutional", "n_critics"],  # Multiple critics
-    max_iterations=5             # More iterations
+    critics=["reflexion", "constitutional", "n_critics"],
+    config=config
 )
 ```
 
-### Using the Runner Helper
+### Complete Example
 ```python
-from sifaka.runner import Runner
+from sifaka import improve, Config
+from sifaka.validators import LengthValidator
 
-# The Runner provides standardized output and configuration
-runner = Runner(
-    critic_name="reflexion",
-    prompt="Write about climate change impacts",
-    min_length=300,
-    max_length=800,
-    iterations=3
+config = Config(
+    model="gpt-4o-mini",
+    max_iterations=3,
+    show_improvement_prompt=True
 )
 
-# Run with default settings (force_improvements=True, show_improvement_prompt=True)
-result = await runner.run()
-
-# Runner automatically:
-# - Formats output nicely
-# - Saves thoughts to JSON files
-# - Shows improvement prompts
-# - Forces improvements even if validators pass
+result = await improve(
+    "Write about climate change impacts",
+    critics=["reflexion"],
+    validators=[LengthValidator(min_length=300, max_length=800)],
+    config=config
+)
 ```
 
 
@@ -245,11 +243,11 @@ export OPENAI_API_KEY="your-actual-api-key"
 ### "Operation too slow"
 Try faster settings:
 ```python
+config = Config(model="gpt-4o-mini", max_iterations=1)
 result = await improve(
     text,
-    model="gpt-4o-mini",
     critics=["reflexion"],
-    max_iterations=1
+    config=config
 )
 ```
 

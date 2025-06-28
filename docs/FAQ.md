@@ -38,14 +38,14 @@ Use the `pricing` module to estimate costs before running improvements.
 ### How do I use Sifaka in a web application?
 
 ```python
-from sifaka import improve_async
+from sifaka import improve
 from fastapi import FastAPI
 
 app = FastAPI()
 
 @app.post("/improve")
 async def improve_text(text: str, max_iterations: int = 3):
-    result = await improve_async(
+    result = await improve(
         text,
         critics=["reflexion"],
         max_iterations=max_iterations
@@ -53,8 +53,7 @@ async def improve_text(text: str, max_iterations: int = 3):
     return {
         "original": result.original_text,
         "improved": result.final_text,
-        "iterations": result.iterations,
-        "cost": result.total_cost
+        "iterations": result.iteration,
     }
 ```
 
@@ -63,7 +62,7 @@ async def improve_text(text: str, max_iterations: int = 3):
 Use the storage backend system:
 
 ```python
-from sifaka import improve_sync, register_storage_backend
+from sifaka import improve_sync
 from sifaka.storage.base import StorageBackend
 import asyncpg
 
@@ -76,13 +75,13 @@ class PostgresBackend(StorageBackend):
         await conn.execute('''
             INSERT INTO sifaka_results (id, original, final, data)
             VALUES ($1, $2, $3, $4)
-        ''', result.id, result.original_text, result.final_text, result.json())
+        ''', result.id, result.original_text, result.final_text, result.model_dump_json())
         await conn.close()
         return result.id
 
-# Register and use
-register_storage_backend("postgres", PostgresBackend)
-result = improve_sync(text, storage_backend="postgres")
+# Use custom storage
+storage = PostgresBackend("postgresql://...")
+result = improve_sync(text, storage=storage)
 ```
 
 ### How do I implement retry logic for API failures?
@@ -90,46 +89,48 @@ result = improve_sync(text, storage_backend="postgres")
 Sifaka includes built-in retry logic, but you can customize it:
 
 ```python
-from sifaka import improve_sync
-from tenacity import retry, stop_after_attempt, wait_exponential
+from sifaka import improve_sync, Config
 
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=4, max=10)
+# Sifaka includes built-in retry logic via Config
+config = Config(
+    retry_max_attempts=3,
+    retry_initial_delay=1.0,
+    retry_exponential_base=2.0
 )
+
 def improve_with_retry(text):
-    return improve_sync(
-        text,
-        retry_config={
-            "max_retries": 3,
-            "backoff_factor": 2.0,
-            "retry_on": [429, 500, 502, 503, 504]
-        }
-    )
+    return improve_sync(text, config=config)
 ```
 
-### How can I use Sifaka with streaming responses?
+### How can I monitor improvement progress?
 
 ```python
-from sifaka import improve_stream
+from sifaka import improve
 
-async def stream_improvements(text):
-    async for event in improve_stream(text, critics=["reflexion"]):
-        if event.type == "critique":
-            print(f"Critique: {event.data}")
-        elif event.type == "improvement":
-            print(f"Improved: {event.data}")
-        elif event.type == "complete":
-            print(f"Final: {event.data.final_text}")
+async def monitor_improvements(text):
+    result = await improve(text, critics=["reflexion"])
+
+    # Access improvement history
+    print(f"Total iterations: {result.iteration}")
+    print(f"Processing time: {result.processing_time:.2f}s")
+
+    # Review each critique
+    for critique in result.critiques:
+        print(f"{critique.critic}: {critique.feedback}")
 ```
 
 ## Performance Tuning Tips
 
 ### How can I reduce API costs?
 
-1. **Use cheaper models for critique**:
+1. **Use hybrid model approach** (default in Sifaka):
    ```python
-   improve_sync(text, generation_model="gpt-4", critique_model="gpt-3.5-turbo")
+   from sifaka import Config
+   config = Config(
+       model="gpt-4o-mini",           # Quality for generation
+       critic_model="gpt-3.5-turbo"  # Speed for criticism (default)
+   )
+   improve_sync(text, config=config)
    ```
 
 2. **Limit iterations**:
@@ -137,22 +138,21 @@ async def stream_improvements(text):
    improve_sync(text, max_iterations=2)  # Default is 3
    ```
 
-3. **Use caching**:
+3. **Use file storage for caching**:
    ```python
-   from sifaka.middleware import CacheMiddleware
+   from sifaka.storage.file import FileStorage
 
-   improve_sync(
-       text,
-       middleware=[CacheMiddleware(ttl=3600)]
-   )
+   storage = FileStorage("./cache")
+   improve_sync(text, storage=storage)
    ```
 
-4. **Batch similar requests**:
+4. **Process multiple texts concurrently**:
    ```python
-   results = await improve_batch_async(
-       texts=["text1", "text2", "text3"],
-       critics=["reflexion"]
-   )
+   import asyncio
+
+   async def batch_improve(texts):
+       tasks = [improve(text, critics=["reflexion"]) for text in texts]
+       return await asyncio.gather(*tasks)
    ```
 
 ### How can I speed up improvements?
@@ -163,13 +163,14 @@ async def stream_improvements(text):
    import asyncio
 
    texts = ["text1", "text2", "text3"]
-   tasks = [improve_async(text) for text in texts]
+   tasks = [improve(text) for text in texts]
    results = await asyncio.gather(*tasks)
    ```
 
-2. **Disable unnecessary validators**:
+2. **Use fewer critics**:
    ```python
-   improve_sync(text, validators=None)  # Skip validation
+   # Fast single critic
+   improve_sync(text, critics=["reflexion"], max_iterations=1)
    ```
 
 3. **Use simpler critics for drafts**:
@@ -187,17 +188,18 @@ async def stream_improvements(text):
 
 ### How do I handle rate limits?
 
-Sifaka automatically handles rate limits with exponential backoff. You can customize:
+Sifaka automatically handles rate limits with exponential backoff via retry configuration:
 
 ```python
-improve_sync(
-    text,
-    rate_limit_config={
-        "requests_per_minute": 20,
-        "tokens_per_minute": 40000,
-        "concurrent_requests": 5
-    }
+from sifaka import Config
+
+config = Config(
+    retry_max_attempts=5,
+    retry_initial_delay=2.0,
+    retry_exponential_base=2.0
 )
+
+improve_sync(text, config=config)
 ```
 
 ## Troubleshooting Guide
@@ -215,8 +217,11 @@ Debug with verbose logging:
 import logging
 logging.getLogger("sifaka").setLevel(logging.DEBUG)
 
-result = improve_sync(text, debug=True)
-print(result.improvement_history)
+config = Config(show_improvement_prompt=True)
+result = improve_sync(text, config=config)
+print(f"Iterations: {result.iteration}")
+for critique in result.critiques:
+    print(f"{critique.critic}: {critique.feedback}")
 ```
 
 ### How do I handle "context too long" errors?
@@ -258,13 +263,14 @@ improve_sync(text, api_key="your-key")
 
 ```python
 # Get detailed critique information
-result = improve_sync(text, return_critique_details=True)
+result = improve_sync(text, config=Config(show_improvement_prompt=True))
 
-for iteration in result.improvement_history:
-    print(f"\nIteration {iteration['iteration']}:")
-    print(f"Critique: {iteration['critique']}")
-    print(f"Improvement: {iteration['improved_text']}")
-    print(f"Tokens: {iteration['tokens_used']}")
+print(f"Total iterations: {result.iteration}")
+for i, critique in enumerate(result.critiques):
+    print(f"\nIteration {i+1}:")
+    print(f"Critic: {critique.critic}")
+    print(f"Feedback: {critique.feedback}")
+    print(f"Tokens used: {critique.tokens_used}")
 ```
 
 ## Model Selection Guidance
@@ -368,7 +374,7 @@ with mlflow.start_run():
     result = improve_sync(text)
 
     mlflow.log_param("critics", ["reflexion"])
-    mlflow.log_metric("iterations", result.iterations)
+    mlflow.log_metric("iterations", result.iteration)
     mlflow.log_metric("improvement_score", result.metadata.get("score", 0))
     mlflow.log_text(result.final_text, "improved_text.txt")
 ```

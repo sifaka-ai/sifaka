@@ -157,7 +157,7 @@ def test_descriptive_name():
     result = improve(input_text)
 
     # Assert
-    assert result.improved_text != input_text
+    assert result.final_text != input_text
 ```
 
 ### Integration tests

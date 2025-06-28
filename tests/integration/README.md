@@ -64,7 +64,7 @@ def test_my_integration(api_key, llm_provider, integration_timeout):
         api_key=api_key,
         timeout=integration_timeout,
     )
-    assert result.improved_text != "Test text"
+    assert result.final_text != "Test text"
 ```
 
 ### CI Configuration
@@ -118,8 +118,8 @@ def test_critic_with_mock_support(api_key, llm_provider, use_mocks):
     )
 
     # Assertions work for both mock and real responses
-    assert result.improved_text != "Test text"
-    assert result.iterations >= 1
+    assert result.final_text != "Test text"
+    assert result.iteration >= 1
 ```
 
 ### Cost Considerations

@@ -125,4 +125,4 @@ class MyCritic(BaseCritic):
 | Consistency | self_consistency |
 | General improvement | self_refine, meta_rewarding |
 
-See the [Critic Selection Guide](/critics/selection-guide/) for detailed recommendations.
+See the examples in this guide for detailed recommendations on when to use each critic.

@@ -6,7 +6,7 @@ Validators ensure that improved text meets specific criteria before accepting ch
 
 ```python
 from sifaka import improve
-from sifaka.validators.basic import LengthValidator
+from sifaka.validators import LengthValidator
 
 # Simple length validation
 validator = LengthValidator(min_length=100, max_length=500)
@@ -102,7 +102,8 @@ Validator.sentences(min_sentences=3, max_sentences=10)
 Create custom validation logic:
 
 ```python
-from sifaka.validators.base import BaseValidator, ValidationResult
+from sifaka.validators.base import BaseValidator
+from sifaka.core.models import ValidationResult
 
 class ToneValidator(BaseValidator):
     def __init__(self, required_tone: str):

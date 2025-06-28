@@ -82,7 +82,7 @@ print(sifaka.__version__)
 # Test basic functionality
 from sifaka import improve_sync
 result = improve_sync("Hello, world!")
-print(result.improved_text)
+print(result.final_text)
 ```
 
 ## Troubleshooting

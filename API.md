@@ -82,8 +82,7 @@ print(result.final_text)
 
 ### Choosing Critics
 
-📖 **[Critic Selection Guide](docs/CRITIC_SELECTION_GUIDE.md)** - Detailed guidance on when to use each critic
-📊 **[Critic Comparison Table](docs/CRITIC_COMPARISON_TABLE.md)** - Performance, cost, and suitability analysis
+📖 **[Critic Guide](docs/guide/critics.md)** - Detailed guidance on when to use each critic
 
 **Quick Recommendations:**
 - **General improvement**: `["self_refine", "constitutional"]`
@@ -127,7 +126,7 @@ result = await improve(text, validators=[validator])
 from sifaka.validators import ContentValidator
 
 validator = ContentValidator(
-    required_keywords=["methodology", "results"],
+    required_terms=["methodology", "results"],
     forbidden_words=["maybe", "perhaps"],
     min_sentences=5
 )

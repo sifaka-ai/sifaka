@@ -131,10 +131,10 @@ class CustomCritic(BaseCritic):
         pass
 ```
 
-See the [Plugin Development Guide](../dev/plugin-development.md) for details.
+See the [validators guide](../guide/validators.md) for details on creating custom validation logic.
 
 ## Next Steps
 
 - Read detailed guides for each critic
-- Learn about [critic selection strategies](selection-guide.md)
+- Learn about [critic usage patterns](../guide/critics.md)
 - Explore [advanced usage patterns](../guide/advanced-usage.md)

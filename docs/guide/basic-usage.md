@@ -52,7 +52,7 @@ result = await improve(
     "Write a product description",
     validators=[
         LengthValidator(min_length=100, max_length=200),
-        ContentValidator(must_contain=["features", "benefits"])
+        ContentValidator(required_terms=["features", "benefits"])
     ]
 )
 ```
@@ -79,7 +79,7 @@ The `SifakaResult` object contains:
 
 ```python
 # Access the final improved text
-print(result.improved_text)
+print(result.final_text)
 
 # See all critiques
 for critique in result.critiques:
@@ -91,12 +91,12 @@ for validation in result.validations:
 
 # View generation history
 for generation in result.generations:
-    print(f"Iteration {generation.iteration}: {generation.text[:100]}...")
+    print(f"Generation: {generation.text[:100]}...")
 
 # Get improvement summary
-print(f"Iterations: {result.iterations}")
-print(f"Improved: {result.was_improved}")
-print(f"Final score: {result.final_score}")
+print(f"Iterations: {result.iteration}")
+print(f"Improved: {result.final_text != result.original_text}")
+print(f"Processing time: {result.processing_time:.2f}s")
 ```
 
 ## Configuration
@@ -169,4 +169,4 @@ except ModelProviderError as e:
 - Learn about [different critics](../critics/overview.md)
 - Explore [advanced usage](advanced-usage.md)
 - Understand [configuration options](configuration.md)
-- Create [custom validators](../dev/plugin-development.md)
+- Create [custom validators](validators.md)

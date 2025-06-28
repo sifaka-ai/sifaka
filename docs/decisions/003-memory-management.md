@@ -44,14 +44,13 @@ improve(
 )
 ```
 
-### 3. Streaming for Large Operations
-Implement streaming APIs that don't hold entire history in memory:
+### 3. Bounded Collections
+Use bounded collections to limit memory usage:
 
 ```python
-async for event in improve_stream(text):
-    # Process events as they arrive
-    # Only current state in memory
-    pass
+# Result objects automatically limit history size
+result = await improve(text, max_iterations=10)
+# Only keeps last 10 critiques/generations max
 ```
 
 ### 4. Automatic Cleanup

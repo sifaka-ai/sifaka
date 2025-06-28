@@ -10,8 +10,7 @@ from sifaka import improve, Config
 # Create a custom configuration
 config = Config(
     temperature=0.7,
-    max_iterations=5,
-    min_quality_score=0.8
+    max_iterations=5
 )
 
 result = await improve(
@@ -32,8 +31,6 @@ config = Config(
     # Maximum improvement iterations
     max_iterations=3,
 
-    # Minimum quality score to continue iterations
-    min_quality_score=0.7,
 
     # Model to use
     model="gpt-4o-mini",
@@ -44,8 +41,6 @@ config = Config(
     # Request timeout in seconds
     timeout=60.0,
 
-    # Use advanced confidence calculation
-    use_advanced_confidence=True
 )
 ```
 
@@ -71,17 +66,14 @@ config = Config(
 )
 ```
 
-### Memory Management
+### Timeout Configuration
 
-Control memory usage for long-running operations:
+Control how long operations can run:
 
 ```python
 config = Config(
-    # Maximum text length in characters
-    max_text_length=50000,
-
-    # Maximum critique history to keep
-    max_history_size=10
+    # Overall timeout for improvement process
+    timeout_seconds=300.0,  # 5 minutes
 )
 ```
 
@@ -228,9 +220,7 @@ result = await improve(
 ```python
 technical_config = Config(
     temperature=0.3,
-    max_iterations=5,
-    min_quality_score=0.85,
-    use_advanced_confidence=True
+    max_iterations=5
 )
 ```
 
@@ -238,8 +228,7 @@ technical_config = Config(
 ```python
 creative_config = Config(
     temperature=0.8,
-    max_iterations=3,
-    min_quality_score=0.7
+    max_iterations=3
 )
 ```
 
@@ -258,9 +247,6 @@ deployment_config = Config(
     temperature=0.5,
     max_iterations=3,
     timeout=60.0,
-    retry_config=RetryConfig(
-        max_attempts=3,
-        initial_delay=1.0
-    ),
-    use_advanced_confidence=True
+    retry_max_attempts=3,
+    retry_initial_delay=1.0
 )

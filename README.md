@@ -61,7 +61,6 @@ print(result.final_text)
 
 ### Examples
 - **[Working Examples](examples/)** - Code examples for all features
-- **[Hackathon Setup](HACKATHON_README.md)** - Quick setup with UV
 
 ## Research Foundation
 
