@@ -120,7 +120,7 @@ class LLMClient:
         # Create agent with structured output
         return Agent(
             model=model_str,
-            output_type=result_type,  # Use output_type instead of deprecated result_type
+            output_type=result_type,
             system_prompt=system_prompt,
             model_settings=ModelSettings(
                 temperature=self.temperature,

@@ -1,10 +1,11 @@
-"""Example of using N-Critics for multi-perspective ensemble evaluation.
+"""Example of using N-Critics for multi-perspective evaluation.
 
 N-Critics uses multiple critical perspectives to provide comprehensive feedback.
 """
 
 import asyncio
 from sifaka import improve
+from sifaka.critics.n_critics import NCriticsCritic
 
 
 async def main():
@@ -17,34 +18,38 @@ async def main():
     dollars, so we can't lose. We should act fast before it's too late.
     """
 
-    print("Original text:")
-    print(text)
-    print("\n" + "=" * 80 + "\n")
+    print("👥 N-Critics Example - Multiple perspectives")
+    print("=" * 50)
+    print(f"Original text ({len(text.split())} words):")
+    print(text.strip())
+    print()
 
-    try:
-        # Run improvement with N-Critics for diverse perspectives
-        result = await improve(text, critics=["n_critics"], max_iterations=3)
+    # Two approaches: default perspectives or custom perspectives
 
-        print("Improved text:")
-        print(result.final_text)
-        print(f"\nIterations: {result.iteration}")
-        print(f"Processing time: {result.processing_time:.2f}s")
+    # Approach 1: Use default N-Critics
+    print("\n1️⃣ Using default perspectives...")
+    result1 = await improve(text, critics=["n_critics"], max_iterations=2)
 
-        # Show different perspectives from the ensemble
-        print("\nEnsemble perspectives:")
-        seen_feedback = set()
-        for critique in result.critiques:
-            if (
-                critique.critic == "n_critics"
-                and critique.feedback not in seen_feedback
-            ):
-                seen_feedback.add(critique.feedback)
-                print(f"\n- Perspective: {critique.feedback[:100]}...")
-                print(f"  Confidence: {critique.confidence:.2f}")
+    print(f"Improved: {result1.final_text[:100]}...")
 
-    except Exception as e:
-        print(f"Error: {type(e).__name__}: {str(e)}")
+    # Approach 2: Custom perspectives
+    print("\n2️⃣ Using custom perspectives...")
+    custom_critic = NCriticsCritic(
+        perspectives={
+            "Risk Analyst": "Evaluate financial risks and portfolio diversification",
+            "Tech Expert": "Assess cryptocurrency technology and market maturity",
+            "Financial Advisor": "Consider long-term wealth preservation strategies",
+        }
+    )
+
+    result2 = await improve(text, critics=["n_critics"], max_iterations=2)
+
+    print(f"✅ Final text ({len(result2.final_text.split())} words):")
+    print(result2.final_text.strip())
+    print(f"\n📊 Total iterations: {result1.iteration + result2.iteration}")
+    print(f"⏱️  Total time: {result1.processing_time + result2.processing_time:.2f}s")
 
 
 if __name__ == "__main__":
+    # Note: Requires OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable
     asyncio.run(main())

@@ -7,8 +7,6 @@ from collections import deque
 
 from pydantic import BaseModel, Field
 
-from .metrics import analyze_suggestion_implementation
-
 
 class Generation(BaseModel):
     """A single text generation with metadata."""
@@ -21,10 +19,23 @@ class Generation(BaseModel):
     tokens_used: int = 0
     processing_time: float = 0.0
 
-    # Improvement metrics
-    improvement_metrics: Optional[Dict[str, Any]] = None
-    suggestion_implementation: Optional[Dict[str, Any]] = None
-    quality_indicators: Optional[Dict[str, float]] = None
+
+class ToolUsage(BaseModel):
+    """Generic tool usage tracking for thoughts."""
+
+    tool_name: str
+    status: str = Field(description="success or failure")
+    input_data: Optional[str] = Field(
+        default=None, description="Tool input without assuming structure"
+    )
+    result_count: Optional[int] = Field(
+        default=None, description="Number of results if applicable"
+    )
+    error_message: Optional[str] = Field(
+        default=None, description="Error details if failed"
+    )
+    timestamp: datetime = Field(default_factory=datetime.now)
+    processing_time: float = 0.0
 
 
 class ValidationResult(BaseModel):
@@ -48,6 +59,16 @@ class CritiqueResult(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     timestamp: datetime = Field(default_factory=datetime.now)
 
+    # Traceability fields
+    model_used: Optional[str] = None
+    temperature_used: Optional[float] = None
+    prompt_sent: Optional[str] = None  # The actual prompt sent to the LLM
+    tokens_used: int = 0
+    processing_time: float = 0.0
+
+    # Tool usage during this critique
+    tools_used: List[ToolUsage] = Field(default_factory=list)
+
 
 class SifakaResult(BaseModel):
     """Complete result with memory-bounded audit trail."""
@@ -63,12 +84,16 @@ class SifakaResult(BaseModel):
         default_factory=lambda: deque(maxlen=20)
     )
     critiques: Deque[CritiqueResult] = Field(default_factory=lambda: deque(maxlen=20))
+    tools_used: Deque[ToolUsage] = Field(default_factory=lambda: deque(maxlen=50))
 
     # Metadata
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     processing_time: float = 0.0
+
+    # Configuration used (for traceability)
+    config_used: Optional[Dict[str, Any]] = None
 
     def add_generation(
         self,
@@ -79,14 +104,6 @@ class SifakaResult(BaseModel):
         processing_time: float = 0.0,
     ) -> None:
         """Add a generation."""
-        # Analyze suggestion implementation if we have recent critiques
-        suggestion_implementation = None
-        recent_critique = self._get_most_recent_critique()
-        if recent_critique and recent_critique.suggestions:
-            suggestion_implementation = analyze_suggestion_implementation(
-                recent_critique.suggestions, self.current_text, text
-            )
-
         gen = Generation(
             text=text,
             model=model,
@@ -94,7 +111,6 @@ class SifakaResult(BaseModel):
             prompt=prompt,
             tokens_used=tokens,
             processing_time=processing_time,
-            suggestion_implementation=suggestion_implementation,
         )
         self.generations.append(gen)
         self.updated_at = datetime.now()

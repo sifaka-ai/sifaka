@@ -26,7 +26,7 @@ additional training or external feedback.
 - Simple yet effective for quality enhancement
 """
 
-from typing import Optional, Union, List, Dict, Any
+from typing import Optional, Union, List, Dict
 from pydantic import BaseModel, Field
 
 from ..core.models import SifakaResult
@@ -38,12 +38,7 @@ from ..core.config import Config
 class RefinementArea(BaseModel):
     """A specific area identified for refinement."""
 
-    area: str = Field(..., description="The aspect needing refinement")
-    current_state: str = Field(..., description="Current state of this area")
     target_state: str = Field(..., description="Desired improved state")
-    priority: str = Field(
-        default="medium", description="Priority level: high, medium, low"
-    )
 
 
 class SelfRefineResponse(BaseModel):
@@ -59,20 +54,9 @@ class SelfRefineResponse(BaseModel):
     confidence: float = Field(
         default=0.75, ge=0.0, le=1.0, description="Confidence in refinement assessment"
     )
+    # Only keep refinement_areas since that's what's used in generation.py
     refinement_areas: list[RefinementArea] = Field(
         default_factory=list, description="Specific areas needing refinement"
-    )
-    quality_score: float = Field(
-        default=0.7, ge=0.0, le=1.0, description="Overall quality score"
-    )
-    refinement_iterations_recommended: int = Field(
-        default=1,
-        ge=0,
-        le=5,
-        description="Number of additional refinement iterations recommended",
-    )
-    metadata: dict[str, Any] = Field(
-        default_factory=dict, description="Additional refinement data"
     )
 
 

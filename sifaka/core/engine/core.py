@@ -1,6 +1,7 @@
 """Core Sifaka engine that coordinates text improvement."""
 
 import time
+from datetime import datetime
 from typing import List, Optional
 
 from ..models import SifakaResult
@@ -8,7 +9,7 @@ from ..config import Config
 from ..interfaces import Validator
 from ..exceptions import TimeoutError, ModelProviderError
 from ...validators import LengthValidator
-from ...storage import StorageBackend, MemoryStorage
+from ...storage import StorageBackend, FileStorage
 from .generation import TextGenerator
 from .orchestration import CriticOrchestrator
 from .validation import ValidationRunner
@@ -22,7 +23,7 @@ class SifakaEngine:
     ):
         """Initialize engine with configuration."""
         self.config = config or Config()
-        self.storage = storage or MemoryStorage()
+        self.storage = storage or FileStorage()
 
         # Initialize components
         self.generator = TextGenerator(
@@ -53,8 +54,21 @@ class SifakaEngine:
         """
         start_time = time.time()
 
-        # Initialize result
-        result = SifakaResult(original_text=text, final_text=text)
+        # Initialize result with config for traceability (excluding sensitive/verbose/irrelevant fields)
+        config_dict = self.config.model_dump(
+            exclude={
+                "logfire_token",
+                "critic_tool_settings",
+                "tool_cache_ttl",
+                "tool_timeout",
+                "self_consistency_num_samples",  # Only relevant for self_consistency critic
+                "constitutional_principles",  # Tracked in critic metadata instead
+                "enable_tools",  # Not used
+            }
+        )
+        result = SifakaResult(
+            original_text=text, final_text=text, config_used=config_dict
+        )
 
         # Use default validators if none provided
         if validators is None:
@@ -90,16 +104,10 @@ class SifakaEngine:
                     )
                     critiques = []
 
-                # Add critiques to result
+                # Add critiques to result (preserve all traceability data)
                 for critique in critiques:
-                    result.add_critique(
-                        critic=critique.critic,
-                        feedback=critique.feedback,
-                        suggestions=critique.suggestions,
-                        needs_improvement=critique.needs_improvement,
-                        confidence=critique.confidence,
-                        metadata=critique.metadata,
-                    )
+                    result.critiques.append(critique)
+                    result.updated_at = datetime.now()
 
                 # Check if improvement needed
                 needs_improvement = self.orchestrator.analyze_consensus(critiques)
@@ -110,14 +118,20 @@ class SifakaEngine:
 
                 # Generate improvement
                 try:
-                    improved_text, prompt = await self.generator.generate_improvement(
-                        current_text, result, self.config.show_improvement_prompt
+                    improved_text, prompt, tokens, processing_time = (
+                        await self.generator.generate_improvement(
+                            current_text, result, self.config.show_improvement_prompt
+                        )
                     )
 
                     if improved_text:
                         # Add generation to result
                         result.add_generation(
-                            text=improved_text, model=self.config.model, prompt=prompt
+                            text=improved_text,
+                            model=self.config.model,
+                            prompt=prompt,
+                            tokens=tokens,
+                            processing_time=processing_time,
                         )
                         result.final_text = improved_text
 

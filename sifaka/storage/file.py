@@ -14,17 +14,30 @@ from ..core.exceptions import StorageError
 class FileStorage(StorageBackend):
     """File-based storage backend for persistent storage."""
 
-    def __init__(self, storage_dir: str = "./sifaka_thoughts"):
+    def __init__(self, storage_dir: str = "./thoughts"):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(exist_ok=True)
 
-    def _get_file_path(self, result_id: str) -> Path:
+    def _get_file_path(
+        self, result_id: str, critics: Optional[List[str]] = None
+    ) -> Path:
         """Get file path for a result ID."""
+        if critics:
+            critics_str = "_".join(critics)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            return self.storage_dir / f"{critics_str}_{timestamp}_{result_id[:8]}.json"
         return self.storage_dir / f"{result_id}.json"
 
     async def save(self, result: SifakaResult) -> str:
         """Save a SifakaResult to disk."""
-        file_path = self._get_file_path(result.id)
+        # Extract critics from the result
+        critics = []
+        if result.critiques:
+            critics = list(
+                set(c.critic for c in result.critiques if c.critic != "system")
+            )
+
+        file_path = self._get_file_path(result.id, critics)
 
         try:
             # Convert to JSON-serializable dict
@@ -43,10 +56,24 @@ class FileStorage(StorageBackend):
 
     async def load(self, result_id: str) -> Optional[SifakaResult]:
         """Load a SifakaResult from disk."""
+        # Try exact match first
         file_path = self._get_file_path(result_id)
+        if file_path.exists():
+            return await self._load_from_path(file_path)
 
-        if not file_path.exists():
-            return None
+        # Try to find by ID prefix
+        for f in self.storage_dir.glob(f"*{result_id[:8]}*.json"):
+            try:
+                result = await self._load_from_path(f)
+                if result and result.id == result_id:
+                    return result
+            except:
+                continue
+
+        return None
+
+    async def _load_from_path(self, file_path: Path) -> Optional[SifakaResult]:
+        """Load from a specific file path."""
 
         try:
             async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
@@ -57,13 +84,13 @@ class FileStorage(StorageBackend):
             return None  # Result doesn't exist
         except (OSError, IOError, PermissionError) as e:
             raise StorageError(
-                f"Failed to load result {result_id}: {e}",
+                f"Failed to load from {file_path}: {e}",
                 storage_type="file",
                 operation="load",
             )
         except (json.JSONDecodeError, ValueError) as e:
             raise StorageError(
-                f"Failed to parse result {result_id}: {e}",
+                f"Failed to parse from {file_path}: {e}",
                 storage_type="file",
                 operation="load",
             )

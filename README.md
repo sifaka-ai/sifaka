@@ -27,238 +27,53 @@ from sifaka import improve_sync
 # Simple one-liner
 result = improve_sync("Write about renewable energy benefits")
 print(result.final_text)
-
-# With options
-result = improve_sync(
-    "Write about renewable energy benefits",
-    critics=["reflexion", "constitutional"],
-    max_iterations=3
-)
-print(f"Improved through {result.iteration} iterations")
 ```
+
+📚 **[Full Quickstart Guide →](docs/quickstart.md)**
 
 ## Key Features
 
-- **🔬 Research-Backed**: Implements Reflexion, Constitutional AI, and Self-Refine
+- **🔬 Research-Backed**: Implements Reflexion, Constitutional AI, Self-Refine, and more
 - **👁️ Complete Observability**: Full audit trail of every improvement
 - **🎯 Simple API**: One function does everything you need
 - **💾 Memory-Safe**: Bounded history prevents memory leaks
 - **⚡ Fast**: Minimal dependencies, maximum performance
 
-## How It Works
+## Documentation
 
-1. **Generate**: Create initial text with your preferred model
-2. **Validate**: Check output against quality criteria
-3. **Critique**: Apply research-backed improvement techniques
-4. **Improve**: Iterate until quality standards are met
-5. **Observe**: Complete audit trail of the entire process
+### Getting Started
+- **[Installation](docs/installation.md)** - Installation options and setup
+- **[Quickstart Guide](docs/quickstart.md)** - Get up and running in 5 minutes
+- **[Basic Usage](docs/guide/basic-usage.md)** - Common usage patterns
+- **[API Reference](API.md)** - Complete API documentation
 
-## 🏗️ Architecture
+### User Guides
+- **[Critics Guide](docs/guide/critics.md)** - Available critics and usage
+- **[Validators Guide](docs/guide/validators.md)** - Input validation options
+- **[Configuration](docs/guide/configuration.md)** - Configuration options
+- **[Advanced Usage](docs/guide/advanced-usage.md)** - Advanced patterns
 
-Sifaka is built around a simple but powerful architecture that prioritizes observability and research-backed methods:
+### Architecture & Development
+- **[Architecture Overview](docs/architecture.md)** - System design
+- **[Architecture Decisions](docs/decisions/)** - Technical decisions
+- **[Contributing](CONTRIBUTING.md)** - How to contribute
+- **[Changelog](CHANGELOG.md)** - Version history
 
-```mermaid
-graph LR
-    A["Input Text"] --> B["LLM Model"]
-    B --> C["Generated Text"]
-    C --> D["Critics & Validators"]
-    D --> E{"Needs Improvement?"}
-    E -->|Yes| F["Revision Prompt"]
-    F --> B
-    E -->|No| G["Final Text"]
-
-    C --> H["Thought History"]
-    D --> H
-    F --> H
-    H --> I["File Storage"]
-
-    style A fill:#e1f5fe
-    style G fill:#c8e6c9
-    style H fill:#fff3e0
-    style I fill:#f3e5f5
-```
-
-### Core Design Principles
-
-1. **🎯 Simplicity First** - Single function API with sensible defaults
-2. **📊 Complete Observability** - Full audit trail of every operation
-3. **🔬 Research-Backed** - All critics implement peer-reviewed papers
-4. **🛡️ Production Ready** - Memory-bounded, error-resilient
-5. **🔌 Extensible** - Plugin architecture for storage and validation
-
-## API Reference
-
-### Main Function
-
-```python
-async def improve(
-    text: str,
-    *,
-    critics: Optional[List[str]] = None,
-    max_iterations: int = 3,
-    validators: Optional[List[Validator]] = None,
-    config: Optional[Config] = None,
-    storage: Optional[StorageBackend] = None,
-) -> SifakaResult:
-    """Improve text through iterative critique."""
-```
-
-### Result Object
-
-```python
-class SifakaResult:
-    """Complete result with audit trail."""
-    final_text: str
-    original_text: str
-    iteration: int
-    generations: list[Generation]  # Max 10 items
-    validations: list[ValidationResult]  # Max 10 items
-    critiques: list[CritiqueResult]  # Max 10 items
-    processing_time: float
-```
-
-## Examples
-
-### Basic Usage
-```python
-result = await improve("Write about climate change")
-```
-
-### With Multiple Critics
-```python
-result = await improve(
-    "Explain quantum computing",
-    critics=["reflexion", "constitutional", "self_refine", "n_critics"],
-    max_iterations=5
-)
-```
-
-### With Validators
-```python
-from sifaka.validators import LengthValidator, ContentValidator
-
-result = await improve(
-    "Write a research summary",
-    validators=[
-        LengthValidator(min_length=200, max_length=1000),
-        ContentValidator(required_terms=["methodology", "results"])
-    ]
-)
-```
-
-
-### With Advanced Critics
-```python
-# Ensemble critique with multiple perspectives
-result = await improve(
-    "Write a research proposal",
-    critics=["n_critics", "self_rag", "meta_rewarding"],
-    max_iterations=4
-)
-
-# Self-consistency for reliable assessment
-result = await improve(
-    "Explain complex topic",
-    critics=["self_consistency"],
-    max_iterations=3
-)
-
-# Custom prompt-based critique
-from sifaka.critics import create_academic_critic
-result = await improve(
-    "Write academic paper introduction",
-    critics=["constitutional", "prompt"],  # Uses default PromptCritic
-    max_iterations=3
-)
-```
-
-### With GuardrailsAI (Optional)
-```python
-# pip install sifaka[guardrails]
-from sifaka.validators import GuardrailsValidator
-
-result = await improve(
-    "Write a public statement",
-    validators=[
-        GuardrailsValidator(["toxic-language", "detect-pii"])
-    ]
-)
-```
-
-
-### With Advanced Configuration
-```python
-from sifaka import Config
-
-# Configure advanced options
-config = Config(
-    model="gpt-4o",
-    temperature=0.8,
-    critic_model="claude-3-5-sonnet-20241022",
-    force_improvements=True
-)
-
-result = await improve(
-    "Write about AI ethics",
-    config=config
-)
-```
-
-## Installation Options
-
-```bash
-# Basic installation
-pip install sifaka
-
-# With Anthropic models
-pip install sifaka[anthropic]
-
-# With Gemini models
-pip install sifaka[gemini]
-
-# With GuardrailsAI validation
-pip install sifaka[guardrails]
-
-# Everything
-pip install sifaka[all]
-```
-
-## Environment Setup
-
-Set your API keys:
-
-```bash
-export OPENAI_API_KEY=your_key_here
-export ANTHROPIC_API_KEY=your_key_here  # Optional
-export GOOGLE_API_KEY=your_key_here     # Optional
-```
+### Examples
+- **[Working Examples](examples/)** - Code examples for all features
+- **[Hackathon Setup](HACKATHON_README.md)** - Quick setup with UV
 
 ## Research Foundation
 
-Sifaka implements these research papers:
+Sifaka implements these peer-reviewed techniques:
 
 - **[Reflexion](https://arxiv.org/abs/2303.11366)** - Self-reflection for iterative improvement
 - **[Constitutional AI](https://arxiv.org/abs/2212.08073)** - Principle-based evaluation
 - **[Self-Refine](https://arxiv.org/abs/2303.17651)** - Iterative self-improvement
-- **[N-Critics](https://arxiv.org/abs/2310.18679)** - Ensemble of diverse critical perspectives
-- **[Self-RAG](https://arxiv.org/abs/2310.11511)** - Retrieval-augmented self-critique
-- **[Meta-Rewarding](https://arxiv.org/abs/2407.19594)** - Two-stage judgment with meta-evaluation
-- **[Self-Consistency](https://arxiv.org/abs/2203.11171)** - Multiple reasoning paths with consensus
-- **Prompt Critic** - Configurable custom evaluation criteria
-
-## Documentation
-
-### User Guides
-- **[Quick Start Guide](QUICKSTART.md)** - Get up and running in 5 minutes
-- **[API Reference](API.md)** - Complete API documentation with examples
-- **[Working Examples](examples/)** - Comprehensive examples for all critics
-- **[CHANGELOG](CHANGELOG.md)** - Version history and migration guide
-
-### Architecture & Development
-- **[Architecture Overview](docs/architecture.md)** - System design and component relationships
-- **[Architecture Decisions](docs/decisions/)** - Key technical decisions and rationale
-- **[Plugin Development](docs/plugins.md)** - Guide for creating extensions
-- **[Research Papers](README.md#research-foundation)** - Papers implemented by each critic
+- **[N-Critics](https://arxiv.org/abs/2310.18679)** - Ensemble of diverse perspectives
+- **[Self-RAG](https://arxiv.org/abs/2310.11511)** - Retrieval-augmented critique
+- **[Meta-Rewarding](https://arxiv.org/abs/2407.19594)** - Two-stage meta-evaluation
+- **[Self-Consistency](https://arxiv.org/abs/2203.11171)** - Multiple reasoning paths
 
 ## Development
 
@@ -269,24 +84,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-### Development Commands
-
-```bash
-# Run tests with coverage
-make test
-
-# Format code
-make format
-
-# Type checking
-make type-check
-
-# Security scan
-make security
-
-# All quality checks
-make quality
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ## License
 

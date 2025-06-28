@@ -26,7 +26,7 @@ self-reflection and verbal feedback.
 - Works well with other critics in ensemble scenarios
 """
 
-from typing import Optional, Union, List, Dict, Any
+from typing import Optional, Union, List, Dict
 from pydantic import BaseModel, Field
 
 from ..core.models import SifakaResult
@@ -52,15 +52,6 @@ class ReflexionResponse(BaseModel):
         ge=0.0,
         le=1.0,
         description="Confidence based on improvement trajectory",
-    )
-    evolution_summary: str = Field(
-        default="", description="Summary of how the text has evolved"
-    )
-    key_learnings: list[str] = Field(
-        default_factory=list, description="Key insights from previous iterations"
-    )
-    metadata: dict[str, Any] = Field(
-        default_factory=dict, description="Additional reflection data"
     )
 
 

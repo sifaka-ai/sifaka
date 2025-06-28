@@ -1,5 +1,6 @@
 """Text generation component of the Sifaka engine."""
 
+import time
 from typing import Optional, Tuple, List
 from pydantic import BaseModel, Field
 
@@ -46,7 +47,7 @@ class TextGenerator:
 
     async def generate_improvement(
         self, current_text: str, result: SifakaResult, show_prompt: bool = False
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> Tuple[Optional[str], Optional[str], int, float]:
         """Generate improved text based on feedback.
 
         Args:
@@ -55,7 +56,7 @@ class TextGenerator:
             show_prompt: Whether to print the prompt
 
         Returns:
-            Tuple of (improved_text, prompt_used)
+            Tuple of (improved_text, prompt_used, tokens_used, processing_time)
         """
         # Build improvement prompt
         prompt = self._build_improvement_prompt(current_text, result)
@@ -74,22 +75,36 @@ class TextGenerator:
                 result_type=ImprovementResponse,
             )
 
-            # Run agent to get structured improvement
+            # Run agent to get structured improvement with usage tracking
+            start_time = time.time()
             agent_result = await agent.run(prompt)
+            processing_time = time.time() - start_time
+
             improvement = agent_result.output
+
+            # Get usage data
+            tokens_used = 0
+            try:
+                if hasattr(agent_result, "usage"):
+                    usage = agent_result.usage()  # Call as function
+                    if usage and hasattr(usage, "total_tokens"):
+                        tokens_used = usage.total_tokens
+            except Exception:
+                # Fallback if usage() call fails
+                tokens_used = 0
 
             # Validate improvement
             if (
                 not improvement.improved_text
                 or improvement.improved_text == current_text
             ):
-                return None, prompt
+                return None, prompt, tokens_used, processing_time
 
-            return improvement.improved_text, prompt
+            return improvement.improved_text, prompt, tokens_used, processing_time
 
         except Exception:
             # Return None on error, let engine handle it
-            return None, prompt
+            return None, prompt, 0, 0.0
 
     def _build_improvement_prompt(self, text: str, result: SifakaResult) -> str:
         """Build prompt for text improvement."""
@@ -138,8 +153,14 @@ class TextGenerator:
         # Get recent critiques
         recent_critiques = list(result.critiques)[-5:]
 
+        # Track which critics we've already included to avoid duplication
+        included_critics = set()
+
         for critique in recent_critiques:
-            if critique.needs_improvement:
+            if critique.needs_improvement and critique.critic not in included_critics:
+                # Mark this critic as included
+                included_critics.add(critique.critic)
+
                 # Add main feedback
                 feedback_lines.append(f"\n{critique.critic}:")
                 feedback_lines.append(f"- {critique.feedback}")
@@ -159,67 +180,35 @@ class TextGenerator:
     def _add_critic_insights(
         self, critique: "CritiqueResult", lines: List[str]
     ) -> None:
-        """Add critic-specific insights from metadata."""
+        """Add critic-specific insights from metadata.
+
+        Only add metadata that meaningfully helps the next iteration.
+        If metadata won't improve the next generation, don't include it.
+        """
         metadata = critique.metadata
+        if not metadata:
+            return
 
-        # SelfRAG: Add reflection assessments and retrieval opportunities
-        if critique.critic == "self_rag":
-            if "overall_relevance" in metadata and not metadata.get(
-                "overall_relevance"
-            ):
-                lines.append("  ⚠️ Content relevance issues detected (ISREL)")
-            if "overall_support" in metadata and not metadata.get("overall_support"):
-                lines.append("  ⚠️ Evidence support needed (ISSUP)")
-            if "retrieval_opportunities" in metadata:
-                opps = metadata.get("retrieval_opportunities", [])
-                if opps:
-                    lines.append("  Retrieval would help with:")
-                    for opp in opps[:2]:
-                        if isinstance(opp, dict):
-                            lines.append(
-                                f"  - {opp.get('location', 'Unknown')}: {opp.get('reason', '')}"
-                            )
+        # SelfRAG: Add specific retrieval needs
+        if critique.critic == "self_rag" and "retrieval_opportunities" in metadata:
+            opps = metadata.get("retrieval_opportunities", [])
+            if opps:
+                lines.append("  Information needed:")
+                for opp in opps[:3]:
+                    if isinstance(opp, dict) and opp.get("reason"):
+                        lines.append(f"  - {opp.get('reason', '')}")
 
-        # SelfRefine: Add refinement areas
+        # SelfRefine: Add specific refinement targets
         elif critique.critic == "self_refine" and "refinement_areas" in metadata:
-            lines.append("  Areas needing refinement:")
-            for area in metadata.get("refinement_areas", [])[:3]:
-                if isinstance(area, dict) and "area" in area:
-                    lines.append(f"  - {area['area']}: {area.get('target_state', '')}")
+            areas = metadata.get("refinement_areas", [])
+            for area in areas[:3]:
+                if isinstance(area, dict) and area.get("target_state"):
+                    lines.append(f"  - Refine to: {area.get('target_state', '')}")
 
-        # NCritics: Add perspective insights
-        elif critique.critic == "n_critics" and "perspective_assessments" in metadata:
+        # NCritics: Add consensus warning if very low
+        elif critique.critic == "n_critics" and "consensus_score" in metadata:
             consensus = metadata.get("consensus_score", 0)
-            if consensus < 0.5:
+            if consensus < 0.3:
                 lines.append(
-                    f"  Low consensus ({consensus:.1f}) - consider diverse perspectives"
+                    f"  ⚠️ Very low consensus ({consensus:.1f}) - major disagreement between perspectives"
                 )
-
-        # Constitutional: Add principle violations and revisions
-        elif critique.critic == "constitutional":
-            if "revision_proposals" in metadata:
-                revisions = metadata.get("revision_proposals", [])
-                if revisions:
-                    lines.append("  Constitutional revisions available:")
-                    for rev in revisions[:2]:
-                        if isinstance(rev, dict):
-                            lines.append(
-                                f"  - {rev.get('original_snippet', '')[:30]}... → {rev.get('revised_snippet', '')[:30]}..."
-                            )
-            if "requires_major_revision" in metadata and metadata.get(
-                "requires_major_revision"
-            ):
-                lines.append("  ⚠️ Major constitutional revision required")
-
-        # MetaRewarding: Add meta-evaluation insights
-        elif critique.critic == "meta_rewarding":
-            if "improvement_delta" in metadata:
-                delta = metadata.get("improvement_delta", 0)
-                if delta > 0:
-                    lines.append(f"  ✓ Critique refined with {delta:.1%} improvement")
-            if "suggestion_preferences" in metadata:
-                prefs = metadata.get("suggestion_preferences", [])
-                if prefs and isinstance(prefs[0], dict):
-                    lines.append(
-                        f"  Top suggestion: {prefs[0].get('suggestion', '')[:50]}..."
-                    )

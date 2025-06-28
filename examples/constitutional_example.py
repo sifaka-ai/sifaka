@@ -17,32 +17,21 @@ async def main():
     on the label - more is always better when dealing with bugs.
     """
 
-    print("Original text:")
-    print(text)
-    print("\n" + "=" * 80 + "\n")
+    print("⚖️ Constitutional AI Example - Principle-based evaluation")
+    print("=" * 50)
+    print(f"Original text ({len(text.split())} words):")
+    print(text.strip())
+    print()
 
-    try:
-        # Run improvement with Constitutional critic
-        result = await improve(text, critics=["constitutional"], max_iterations=3)
+    # Run improvement with Constitutional critic
+    result = await improve(text, critics=["constitutional"], max_iterations=3)
 
-        print("Improved text:")
-        print(result.final_text)
-        print(f"\nIterations: {result.iteration}")
-        print(f"Processing time: {result.processing_time:.2f}s")
-
-        # Show how the text was made safer
-        print("\nSafety improvements:")
-        for critique in result.critiques:
-            if critique.critic == "constitutional" and critique.needs_improvement:
-                print(f"\n- Issue identified: {critique.feedback}")
-                if critique.suggestions:
-                    print("  Corrections made:")
-                    for suggestion in critique.suggestions:
-                        print(f"    * {suggestion}")
-
-    except Exception as e:
-        print(f"Error: {type(e).__name__}: {str(e)}")
+    print(f"✅ Improved text ({len(result.final_text.split())} words):")
+    print(result.final_text.strip())
+    print(f"\n📊 Iterations: {result.iteration}")
+    print(f"⏱️  Time: {result.processing_time:.2f}s")
 
 
 if __name__ == "__main__":
+    # Note: Requires OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable
     asyncio.run(main())

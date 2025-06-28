@@ -1,5 +1,6 @@
 """Simplified base critic implementation."""
 
+import time
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Union
 
@@ -46,7 +47,10 @@ class BaseCritic(Critic, ABC):
     ):
         """Initialize critic with configuration."""
         self.config = config or Config()
-        self.model = model
+        # Use critic_model from config if not explicitly provided
+        self.model = (
+            model if model != "gpt-4o-mini" else (self.config.critic_model or model)
+        )
         self.temperature = (
             temperature or self.config.critic_temperature or self.config.temperature
         )
@@ -134,17 +138,37 @@ class BaseCritic(Critic, ABC):
             messages = await self._create_messages(text, result)
             user_prompt = messages[-1]["content"] if messages else text
 
-            # Run agent with structured output
+            # Run agent with structured output and capture usage
+            start_time = time.time()
             agent_result = await agent.run(user_prompt)
+            processing_time = time.time() - start_time
             critic_response = agent_result.output
+
+            # Get actual usage data
+            tokens_used = 0
+            try:
+                if hasattr(agent_result, "usage"):
+                    usage = agent_result.usage()  # Call as function
+                    if usage and hasattr(usage, "total_tokens"):
+                        tokens_used = usage.total_tokens
+            except Exception:
+                # Fallback if usage() call fails
+                tokens_used = 0
 
             # Calculate confidence if not provided
             if critic_response.confidence == 0.7:  # Default value
+                # Pass needs_improvement in metadata for smarter confidence calculation
+                # Handle response models that may not have a metadata field
+                calc_metadata = {}
+                if hasattr(critic_response, "metadata") and critic_response.metadata:
+                    calc_metadata = critic_response.metadata.copy()
+                calc_metadata["needs_improvement"] = critic_response.needs_improvement
+
                 critic_response.confidence = self._confidence_calc.calculate(
                     feedback=critic_response.feedback,
                     suggestions=critic_response.suggestions,
                     response_length=len(str(critic_response)),
-                    metadata=critic_response.metadata,
+                    metadata=calc_metadata,
                 )
 
             # Create result with all metadata
@@ -152,19 +176,43 @@ class BaseCritic(Critic, ABC):
             response_dict = critic_response.model_dump()
 
             # Extract standard fields
+            # Pop metadata if it exists to avoid nesting
+            response_metadata = response_dict.pop("metadata", {})
+
+            # Extract the standard fields first
+            feedback = response_dict.pop("feedback")
+            suggestions = response_dict.pop("suggestions")
+            needs_improvement = response_dict.pop("needs_improvement")
+            confidence = response_dict.pop("confidence")
+
+            # Merge metadata from response (if any) with remaining fields
+            final_metadata = {**response_metadata, **response_dict}
+
             critique_result = CritiqueResult(
                 critic=self.name,
-                feedback=response_dict.pop("feedback"),
-                suggestions=response_dict.pop("suggestions"),
-                needs_improvement=response_dict.pop("needs_improvement"),
-                confidence=response_dict.pop("confidence"),
-                metadata=response_dict,  # Everything else goes in metadata
+                feedback=feedback,
+                suggestions=suggestions,
+                needs_improvement=needs_improvement,
+                confidence=confidence,
+                metadata=final_metadata,
+                # Add traceability with actual usage data
+                model_used=(
+                    self.client.model if hasattr(self.client, "model") else self.model
+                ),
+                temperature_used=(
+                    self.client.temperature
+                    if hasattr(self.client, "temperature")
+                    else self.temperature
+                ),
+                prompt_sent=user_prompt,
+                tokens_used=tokens_used,
+                processing_time=processing_time,
             )
 
             return critique_result
 
         except Exception as e:
-            # Return error result
+            # Return error result with traceability
             return CritiqueResult(
                 critic=self.name,
                 feedback=f"Error during critique: {str(e)}",
@@ -172,6 +220,18 @@ class BaseCritic(Critic, ABC):
                 needs_improvement=True,
                 confidence=0.0,
                 metadata={"error": str(e)},
+                # Add traceability even for errors
+                model_used=(
+                    self.client.model if hasattr(self.client, "model") else self.model
+                ),
+                temperature_used=(
+                    self.client.temperature
+                    if hasattr(self.client, "temperature")
+                    else self.temperature
+                ),
+                prompt_sent=None,  # No prompt sent due to error
+                tokens_used=0,
+                processing_time=0.0,
             )
 
     def _get_previous_context(self, result: SifakaResult) -> str:

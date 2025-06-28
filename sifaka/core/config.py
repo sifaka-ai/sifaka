@@ -24,7 +24,8 @@ class Config(BaseModel):
 
     # Critic model settings (optional, defaults to main model)
     critic_model: Optional[str] = Field(
-        default=None, description="Model for critics (default: same as model)"
+        default="gpt-3.5-turbo",
+        description="Model for critics (default: gpt-3.5-turbo)",
     )
 
     critic_temperature: Optional[float] = Field(

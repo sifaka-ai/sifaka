@@ -35,9 +35,28 @@ By participating in this project, you agree to abide by our Code of Conduct. Ple
 ### Prerequisites
 
 - Python 3.9 or higher
-- pip and virtualenv (or similar tools)
+- uv (recommended) or pip and virtualenv
 
-### Setting up your environment
+### Setting up your environment with uv (Recommended)
+
+We recommend using [uv](https://github.com/astral-sh/uv) for faster and more reliable dependency management:
+
+1. **Install uv** if you haven't already:
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   # Or with pip: pip install uv
+   ```
+
+2. **Clone and setup the project**:
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/sifaka.git
+   cd sifaka
+   uv venv  # Creates .venv automatically
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   uv pip install -e ".[dev,all]"
+   ```
+
+### Alternative: Traditional pip setup
 
 1. **Create a virtual environment**:
    ```bash

@@ -25,17 +25,6 @@ from .core.base import BaseCritic
 from ..core.config import Config
 
 
-class CustomCriteria(BaseModel):
-    """A custom evaluation criterion."""
-
-    criterion: str = Field(..., description="The evaluation criterion")
-    assessment: str = Field(..., description="Assessment against this criterion")
-    score: float = Field(..., ge=0.0, le=1.0, description="Score for this criterion")
-    improvements: list[str] = Field(
-        default_factory=list, description="Improvements for this criterion"
-    )
-
-
 class PromptResponse(BaseModel):
     """Response model for custom prompt-based critic."""
 
@@ -49,15 +38,7 @@ class PromptResponse(BaseModel):
     confidence: float = Field(
         default=0.7, ge=0.0, le=1.0, description="Confidence in the assessment"
     )
-    custom_criteria_results: list[CustomCriteria] = Field(
-        default_factory=list, description="Results for each custom criterion"
-    )
-    overall_score: float = Field(
-        default=0.7, ge=0.0, le=1.0, description="Overall score across all criteria"
-    )
-    key_findings: list[str] = Field(
-        default_factory=list, description="Key findings from the custom evaluation"
-    )
+    # Removed unused metadata fields - none were used in prompts
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional custom evaluation data"
     )

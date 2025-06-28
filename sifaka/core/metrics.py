@@ -1,8 +1,7 @@
 """Metrics for tracking text improvement quality.
 
-This module contains only the metrics that are actually used in the codebase.
-The analyze_suggestion_implementation function is used by SifakaResult to track
-which critic suggestions were implemented in text generations.
+This module contains only objective, measurable metrics.
+No pseudo-intelligent analysis - just facts.
 """
 
 from typing import Dict, List, Any
@@ -12,10 +11,9 @@ import re
 def analyze_suggestion_implementation(
     suggestions: List[str], old_text: str, new_text: str
 ) -> Dict[str, Any]:
-    """Analyze which suggestions were likely implemented.
+    """Track objective metrics about text changes.
 
-    This function examines critic suggestions and determines which ones
-    appear to have been implemented by comparing old and new text.
+    Only reports measurable facts, no interpretation.
 
     Args:
         suggestions: List of suggestions from critics
@@ -23,71 +21,84 @@ def analyze_suggestion_implementation(
         new_text: Text after improvement
 
     Returns:
-        Dictionary containing:
-        - suggestions_given: All suggestions provided
-        - suggestions_implemented: Suggestions that appear implemented
-        - suggestions_not_implemented: Suggestions not implemented
-        - implementation_rate: Ratio of implemented suggestions
-        - implementation_count: Number of implemented suggestions
+        Objective metrics about the changes
     """
-    implemented = []
-    not_implemented = []
+    old_words = old_text.split()
+    new_words = new_text.split()
 
-    old_text_lower = old_text.lower()
-    new_text_lower = new_text.lower()
-
-    for suggestion in suggestions:
-        # Extract key phrases from suggestion
-        suggestion_lower = suggestion.lower()
-
-        # Look for key action words and their associated content
-        key_phrases = []
-
-        # Common patterns in suggestions
-        patterns = [
-            r"add\s+(.+?)(?:\.|,|$)",
-            r"include\s+(.+?)(?:\.|,|$)",
-            r"provide\s+(.+?)(?:\.|,|$)",
-            r"expand\s+on\s+(.+?)(?:\.|,|$)",
-            r"mention\s+(.+?)(?:\.|,|$)",
-            r"discuss\s+(.+?)(?:\.|,|$)",
-            r"examples?\s+of\s+(.+?)(?:\.|,|$)",
-        ]
-
-        for pattern in patterns:
-            matches = re.findall(pattern, suggestion_lower)
-            key_phrases.extend(matches)
-
-        # Check if key phrases appear more in new text
-        implementation_score = 0
-        for phrase in key_phrases:
-            # Extract important words (3+ chars, not common)
-            important_words = [
-                w
-                for w in phrase.split()
-                if len(w) > 3 and w not in {"the", "and", "for", "with"}
-            ]
-
-            for word in important_words:
-                old_count = old_text_lower.count(word)
-                new_count = new_text_lower.count(word)
-                if new_count > old_count:
-                    implementation_score += 1
-
-        # Consider implemented if score > 0
-        if implementation_score > 0 or any(
-            phrase in new_text_lower for phrase in key_phrases
-        ):
-            implemented.append(suggestion)
-        else:
-            not_implemented.append(suggestion)
-
-    return {
+    # Objective counts
+    metrics = {
+        # Required for backward compatibility
         "suggestions_given": suggestions,
-        "suggestions_implemented": implemented,
-        "suggestions_not_implemented": not_implemented,
-        "implementation_rate": (
-            len(implemented) / len(suggestions) if suggestions else 0
+        "suggestions_implemented": [],  # Can't objectively determine
+        "suggestions_not_implemented": suggestions,  # Can't objectively determine
+        "implementation_rate": 0.0,  # Can't objectively determine
+        "implementation_count": 0,  # Can't objectively determine
+        # Objective metrics
+        "old_text_length": len(old_text),
+        "new_text_length": len(new_text),
+        "length_change": len(new_text) - len(old_text),
+        "length_change_ratio": (
+            len(new_text) / len(old_text) if old_text else float("inf")
         ),
-        "implementation_count": len(implemented),
+        "old_word_count": len(old_words),
+        "new_word_count": len(new_words),
+        "word_count_change": len(new_words) - len(old_words),
+        "word_count_ratio": (
+            len(new_words) / len(old_words) if old_words else float("inf")
+        ),
+        "old_sentence_count": len(re.split(r"[.!?]+", old_text.strip())) - 1,
+        "new_sentence_count": len(re.split(r"[.!?]+", new_text.strip())) - 1,
+        "old_paragraph_count": len(re.split(r"\n\n+", old_text.strip())),
+        "new_paragraph_count": len(re.split(r"\n\n+", new_text.strip())),
+        "suggestion_count": len(suggestions),
+        "avg_suggestion_length": (
+            sum(len(s) for s in suggestions) / len(suggestions) if suggestions else 0
+        ),
+        # Text similarity (objective measure)
+        "text_similarity": _calculate_similarity(old_text, new_text),
+        # Specific content changes
+        "numbers_added": _count_numbers(new_text) - _count_numbers(old_text),
+        "quotes_added": _count_quotes(new_text) - _count_quotes(old_text),
+        "questions_added": _count_questions(new_text) - _count_questions(old_text),
     }
+
+    return metrics
+
+
+def _calculate_similarity(text1: str, text2: str) -> float:
+    """Calculate Jaccard similarity between two texts based on words."""
+    words1 = set(text1.lower().split())
+    words2 = set(text2.lower().split())
+
+    if not words1 and not words2:
+        return 1.0
+
+    intersection = words1.intersection(words2)
+    union = words1.union(words2)
+
+    return len(intersection) / len(union) if union else 0.0
+
+
+def _count_numbers(text: str) -> int:
+    """Count numeric references in text."""
+    # Matches numbers, percentages, years, etc.
+    patterns = [
+        r"\b\d+\b",  # Plain numbers
+        r"\d+%",  # Percentages
+        r"\$[\d,]+",  # Money
+        r"\d{4}",  # Years
+    ]
+    return sum(len(re.findall(pattern, text)) for pattern in patterns)
+
+
+def _count_quotes(text: str) -> int:
+    """Count quoted sections in text."""
+    return len(re.findall(r'"[^"]+"|\'[^\']+\'', text))
+
+
+def _count_questions(text: str) -> int:
+    """Count questions in text."""
+    return len(re.findall(r"[.!?]\s*[A-Z][^.!?]*\?", " " + text)) + (
+        1 if text.strip().endswith("?") else 0
+    )

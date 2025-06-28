@@ -74,7 +74,28 @@ docs:
 
 # Run development server/example
 example:
-	python example.py
+	python examples/quickstart.py
+
+# Hackathon quick setup
+hackathon:
+	@echo "🚀 Setting up Sifaka for hackathon development..."
+	@echo ""
+	@if command -v uv >/dev/null 2>&1; then \
+		echo "✓ Found uv, using it for fast setup..."; \
+		uv venv; \
+		. .venv/bin/activate && uv pip install -e ".[dev,all]"; \
+	else \
+		echo "✓ Using pip for setup..."; \
+		python -m venv .venv; \
+		. .venv/bin/activate && pip install -e ".[dev,all]"; \
+	fi
+	@echo ""
+	@echo "✅ Setup complete! Now run:"
+	@echo "  source .venv/bin/activate  # On Windows: .venv\\Scripts\\activate"
+	@echo "  make test-fast  # Run tests"
+	@echo "  make example    # Run quickstart example"
+	@echo ""
+	@echo "📖 See HACKATHON_README.md for more info!"
 
 # Check package before publishing
 check-package: build

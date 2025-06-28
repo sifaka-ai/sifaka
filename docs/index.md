@@ -2,73 +2,28 @@
 
 **Sifaka** is a Python library for AI-powered text improvement using research-backed critique techniques. It provides a simple API for iteratively improving text through various critique methods, with full observability and control.
 
-## Key Features
+## Getting Started
 
-- 🎯 **Simple API**: One function to improve any text
-- 🔬 **Research-Backed**: Implements proven critique techniques from AI research
-- 🔍 **Full Observability**: Complete audit trail of all improvements
-- 🎨 **Highly Configurable**: Customize every aspect of the improvement process
-- 🔌 **Extensible**: Easy to add custom critics and validators
-- ⚡ **Async-First**: Built for performance with async/await
-- 🛡️ **Type-Safe**: Full type hints and Pydantic models
+- **[Installation](installation.md)** - Setup and dependencies
+- **[Quickstart Guide](quickstart.md)** - Get running in 5 minutes
+- **[API Reference](../API.md)** - Complete API documentation
 
-## Quick Example
+## User Guides
 
-```python
-from sifaka import improve
+- **[Basic Usage](guide/basic-usage.md)** - Core concepts and patterns
+- **[Critics](guide/critics.md)** - Available critics and their research foundations
+- **[Validators](guide/validators.md)** - Input validation options
+- **[Configuration](guide/configuration.md)** - Customization options
+- **[Advanced Usage](guide/advanced-usage.md)** - Advanced patterns and techniques
 
-# Simple usage
-result = await improve("Write about artificial intelligence")
-print(result.improved_text)
+## Architecture
 
-# Advanced usage
-result = await improve(
-    "The Eiffel Tower is 500 meters tall.",
-    critics=["reflexion", "self_rag"],
-    validators=[LengthValidator(min_length=100)],
-    max_iterations=3
-)
-
-# See what happened
-for critique in result.critiques:
-    print(f"{critique.critic}: {critique.feedback}")
-```
-
-## Installation
-
-```bash
-pip install sifaka
-
-# With optional dependencies
-pip install sifaka[anthropic]  # For Claude
-pip install sifaka[tools]       # For web search tools
-```
+- **[Architecture Overview](architecture.md)** - System design and components
+- **[Design Decisions](decisions/)** - Technical decisions and rationale
 
 ## Why Sifaka?
 
 Named after the [Sifaka lemur](https://en.wikipedia.org/wiki/Sifaka) known for its thoughtful movements and careful decision-making, this library helps your AI carefully consider and improve its outputs through structured critique.
-
-## Getting Started
-
-<div class="grid cards" markdown>
-
-- :material-rocket-launch: **[Quickstart Guide](quickstart.md)**
-
-    Get up and running in 5 minutes
-
-- :material-book-open-variant: **[User Guide](guide/basic-usage.md)**
-
-    Learn the core concepts
-
-- :material-brain: **[Critics Guide](critics/overview.md)**
-
-    Understand different critique methods
-
-- :material-api: **[API Reference](api/core.md)**
-
-    Detailed API documentation
-
-</div>
 
 ## Popular Use Cases
 

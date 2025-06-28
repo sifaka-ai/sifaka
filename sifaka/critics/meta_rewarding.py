@@ -37,35 +37,13 @@ from .core.base import BaseCritic
 from ..core.config import Config
 
 
-class CritiqueEvaluation(BaseModel):
-    """Meta-evaluation of a critique aspect."""
-
-    aspect: str = Field(
-        ..., description="The aspect being evaluated (e.g., accuracy, helpfulness)"
-    )
-    score: float = Field(
-        ..., ge=0.0, le=1.0, description="Quality score for this aspect"
-    )
-    reasoning: str = Field(..., description="Reasoning for the score")
-    improvement_needed: bool = Field(
-        ..., description="Whether this aspect needs improvement"
-    )
-
-
-class SuggestionPreference(BaseModel):
-    """Preference ranking for alternative suggestions."""
-
-    suggestion: str = Field(..., description="The suggestion text")
-    preference_score: float = Field(..., ge=0.0, le=1.0, description="Preference score")
-    rationale: str = Field(
-        ..., description="Why this suggestion is preferred/not preferred"
-    )
+# Removed CritiqueEvaluation and SuggestionPreference classes since they're not used in generation.py
 
 
 class MetaRewardingResponse(BaseModel):
-    """Response model for Meta-Rewarding critic with iterative refinement."""
+    """Response model for Meta-Rewarding critic."""
 
-    # Initial critique
+    # Only include the standard fields since no metadata is used in generation.py
     feedback: str = Field(..., description="Refined critique after meta-evaluation")
     suggestions: list[str] = Field(
         default_factory=list,
@@ -80,41 +58,6 @@ class MetaRewardingResponse(BaseModel):
         le=1.0,
         description="Final confidence after meta-evaluation",
     )
-
-    # Meta-evaluation fields
-    initial_feedback: str = Field(..., description="Initial critique before refinement")
-    meta_evaluation: str = Field(
-        ..., description="Meta-evaluation of the initial critique"
-    )
-    critique_evaluations: list[CritiqueEvaluation] = Field(
-        default_factory=list, description="Detailed evaluation of critique aspects"
-    )
-
-    # Refinement and learning
-    refinement_rationale: str = Field(
-        ..., description="How the critique was refined based on meta-evaluation"
-    )
-    suggestion_preferences: list[SuggestionPreference] = Field(
-        default_factory=list,
-        description="Ranked preferences for alternative suggestions",
-    )
-
-    # Quality metrics
-    initial_quality_score: float = Field(
-        default=0.7, ge=0.0, le=1.0, description="Quality of initial critique"
-    )
-    final_quality_score: float = Field(
-        default=0.8, ge=0.0, le=1.0, description="Quality after refinement"
-    )
-    improvement_delta: float = Field(
-        default=0.1, ge=-1.0, le=1.0, description="How much the critique improved"
-    )
-
-    # Learning metrics
-    meta_reward: float = Field(
-        default=0.7, ge=0.0, le=1.0, description="Meta-reward signal for learning"
-    )
-
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional meta-rewarding data"
     )
@@ -171,38 +114,18 @@ class MetaRewardingCritic(BaseCritic):
         # Get previous context
         previous_context = self._get_previous_context(result)
 
-        user_prompt = f"""Apply the Meta-Rewarding framework with three stages: critique, meta-evaluate, and refine.
+        user_prompt = f"""Apply the Meta-Rewarding framework: generate an initial critique, then meta-evaluate it, and finally provide a refined critique.
 
 Text to evaluate:
 {text}
 {previous_context}
 
-STAGE 1 - Initial Critique:
-Generate your first critique considering:
-- Content quality and accuracy
-- Structure and organization
-- Clarity and readability
-- Completeness and depth
-- Engagement and impact
+Process:
+1. Generate your initial critique considering content quality, structure, clarity, completeness, and engagement
+2. Meta-evaluate your initial critique for accuracy, helpfulness, coverage, fairness, and specificity
+3. Provide a refined critique that addresses any weaknesses identified in the meta-evaluation
 
-STAGE 2 - Meta-Evaluation:
-Evaluate your initial critique on these dimensions:
-- Accuracy: Are your observations correct?
-- Helpfulness: Will your suggestions improve the text?
-- Coverage: Did you miss important issues?
-- Fairness: Is your critique balanced?
-- Specificity: Are your suggestions actionable?
-
-Score each dimension and identify weaknesses in your critique.
-
-STAGE 3 - Refined Critique:
-Based on your meta-evaluation:
-1. Refine your initial feedback to address identified weaknesses
-2. Generate alternative suggestions and rank them by preference
-3. Adjust confidence based on critique quality
-4. Calculate improvement delta and meta-reward
-
-Provide both initial and refined versions to show the improvement process."""
+Focus on delivering actionable, high-quality feedback that has been improved through self-reflection."""
 
         return [
             {

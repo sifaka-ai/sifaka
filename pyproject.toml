@@ -96,6 +96,11 @@ target-version = "py39"
 minversion = "8.0"
 addopts = ["--strict-markers", "--cov=sifaka", "--cov-report=term-missing"]
 testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow",
+    "integration: marks tests as integration tests",
+    "performance: marks tests as performance tests"
+]
 
 [tool.mypy]
 python_version = "3.9"

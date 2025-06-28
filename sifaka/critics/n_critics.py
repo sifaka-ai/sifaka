@@ -28,7 +28,7 @@ text evaluation through ensemble critique.
 - Simpler than training/managing multiple critic models
 """
 
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Union
 from pydantic import BaseModel, Field
 
 from ..core.models import SifakaResult
@@ -37,17 +37,7 @@ from ..core.config import Config
 from .core.base import BaseCritic
 
 
-class PerspectiveAssessment(BaseModel):
-    """Assessment from a single critical perspective."""
-
-    perspective: str = Field(..., description="The critical perspective name")
-    assessment: str = Field(..., description="Assessment from this perspective")
-    score: float = Field(
-        ..., ge=0.0, le=1.0, description="Quality score from this perspective"
-    )
-    suggestions: list[str] = Field(
-        default_factory=list, description="Suggestions from this perspective"
-    )
+# Removed PerspectiveAssessment class since it's not used in generation.py
 
 
 class NCriticsResponse(BaseModel):
@@ -66,20 +56,12 @@ class NCriticsResponse(BaseModel):
         le=1.0,
         description="Confidence based on perspective agreement",
     )
-    perspective_assessments: list[PerspectiveAssessment] = Field(
-        default_factory=list, description="Individual assessments from each perspective"
-    )
+    # Only keep consensus_score since that's what's used in generation.py
     consensus_score: float = Field(
         default=0.7,
         ge=0.0,
         le=1.0,
         description="Overall consensus score from all perspectives",
-    )
-    agreement_level: str = Field(
-        default="moderate", description="Level of agreement: high, moderate, or low"
-    )
-    metadata: dict[str, Any] = Field(
-        default_factory=dict, description="Additional ensemble data"
     )
 
 
@@ -156,17 +138,10 @@ Text to evaluate:
 {text}
 {previous_context}
 
-For EACH perspective:
-1. Provide a focused assessment from that viewpoint
-2. Identify specific strengths and weaknesses
-3. Give targeted suggestions for improvement
-4. Assign a quality score (0.0-1.0)
-
-Then provide:
+Evaluate the text from each perspective and provide:
 - Overall synthesized feedback combining all perspectives
-- Consensus score (0.0-1.0) on overall text quality
-- Level of agreement between perspectives (high/moderate/low)
-- Key areas where perspectives agree or disagree
+- Specific improvement suggestions that address issues from multiple viewpoints
+- A consensus score (0.0-1.0) representing overall text quality across all perspectives
 
 Focus on constructive, actionable feedback that considers all viewpoints."""
 

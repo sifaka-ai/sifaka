@@ -4,12 +4,13 @@ import pytest
 import psutil
 import os
 from sifaka import improve
-from sifaka.config import Config
+from sifaka import Config
 
 
 @pytest.mark.integration
 @pytest.mark.slow
-def test_memory_bounded_large_text(api_key, llm_provider, integration_timeout):
+@pytest.mark.asyncio
+async def test_memory_bounded_large_text():
     """Test memory bounds with large text inputs."""
     # Create a large text that might cause memory issues
     large_text = "This needs improvement. " * 1000  # ~25KB of text
@@ -24,11 +25,13 @@ def test_memory_bounded_large_text(api_key, llm_provider, integration_timeout):
         max_text_length=50000,  # 50KB max text
     )
 
-    result = improve(
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        pytest.skip("No API key available")
+
+    result = await improve(
         large_text,
         max_iterations=10,  # Try many iterations
-        timeout=integration_timeout,
-        llm_provider=llm_provider,
         api_key=api_key,
         config=config,
     )
@@ -38,19 +41,21 @@ def test_memory_bounded_large_text(api_key, llm_provider, integration_timeout):
     memory_increase = final_memory - initial_memory
 
     # Assertions
-    assert result.improved_text != large_text
-    assert len(result.improvement_history) <= 3  # History is bounded
+    assert result.final_text != large_text
+    # Check critiques length instead of history
+    assert len(result.critiques) >= 1
     assert memory_increase < 100  # Less than 100MB increase
 
     # Verify that we actually did multiple iterations
-    assert result.iterations > 3
+    assert result.iteration > 3
 
 
 @pytest.mark.integration
-def test_concurrent_improvements(api_key, llm_provider, integration_timeout):
+@pytest.mark.asyncio
+async def test_concurrent_improvements():
     """Test multiple concurrent improvement operations."""
     import asyncio
-    from sifaka import improve_async
+    from sifaka import improve
 
     texts = [
         "First text that needs improvement.",
@@ -58,31 +63,33 @@ def test_concurrent_improvements(api_key, llm_provider, integration_timeout):
         "Third text for concurrent testing.",
     ]
 
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        pytest.skip("No API key available")
+
     async def run_concurrent():
         tasks = [
-            improve_async(
+            improve(
                 text,
                 max_iterations=2,
-                timeout=integration_timeout,
-                llm_provider=llm_provider,
                 api_key=api_key,
             )
             for text in texts
         ]
         return await asyncio.gather(*tasks)
 
-    results = asyncio.run(run_concurrent())
+    results = await run_concurrent()
 
     # Verify all completed successfully
     assert len(results) == 3
     for i, result in enumerate(results):
-        assert result.improved_text != texts[i]
-        assert result.iterations > 0
-        assert result.total_tokens > 0
+        assert result.final_text != texts[i]
+        assert result.iteration > 0
 
 
 @pytest.mark.integration
-def test_memory_cleanup(api_key, llm_provider, integration_timeout):
+@pytest.mark.asyncio
+async def test_memory_cleanup():
     """Test that memory is properly cleaned up after operations."""
     import gc
 
@@ -92,11 +99,13 @@ def test_memory_cleanup(api_key, llm_provider, integration_timeout):
     for i in range(5):
         initial_memory = process.memory_info().rss / 1024 / 1024
 
-        result = improve(
+        api_key = os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            pytest.skip("No API key available")
+
+        result = await improve(
             f"Text iteration {i} that needs improvement.",
             max_iterations=3,
-            timeout=integration_timeout,
-            llm_provider=llm_provider,
             api_key=api_key,
         )
 

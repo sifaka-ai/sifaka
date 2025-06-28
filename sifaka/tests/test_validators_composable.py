@@ -130,11 +130,12 @@ class TestComposableValidator:
     @pytest.mark.asyncio
     async def test_rule_exception_handling(self, sample_result):
         """Test handling of rule exceptions."""
+
         def broken_check(text: str) -> bool:
             # Will raise ZeroDivisionError
             _ = 1 / 0
             return False
-        
+
         broken_rule = ValidationRule(
             name="broken",
             check=broken_check,

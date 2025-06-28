@@ -6,7 +6,6 @@ from typing import List, Dict, Any
 
 from sifaka import improve, Config
 from sifaka.critics.n_critics import NCriticsCritic
-from sifaka.critics.self_rag_enhanced import SelfRAGEnhancedCritic, RetrievalBackend
 from sifaka.validators.composable import Validator
 
 

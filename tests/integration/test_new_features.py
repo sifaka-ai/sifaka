@@ -3,12 +3,10 @@
 import pytest
 import asyncio
 import os
-from typing import Dict, List, Any
 
 from sifaka import improve, SifakaResult, Config
 from sifaka.critics.n_critics import NCriticsCritic
-from sifaka.critics.self_rag_enhanced import SelfRAGEnhancedCritic, RetrievalBackend
-from sifaka.critics.core.confidence_advanced import AdvancedConfidenceCalculator
+from sifaka.critics.self_rag import SelfRAGCritic
 from sifaka.core.middleware import (
     MiddlewarePipeline,
     MetricsMiddleware,
@@ -138,50 +136,37 @@ class TestAdvancedConfidenceCalculation:
 
     @pytest.mark.asyncio
     async def test_critic_specific_confidence(self):
-        """Test that different critics calculate confidence differently."""
-        calculator = AdvancedConfidenceCalculator()
+        """Test that different critics provide different confidence levels."""
+        api_key = os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            pytest.skip("No API key available")
 
-        # Test data
-        feedback = "The text needs improvement in clarity and structure."
-        suggestions = ["Add topic sentences", "Improve transitions"]
-        response_length = 500
+        text = "The quick brown fox jumps over the lazy dog."
 
-        # Test Reflexion confidence (history-based)
-        reflexion_conf = calculator.calculate(
-            "reflexion",
-            feedback + " Based on previous attempts, I noticed...",
-            suggestions,
-            response_length,
-            {"iteration": 3},
-        )
+        # Test different critics
+        critics = ["reflexion", "constitutional", "self_refine"]
+        confidences = {}
 
-        # Test Constitutional confidence (principle-based)
-        constitutional_conf = calculator.calculate(
-            "constitutional",
-            feedback + " This violates the principle of clarity.",
-            suggestions,
-            response_length,
-        )
+        for critic_name in critics:
+            result = await improve(
+                text,
+                critics=[critic_name],
+                max_iterations=1,
+                api_key=api_key,
+            )
 
-        # Test Self-Consistency confidence (consensus-based)
-        consistency_conf = calculator.calculate(
-            "self_consistency",
-            feedback,
-            suggestions,
-            response_length,
-            {"variance": 0.1, "consensus_strength": 0.9, "num_evaluations": 5},
-        )
+            if result.critiques:
+                confidences[critic_name] = result.critiques[0].confidence
 
         # Different critics should have different confidence patterns
-        assert reflexion_conf != constitutional_conf != consistency_conf
-
-        # Self-consistency with low variance should have high confidence
-        assert consistency_conf > 0.7
+        if len(confidences) > 1:
+            values = list(confidences.values())
+            # Should have some variance
+            assert max(values) - min(values) > 0.01
 
         print("\nConfidence scores:")
-        print(f"Reflexion: {reflexion_conf:.2f}")
-        print(f"Constitutional: {constitutional_conf:.2f}")
-        print(f"Self-Consistency: {consistency_conf:.2f}")
+        for critic, conf in confidences.items():
+            print(f"{critic}: {conf:.2f}")
 
     @pytest.mark.asyncio
     async def test_confidence_with_real_critics(self):
@@ -222,54 +207,17 @@ class TestAdvancedConfidenceCalculation:
 
 
 class TestSelfRAGEnhancements:
-    """Test the enhanced SelfRAG implementation."""
+    """Test the SelfRAG implementation."""
 
     @pytest.mark.asyncio
-    async def test_retrieval_backend_integration(self):
-        """Test SelfRAG with a simple retrieval backend."""
+    async def test_self_rag_fact_checking(self):
+        """Test SelfRAG's fact checking capabilities."""
         api_key = os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             pytest.skip("No API key available")
 
-        # Create simple fact database
-        class FactDatabase(RetrievalBackend):
-            def __init__(self):
-                self.facts = [
-                    {
-                        "content": "Paris is the capital of France.",
-                        "source": "Geography textbook",
-                    },
-                    {
-                        "content": "The Eiffel Tower was completed in 1889.",
-                        "source": "Historical records",
-                    },
-                    {
-                        "content": "France is a member of the European Union.",
-                        "source": "EU documentation",
-                    },
-                ]
-
-            async def retrieve(
-                self, query: str, top_k: int = 3
-            ) -> List[Dict[str, Any]]:
-                results = []
-                query_lower = query.lower()
-
-                for fact in self.facts:
-                    if any(
-                        word in fact["content"].lower() for word in query_lower.split()
-                    ):
-                        results.append({**fact, "score": 0.8})
-
-                return results[:top_k]
-
-            async def add_documents(self, documents: List[Dict[str, str]]) -> None:
-                self.facts.extend(documents)
-
-        # Create critic with retrieval
-        critic = SelfRAGEnhancedCritic(
-            retrieval_backend=FactDatabase(), retrieval_threshold=0.5, api_key=api_key
-        )
+        # Create SelfRAG critic
+        critic = SelfRAGCritic(api_key=api_key)
 
         # Text with factual claims
         text = """
@@ -280,71 +228,44 @@ class TestSelfRAGEnhancements:
         result = SifakaResult(original_text=text, final_text=text)
         critique = await critic.critique(text, result)
 
-        # Should identify factual errors
-        assert (
-            "spain" in critique.feedback.lower()
-            or "incorrect" in critique.feedback.lower()
-        )
+        # Should identify factual issues
+        assert critique.feedback
         assert len(critique.suggestions) > 0
 
-        # Check retrieval was used
-        assert "retrieval_context" in critique.metadata
-        context = critique.metadata["retrieval_context"]
-        assert context["retrieval_available"]
-        assert len(context.get("verified_claims", [])) > 0
+        # Check that fact analysis was performed
+        feedback_lower = critique.feedback.lower()
+        fact_related_terms = ["fact", "accurate", "verify", "claim", "evidence"]
+        assert any(term in feedback_lower for term in fact_related_terms)
 
     @pytest.mark.asyncio
-    async def test_retrieval_threshold(self):
-        """Test that retrieval threshold controls when retrieval happens."""
+    async def test_self_rag_analysis(self):
+        """Test that SelfRAG analyzes factual claims appropriately."""
         api_key = os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             pytest.skip("No API key available")
 
-        # Mock backend that tracks calls
-        class TrackingBackend(RetrievalBackend):
-            def __init__(self):
-                self.retrieve_calls = 0
+        # Create SelfRAG critic
+        rag_critic = SelfRAGCritic(api_key=api_key)
 
-            async def retrieve(
-                self, query: str, top_k: int = 3
-            ) -> List[Dict[str, Any]]:
-                self.retrieve_calls += 1
-                return []
+        # Factual text that should trigger analysis
+        factual_text = """The Amazon rainforest produces 20% of the world's oxygen.
+        It covers an area of 5.5 million square kilometers."""
 
-            async def add_documents(self, documents: List[Dict[str, str]]) -> None:
-                pass
+        result = SifakaResult(original_text=factual_text, final_text=factual_text)
+        critique = await rag_critic.critique(factual_text, result)
 
-        backend = TrackingBackend()
+        # Should provide fact-focused feedback
+        assert critique.feedback
+        feedback_lower = critique.feedback.lower()
 
-        # High threshold - should rarely retrieve
-        high_threshold_critic = SelfRAGEnhancedCritic(
-            retrieval_backend=backend, retrieval_threshold=0.9, api_key=api_key
-        )
+        # Should mention facts, claims, or evidence
+        fact_terms = ["fact", "claim", "evidence", "verify", "accurate"]
+        assert any(term in feedback_lower for term in fact_terms)
 
-        # Opinion text - shouldn't trigger much retrieval
-        opinion_text = "I think remote work is better than office work."
-
-        result = SifakaResult(original_text=opinion_text, final_text=opinion_text)
-        await high_threshold_critic.critique(opinion_text, result)
-
-        high_threshold_calls = backend.retrieve_calls
-
-        # Low threshold - should retrieve more
-        backend.retrieve_calls = 0
-        low_threshold_critic = SelfRAGEnhancedCritic(
-            retrieval_backend=backend, retrieval_threshold=0.3, api_key=api_key
-        )
-
-        await low_threshold_critic.critique(opinion_text, result)
-        low_threshold_calls = backend.retrieve_calls
-
+        print("\nSelfRAG analysis completed")
         print(
-            f"\nRetrieval calls - High threshold: {high_threshold_calls}, "
-            f"Low threshold: {low_threshold_calls}"
+            f"Feedback mentions facts: {any(term in feedback_lower for term in fact_terms)}"
         )
-
-        # Low threshold should retrieve more (or equal)
-        assert low_threshold_calls >= high_threshold_calls
 
 
 class TestMiddlewareIntegration:

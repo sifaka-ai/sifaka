@@ -23,20 +23,9 @@ Sifaka works through an iterative improvement loop:
 
 ## Simple Examples
 
-### Basic Improvement
-
-```python
-from sifaka import improve
-
-# Async version
-async def main():
-    result = await improve("Write about climate change")
-    print(result.improved_text)
-
-# Sync version
-from sifaka import improve_sync
-result = improve_sync("Write about climate change")
-```
+For basic usage examples, see:
+- **[Quickstart Guide](../quickstart.md)** - Getting started examples
+- **[API Reference](../../API.md)** - Complete API documentation with examples
 
 ### Using Different Critics
 

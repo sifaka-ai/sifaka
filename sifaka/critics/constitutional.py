@@ -6,35 +6,18 @@ Authors: Bai et al. (2022)
 
 Constitutional AI uses a set of principles to guide AI behavior toward
 being helpful, harmless, and honest.
-
-## Similarity to Original Paper:
-- PRESERVED: Use of constitutional principles for evaluation
-- PRESERVED: Focus on harmlessness and helpfulness
-- ENHANCED: Two-stage process with self-critique and revision
-- PRESERVED: AI feedback to improve outputs
-- ADAPTED: Principles focused on text quality + safety
-
-## Implementation Choices:
-1. Two-stage process: critique then revise
-2. Self-critique of generated improvements
-3. Severity scoring for principle violations
-4. HHH (Helpful, Harmless, Honest) framework
-5. Configurable principles via Config
-
-## Why This Approach:
-- Matches paper's self-improvement concept
-- Provides both critique and solutions
-- Clear criteria with actionable outputs
-- Balances safety with quality
 """
 
-from typing import Optional, Union, List, Dict, Any
+from typing import Optional, Union, List, Dict, TYPE_CHECKING
 from pydantic import BaseModel, Field
 
-from ..core.models import SifakaResult
+from ..core.models import SifakaResult, CritiqueResult
 from ..core.llm_client import Provider
 from .core.base import BaseCritic
 from ..core.config import Config
+
+if TYPE_CHECKING:
+    from ..core.models import SifakaResult
 
 
 # Default constitutional principles
@@ -48,41 +31,13 @@ DEFAULT_PRINCIPLES = [
 ]
 
 
-class PrincipleEvaluation(BaseModel):
-    """Evaluation of a single constitutional principle."""
-
-    principle: str = Field(..., description="The principle being evaluated")
-    category: str = Field(..., description="Category: helpful, harmless, or honest")
-    passed: bool = Field(..., description="Whether the text passes this principle")
-    severity: float = Field(
-        default=0.0, ge=0.0, le=1.0, description="Violation severity (0=none, 1=severe)"
-    )
-    violations: list[str] = Field(
-        default_factory=list, description="Specific violations found"
-    )
-    improvements: list[str] = Field(
-        default_factory=list, description="How to better align with this principle"
-    )
-
-
-class RevisionProposal(BaseModel):
-    """A proposed revision to address constitutional issues."""
-
-    original_snippet: str = Field(..., description="The problematic part of the text")
-    revised_snippet: str = Field(..., description="The constitutional revision")
-    principles_addressed: list[str] = Field(
-        ..., description="Which principles this revision addresses"
-    )
-    improvement_rationale: str = Field(..., description="Why this revision is better")
-
-
 class ConstitutionalResponse(BaseModel):
-    """Response model specific to Constitutional AI critic."""
+    """Simplified response model for Constitutional AI critic."""
 
     feedback: str = Field(..., description="Overall constitutional assessment")
     suggestions: list[str] = Field(
         default_factory=list,
-        description="Specific improvements to align with principles",
+        description="Specific actionable improvements to align with principles",
     )
     needs_improvement: bool = Field(
         ..., description="Whether the text violates any constitutional principles"
@@ -92,37 +47,6 @@ class ConstitutionalResponse(BaseModel):
         ge=0.0,
         le=1.0,
         description="Confidence in constitutional assessment",
-    )
-
-    # Constitutional AI specific fields
-    principle_evaluations: list[PrincipleEvaluation] = Field(
-        default_factory=list, description="Detailed evaluation per principle"
-    )
-    revision_proposals: list[RevisionProposal] = Field(
-        default_factory=list, description="Specific revisions to address violations"
-    )
-
-    # HHH scores
-    helpfulness_score: float = Field(
-        default=0.8, ge=0.0, le=1.0, description="How helpful is the content"
-    )
-    harmlessness_score: float = Field(
-        default=0.8, ge=0.0, le=1.0, description="How harmless/safe is the content"
-    )
-    honesty_score: float = Field(
-        default=0.8, ge=0.0, le=1.0, description="How honest/accurate is the content"
-    )
-
-    # Meta fields
-    requires_major_revision: bool = Field(
-        default=False, description="Whether violations require substantial rewriting"
-    )
-    self_critique_notes: str = Field(
-        default="", description="Self-critique of the proposed improvements"
-    )
-
-    metadata: dict[str, Any] = Field(
-        default_factory=dict, description="Additional constitutional data"
     )
 
 
@@ -148,65 +72,74 @@ class ConstitutionalCritic(BaseCritic):
         config: Optional[Config] = None,
         principles: Optional[List[str]] = None,
     ):
-        # Initialize with custom config
-        if config is None:
-            config = Config()
+        """Initialize critic.
 
+        Args:
+            model: LLM model to use
+            temperature: Generation temperature
+            provider: LLM provider
+            api_key: API key override
+            config: Full Sifaka config
+            principles: Custom constitutional principles (or use defaults)
+        """
         super().__init__(model, temperature, config, provider, api_key)
-
-        # Use provided principles or config principles or defaults
-        self.principles = (
-            principles
-            or (config.constitutional_principles if config else None)
-            or DEFAULT_PRINCIPLES
-        )
+        # Use provided principles or from config or defaults
+        if principles is not None:
+            self.principles = principles
+        elif config and config.constitutional_principles:
+            self.principles = config.constitutional_principles
+        else:
+            self.principles = DEFAULT_PRINCIPLES
 
     @property
     def name(self) -> str:
+        """Return the name of this critic."""
         return "constitutional"
-
-    def _get_response_type(self) -> type[BaseModel]:
-        """Use custom ConstitutionalResponse for structured output."""
-        return ConstitutionalResponse
 
     async def _create_messages(
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
-        """Create messages for constitutional evaluation."""
-        # Format principles
-        principles_text = "\n".join(
-            f"{i+1}. {principle}" for i, principle in enumerate(self.principles)
-        )
+        """Create messages for the LLM."""
+        return [
+            {
+                "role": "user",
+                "content": f"""Evaluate the following text against these constitutional principles:
 
-        # Get previous context
-        previous_context = self._get_previous_context(result)
-
-        user_prompt = f"""Apply Constitutional AI's two-stage evaluation and revision process.
-
-Constitutional Principles:
-{principles_text}
+{chr(10).join(f"{i+1}. {p}" for i, p in enumerate(self.principles))}
 
 Text to evaluate:
 {text}
-{previous_context}
 
-Stage 1 - Constitutional Evaluation:
-1. Assess each principle for violations (categorize as Helpful, Harmless, or Honest)
-2. Score violation severity (0.0 = none, 1.0 = severe)
-3. Identify specific problematic content
+Analyze the text carefully:
+1. Identify which specific principles are violated and explain HOW
+2. Provide SPECIFIC suggestions to fix each violation
+3. Your feedback must reference the principle numbers and quote problematic parts
 
-Stage 2 - Constitutional Revision:
-1. For each violation, propose a specific revision
-2. Explain how the revision addresses the principle
-3. Self-critique: Are the revisions themselves constitutional?
-4. Ensure revisions maintain helpfulness while improving harmlessness/honesty
+For example:
+- "Violates principle #2 (safety) because the text says 'don't worry about instructions' which could lead to harm"
+- "Violates principle #3 (accuracy) because 'more is always better' is false and dangerous"
 
-Provide HHH scores and determine if major revision is needed."""
-
-        return [
-            {
-                "role": "system",
-                "content": "You are a Constitutional AI critic that evaluates and revises text using the HHH framework (Helpful, Harmless, Honest). You both critique violations and propose constitutional revisions, then self-critique those revisions.",
-            },
-            {"role": "user", "content": user_prompt},
+Be specific and actionable. Generic feedback like 'doesn't align with principles' is not acceptable.""",
+            }
         ]
+
+    def _get_system_prompt(self) -> str:
+        """Get the system prompt for constitutional evaluation."""
+        return f"""You are a Constitutional AI critic that evaluates text against ethical and quality principles.
+
+Your task is to assess whether text follows these principles:
+{chr(10).join(f"- {p}" for p in self.principles)}
+
+Provide practical, actionable feedback focused on the most important improvements.
+Don't generate excessive metadata - only what's needed for meaningful improvement."""
+
+    def _get_response_type(self):
+        """Get the response type for this critic."""
+        return ConstitutionalResponse
+
+    async def critique(self, text: str, result: "SifakaResult") -> "CritiqueResult":
+        """Critique with principles in metadata."""
+        critique_result = await super().critique(text, result)
+        # Add principles used to metadata for traceability
+        critique_result.metadata["principles_used"] = self.principles
+        return critique_result

@@ -1,6 +1,6 @@
-site_name: Sifaka Documentation
+site_name: Sifaka
 site_url: https://sifaka.readthedocs.io/
-site_description: AI text improvement through research-backed critique
+site_description: Simple AI text improvement through research-backed critique
 site_author: Evan Volgas
 
 repo_name: sifaka/sifaka
@@ -26,10 +26,8 @@ theme:
     - navigation.tabs
     - navigation.sections
     - navigation.top
-    - navigation.expand
     - search.suggest
     - search.highlight
-    - content.tabs.link
     - content.code.annotation
     - content.code.copy
 
@@ -48,9 +46,6 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - admonition
-  - pymdownx.arithmatex:
-      generic: true
-  - footnotes
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.mark
@@ -60,10 +55,10 @@ markdown_extensions:
       alternate_style: true
 
 nav:
-  - Home:
+  - Getting Started:
     - index.md
-    - quickstart.md
     - installation.md
+    - quickstart.md
   - User Guide:
     - guide/basic-usage.md
     - guide/critics.md
@@ -72,28 +67,14 @@ nav:
     - guide/advanced-usage.md
   - Critics:
     - critics/overview.md
-    - critics/reflexion.md
-    - critics/self-rag.md
-    - critics/constitutional.md
-    - critics/meta-rewarding.md
-    - critics/self-consistency.md
-    - critics/self-refine.md
-    - critics/selection-guide.md
-  - API Reference:
-    - api/core.md
-    - api/critics.md
-    - api/validators.md
-    - api/config.md
-    - api/models.md
-  - Development:
-    - dev/plugin-development.md
-    - dev/contributing.md
-    - dev/architecture.md
-    - dev/testing.md
+  - Architecture:
+    - architecture.md
+    - decisions/001-single-function-api.md
+    - decisions/002-plugin-architecture.md
+    - decisions/003-memory-management.md
+    - decisions/004-error-handling.md
   - About:
-    - about/changelog.md
-    - about/license.md
-    - about/faq.md
+    - FAQ.md
 
 extra:
   social:

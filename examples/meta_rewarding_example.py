@@ -1,58 +1,37 @@
-"""Example of using Meta-Rewarding critic with validators.
+"""Example of using Meta-Rewarding critic for self-evaluation.
 
-Meta-Rewarding uses two-stage judgment with meta-evaluation of evaluation quality.
+Meta-Rewarding uses a two-stage process to evaluate and improve text quality.
 """
 
 import asyncio
 from sifaka import improve
-from sifaka.validators import LengthValidator
 
 
 async def main():
-    """Run Meta-Rewarding improvement example with validators."""
+    """Run Meta-Rewarding improvement example."""
 
-    # Academic abstract that needs improvement
+    # Technical explanation that needs quality evaluation
     text = """
-    This paper is about AI. We studied how AI works. We found that AI is good
-    at some things. Our results show AI can be useful. More research is needed.
+    Machine learning is when computers learn from data. They use algorithms
+    to find patterns. Deep learning is a type of machine learning that uses
+    neural networks. It's very powerful and can do many things.
     """
 
-    print("Original text:")
-    print(text)
-    print("\n" + "=" * 80 + "\n")
+    print("🏆 Meta-Rewarding Example - Self-evaluation")
+    print("=" * 50)
+    print(f"Original text ({len(text.split())} words):")
+    print(text.strip())
+    print()
 
-    try:
-        # Run improvement with Meta-Rewarding critic and validators
-        validators = [LengthValidator(min_length=150, max_length=250)]
+    # Run improvement with Meta-Rewarding critic
+    result = await improve(text, critics=["meta_rewarding"], max_iterations=2)
 
-        result = await improve(
-            text, critics=["meta_rewarding"], max_iterations=3, validators=validators
-        )
-
-        print("Improved text:")
-        print(result.final_text)
-        print(f"\nIterations: {result.iteration}")
-        print(f"Processing time: {result.processing_time:.2f}s")
-
-        # Show validation results
-        print("\nValidation results:")
-        for validation in result.validations:
-            status = "✓ Passed" if validation.passed else "✗ Failed"
-            print(f"{status} - {validation.validator}: {validation.details}")
-
-        # Show meta-evaluation process
-        print("\nMeta-evaluation insights:")
-        for critique in result.critiques:
-            if critique.critic == "meta_rewarding" and critique.metadata:
-                if "meta_evaluation" in critique.metadata:
-                    print(
-                        f"\n- Meta-evaluation: {critique.metadata['meta_evaluation']}"
-                    )
-                print(f"  Final confidence: {critique.confidence:.2f}")
-
-    except Exception as e:
-        print(f"Error: {type(e).__name__}: {str(e)}")
+    print(f"✅ Improved text ({len(result.final_text.split())} words):")
+    print(result.final_text.strip())
+    print(f"\n📊 Iterations: {result.iteration}")
+    print(f"⏱️  Time: {result.processing_time:.2f}s")
 
 
 if __name__ == "__main__":
+    # Note: Requires OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable
     asyncio.run(main())
