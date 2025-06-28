@@ -20,11 +20,12 @@ This directory contains comprehensive documentation for the Sifaka project archi
 - Minimal dependencies (5 core)
 - Clear, obvious interfaces
 
-### 2. **Production Ready**
-- Memory-bounded operations
-- Cost tracking and limits
-- Comprehensive error handling
-- Observable operations with audit trails
+### 2. **Alpha Software with Production Practices**
+- Memory-bounded operations (prevents memory leaks)
+- Cost tracking and limits (for development safety)
+- Comprehensive error handling (helps with debugging)
+- Observable operations with audit trails (enables troubleshooting)
+- **Note**: This is alpha software - expect API changes and instability
 
 ### 3. **Research-Backed**
 - All critics implement peer-reviewed papers

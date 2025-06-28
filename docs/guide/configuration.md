@@ -252,9 +252,9 @@ quick_config = Config(
 )
 ```
 
-### Production Settings
+### Deployment Settings
 ```python
-production_config = Config(
+deployment_config = Config(
     temperature=0.5,
     max_iterations=3,
     timeout=60.0,

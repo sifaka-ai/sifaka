@@ -7,7 +7,7 @@ This document provides a comprehensive overview of Sifaka's architecture, design
 Sifaka is built around three core principles:
 
 1. **Research-Backed Critique** - All improvement methods implement peer-reviewed academic papers
-2. **Production Readiness** - Memory-bounded and observable operations
+2. **Alpha Software with Production Practices** - Memory-bounded and observable operations
 3. **Developer Experience** - Simple API, clear errors, comprehensive testing
 
 ## 🏗️ High-Level Architecture
@@ -58,7 +58,7 @@ async def improve(
 - Single function reduces API complexity
 - Keyword-only arguments prevent positional argument confusion
 - Sensible defaults for quick experimentation
-- Full configurability for production use
+- Full configurability for deployment use
 
 ### 2. Core Engine
 

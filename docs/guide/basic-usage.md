@@ -162,7 +162,7 @@ except ModelProviderError as e:
 2. **Choose Critics Wisely**: Different critics for different tasks
 3. **Set Clear Validators**: Define what "good" means
 4. **Monitor Costs**: More iterations = more API calls
-5. **Handle Errors**: Always wrap in try/except for production
+5. **Handle Errors**: Always wrap in try/except for deployment
 
 ## Next Steps
 

@@ -87,7 +87,7 @@ result = await improve(
 
 ## Error Handling and Recovery
 
-Robust error handling for production use:
+Robust error handling for deployment:
 
 ```python
 from sifaka import improve, SifakaError, ModelProviderError
