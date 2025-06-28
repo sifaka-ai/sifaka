@@ -4,7 +4,9 @@ N-Critics uses multiple critical perspectives to provide comprehensive feedback.
 """
 
 import asyncio
-from sifaka import improve
+import os
+from sifaka import improve, Config
+from sifaka.storage.file import FileStorage
 
 
 async def main() -> None:
@@ -25,25 +27,100 @@ async def main() -> None:
 
     # Two approaches: default perspectives or custom perspectives
 
-    # Approach 1: Use default N-Critics
-    print("\n1️⃣ Using default perspectives...")
-    result1 = await improve(text, critics=["n_critics"], max_iterations=2)
+    # Approach 1: Use default N-Critics with OpenAI
+    print("\n1️⃣ Using default perspectives with OpenAI GPT-4o-mini...")
 
-    print(f"Improved: {result1.final_text[:100]}...")
+    if os.getenv("OPENAI_API_KEY"):
+        result1 = await improve(
+            text,
+            critics=["n_critics"],
+            max_iterations=2,
+            provider="openai",
+            model="gpt-4o-mini",
+            config=Config(critic_model="gpt-4o-mini", temperature=0.7),
+            storage=FileStorage(),
+        )
+        print(f"Improved: {result1.final_text[:100]}...")
+    else:
+        print("   ⏭️  Skipping - no OPENAI_API_KEY")
+        result1 = None
 
-    # Approach 2: Custom perspectives
-    print("\n2️⃣ Using custom perspectives...")
-    # Note: For this example, we'll use default n_critics
-    # Custom perspectives require direct critic instantiation
+    # Approach 2: Custom perspectives with Anthropic
+    print("\n2️⃣ Using custom perspectives with Anthropic Claude...")
 
-    result2 = await improve(text, critics=["n_critics"], max_iterations=2)
+    if os.getenv("ANTHROPIC_API_KEY"):
+        # Create custom N-Critics with specific perspectives
+        from sifaka.critics.n_critics import NCriticsCritic
 
-    print(f"✅ Final text ({len(result2.final_text.split())} words):")
-    print(result2.final_text.strip())
-    print(f"\n📊 Total iterations: {result1.iteration + result2.iteration}")
-    print(f"⏱️  Total time: {result1.processing_time + result2.processing_time:.2f}s")
+        custom_critic = NCriticsCritic(
+            perspectives={
+                "Risk Analyst": "Evaluate risks and potential downsides",
+                "Financial Advisor": "Focus on financial wisdom and planning",
+                "Behavioral Economist": "Consider psychological biases and human behavior",
+                "Tech Expert": "Assess technological aspects and future trends",
+            },
+            api_key=os.getenv("ANTHROPIC_API_KEY"),
+            model="claude-3-haiku-20240307",
+        )
+
+        result2 = await improve(
+            text,
+            critics=[custom_critic],
+            max_iterations=2,
+            provider="anthropic",
+            model="claude-3-haiku-20240307",
+            config=Config(temperature=0.6),
+            storage=FileStorage(),
+        )
+
+        print(f"✅ Final text ({len(result2.final_text.split())} words):")
+        print(result2.final_text.strip())
+
+        if result1:
+            print(f"\n📊 Total iterations: {result1.iteration + result2.iteration}")
+            print(
+                f"⏱️  Total time: {result1.processing_time + result2.processing_time:.2f}s"
+            )
+        else:
+            print(f"\n📊 Iterations: {result2.iteration}")
+            print(f"⏱️  Time: {result2.processing_time:.2f}s")
+    else:
+        print("   ⏭️  Skipping - no ANTHROPIC_API_KEY")
+
+    # Approach 3: Using Gemini for speed
+    print("\n3️⃣ Fast iteration with Google Gemini...")
+
+    if os.getenv("GOOGLE_API_KEY"):
+        result3 = await improve(
+            text,
+            critics=["n_critics"],
+            max_iterations=1,  # Just one fast iteration
+            provider="google",
+            model="gemini-1.5-flash",
+            config=Config(critic_model="gemini-1.5-flash", temperature=0.7),
+            storage=FileStorage(),
+        )
+        print(f"✅ Quick improvement in {result3.processing_time:.2f}s")
+        print(f"   Result preview: {result3.final_text[:150]}...")
+    else:
+        print("   ⏭️  Skipping - no GOOGLE_API_KEY")
 
 
 if __name__ == "__main__":
-    # Note: Requires OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable
-    asyncio.run(main())
+    # Note: Can use OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY
+    available_providers = []
+    if os.getenv("OPENAI_API_KEY"):
+        available_providers.append("OpenAI")
+    if os.getenv("ANTHROPIC_API_KEY"):
+        available_providers.append("Anthropic")
+    if os.getenv("GOOGLE_API_KEY"):
+        available_providers.append("Google")
+
+    if not available_providers:
+        print("❌ No API keys found. Please set at least one of:")
+        print("   - OPENAI_API_KEY")
+        print("   - ANTHROPIC_API_KEY")
+        print("   - GOOGLE_API_KEY")
+    else:
+        print(f"✅ Available providers: {', '.join(available_providers)}")
+        asyncio.run(main())

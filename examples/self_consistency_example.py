@@ -1,14 +1,17 @@
 """Example of using Self-Consistency critic for consensus-based evaluation.
 
 Self-Consistency evaluates multiple outputs to ensure consistent quality.
+This example uses Google Gemini for fast parallel consistency checks.
 """
 
 import asyncio
-from sifaka import improve
+import os
+from sifaka import improve, Config
+from sifaka.storage.file import FileStorage
 
 
 async def main() -> None:
-    """Run Self-Consistency improvement example."""
+    """Run Self-Consistency improvement example with Gemini."""
 
     # Complex reasoning that benefits from consistency checking
     text = """
@@ -23,15 +26,43 @@ async def main() -> None:
     print(text.strip())
     print()
 
-    # Run improvement with Self-Consistency critic
-    result = await improve(text, critics=["self_consistency"], max_iterations=2)
+    # Run improvement with Self-Consistency critic using Gemini for speed
+    if os.getenv("GOOGLE_API_KEY"):
+        print("🌐 Using Google Gemini for fast consistency checks...")
+        result = await improve(
+            text,
+            critics=["self_consistency"],
+            max_iterations=2,
+            provider="google",
+            model="gemini-1.5-flash",  # Fast for parallel evaluations
+            config=Config(
+                critic_model="gemini-1.5-flash",
+                temperature=0.5,  # Lower for consistency
+            ),
+            storage=FileStorage(),
+        )
+    elif os.getenv("OPENAI_API_KEY"):
+        print("🔧 Using OpenAI as fallback...")
+        result = await improve(
+            text,
+            critics=["self_consistency"],
+            max_iterations=2,
+            provider="openai",
+            model="gpt-4o-mini",
+            config=Config(critic_model="gpt-4o-mini", temperature=0.5),
+            storage=FileStorage(),
+        )
+    else:
+        print("❌ No API keys found. Please set GOOGLE_API_KEY or OPENAI_API_KEY")
+        return
 
     print(f"✅ Improved text ({len(result.final_text.split())} words):")
     print(result.final_text.strip())
     print(f"\n📊 Iterations: {result.iteration}")
     print(f"⏱️  Time: {result.processing_time:.2f}s")
+    print("\n💡 Self-Consistency ensures balanced, nuanced perspectives!")
 
 
 if __name__ == "__main__":
-    # Note: Requires OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable
+    # Note: Prefers GOOGLE_API_KEY for speed, falls back to OPENAI_API_KEY
     asyncio.run(main())

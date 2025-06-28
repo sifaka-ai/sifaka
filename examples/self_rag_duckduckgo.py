@@ -7,7 +7,7 @@ This example demonstrates:
 3. How the corrected information is incorporated into the final text
 
 Prerequisites:
-- Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable
+- Set GOOGLE_API_KEY environment variable (uses Gemini)
 - sifaka-tools is already installed in the sifaka venv
 """
 
@@ -16,6 +16,8 @@ import os
 from sifaka import improve, Config
 from sifaka.storage.file import FileStorage
 from sifaka.tools import ToolRegistry
+
+# Import sifaka_tools to trigger tool registration
 
 
 async def main() -> None:
@@ -36,22 +38,27 @@ async def main() -> None:
     print(text.strip())
     print()
 
-    # Configure Sifaka with tools enabled
+    # Configure Sifaka with tools enabled using Google Gemini
     config = Config(
         enable_tools=True,
         tool_timeout=15.0,  # Give DuckDuckGo time to search
         temperature=0.7,
-        model="gpt-4o-mini",  # Or your preferred model
+        provider="google",
+        model="gemini-1.5-flash",  # Fast Google model
+        critic_model="gemini-1.5-flash",  # Same model for critics
+        api_key=os.getenv("GOOGLE_API_KEY"),
+        critic_tool_settings={"self_rag": {"enable_tools": True}},
     )
 
     # Run Self-RAG improvement
     print("🚀 Running Self-RAG with DuckDuckGo fact-checking...")
+    print("🌐 Using Google Gemini 1.5 Flash for fast, accurate fact-checking")
     print("⏳ This may take 30-60 seconds as it searches for accurate information...")
 
     result = await improve(
         text,
         critics=["self_rag"],
-        max_iterations=2,
+        max_iterations=3,
         config=config,
         storage=FileStorage(),
     )
@@ -65,20 +72,19 @@ async def main() -> None:
     print(f"   - Final length: {len(result.final_text.split())} words")
 
     # Show what Self-RAG identified and corrected
-    print("\n🔍 Fact-checking summary:")
+    print("\n🔍 Fact-checking details:")
     for i, critique in enumerate(result.critiques):
-        if critique.needs_improvement:
-            print(f"\n   Iteration {i+1}:")
-            # Extract key points from feedback
-            feedback_lower = critique.feedback.lower()
-            if "height" in feedback_lower or "500 meters" in feedback_lower:
-                print("   • Height correction needed (actual: ~330 meters)")
-            if "1850" in feedback_lower or "napoleon" in feedback_lower:
-                print("   • Construction date/builder correction needed")
-            if "100 million" in feedback_lower or "visitors" in feedback_lower:
-                print("   • Visitor count correction needed")
-            if "pink" in feedback_lower or "color" in feedback_lower:
-                print("   • Color/painting schedule correction needed")
+        print(f"\n   Iteration {i+1}:")
+        print(f"   Needs improvement: {critique.needs_improvement}")
+        print(f"   Confidence: {critique.confidence}")
+        if critique.tools_used:
+            print(f"   Tools used: {len(critique.tools_used)} searches")
+        print("\n   Feedback:")
+        # Print full feedback without truncation
+        feedback_lines = critique.feedback.split("\n")
+        for line in feedback_lines:
+            # Don't truncate lines - show full content
+            print(f"   {line}")
 
     # Note about tool usage
     print(
@@ -91,10 +97,9 @@ if __name__ == "__main__":
     print("=" * 50)
 
     # Check for API key
-    if not (os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")):
-        print(
-            "❌ Error: Please set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable"
-        )
+    if not os.getenv("GOOGLE_API_KEY"):
+        print("❌ Error: Please set GOOGLE_API_KEY environment variable")
+        print("   This example uses Google Gemini for fact-checking")
         exit(1)
 
     # Run the example

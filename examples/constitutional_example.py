@@ -4,7 +4,9 @@ Constitutional AI evaluates text against a set of principles for safety and qual
 """
 
 import asyncio
-from sifaka import improve
+import os
+from sifaka import improve, Config
+from sifaka.storage.file import FileStorage
 
 
 async def main() -> None:
@@ -23,8 +25,20 @@ async def main() -> None:
     print(text.strip())
     print()
 
-    # Run improvement with Constitutional critic
-    result = await improve(text, critics=["constitutional"], max_iterations=3)
+    # Run improvement with Constitutional critic using Anthropic
+    result = await improve(
+        text,
+        critics=["constitutional"],
+        max_iterations=3,
+        config=Config(
+            provider="anthropic",
+            model="claude-3-haiku-20240307",  # Fast Anthropic model
+            api_key=os.getenv("ANTHROPIC_API_KEY"),
+            critic_model="claude-3-haiku-20240307",  # Same model for critics
+            temperature=0.6,
+        ),
+        storage=FileStorage(),  # Enable thought logging
+    )
 
     print(f"✅ Improved text ({len(result.final_text.split())} words):")
     print(result.final_text.strip())
@@ -33,5 +47,9 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    # Note: Requires OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable
-    asyncio.run(main())
+    # Note: Uses ANTHROPIC_API_KEY for Claude models
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("⚠️  Please set ANTHROPIC_API_KEY environment variable")
+        print("   This example uses Claude for constitutional evaluation")
+    else:
+        asyncio.run(main())

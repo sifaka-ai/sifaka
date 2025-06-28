@@ -1,14 +1,17 @@
 """Example of using Self-Refine critic for general text improvement.
 
 Self-Refine provides iterative refinement for overall quality enhancement.
+This example uses Google Gemini for fast, cost-effective refinement.
 """
 
 import asyncio
-from sifaka import improve
+import os
+from sifaka import improve, Config
+from sifaka.storage.file import FileStorage
 
 
 async def main() -> None:
-    """Run Self-Refine improvement example."""
+    """Run Self-Refine improvement example with Google Gemini."""
 
     # Generic text that needs polish
     text = """
@@ -23,8 +26,32 @@ async def main() -> None:
     print(text.strip())
     print()
 
-    # Run improvement with Self-Refine critic
-    result = await improve(text, critics=["self_refine"], max_iterations=3)
+    # Run improvement with Self-Refine critic using Gemini
+    if os.getenv("GOOGLE_API_KEY"):
+        print("🌐 Using Google Gemini 1.5 Flash for refinement...")
+        result = await improve(
+            text,
+            critics=["self_refine"],
+            max_iterations=3,
+            provider="google",
+            model="gemini-1.5-flash",
+            config=Config(critic_model="gemini-1.5-flash", temperature=0.7),
+            storage=FileStorage(),
+        )
+    elif os.getenv("ANTHROPIC_API_KEY"):
+        print("🤖 Using Anthropic Claude as fallback...")
+        result = await improve(
+            text,
+            critics=["self_refine"],
+            max_iterations=3,
+            provider="anthropic",
+            model="claude-3-haiku-20240307",
+            config=Config(critic_model="claude-3-haiku-20240307", temperature=0.7),
+            storage=FileStorage(),
+        )
+    else:
+        print("❌ No API keys found. Please set GOOGLE_API_KEY or ANTHROPIC_API_KEY")
+        return
 
     print(f"✅ Improved text ({len(result.final_text.split())} words):")
     print(result.final_text.strip())
@@ -33,5 +60,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    # Note: Requires OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable
+    # Note: Prefers GOOGLE_API_KEY, falls back to ANTHROPIC_API_KEY
     asyncio.run(main())

@@ -36,6 +36,9 @@ class ToolUsage(BaseModel):
     )
     timestamp: datetime = Field(default_factory=datetime.now)
     processing_time: float = 0.0
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None, description="Additional tool-specific metadata"
+    )
 
 
 class ValidationResult(BaseModel):
