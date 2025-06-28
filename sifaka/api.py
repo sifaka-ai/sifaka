@@ -50,18 +50,12 @@ async def improve(
     if config is None:
         config = Config()
 
-    # Create engine config
-    engine_config = Config(
-        model=config.model,
-        temperature=config.temperature,
-        max_iterations=max_iterations,
-        critics=critics,
-        timeout_seconds=config.timeout_seconds,
-        force_improvements=config.force_improvements,
-        show_improvement_prompt=config.show_improvement_prompt,
-        critic_model=config.critic_model,
-        critic_temperature=config.critic_temperature,
-        # retry_config handled in Config directly
+    # Create engine config - copy all fields from user config
+    engine_config = config.model_copy(
+        update={
+            "max_iterations": max_iterations,
+            "critics": critics,
+        }
     )
 
     # Run improvement
