@@ -36,6 +36,7 @@ class SifakaEngine:
             temperature=self.config.temperature,
             critic_model=self.config.critic_model,
             critic_temperature=self.config.critic_temperature,
+            config=self.config,
         )
 
         self.validator = ValidationRunner()
@@ -125,6 +126,11 @@ class SifakaEngine:
                     )
 
                     if improved_text:
+                        # Post-process to ensure validator constraints
+                        improved_text = await self._post_process_text(
+                            improved_text, validators
+                        )
+
                         # Add generation to result
                         result.add_generation(
                             text=improved_text,
@@ -183,6 +189,55 @@ class SifakaEngine:
             return True
 
         return not validation_passed or needs_improvement
+
+    async def _post_process_text(self, text: str, validators: List[Validator]) -> str:
+        """Post-process text to ensure hard constraints are met."""
+        processed_text = text
+
+        # Check each validator for hard constraints
+        for validator in validators:
+            # Handle LengthValidator max_length constraint
+            if hasattr(validator, "name") and validator.name == "length":
+                if (
+                    hasattr(validator, "max_length")
+                    and validator.max_length is not None
+                ):
+                    if len(processed_text) > validator.max_length:
+                        # Truncate to max length, trying to end at a sentence
+                        processed_text = self._truncate_text(
+                            processed_text, validator.max_length
+                        )
+
+        return processed_text
+
+    def _truncate_text(self, text: str, max_length: int) -> str:
+        """Truncate text to max length, preferring sentence boundaries."""
+        if len(text) <= max_length:
+            return text
+
+        # Try to find a sentence ending before max_length
+        truncated = text[:max_length]
+
+        # Look for sentence endings
+        last_period = truncated.rfind(".")
+        last_exclaim = truncated.rfind("!")
+        last_question = truncated.rfind("?")
+
+        # Find the last sentence ending
+        last_sentence_end = max(last_period, last_exclaim, last_question)
+
+        if (
+            last_sentence_end > max_length * 0.8
+        ):  # If we have a sentence ending in last 20%
+            return text[: last_sentence_end + 1]
+
+        # Otherwise, try to break at a word boundary
+        last_space = truncated.rfind(" ")
+        if last_space > max_length * 0.9:  # If we have a space in last 10%
+            return text[:last_space] + "..."
+
+        # Last resort: hard truncate
+        return text[: max_length - 3] + "..."
 
     async def _finalize_result(self, result: SifakaResult, start_time: float) -> None:
         """Finalize the result object."""

@@ -1,4 +1,8 @@
-"""Redis storage backend for Sifaka - fast in-memory storage for thoughts."""
+"""Redis storage backend for Sifaka - fast in-memory storage for thoughts.
+
+This backend stores Sifaka results and thoughts in Redis for quick access
+and retrieval. Thoughts are stored as JSON for simplicity.
+"""
 
 import json
 from typing import Optional, List, Dict, Any
@@ -89,8 +93,10 @@ class RedisStorage(StorageBackend):
 
         Returns result_id for retrieval.
         """
+        import uuid
+
         client = await self._get_client()
-        result_id = result.result_id
+        result_id = str(uuid.uuid4())
         key = self._make_key(f"result:{result_id}")
 
         # Serialize result
@@ -113,43 +119,43 @@ class RedisStorage(StorageBackend):
         return result_id
 
     async def _save_thoughts(self, result_id: str, result: SifakaResult) -> None:
-        """Save thoughts in a more accessible format."""
+        """Save thoughts as a simple list."""
         client = await self._get_client()
 
-        # Create a thoughts stream for real-time monitoring
-        stream_key = self._make_key(f"thoughts:{result_id}")
+        # Save thoughts as a JSON list
+        thoughts_key = self._make_key(f"thoughts:{result_id}")
+        thoughts_data = []
 
-        # Add each critique as a stream entry
         for i, critique in enumerate(result.critiques):
-            thought_data = {
-                "iteration": str(i + 1),
+            thought = {
+                "iteration": i + 1,
                 "critic": critique.critic,
                 "feedback": critique.feedback,
-                "confidence": str(critique.confidence),
-                "needs_improvement": str(critique.needs_improvement),
+                "confidence": critique.confidence,
+                "needs_improvement": critique.needs_improvement,
                 "timestamp": (
-                    critique.timestamp.isoformat() if critique.timestamp else ""
+                    critique.timestamp.isoformat() if critique.timestamp else None
                 ),
             }
 
             # Add tool usage if present
             if hasattr(critique, "tools_used") and critique.tools_used:
-                thought_data["tools_used"] = json.dumps(
-                    [
-                        {
-                            "tool_name": tool.tool_name,
-                            "status": tool.status,
-                            "result_count": tool.result_count,
-                        }
-                        for tool in critique.tools_used
-                    ]
-                )
+                thought["tools_used"] = [
+                    {
+                        "tool_name": tool.tool_name,
+                        "status": tool.status,
+                        "result_count": tool.result_count,
+                    }
+                    for tool in critique.tools_used
+                ]
 
-            await client.xadd(stream_key, thought_data)
+            thoughts_data.append(thought)
 
-        # Set TTL on stream
+        # Store as JSON
         if self.ttl > 0:
-            await client.expire(stream_key, self.ttl)
+            await client.setex(thoughts_key, self.ttl, json.dumps(thoughts_data))
+        else:
+            await client.set(thoughts_key, json.dumps(thoughts_data))
 
     async def load(self, result_id: str) -> Optional[SifakaResult]:
         """Load result from Redis."""
@@ -187,9 +193,9 @@ class RedisStorage(StorageBackend):
         key = self._make_key(f"result:{result_id}")
         await client.delete(key)
 
-        # Delete thoughts stream
-        stream_key = self._make_key(f"thoughts:{result_id}")
-        await client.delete(stream_key)
+        # Delete thoughts
+        thoughts_key = self._make_key(f"thoughts:{result_id}")
+        await client.delete(thoughts_key)
 
         # Remove from list
         list_key = self._make_key("results:list")
@@ -218,86 +224,23 @@ class RedisStorage(StorageBackend):
 
         return matches
 
-    async def get_thoughts_stream(self, result_id: str) -> List[Dict[str, Any]]:
-        """Get thoughts as a stream of events (useful for debugging).
+    async def get_thoughts(self, result_id: str) -> List[Dict[str, Any]]:
+        """Get thoughts for a result.
 
         Returns list of thought entries with all details.
         """
         client = await self._get_client()
-        stream_key = self._make_key(f"thoughts:{result_id}")
+        thoughts_key = self._make_key(f"thoughts:{result_id}")
 
-        # Read all entries from stream
-        entries = await client.xrange(stream_key)
+        # Get thoughts JSON
+        data = await client.get(thoughts_key)
+        if not data:
+            return []
 
-        thoughts = []
-        for entry_id, data in entries:
-            thought = {
-                "id": entry_id,
-                "iteration": int(data.get("iteration", 0)),
-                "critic": data.get("critic", ""),
-                "feedback": data.get("feedback", ""),
-                "confidence": float(data.get("confidence", 0)),
-                "needs_improvement": data.get("needs_improvement", "").lower()
-                == "true",
-                "timestamp": data.get("timestamp", ""),
-            }
-
-            # Parse tools if present
-            if "tools_used" in data:
-                thought["tools_used"] = json.loads(data["tools_used"])
-
-            thoughts.append(thought)
-
-        return thoughts
-
-    async def watch_thoughts(self, result_id: str, callback):
-        """Watch thoughts in real-time (useful for live debugging).
-
-        Args:
-            result_id: Result to watch
-            callback: Async function called with each new thought
-        """
-        client = await self._get_client()
-        stream_key = self._make_key(f"thoughts:{result_id}")
-        last_id = "$"  # Start with latest
-
-        while True:
-            # Read new entries
-            entries = await client.xread({stream_key: last_id}, block=1000)
-
-            for stream, messages in entries:
-                for msg_id, data in messages:
-                    thought = {
-                        "id": msg_id,
-                        "iteration": int(data.get("iteration", 0)),
-                        "critic": data.get("critic", ""),
-                        "feedback": data.get("feedback", ""),
-                        "confidence": float(data.get("confidence", 0)),
-                    }
-                    await callback(thought)
-                    last_id = msg_id
+        return json.loads(data)
 
     async def cleanup(self) -> None:
         """Close Redis connection."""
         if self._client:
             await self._client.close()
             self._client = None
-
-
-# Convenience function for quick Redis monitoring
-async def monitor_thoughts(result_id: str, redis_host: str = "localhost"):
-    """Monitor thoughts in real-time from Redis.
-
-    Example:
-        # In another terminal while Sifaka is running:
-        python -c "import asyncio; from sifaka.storage.redis import monitor_thoughts; asyncio.run(monitor_thoughts('your-result-id'))"
-    """
-    storage = RedisStorage(host=redis_host)
-
-    async def print_thought(thought):
-        print(f"\n[{thought['iteration']}] {thought['critic']}")
-        print(f"Confidence: {thought['confidence']:.2f}")
-        print(f"Feedback: {thought['feedback'][:200]}...")
-
-    print(f"Monitoring thoughts for {result_id}...")
-    await storage.watch_thoughts(result_id, print_thought)

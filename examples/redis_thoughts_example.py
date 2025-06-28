@@ -1,6 +1,6 @@
-"""Example of using Redis storage for real-time thought monitoring.
+"""Example of using Redis storage for persisting thoughts.
 
-This shows the easiest way to store and monitor intermediate thoughts in Redis.
+This shows the easiest way to store and retrieve intermediate thoughts in Redis.
 """
 
 import asyncio
@@ -45,40 +45,34 @@ async def main() -> None:
                 temperature=0.7,
                 critic_model="gpt-3.5-turbo",  # Use faster model for demo
             ),
-            storage=storage,  # This stores everything in Redis!
         )
 
         print("\n✅ Improvement complete!")
-        print(f"📝 Result ID: {result.result_id}")
+        # Save to Redis and get the ID
+        result_id = await storage.save(result)
+        print(f"📝 Result ID: {result_id}")
         print(f"🔄 Iterations: {result.iteration}")
         print()
 
         # Show how to access thoughts from Redis
         print("📊 Retrieving thoughts from Redis...")
-        thoughts = await storage.get_thoughts_stream(result.result_id)
+        thoughts = await storage.get_thoughts(result_id)
 
         for thought in thoughts:
             print(f"\n[Iteration {thought['iteration']}] {thought['critic']}")
             print(f"Confidence: {thought['confidence']:.2f}")
             print(f"Feedback preview: {thought['feedback'][:150]}...")
 
-        # Show real-time monitoring command
-        print("\n💡 To monitor thoughts in real-time from another terminal:")
+        # Show how to access stored data
+        print("\n💡 To access thoughts from Redis CLI:")
         print("   redis-cli")
-        print(
-            f"   > XREAD BLOCK 0 STREAMS {storage.prefix}thoughts:{result.result_id} $"
-        )
-        print()
-        print("Or use the Python monitor:")
-        print(
-            f"   python -c \"import asyncio; from sifaka.storage.redis import monitor_thoughts; asyncio.run(monitor_thoughts('{result.result_id}'))\""
-        )
+        print(f"   > GET {storage.prefix}thoughts:{result_id}")
 
         # List recent results
         print("\n📋 Recent results in Redis:")
         recent = await storage.list(limit=5)
-        for r in recent:
-            print(f"   - {r.result_id[:8]}... ({len(r.final_text)} chars)")
+        for i, r in enumerate(recent):
+            print(f"   - Result {i+1}: {len(r.final_text)} chars")
 
         await storage.cleanup()
 
@@ -92,46 +86,13 @@ async def main() -> None:
         print(f"❌ Error: {e}")
 
 
-async def demonstrate_live_monitoring():
-    """Show how to monitor a running improvement in real-time."""
-
-    print("\n\n🔍 Live Monitoring Demo")
-    print("=" * 50)
-
-    storage = RedisStorage(prefix="sifaka:live:")
-
-    # Start improvement in background
-    async def background_improvement():
-        await improve(
-            "Write a compelling introduction to Redis for developers.",
-            critics=["self_refine", "constitutional", "meta_rewarding"],
-            max_iterations=5,
-            storage=storage,
-        )
-
-    # Start monitoring (in practice, this would be in another process)
-    print("Starting improvement in background...")
-    print("In production, run the monitor in a separate terminal")
-    print()
-
-    # Just show the concept
-    task = asyncio.create_task(background_improvement())
-    await asyncio.sleep(1)  # Let it start
-
-    print("Monitor would show thoughts as they're generated...")
-    await task
-
-
 if __name__ == "__main__":
     print("Prerequisites:")
-    print("1. Install Redis: brew install redis")
-    print("2. Start Redis: redis-server")
-    print("3. Install Python client: pip install redis")
+    print("1. Start Redis with Docker: docker run -d -p 6379:6379 redis")
+    print("2. Install Python client: pip install redis")
     print()
 
     if not os.getenv("OPENAI_API_KEY") and not os.getenv("ANTHROPIC_API_KEY"):
         print("❌ Please set OPENAI_API_KEY or ANTHROPIC_API_KEY")
     else:
         asyncio.run(main())
-        # Uncomment to see live monitoring demo:
-        # asyncio.run(demonstrate_live_monitoring())

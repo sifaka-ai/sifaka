@@ -110,6 +110,19 @@ class Config(BaseModel):
         default=None, description="Custom principles for Constitutional AI critic"
     )
 
+    # Style critic settings
+    style_reference_text: Optional[str] = Field(
+        default=None, description="Reference text for Style critic"
+    )
+
+    style_description: Optional[str] = Field(
+        default=None, description="Description of target style for Style critic"
+    )
+
+    style_examples: Optional[List[str]] = Field(
+        default=None, description="Example phrases in target style for Style critic"
+    )
+
     # Tool settings
     enable_tools: bool = Field(
         default=False, description="Enable tool usage for critics"

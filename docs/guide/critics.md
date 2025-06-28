@@ -1,128 +1,127 @@
-# Critics Guide
+# Critics Quick Guide
 
-Critics are the core of Sifaka's text improvement system. They analyze text and provide feedback based on different methodologies from AI research.
+This guide provides a quick reference for using critics in Sifaka. For detailed documentation including parameters and customization options, see the [comprehensive critics overview](../critics/overview.md).
 
-## Available Critics
+## What are Critics?
 
-### Reflexion
-Learn from iterative attempts by reflecting on previous improvements.
+Critics are AI-powered text analyzers that provide feedback to improve your content. Each critic uses different techniques from AI research papers.
+
+> **Default Critic**: When no critics are specified, Sifaka uses **"reflexion"** by default.
+
+## Basic Usage
 
 ```python
 from sifaka import improve
 
+# Use default critic (reflexion)
+result = await improve("Your text here")
+
+# Specify critics explicitly
+result = await improve("Your text here", critics=["self_rag", "constitutional"])
+
+# Use multiple critics
 result = await improve(
     "Your text here",
-    critics=["reflexion"],
+    critics=["reflexion", "self_refine", "meta_rewarding"],
     max_iterations=3
 )
 ```
 
-### Self-RAG
-Analyze factual accuracy and identify where external information would help.
+## Available Critics at a Glance
 
+| Critic | Best For | Key Feature |
+|--------|----------|-------------|
+| **reflexion** (default) | General improvement | Uses memory of previous feedback |
+| **self_rag** | Fact-checking | Can use web search for verification |
+| **constitutional** | Ethics & safety | Applies customizable principles |
+| **n_critics** | Multiple perspectives | Evaluates from different viewpoints |
+| **self_consistency** | Technical accuracy | Consensus from multiple evaluations |
+| **meta_rewarding** | Quality optimization | Three-stage evaluation process |
+| **self_refine** | Polish & style | Six quality dimensions |
+| **style** | Voice matching | Transform to match reference style |
+
+## Quick Examples
+
+### Fact-Checking with Self-RAG
 ```python
+from sifaka import Config
+
+config = Config(enable_tools=True)
 result = await improve(
-    "The Earth orbits the Moon every 24 hours.",
-    critics=["self_rag"]
+    "The Eiffel Tower was built in 1850 by Napoleon.",
+    critics=["self_rag"],
+    config=config
 )
 ```
 
-### Constitutional AI
-Apply ethical principles and guidelines to improve text quality.
-
-```python
-result = await improve(
-    "Write persuasive marketing copy",
-    critics=["constitutional"]
-)
-```
-
-### N-Critics
-Get feedback from multiple perspectives simultaneously.
-
+### Multiple Perspectives with N-Critics
 ```python
 from sifaka.critics.n_critics import NCriticsCritic
 
-critic = NCriticsCritic(
-    perspectives={
-        "Technical Expert": "Focus on accuracy",
-        "General Reader": "Focus on clarity"
-    }
-)
-
-result = await improve(
-    "Technical documentation",
-    critics=[critic]
-)
+critic = NCriticsCritic(perspectives={
+    "Technical": "Focus on accuracy",
+    "Reader": "Focus on clarity"
+})
+result = await improve("Technical content", critics=[critic])
 ```
 
-### Self-Consistency
-Evaluate consistency across multiple evaluations.
-
+### Ethical Review with Constitutional
 ```python
-result = await improve(
-    "Complex argument",
-    critics=["self_consistency"]
+config = Config(
+    constitutional_principles=[
+        "Be helpful and harmless",
+        "Avoid bias"
+    ]
 )
+result = await improve(text, critics=["constitutional"], config=config)
 ```
 
-### Meta-Rewarding
-Self-evaluate and reward high-quality improvements.
-
+### Style Matching
 ```python
-result = await improve(
-    "Draft content",
-    critics=["meta_rewarding"]
+from sifaka.critics.style import StyleCritic
+
+critic = StyleCritic(
+    reference_text="Your brand voice examples...",
+    style_description="Friendly and conversational"
 )
+result = await improve("Formal text", critics=[critic])
 ```
 
-### Self-Refine
-General purpose improvement through iterative refinement.
+## Choosing Critics by Task
 
+### For Blog Posts
 ```python
-result = await improve(
-    "Any text",
-    critics=["self_refine"]
-)
+critics = ["reflexion", "self_refine"]  # Clarity and polish
 ```
 
-## Combining Critics
-
-You can use multiple critics together:
-
+### For Technical Documentation
 ```python
-result = await improve(
-    text,
-    critics=["reflexion", "constitutional", "n_critics"],
-    max_iterations=3
-)
+critics = ["self_rag", "self_consistency"]  # Accuracy and consistency
 ```
 
-## Custom Critics
-
-Create your own critic by extending `BaseCritic`:
-
+### For Marketing Copy
 ```python
-from sifaka.critics.core.base import BaseCritic
-
-class MyCritic(BaseCritic):
-    @property
-    def name(self) -> str:
-        return "my_critic"
-
-    async def critique(self, text: str, result: SifakaResult) -> CritiqueResult:
-        # Your critique logic here
-        pass
+critics = ["meta_rewarding", "n_critics"]  # Engagement and perspectives
 ```
 
-## Choosing the Right Critic
+### For Academic Writing
+```python
+critics = ["self_rag", "constitutional", "self_consistency"]  # Accuracy and ethics
+```
 
-| Use Case | Recommended Critics |
-|----------|-------------------|
-| Technical accuracy | self_rag, constitutional |
-| Creative writing | reflexion, self_refine |
-| Multiple viewpoints | n_critics |
-| Consistency | self_consistency |
-| General improvement | self_refine, meta_rewarding |
+## Advanced Usage
 
-See the examples in this guide for detailed recommendations on when to use each critic.
+For detailed information about:
+- Critic parameters and customization
+- Performance optimization
+- Creating custom critics
+- Configuration options
+
+See the [comprehensive critics documentation](../critics/overview.md).
+
+## Related Guides
+
+- [Basic Usage](basic-usage.md) - Getting started with Sifaka
+- [Configuration](configuration.md) - Detailed configuration options
+- [Validators](validators.md) - Additional quality checks
+- [Advanced Usage](advanced-usage.md) - Complex workflows

@@ -177,12 +177,15 @@ for result_id in all_results:
 ## Error Handling
 
 ```python
+from sifaka import improve, Config
 from sifaka.core.exceptions import TimeoutError
+
+config = Config(timeout_seconds=30)  # Short timeout
 
 try:
     result = await improve(
         text,
-        timeout_seconds=30   # Short timeout
+        config=config
     )
 except TimeoutError:
     print("Operation timed out")
@@ -223,7 +226,7 @@ for i, gen in enumerate(result.generations):
 ## Next Steps
 
 - Read the full [API documentation](API.md)
-- Explore [comprehensive examples](examples.py)
+- Explore [example scripts](../examples/) in the examples directory
 - Check out the [research papers](README.md#critics) behind each critic
 - Join the community for tips and best practices
 
@@ -254,7 +257,7 @@ result = await improve(
 ## Getting Help
 
 - **Documentation**: Full API reference in [API.md](API.md)
-- **Examples**: Comprehensive examples in [examples.py](examples.py)
+- **Examples**: See the [examples directory](../examples/) for working code samples
 - **Issues**: Report bugs on GitHub
 - **Community**: Join discussions for tips and use cases
 

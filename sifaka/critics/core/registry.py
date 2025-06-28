@@ -98,6 +98,7 @@ def register_builtin_critics() -> None:
     from ..self_rag import SelfRAGCritic
     from ..meta_rewarding import MetaRewardingCritic
     from ..self_consistency import SelfConsistencyCritic
+    from ..style import StyleCritic
     from ..prompt import PromptCritic
 
     CriticRegistry.register("reflexion", ReflexionCritic, ["reflection"])
@@ -117,6 +118,7 @@ def register_builtin_critics() -> None:
         SelfConsistencyCritic,
         ["selfconsistency", "self-consistency"],
     )
+    CriticRegistry.register("style", StyleCritic, ["style_match", "voice"])
     CriticRegistry.register("prompt", PromptCritic, ["custom"])
 
 

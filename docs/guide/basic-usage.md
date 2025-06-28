@@ -30,10 +30,13 @@ For basic usage examples, see:
 ### Using Different Critics
 
 ```python
-# Single critic
+# Default critic (reflexion is used when none specified)
+result = await improve("Explain quantum computing")
+
+# Explicitly specify single critic
 result = await improve(
     "Explain quantum computing",
-    critics=["reflexion"]
+    critics=["reflexion"]  # Same as default
 )
 
 # Multiple critics

@@ -30,7 +30,8 @@ dependencies = [
     "openai>=1.82.0",
     "httpx>=0.28.1",
     "python-dotenv>=1.0.1",
-    "aiofiles>=24.1.0",  # Required for FileStorage backend
+    "aiofiles>=24.1.0", # Required for FileStorage backend
+    "logfire>=3.21.1",
 ]
 
 [project.optional-dependencies]

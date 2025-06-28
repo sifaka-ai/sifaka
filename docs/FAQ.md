@@ -33,6 +33,16 @@ Sifaka itself is free and open-source. However, you'll need to pay for API calls
 
 Use the `pricing` module to estimate costs before running improvements.
 
+### What is the default critic when none is specified?
+
+When you don't specify any critics, Sifaka automatically uses **"reflexion"** as the default critic. This provides general-purpose text improvement suitable for most use cases.
+
+```python
+# These two are equivalent:
+result = await improve("Your text")  # Uses reflexion by default
+result = await improve("Your text", critics=["reflexion"])
+```
+
 ## Common Integration Patterns
 
 ### How do I use Sifaka in a web application?
@@ -45,9 +55,9 @@ app = FastAPI()
 
 @app.post("/improve")
 async def improve_text(text: str, max_iterations: int = 3):
+    # Note: reflexion is the default critic if none specified
     result = await improve(
         text,
-        critics=["reflexion"],
         max_iterations=max_iterations
     )
     return {
@@ -151,7 +161,8 @@ async def monitor_improvements(text):
    import asyncio
 
    async def batch_improve(texts):
-       tasks = [improve(text, critics=["reflexion"]) for text in texts]
+       # Uses reflexion (default) critic for each text
+       tasks = [improve(text) for text in texts]
        return await asyncio.gather(*tasks)
    ```
 
@@ -169,8 +180,8 @@ async def monitor_improvements(text):
 
 2. **Use fewer critics**:
    ```python
-   # Fast single critic
-   improve_sync(text, critics=["reflexion"], max_iterations=1)
+   # Fast single critic (reflexion is default)
+   improve_sync(text, max_iterations=1)
    ```
 
 3. **Use simpler critics for drafts**:

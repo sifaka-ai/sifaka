@@ -8,6 +8,7 @@ from .n_critics import NCriticsCritic
 from .self_rag import SelfRAGCritic
 from .meta_rewarding import MetaRewardingCritic
 from .self_consistency import SelfConsistencyCritic
+from .style import StyleCritic, style_critic_from_file
 from .prompt import PromptCritic, create_academic_critic
 from .core.factory import (
     CriticFactory,
@@ -30,6 +31,7 @@ __all__ = [
     "SelfRAGCritic",
     "MetaRewardingCritic",
     "SelfConsistencyCritic",
+    "StyleCritic",
     "PromptCritic",
     # Factory
     "CriticFactory",
@@ -41,4 +43,5 @@ __all__ = [
     "CriticRegistry",
     # Factory functions
     "create_academic_critic",
+    "style_critic_from_file",
 ]

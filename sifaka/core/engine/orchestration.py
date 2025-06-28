@@ -7,6 +7,11 @@ from ..models import SifakaResult, CritiqueResult
 from ..interfaces import Critic
 from ...critics import create_critics
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..config import Config
+
 
 class CriticOrchestrator:
     """Orchestrates critic execution and feedback collection."""
@@ -18,6 +23,7 @@ class CriticOrchestrator:
         temperature: float,
         critic_model: Optional[str] = None,
         critic_temperature: Optional[float] = None,
+        config: Optional["Config"] = None,
     ):
         """Initialize orchestrator.
 
@@ -31,6 +37,7 @@ class CriticOrchestrator:
         self.critic_names = critic_names
         self.model = critic_model or model
         self.temperature = critic_temperature or temperature
+        self.config = config
         self._critics: Optional[List[Critic]] = None
 
     @property
@@ -38,7 +45,10 @@ class CriticOrchestrator:
         """Get or create critics."""
         if self._critics is None:
             self._critics = create_critics(
-                self.critic_names, model=self.model, temperature=self.temperature
+                self.critic_names,
+                model=self.model,
+                temperature=self.temperature,
+                config=self.config,
             )
         return self._critics
 
