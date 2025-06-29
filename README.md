@@ -15,11 +15,23 @@ Sifaka improves AI-generated text through iterative critique using research-back
 
 **Core Value**: See exactly how AI improves your text through research-backed techniques with complete audit trails.
 
-## Quick Start
+## Installation
+
+> **Note**: Sifaka will be available on PyPI in October 2025. Until then, install from source:
 
 ```bash
-pip install sifaka
+# Clone the repository
+git clone https://github.com/sifaka-ai/sifaka
+cd sifaka
+
+# Install with uv (recommended)
+uv pip install -e .
+
+# Or with standard pip
+pip install -e .
 ```
+
+## Quick Start
 
 ```python
 from sifaka import improve_sync
@@ -55,7 +67,6 @@ print(result.final_text)
 
 ### Architecture & Development
 - **[Architecture Overview](docs/architecture.md)** - System design
-- **[Architecture Decisions](docs/decisions/)** - Technical decisions
 - **[Contributing](CONTRIBUTING.md)** - How to contribute
 - **[Changelog](CHANGELOG.md)** - Version history
 
@@ -73,6 +84,7 @@ Sifaka implements these peer-reviewed techniques:
 - **[Self-RAG](https://arxiv.org/abs/2310.11511)** - Retrieval-augmented critique
 - **[Meta-Rewarding](https://arxiv.org/abs/2407.19594)** - Two-stage meta-evaluation
 - **[Self-Consistency](https://arxiv.org/abs/2203.11171)** - Multiple reasoning paths
+- **Style** - Transform text to match specific writing styles and voices
 
 ## Development
 

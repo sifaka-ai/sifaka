@@ -4,8 +4,18 @@ Get up and running with Sifaka in 5 minutes.
 
 ## Installation
 
+> **Note**: Sifaka will be available on PyPI in October 2025. Until then, install from source:
+
 ```bash
-pip install sifaka
+# Clone the repository
+git clone https://github.com/sifaka-ai/sifaka
+cd sifaka
+
+# Install with uv (recommended)
+uv pip install -e .
+
+# Or with standard pip
+pip install -e .
 ```
 
 ## Basic Setup
@@ -44,7 +54,7 @@ result = await improve(
 Enhance research papers and academic content:
 
 ```python
-from sifaka.validators import LengthValidator
+from sifaka.validators.basic import LengthValidator
 
 result = await improve(
     "Write an abstract for machine learning research",
@@ -101,7 +111,7 @@ result = await improve(
 ### Complete Example
 ```python
 from sifaka import improve, Config
-from sifaka.validators import LengthValidator
+from sifaka.validators.basic import LengthValidator
 
 config = Config(
     model="gpt-4o-mini",
@@ -122,7 +132,7 @@ result = await improve(
 
 ### Length Requirements
 ```python
-from sifaka.validators import LengthValidator
+from sifaka.validators.basic import LengthValidator
 
 result = await improve(
     "Short text that needs expansion",
@@ -133,7 +143,7 @@ result = await improve(
 
 ### Content Requirements
 ```python
-from sifaka.validators import ContentValidator
+from sifaka.validators.basic import ContentValidator
 
 result = await improve(
     "Write about research methodology",
@@ -148,7 +158,7 @@ result = await improve(
 
 ### Save Results
 ```python
-from sifaka.storage import FileStorage
+from sifaka.storage.file import FileStorage
 
 storage = FileStorage("./my_results")
 
@@ -234,7 +244,10 @@ for i, gen in enumerate(result.generations):
 
 ### "No module named 'sifaka'"
 ```bash
-pip install sifaka
+# Install from source (current method)
+git clone https://github.com/sifaka-ai/sifaka
+cd sifaka
+uv pip install -e .
 ```
 
 ### "Authentication failed"

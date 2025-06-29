@@ -115,7 +115,7 @@ result = await improve(text, critics=[custom_critic])
 
 #### LengthValidator
 ```python
-from sifaka.validators import LengthValidator
+from sifaka.validators.basic import LengthValidator
 
 validator = LengthValidator(min_length=100, max_length=1000)
 result = await improve(text, validators=[validator])
@@ -123,7 +123,7 @@ result = await improve(text, validators=[validator])
 
 #### ContentValidator
 ```python
-from sifaka.validators import ContentValidator
+from sifaka.validators.basic import ContentValidator
 
 validator = ContentValidator(
     required_terms=["methodology", "results"],
@@ -135,7 +135,7 @@ result = await improve(text, validators=[validator])
 
 #### FormatValidator
 ```python
-from sifaka.validators import FormatValidator
+from sifaka.validators.basic import FormatValidator
 
 validator = FormatValidator(
     require_punctuation=True,
@@ -147,7 +147,7 @@ result = await improve(text, validators=[validator])
 
 #### PatternValidator
 ```python
-from sifaka.validators import PatternValidator
+from sifaka.validators.basic import PatternValidator
 
 # Validate email format
 email_validator = PatternValidator(
@@ -159,7 +159,7 @@ result = await improve(text, validators=[email_validator])
 
 #### NumericRangeValidator
 ```python
-from sifaka.validators import NumericRangeValidator
+from sifaka.validators.basic import NumericRangeValidator
 
 # Validate word count
 word_count_validator = NumericRangeValidator(
@@ -225,7 +225,7 @@ result = await improve(text, config=config)
 
 ### MemoryStorage (Default)
 ```python
-from sifaka.storage import MemoryStorage
+from sifaka.storage.memory import MemoryStorage
 
 storage = MemoryStorage()
 result = await improve(text, storage=storage)
@@ -233,7 +233,7 @@ result = await improve(text, storage=storage)
 
 ### FileStorage
 ```python
-from sifaka.storage import FileStorage
+from sifaka.storage.file import FileStorage
 
 storage = FileStorage(storage_dir="./results")
 result = await improve(text, storage=storage)
@@ -388,7 +388,7 @@ avg_confidence = sum(r.confidence for r in results) / len(results)
 - `OPENAI_API_KEY`: OpenAI API key for GPT models
 - `ANTHROPIC_API_KEY`: Anthropic API key for Claude models
 - `GROQ_API_KEY`: Groq API key for Llama models
-- `GEMINI_API_KEY`: Google API key for Gemini models
+- `GOOGLE_API_KEY`: Google API key for Gemini models
 
 ## Best Practices
 

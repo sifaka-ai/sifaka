@@ -7,15 +7,31 @@
 
 ## Basic Installation
 
-Install Sifaka using pip:
+> **Note**: Sifaka will be available on PyPI in October 2025. Until then, please install from source.
+
+### Install from Source (Current Method)
 
 ```bash
-pip install sifaka
+# Clone the repository
+git clone https://github.com/sifaka-ai/sifaka
+cd sifaka
+
+# Install with uv (recommended)
+uv pip install -e .
+
+# Or with standard pip
+pip install -e .
 ```
 
-Or using uv (recommended):
+### Install from PyPI (Available October 2025)
+
+Once released, you'll be able to install directly:
 
 ```bash
+# With pip
+pip install sifaka
+
+# With uv (recommended)
 uv pip install sifaka
 ```
 
@@ -24,6 +40,8 @@ uv pip install sifaka
 Sifaka supports various LLM providers and features through optional dependencies:
 
 ### Model Providers
+
+When installing from source, optional dependencies are included. Once available on PyPI:
 
 ```bash
 # For Anthropic (Claude)
@@ -46,8 +64,11 @@ pip install sifaka[tools]
 ### Development
 
 ```bash
-# For development and testing
-pip install sifaka[dev]
+# For development and testing (when installing from source)
+uv pip install -e ".[dev]"
+
+# Or with pip
+pip install -e ".[dev]"
 ```
 
 ## Setting Up API Keys
@@ -119,4 +140,4 @@ python --version
 
 - Follow the [Quickstart Guide](quickstart.md)
 - Read the [Basic Usage Guide](guide/basic-usage.md)
-- Explore [Available Critics](critics/overview.md)
+- Explore [Available Critics](guide/critics.md)

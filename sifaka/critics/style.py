@@ -136,27 +136,53 @@ class StyleCritic(BaseCritic):
         # Build style guidance
         style_guidance = self._build_style_guidance()
 
-        user_prompt = f"""Analyze this text and provide feedback on how well it matches the target style:
+        user_prompt = f"""Analyze this text's style compared to the target style.
 
-Text to analyze:
+TEXT TO ANALYZE:
 {text}
 {previous_context}
 
 {style_guidance}
 
-Please:
-1. Analyze how well the text matches the target style
-2. Identify specific areas where the style differs
-3. Provide actionable suggestions for style alignment
-4. Consider tone, voice, sentence structure, vocabulary, and rhythm
-5. Give an alignment score (0.0 = completely different, 1.0 = perfect match)
+PROVIDE SPECIFIC ANALYSIS:
 
-Focus on style and voice rather than content accuracy or completeness."""
+1. STYLE PATTERNS FOUND:
+   - Sentence structure (simple/complex, length variation)
+   - Voice (active/passive ratio)
+   - Tone markers (formal/informal words)
+   - Punctuation style
+   
+2. SPECIFIC MISMATCHES:
+   - Quote exact phrases that don't match the target style
+   - Explain WHY each doesn't match
+   - Show how the target style would handle it
+
+3. ACTIONABLE CHANGES:
+   - List 3-5 specific rewrites with before/after examples
+   - Focus on the most impactful changes first
+   - Be precise: "Change X to Y" not "consider changing"
+
+4. ALIGNMENT SCORE: X/10 (convert to 0.0-1.0 scale)
+   - Vocabulary match (0.3 weight)
+   - Sentence structure match (0.3 weight)  
+   - Tone/voice match (0.4 weight)
+
+Set needs_improvement=true if alignment < 0.8
+
+Be specific and actionable. Show, don't just tell."""
 
         return [
             {
                 "role": "system",
-                "content": "You are a style expert who helps writers match specific writing styles, voices, and tones. You analyze text for style characteristics and provide specific, actionable feedback on achieving the target style.",
+                "content": """You are an expert writing style analyst and editor. Your role is to:
+
+1. Identify SPECIFIC style patterns (not just "formal" or "casual")
+2. Give CONCRETE examples from the text showing style mismatches
+3. Provide EXACT rewriting suggestions, not vague advice
+4. Focus on measurable aspects: sentence length, word choice, punctuation, voice
+5. Ignore content/accuracy - ONLY evaluate writing style
+
+When analyzing, be extremely specific. Instead of "make it more formal", say "replace 'got' with 'obtained', remove contractions like 'don't' → 'do not', increase average sentence length from 12 to 18 words".""",
             },
             {"role": "user", "content": user_prompt},
         ]
@@ -166,7 +192,7 @@ Focus on style and voice rather than content accuracy or completeness."""
         sections = []
 
         if self.style_description:
-            sections.append(f"Target Style Description:\n{self.style_description}")
+            sections.append(f"TARGET STYLE REQUIREMENTS:\n{self.style_description}")
 
         if self.reference_text:
             # Truncate if too long
@@ -175,22 +201,34 @@ Focus on style and voice rather than content accuracy or completeness."""
                 if len(self.reference_text) > 2000
                 else self.reference_text
             )
-            sections.append(f"Reference Text (exemplifying target style):\n{ref_text}")
+            sections.append(f"""REFERENCE TEXT TO MATCH:
+{ref_text}
+
+Key style elements to extract from this reference:
+- Typical sentence length and structure
+- Common phrases and word choices  
+- Tone and formality level
+- Punctuation and formatting patterns
+- Voice (first/third person, active/passive)""")
 
         if self.style_examples:
             examples = "\n".join(
                 f"- {ex}" for ex in self.style_examples[:10]
             )  # Limit to 10 examples
-            sections.append(f"Style Examples:\n{examples}")
+            sections.append(f"""SPECIFIC STYLE EXAMPLES TO INCORPORATE:
+{examples}
+
+Use these exact phrases or similar patterns where appropriate.""")
 
         if not sections:
-            # Default guidance if nothing specific provided
+            # More specific default guidance
             sections.append(
-                """Target Style: Professional and clear writing that:
-- Uses active voice and concrete language
-- Maintains consistent tone throughout
-- Balances clarity with engagement
-- Follows standard style conventions"""
+                """TARGET STYLE: Clear, professional writing with:
+- Active voice (>80% of sentences)
+- Average sentence length: 15-20 words
+- Minimal jargon
+- Consistent present tense
+- Direct, declarative statements"""
             )
 
         return "\n\n".join(sections)

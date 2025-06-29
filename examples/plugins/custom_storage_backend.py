@@ -14,7 +14,12 @@ from datetime import datetime
 # import redis
 
 from sifaka.storage.base import StorageBackend
-from sifaka.core.models import SifakaResult
+from sifaka.core.models import (
+    SifakaResult,
+    Generation,
+    CritiqueResult,
+    ValidationResult,
+)
 
 
 class RedisStorageBackend(StorageBackend):
@@ -56,18 +61,15 @@ class RedisStorageBackend(StorageBackend):
 
     async def save(self, result: SifakaResult) -> str:
         """Save a SifakaResult to Redis."""
-        key = f"{self.prefix}{result.id}"
-
         # Serialize result to JSON
         data = {
             "id": result.id,
             "original_text": result.original_text,
             "final_text": result.final_text,
             "iteration": result.iteration,
-            "generations": [g.dict() for g in result.generations],
-            "critiques": [c.dict() for c in result.critiques],
-            "validations": [v.dict() for v in result.validations],
-            "total_cost": result.total_cost,
+            "generations": [g.model_dump() for g in result.generations],
+            "critiques": [c.model_dump() for c in result.critiques],
+            "validations": [v.model_dump() for v in result.validations],
             "processing_time": result.processing_time,
             "created_at": result.created_at.isoformat(),
             "updated_at": result.updated_at.isoformat(),
@@ -84,8 +86,6 @@ class RedisStorageBackend(StorageBackend):
 
     async def load(self, result_id: str) -> Optional[SifakaResult]:
         """Load a SifakaResult from Redis."""
-        key = f"{self.prefix}{result_id}"
-
         # In production:
         # data = self.client.get(key)
         # if not data:
@@ -109,7 +109,6 @@ class RedisStorageBackend(StorageBackend):
             generations=[Generation(**g) for g in data["generations"]],
             critiques=[CritiqueResult(**c) for c in data["critiques"]],
             validations=[ValidationResult(**v) for v in data["validations"]],
-            total_cost=data["total_cost"],
             processing_time=data["processing_time"],
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
@@ -129,8 +128,6 @@ class RedisStorageBackend(StorageBackend):
 
     async def delete(self, result_id: str) -> bool:
         """Delete a stored result."""
-        key = f"{self.prefix}{result_id}"
-
         # In production:
         # return bool(self.client.delete(key))
 

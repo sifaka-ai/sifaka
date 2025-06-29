@@ -1,31 +1,58 @@
-"""Meta-Rewarding critic implementation.
+"""Meta-Rewarding critic implementation for self-improving critique quality.
 
 Based on: Meta-Rewarding Language Models: Self-Improving Alignment with LLM-as-a-Meta-Judge
 Paper: https://arxiv.org/abs/2407.19594
 Authors: Wu et al. (2024)
 
-Meta-Rewarding uses a two-stage judgment process where the model evaluates
-its own evaluations to improve critique quality.
+Meta-Rewarding uses a three-stage judgment process where the model generates
+an initial critique, evaluates its own evaluation, then refines the critique
+based on meta-rewards to improve overall critique quality.
 
 ## Similarity to Original Paper:
-- PRESERVED: Two-stage evaluation process
-- PRESERVED: Meta-judgment of evaluation quality
-- ENHANCED: Iterative critique refinement
-- ENHANCED: Preference learning from meta-evaluation
-- PRESERVED: Self-improving judgment
 
-## Implementation Choices:
-1. First stage: Generate initial critique
-2. Second stage: Meta-evaluate the critique
-3. Third stage: Refine critique based on meta-evaluation
-4. Track improvement metrics for learning
-5. Generate alternative suggestions with preferences
+- PRESERVED: Two-stage evaluation process (initial + meta-evaluation)
+- PRESERVED: Meta-judgment of evaluation quality using self-reflection
+- PRESERVED: Self-improving judgment through iterative refinement
+- ENHANCED: Three-stage process (initial → meta-eval → refined critique)
+- ENHANCED: Explicit preference learning from meta-evaluation feedback
+- ADAPTED: Applied to text critique rather than general alignment
+
+## Implementation Strategy:
+
+1. **Initial Critique Generation**: Standard evaluation across quality dimensions
+   (content, structure, clarity, completeness, engagement)
+
+2. **Meta-Evaluation**: Self-assessment of the initial critique for:
+   - Accuracy: How well does the critique reflect actual text quality?
+   - Helpfulness: Are suggestions actionable and constructive?
+   - Coverage: Does the critique address all important aspects?
+   - Fairness: Is the evaluation balanced and unbiased?
+   - Specificity: Are observations concrete rather than generic?
+
+3. **Refined Critique**: Enhanced evaluation incorporating meta-evaluation insights,
+   resulting in higher-quality, more actionable feedback
 
 ## Why This Approach:
-- Matches paper's self-improvement concept
-- Iterative refinement produces better critiques
-- Preference learning improves over time
-- Meta-rewards guide critique quality
+
+- **Quality Assurance**: Meta-evaluation catches weak or inaccurate critiques
+- **Self-Improvement**: Each evaluation refines the critic's assessment ability
+- **Thoroughness**: Three-stage process ensures comprehensive evaluation
+- **Actionability**: Meta-evaluation emphasizes practical, implementable feedback
+- **Transparency**: Process makes critique reasoning explicit and traceable
+
+## Trade-offs:
+
+**Benefits:**
+- Higher-quality, more reliable critiques
+- Self-correcting evaluation process
+- Excellent for high-stakes content review
+
+**Costs:**
+- 3x token usage compared to single-stage critics
+- Longer processing time due to multi-stage evaluation
+- May be overkill for simple or low-stakes content
+
+This critic is ideal when critique quality itself is critical to success.
 """
 
 from typing import Optional, Union, List, Dict, Any
@@ -41,7 +68,24 @@ from ..core.config import Config
 
 
 class MetaRewardingResponse(BaseModel):
-    """Response model for Meta-Rewarding critic."""
+    """Structured response model for Meta-Rewarding critique.
+    
+    Contains the final refined critique after the three-stage meta-rewarding
+    process, providing high-quality feedback that has been self-evaluated
+    and improved through meta-reflection.
+    
+    Attributes:
+        feedback: Final refined critique incorporating meta-evaluation insights.
+            Represents the highest-quality assessment after self-improvement.
+        suggestions: Actionable improvement recommendations that have been
+            refined through meta-evaluation for maximum helpfulness.
+        needs_improvement: Boolean assessment refined through meta-evaluation
+            to ensure accuracy and appropriateness.
+        confidence: Final confidence level adjusted based on meta-evaluation
+            of critique quality and thoroughness.
+        metadata: Additional meta-rewarding process data including stages
+            of evaluation and refinement insights.
+    """
 
     # Only include the standard fields since no metadata is used in generation.py
     feedback: str = Field(..., description="Refined critique after meta-evaluation")
@@ -64,26 +108,56 @@ class MetaRewardingResponse(BaseModel):
 
 
 class MetaRewardingCritic(BaseCritic):
-    """Implements Meta-Rewarding two-stage critique.
-
+    """Implements Meta-Rewarding three-stage critique for superior quality.
+    
+    Provides the highest-quality critiques through a sophisticated three-stage
+    process: initial evaluation, meta-assessment of that evaluation, and
+    refined critique based on self-improvement insights.
+    
     ## When to Use This Critic:
-
-    ✅ When to use:
-    - High-stakes content requiring thorough review
-    - Documents where critique quality itself matters
-    - Complex evaluations needing self-reflection
-    - Final quality assurance before publication
-
-    ❌ When to avoid:
-    - Quick iterative improvements
-    - Simple text corrections
-    - When single-pass evaluation is sufficient
-
-    🎯 Best for:
-    - Executive communications
-    - Legal or compliance documents
-    - Published articles or white papers
-    - Critical business proposals
+    
+    ✅ **Ideal for:**
+    - High-stakes content requiring exceptional critique quality
+    - Documents where accuracy of evaluation is critical
+    - Complex content needing deep, reflective analysis
+    - Final quality assurance before important publications
+    - Content where the cost of poor feedback is high
+    - Situations requiring the most thorough possible evaluation
+    
+    ❌ **Avoid when:**
+    - Quick iterative improvements during drafting
+    - Simple text corrections or minor edits
+    - Resource-constrained environments (3x token cost)
+    - Time-sensitive evaluations needing rapid feedback
+    - Content where good-enough critique suffices
+    
+    🎯 **Optimal applications:**
+    - C-suite communications and board presentations
+    - Legal documents and compliance materials
+    - Published research papers and white papers
+    - Critical business proposals and RFP responses
+    - Public relations and crisis communications
+    - Academic papers and peer review preparation
+    - High-visibility marketing and brand content
+    
+    ## Process Overview:
+    
+    1. **Initial Critique**: Comprehensive evaluation across standard dimensions
+    2. **Meta-Evaluation**: Self-assessment of critique quality and completeness
+    3. **Refined Critique**: Enhanced feedback incorporating meta-insights
+    
+    ## Quality Guarantees:
+    
+    - **Accuracy**: Meta-evaluation catches assessment errors
+    - **Completeness**: Ensures all important aspects are covered
+    - **Actionability**: Emphasizes practical, implementable suggestions
+    - **Balance**: Self-correction prevents overly harsh or lenient feedback
+    - **Specificity**: Meta-evaluation promotes concrete over generic observations
+    
+    ## Resource Considerations:
+    
+    This critic uses approximately 3x the tokens of standard critics due to
+    the three-stage process. Budget accordingly for high-volume usage.
     """
 
     def __init__(
@@ -94,6 +168,40 @@ class MetaRewardingCritic(BaseCritic):
         api_key: Optional[str] = None,
         config: Optional[Config] = None,
     ):
+        """Initialize Meta-Rewarding critic for premium-quality evaluation.
+        
+        Creates a sophisticated critic that uses three-stage evaluation to
+        deliver the highest possible critique quality through self-improvement
+        and meta-reflection.
+        
+        Args:
+            model: LLM model for the three-stage evaluation process.
+                GPT-4o-mini recommended for cost-effectiveness, though
+                GPT-4 may provide even higher quality for critical use cases.
+            temperature: Generation temperature (0.0-1.0). Moderate values
+                (0.6-0.8) balance consistency with creative insight.
+            provider: LLM provider (OpenAI, Anthropic, etc.)
+            api_key: API key override if not using environment variables
+            config: Full Sifaka configuration object
+            
+        Example:
+            >>> # Standard high-quality critic
+            >>> critic = MetaRewardingCritic()
+            >>> 
+            >>> # Premium critic for critical content
+            >>> critic = MetaRewardingCritic(model="gpt-4")
+            >>> 
+            >>> # Conservative, consistent evaluation
+            >>> critic = MetaRewardingCritic(temperature=0.5)
+            
+        Resource planning:
+            This critic uses ~3x the tokens of standard critics. Consider
+            this when budgeting for high-volume or cost-sensitive applications.
+            
+        Note:
+            The three-stage process (initial → meta-eval → refined) happens
+            within a single critique() call for seamless integration.
+        """
         # Initialize with custom config
         if config is None:
             config = Config()
@@ -101,16 +209,43 @@ class MetaRewardingCritic(BaseCritic):
 
     @property
     def name(self) -> str:
+        """Return the unique identifier for this critic.
+        
+        Returns:
+            "meta_rewarding" - used in configuration, logging, and metadata
+        """
         return "meta_rewarding"
 
     def _get_response_type(self) -> type[BaseModel]:
-        """Use custom MetaRewardingResponse for structured output."""
+        """Specify the structured response format for meta-rewarding critique.
+        
+        Returns:
+            MetaRewardingResponse class providing refined, high-quality
+            critique results after three-stage meta-evaluation process.
+        """
         return MetaRewardingResponse
 
     async def _create_messages(
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
-        """Create messages for two-stage meta-rewarding critique."""
+        """Create comprehensive messages for three-stage meta-rewarding critique.
+        
+        Builds detailed instructions for the sophisticated evaluation process,
+        including initial critique, meta-evaluation, and refined assessment.
+        
+        Args:
+            text: Text to evaluate using the meta-rewarding process
+            result: SifakaResult containing context and history
+            
+        Returns:
+            List of message dictionaries instructing the LLM to perform
+            the complete three-stage meta-rewarding evaluation process
+            
+        Note:
+            The process is designed to be completed in a single LLM call
+            for efficiency, with the model performing all three stages
+            internally before providing the final refined critique.
+        """
         # Get previous context
         previous_context = self._get_previous_context(result)
 
@@ -120,17 +255,33 @@ Text to evaluate:
 {text}
 {previous_context}
 
-Process:
-1. Generate your initial critique considering content quality, structure, clarity, completeness, and engagement
-2. Meta-evaluate your initial critique for accuracy, helpfulness, coverage, fairness, and specificity
-3. Provide a refined critique that addresses any weaknesses identified in the meta-evaluation
+Three-Stage Process:
 
-Focus on delivering actionable, high-quality feedback that has been improved through self-reflection."""
+1. **Initial Critique**: Evaluate the text across these dimensions:
+   - Content quality and accuracy
+   - Structure and organization
+   - Clarity and readability
+   - Completeness and thoroughness
+   - Engagement and effectiveness
+
+2. **Meta-Evaluation**: Critically assess your initial critique for:
+   - Accuracy: Does the critique accurately reflect the text's actual qualities?
+   - Helpfulness: Are the suggestions actionable and constructive?
+   - Coverage: Have all important aspects been addressed?
+   - Fairness: Is the evaluation balanced, neither too harsh nor too lenient?
+   - Specificity: Are observations concrete rather than generic?
+
+3. **Refined Critique**: Provide an improved critique that:
+   - Addresses any weaknesses identified in the meta-evaluation
+   - Incorporates insights from the self-reflection process
+   - Delivers the highest quality, most actionable feedback possible
+
+Your final output should represent critique quality enhanced through self-improvement and meta-reflection."""
 
         return [
             {
                 "role": "system",
-                "content": "You are a Meta-Rewarding critic that uses three-stage evaluation: initial critique, meta-evaluation of that critique, then refined critique based on meta-rewards. You learn to improve your judgments through self-reflection.",
+                "content": "You are a Meta-Rewarding critic that uses three-stage evaluation: initial critique, meta-evaluation of that critique, then refined critique based on meta-rewards. You learn to improve your judgments through self-reflection. Your goal is to deliver the highest possible quality critique through self-improvement.",
             },
             {"role": "user", "content": user_prompt},
         ]

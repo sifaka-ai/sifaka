@@ -31,7 +31,7 @@ Sifaka itself is free and open-source. However, you'll need to pay for API calls
 - Model selection
 - Provider pricing
 
-Use the `pricing` module to estimate costs before running improvements.
+To estimate costs, check your LLM provider's pricing documentation.
 
 ### What is the default critic when none is specified?
 

@@ -6,7 +6,6 @@ This directory contains comprehensive documentation for the Sifaka project archi
 
 ### Architecture Documentation
 - **[Architecture Overview](architecture.md)** - High-level system architecture and component relationships
-- **[Design Decisions](decisions/)** - Architectural Decision Records (ADRs) documenting key choices
 
 ### Development Documentation
 - **[Plugin Development](../examples/plugins/README.md)** - Guide for creating Sifaka plugins with examples
@@ -77,10 +76,8 @@ Each critic implements a specific research methodology:
 
 ### For Contributors
 1. **Read the Architecture Overview** first to understand the system
-2. **Review relevant ADRs** before making design changes
-3. **Document new decisions** using the ADR template
-4. **Update examples** when adding new features
-5. **Maintain test coverage** for all components
+2. **Update examples** when adding new features
+3. **Maintain test coverage** for all components
 
 ### For Plugin Developers
 1. **Follow the Plugin Development Guide** for creating extensions
@@ -89,7 +86,7 @@ Each critic implements a specific research methodology:
 4. **Document plugin-specific configuration** options
 
 ### For Users
-1. **Start with the Quick Start Guide** (../QUICKSTART.md)
+1. **Start with the Quick Start Guide** (../quickstart.md)
 2. **Reference the API Documentation** (../API.md) for details
 3. **Explore examples** (../examples/) for usage patterns
 

@@ -1,6 +1,35 @@
-"""Sifaka: Simple AI text improvement through research-backed critique.
+"""Sifaka: AI-powered text improvement through iterative critique.
 
-This is the main API for Sifaka - simple functions that do everything you need.
+Sifaka is a Python framework for improving text using Large Language Models
+(LLMs) and research-backed critique techniques. It provides a simple API
+for iteratively refining text based on structured feedback from multiple
+critics.
+
+## Quick Start:
+
+    >>> from sifaka import improve
+    >>> result = await improve("Write about artificial intelligence")
+    >>> print(result.final_text)
+
+## Key Features:
+
+- **Multiple Critics**: Choose from various critique strategies like
+  reflexion, self-refine, constitutional AI, and more
+- **Iterative Improvement**: Automatically refines text through multiple
+  rounds based on critic feedback  
+- **Quality Validators**: Ensure text meets specific requirements
+- **Full Observability**: Track every step of the improvement process
+- **Extensible**: Add custom critics, validators, and storage backends
+
+## Main Components:
+
+- `improve()`: The primary async function for text improvement
+- `improve_sync()`: Synchronous wrapper for non-async environments
+- `Config`: Configuration object for customizing behavior
+- `SifakaResult`: Contains improved text and complete audit trail
+
+For more information, see the documentation at:
+https://docs.sifaka.ai/
 """
 
 # Core API

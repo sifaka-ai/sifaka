@@ -1,4 +1,14 @@
-"""Core Sifaka engine that coordinates text improvement."""
+"""Core engine that orchestrates the text improvement process.
+
+This module contains the SifakaEngine class which coordinates all components
+of the text improvement pipeline:
+- Critics provide feedback on text quality
+- Validators ensure text meets requirements  
+- Generators create improved versions based on feedback
+- Storage persists results for analysis
+
+The engine manages the iterative improvement loop, handling timeouts,
+errors, and convergence detection."""
 
 import time
 from datetime import datetime
@@ -16,12 +26,43 @@ from .validation import ValidationRunner
 
 
 class SifakaEngine:
-    """Main engine for Sifaka text improvement."""
+    """Central orchestrator for the text improvement process.
+    
+    The SifakaEngine coordinates the interaction between critics, validators,
+    and text generators to iteratively improve text. It implements the core
+    improvement loop:
+    
+    1. Validate current text against requirements
+    2. Run critics to get improvement feedback
+    3. Generate improved text based on feedback
+    4. Repeat until quality targets are met or max iterations reached
+    
+    The engine handles:
+    - Component initialization and configuration
+    - Timeout management to prevent runaway processes
+    - Error handling and recovery
+    - Result persistence through storage backends
+    - Convergence detection based on critic consensus
+    
+    Example:
+        >>> engine = SifakaEngine(config=Config(model="gpt-4"))
+        >>> result = await engine.improve(
+        ...     "Initial text",
+        ...     validators=[LengthValidator(min_length=100)]
+        ... )
+    """
 
     def __init__(
         self, config: Optional[Config] = None, storage: Optional[StorageBackend] = None
     ):
-        """Initialize engine with configuration."""
+        """Initialize the engine with configuration and storage.
+        
+        Args:
+            config: Configuration object controlling all aspects of the
+                improvement process. If not provided, uses defaults.
+            storage: Storage backend for persisting results. If not provided,
+                uses FileStorage with default settings.
+        """
         self.config = config or Config()
         self.storage = storage or FileStorage()
 
@@ -45,9 +86,13 @@ class SifakaEngine:
         self, text: str, validators: Optional[List[Validator]] = None
     ) -> SifakaResult:
         """Improve text through iterative critique and refinement.
+        
+        This is the main entry point that runs the complete improvement
+        pipeline. It coordinates critics, validators, and generators to
+        progressively enhance the input text.
 
         Args:
-            text: Text to improve
+            text: The initial text to improve. Can be any length or format.
             validators: Optional quality validators
 
         Returns:

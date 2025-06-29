@@ -1,4 +1,15 @@
-"""Simplified base critic implementation."""
+"""Base implementation for all Sifaka critics.
+
+This module provides the abstract base class that all critics inherit from.
+It handles common functionality like LLM client management, confidence
+calculation, and standardized response formatting.
+
+Key features:
+- Automatic LLM client creation and management
+- Structured output using Pydantic models
+- Tool support for critics that need external capabilities
+- Confidence calculation based on various factors
+- Comprehensive error handling and traceability"""
 
 import time
 from abc import ABC, abstractmethod
@@ -16,7 +27,23 @@ from .confidence import ConfidenceCalculator
 
 
 class CriticResponse(BaseModel):
-    """Standardized response format for all critics."""
+    """Standardized response format for all critics.
+    
+    This model defines the common structure that all critics must return,
+    ensuring consistency across different critic implementations.
+    
+    Attributes:
+        feedback: Main qualitative feedback explaining the text's strengths
+            and weaknesses according to this critic's perspective
+        suggestions: List of specific, actionable suggestions for improvement.
+            Each suggestion should be concrete and implementable.
+        needs_improvement: Boolean indicating whether this critic believes
+            the text needs further refinement
+        confidence: Float between 0.0 and 1.0 indicating the critic's
+            confidence in its assessment. Higher values mean more certainty.
+        metadata: Dictionary for critic-specific data like scores, analysis
+            details, or other structured information
+    """
 
     feedback: str = Field(..., description="Main feedback about the text")
     suggestions: list[str] = Field(
@@ -34,7 +61,32 @@ class CriticResponse(BaseModel):
 
 
 class BaseCritic(Critic, ABC):
-    """Simplified base critic with clear separation of concerns."""
+    """Abstract base class for all Sifaka critics.
+    
+    This class provides the foundation for implementing critics that analyze
+    and provide feedback on text. Subclasses must implement the abstract
+    methods to define their specific critique logic.
+    
+    The base class handles:
+    - LLM client initialization and management
+    - Standardized request/response flow
+    - Confidence calculation
+    - Error handling and retry logic
+    - Tool integration (if enabled)
+    - Performance tracking and traceability
+    
+    Example:
+        >>> class MyCritic(BaseCritic):
+        ...     @property
+        ...     def name(self) -> str:
+        ...         return "my_critic"
+        ...     
+        ...     async def _create_messages(self, text, result):
+        ...         return [{
+        ...             "role": "user",
+        ...             "content": f"Analyze this: {text}"
+        ...         }]
+    """
 
     def __init__(
         self,
@@ -45,7 +97,22 @@ class BaseCritic(Critic, ABC):
         api_key: Optional[str] = None,
         enable_tools: Optional[bool] = None,
     ):
-        """Initialize critic with configuration."""
+        """Initialize the critic with configuration options.
+        
+        Args:
+            model: Name of the LLM model to use (e.g., 'gpt-4', 'claude-3').
+                Defaults to 'gpt-4o-mini' or the configured critic_model.
+            temperature: Generation temperature (0.0-2.0). Lower values are
+                more deterministic. If not provided, uses config settings.
+            config: Full Sifaka configuration object. If provided, overrides
+                individual parameters.
+            provider: LLM provider ('openai', 'anthropic', etc.) or Provider
+                enum value. Auto-detected from model name if not specified.
+            api_key: API key for the LLM provider. If not provided, uses
+                environment variables or config settings.
+            enable_tools: Whether to enable tool usage for this critic.
+                Some critics like self_rag can use tools for retrieval.
+        """
         self.config = config or Config()
         # Use critic_model from config if not explicitly provided
         self.model = (
@@ -73,7 +140,14 @@ class BaseCritic(Critic, ABC):
 
     @property
     def client(self) -> LLMClient:
-        """Get or create LLM client."""
+        """Get or lazily create the LLM client.
+        
+        The client is created on first access to avoid initialization
+        overhead if the critic is never used.
+        
+        Returns:
+            Configured LLMClient instance for making API calls
+        """
         if self._client is None:
             self._client = LLMManager.get_client(
                 provider=self.provider,
@@ -86,45 +160,107 @@ class BaseCritic(Critic, ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Return the critic's name."""
+        """Return the unique name identifier for this critic.
+        
+        This name is used for registration, configuration, and tracking.
+        It should be lowercase with underscores (e.g., 'self_refine').
+        
+        Returns:
+            The critic's unique name identifier
+        """
         pass
 
     def _get_available_tools(self) -> List[ToolInterface]:
-        """Override to specify which tools this critic can use."""
+        """Specify which tools this critic can use.
+        
+        Override in subclasses that need tool support (e.g., self_rag
+        for retrieval tools).
+        
+        Returns:
+            List of ToolInterface instances this critic can use
+        """
         return []
 
     def _get_system_prompt(self) -> str:
-        """Get system prompt for PydanticAI agent. Override in subclasses for custom prompts."""
+        """Get the system prompt for the LLM.
+        
+        Override in subclasses to provide critic-specific instructions
+        and context. The system prompt shapes the critic's behavior.
+        
+        Returns:
+            System prompt string for the LLM
+        """
         return f"You are an expert text critic using the {self.name} technique for text improvement."
 
     def _get_response_type(self) -> type[BaseModel]:
-        """Get response type for structured output. Override in subclasses for custom types."""
+        """Get the Pydantic model for structured output.
+        
+        Override in subclasses that need custom response formats beyond
+        the standard CriticResponse.
+        
+        Returns:
+            Pydantic model class for parsing LLM responses
+        """
         return CriticResponse
 
     @abstractmethod
     async def _create_messages(
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
-        """Create messages for the LLM.
+        """Create the message history for the LLM.
+        
+        This is the main method subclasses must implement to define their
+        critique logic. The messages should include all necessary context
+        and instructions for the critic's analysis.
 
         Args:
-            text: Text to critique
-            result: Current result with history
+            text: The current text to critique
+            result: SifakaResult containing history of previous iterations,
+                critiques, and improvements
 
         Returns:
-            List of messages for LLM
+            List of message dictionaries with 'role' and 'content' keys.
+            Typically includes a system message and user message.
+            
+        Example:
+            >>> return [
+            ...     {"role": "system", "content": "You are a helpful critic."},
+            ...     {"role": "user", "content": f"Analyze: {text}"}
+            ... ]
         """
         pass
 
     async def critique(self, text: str, result: SifakaResult) -> CritiqueResult:
-        """Critique the text.
+        """Critique the given text and provide structured feedback.
+        
+        This is the main entry point for critics. It handles the complete
+        critique workflow including LLM interaction, response parsing,
+        confidence calculation, and error handling.
 
         Args:
-            text: Text to critique
-            result: Current result with history
+            text: The current text to critique. This is typically either
+                the original text or the most recent improvement.
+            result: The complete SifakaResult object containing all history
+                from previous iterations, including past critiques and
+                improvements. Critics can use this for context.
 
         Returns:
-            CritiqueResult with feedback and suggestions
+            CritiqueResult containing:
+            - feedback: Qualitative assessment of the text
+            - suggestions: Specific improvement recommendations  
+            - needs_improvement: Whether further iteration is needed
+            - confidence: How certain the critic is (0.0-1.0)
+            - metadata: Additional critic-specific information
+            - Traceability data (model, prompt, tokens, timing)
+            
+        Raises:
+            ModelProviderError: If the LLM API call fails after retries
+            ValueError: If the response cannot be parsed
+            
+        Note:
+            This method is called by the orchestrator for each iteration.
+            Critics should be stateless - use the result parameter for
+            any historical context needed.
         """
 
         try:

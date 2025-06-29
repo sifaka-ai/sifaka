@@ -65,7 +65,7 @@ async def test_direct_redis_latency(num_operations: int = 20) -> Dict[str, Any]:
 
         # Test LOAD operation
         load_start = time.perf_counter()
-        loaded_result = await storage.load(result_id)
+        _ = await storage.load(result_id)
         load_time = (time.perf_counter() - load_start) * 1000  # Convert to ms
         load_times.append(load_time)
 
@@ -178,7 +178,7 @@ async def test_mcp_redis_latency(num_operations: int = 20) -> Dict[str, Any]:
 
             # Test LOAD operation
             load_start = time.perf_counter()
-            loaded_result = await storage.load(result_id)
+            _ = await storage.load(result_id)
             load_time = (time.perf_counter() - load_start) * 1000  # Convert to ms
             load_times.append(load_time)
 

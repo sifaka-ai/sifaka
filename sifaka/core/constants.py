@@ -1,25 +1,61 @@
-"""Constants for Sifaka."""
+"""Central constants and configuration values for Sifaka.
+
+This module defines all constants used throughout the Sifaka framework.
+Constants are organized into logical groups for easy reference and
+maintenance. All values here are immutable and should not be changed
+at runtime.
+
+## Constant Categories:
+
+1. **Model Providers**: Supported LLM provider identifiers
+2. **Default Values**: Sensible defaults for common parameters
+3. **Limits**: Boundary values for validation
+4. **Message Formats**: API communication constants
+5. **Error Messages**: Standardized error message templates
+6. **Plugin System**: Entry points for extensibility
+
+## Usage:
+
+    >>> from sifaka.core.constants import DEFAULT_MODEL, DEFAULT_CRITIC
+    >>> config = Config(model=DEFAULT_MODEL)
+    >>> critics = [DEFAULT_CRITIC]
+
+## Design Principles:
+
+- All constants are UPPER_CASE with underscores
+- Related constants are grouped with common prefixes
+- Error messages include placeholders for dynamic values
+- Limits are defined in pairs (MIN/MAX) for validation
+- Defaults are chosen for the most common use case
+
+Note:
+    These constants are used for internal consistency. Users typically
+    don't need to import them directly unless building extensions.
+"""
 
 # Model providers
-PROVIDER_OPENAI = "openai"
-PROVIDER_ANTHROPIC = "anthropic"
-PROVIDER_GEMINI = "gemini"
-PROVIDER_XAI = "xai"
+# These constants identify supported LLM providers for automatic detection
+PROVIDER_OPENAI = "openai"  # OpenAI models (GPT-3.5, GPT-4, etc.)
+PROVIDER_ANTHROPIC = "anthropic"  # Anthropic models (Claude family)
+PROVIDER_GEMINI = "gemini"  # Google Gemini models
+PROVIDER_XAI = "xai"  # xAI models (Grok)
 
 # Default values
-DEFAULT_MODEL = "gpt-4o-mini"
-DEFAULT_TEMPERATURE = 0.7
-DEFAULT_MAX_ITERATIONS = 3
-DEFAULT_TIMEOUT = 300
-DEFAULT_CRITIC = "reflexion"
+# These provide sensible defaults that work well for most use cases
+DEFAULT_MODEL = "gpt-4o-mini"  # Fast, cost-effective model for general use
+DEFAULT_TEMPERATURE = 0.7  # Balanced between creativity and consistency
+DEFAULT_MAX_ITERATIONS = 3  # Usually sufficient for good improvements
+DEFAULT_TIMEOUT = 300  # 5 minutes - reasonable for most operations
+DEFAULT_CRITIC = "reflexion"  # Well-tested, general-purpose critic
 
 # Limits
-MIN_ITERATIONS = 1
-MAX_ITERATIONS = 10
-MIN_TEMPERATURE = 0.0
-MAX_TEMPERATURE = 2.0
-MIN_TIMEOUT = 30
-MAX_TIMEOUT = 3600
+# These define acceptable ranges for configuration validation
+MIN_ITERATIONS = 1  # At least one iteration required
+MAX_ITERATIONS = 10  # Prevent runaway processing
+MIN_TEMPERATURE = 0.0  # Deterministic generation
+MAX_TEMPERATURE = 2.0  # Maximum creativity (may be unstable)
+MIN_TIMEOUT = 30  # Minimum 30 seconds for API calls
+MAX_TIMEOUT = 3600  # Maximum 1 hour to prevent hanging
 
 # JSON response format
 JSON_FORMAT = "json"

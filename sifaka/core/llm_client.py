@@ -1,4 +1,49 @@
-"""Simplified provider-agnostic LLM client with PydanticAI integration."""
+"""Provider-agnostic LLM client with automatic provider detection and PydanticAI integration.
+
+This module provides a unified interface for interacting with various LLM providers
+(OpenAI, Anthropic, Google Gemini, Groq) while handling provider-specific details
+internally. It integrates with PydanticAI for structured outputs.
+
+## Key Features:
+
+- **Automatic Provider Detection**: Infers provider from model name
+- **Unified Interface**: Same API regardless of provider
+- **Structured Outputs**: PydanticAI integration for type-safe responses
+- **Retry Logic**: Built-in retry for transient failures
+- **OpenAI Compatibility**: Uses OpenAI SDK for compatible providers
+
+## Supported Providers:
+
+- **OpenAI**: GPT-3.5, GPT-4, GPT-4 Turbo models
+- **Anthropic**: Claude 3 family (via PydanticAI)
+- **Google Gemini**: Gemini Pro models (via PydanticAI)
+- **Groq**: Fast inference for open models
+
+## Usage:
+
+    >>> from sifaka.core.llm_client import LLMManager
+    >>> 
+    >>> # Automatic provider detection
+    >>> client = LLMManager.get_client(model="gpt-4")
+    >>> response = await client.complete(messages)
+    >>> 
+    >>> # Structured output with PydanticAI
+    >>> agent = client.create_agent(
+    ...     system_prompt="You are a helpful assistant",
+    ...     result_type=MyResponseModel
+    ... )
+    >>> result = await agent.run("Analyze this text")
+
+## Environment Variables:
+
+Set API keys for each provider:
+- OPENAI_API_KEY
+- ANTHROPIC_API_KEY  
+- GEMINI_API_KEY
+- GROQ_API_KEY
+
+The client will automatically use the appropriate key based on the model.
+"""
 
 import os
 from typing import Dict, Optional, List, Union, Any, cast
@@ -23,7 +68,17 @@ if os.getenv("LOGFIRE_TOKEN"):
 
 
 class Provider(str, Enum):
-    """Supported LLM providers."""
+    """Enumeration of supported LLM providers.
+    
+    Each provider represents a different LLM API service. The enum
+    values are used for configuration and automatic detection.
+    
+    Attributes:
+        OPENAI: OpenAI's GPT models (GPT-3.5, GPT-4, etc.)
+        ANTHROPIC: Anthropic's Claude models (Claude 3 family)
+        GEMINI: Google's Gemini models (Gemini Pro, etc.)
+        GROQ: Groq's fast inference service for open models
+    """
 
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
@@ -32,7 +87,24 @@ class Provider(str, Enum):
 
 
 class LLMResponse(BaseModel):
-    """Response from LLM."""
+    """Standardized response from any LLM provider.
+    
+    Provides a consistent response format regardless of which provider
+    is used, making it easy to switch between providers.
+    
+    Attributes:
+        content: The generated text from the LLM
+        usage: Token usage statistics with keys like 'prompt_tokens',
+            'completion_tokens', and 'total_tokens'
+        model: The actual model name used for generation
+    
+    Example:
+        >>> response = LLMResponse(
+        ...     content="Generated text here",
+        ...     usage={"prompt_tokens": 10, "completion_tokens": 20},
+        ...     model="gpt-4"
+        ... )
+    """
 
     content: str
     usage: Dict[str, int] = Field(default_factory=dict)
@@ -40,7 +112,38 @@ class LLMResponse(BaseModel):
 
 
 class LLMClient:
-    """Simple provider-agnostic LLM client using OpenAI API compatibility."""
+    """Unified client for interacting with multiple LLM providers.
+    
+    This client abstracts away provider-specific details and provides a
+    consistent interface for all supported LLMs. It handles:
+    - Provider-specific API endpoints and authentication
+    - Model name mapping between providers
+    - Retry logic for transient failures
+    - Integration with PydanticAI for structured outputs
+    
+    For providers with OpenAI-compatible APIs (OpenAI, Groq), it uses
+    the OpenAI SDK directly. For others (Anthropic, Gemini), it uses
+    PydanticAI's built-in support.
+    
+    Example:
+        >>> # Create client for OpenAI
+        >>> client = LLMClient(
+        ...     provider=Provider.OPENAI,
+        ...     model="gpt-4",
+        ...     temperature=0.7
+        ... )
+        >>> 
+        >>> # Use with messages
+        >>> messages = [{"role": "user", "content": "Hello"}]
+        >>> response = await client.complete(messages)
+        >>> print(response.content)
+    
+    Attributes:
+        provider: The LLM provider being used
+        model: The model name requested by the user
+        temperature: Generation temperature (0.0-2.0)
+        client: The underlying API client (OpenAI SDK or similar)
+    """
 
     # Provider base URLs for OpenAI-compatible APIs
     PROVIDER_URLS = {
@@ -84,7 +187,24 @@ class LLMClient:
             self.client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     def _get_api_key(self, provider: Provider) -> Optional[str]:
-        """Get API key for provider."""
+        """Retrieve API key for the specified provider from environment.
+        
+        Looks for provider-specific environment variables containing
+        API keys. This allows users to configure multiple providers
+        without code changes.
+        
+        Args:
+            provider: The provider to get API key for
+            
+        Returns:
+            API key string if found in environment, None otherwise
+            
+        Environment Variables:
+            - OPENAI_API_KEY for OpenAI
+            - ANTHROPIC_API_KEY for Anthropic
+            - GEMINI_API_KEY for Google Gemini
+            - GROQ_API_KEY for Groq
+        """
         env_keys = {
             Provider.OPENAI: "OPENAI_API_KEY",
             Provider.ANTHROPIC: "ANTHROPIC_API_KEY",
@@ -95,7 +215,19 @@ class LLMClient:
         return os.getenv(env_var) if env_var else None
 
     def _get_provider_model(self) -> str:
-        """Get provider-specific model name."""
+        """Map generic model names to provider-specific identifiers.
+        
+        Different providers use different names for similar models.
+        This method translates common model names to provider-specific
+        ones, allowing users to use familiar names across providers.
+        
+        Returns:
+            Provider-specific model identifier
+            
+        Example:
+            - "gpt-4" on Groq maps to "llama-3.1-70b-versatile"
+            - "gpt-4o-mini" on Groq maps to "llama-3.1-8b-instant"
+        """
         mappings = self.MODEL_MAPPINGS.get(self.provider, {})
         return mappings.get(self.model, self.model)
 

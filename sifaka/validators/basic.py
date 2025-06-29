@@ -1,4 +1,13 @@
-"""Basic validators for common text quality checks."""
+"""Basic validators for common text quality checks.
+
+This module provides fundamental validators that check basic text properties:
+- LengthValidator: Ensures text meets length requirements
+- ContentValidator: Checks for required/forbidden terms
+- FormatValidator: Validates text structure and formatting
+- ReadabilityValidator: Assesses text complexity and readability
+
+These validators cover the most common quality checks needed for
+text improvement workflows."""
 
 import re
 from typing import List, Optional, Tuple
@@ -8,7 +17,33 @@ from .base import BaseValidator, ValidatorConfig
 
 
 class LengthValidator(BaseValidator):
-    """Validates text length requirements."""
+    """Validates that text meets specified length requirements.
+    
+    This validator ensures generated text falls within acceptable length
+    boundaries. It's useful for enforcing constraints like minimum content
+    requirements or maximum length limits for specific platforms.
+    
+    The validator calculates a score based on how well the text matches
+    the ideal length range, with perfect scores for text in the middle
+    of the acceptable range.
+    
+    Example:
+        >>> # Require at least 100 characters
+        >>> validator = LengthValidator(min_length=100)
+        >>> 
+        >>> # Enforce both minimum and maximum
+        >>> validator = LengthValidator(min_length=50, max_length=500)
+        >>> 
+        >>> # Use in improve() call
+        >>> result = await improve(
+        ...     "Short text",
+        ...     validators=[LengthValidator(min_length=100)]
+        ... )
+    
+    Attributes:
+        min_length: Minimum required character count (None for no minimum)
+        max_length: Maximum allowed character count (None for no maximum)
+    """
 
     def __init__(
         self,
@@ -38,7 +73,14 @@ class LengthValidator(BaseValidator):
     async def _perform_validation(
         self, text: str, result: SifakaResult
     ) -> Tuple[bool, float, str]:
-        """Check if text meets length requirements."""
+        """Check if text meets length requirements.
+        
+        Returns:
+            Tuple of (passed, score, details) where:
+            - passed: True if length is within bounds
+            - score: 0.0-1.0 indicating how well length matches ideal
+            - details: Human-readable explanation
+        """
         if not isinstance(text, str):
             raise TypeError(f"Expected str, got {type(text).__name__}")
 
@@ -75,7 +117,34 @@ class LengthValidator(BaseValidator):
 
 
 class ContentValidator(BaseValidator):
-    """Validates required and forbidden content."""
+    """Validates presence or absence of specific terms in text.
+    
+    This validator checks that text contains required terms and doesn't
+    contain forbidden terms. Useful for ensuring key concepts are covered
+    or inappropriate content is avoided.
+    
+    Terms can be single words or phrases, with optional case sensitivity.
+    The validator provides detailed feedback about which terms were found
+    or missing.
+    
+    Example:
+        >>> # Ensure text mentions key products
+        >>> validator = ContentValidator(
+        ...     required_terms=["AI", "machine learning"],
+        ...     forbidden_terms=["competitor", "proprietary"],
+        ...     case_sensitive=False
+        ... )
+        >>> 
+        >>> # Check for inappropriate content
+        >>> validator = ContentValidator(
+        ...     forbidden_terms=["offensive", "inappropriate"]
+        ... )
+    
+    Attributes:
+        required_terms: List of terms that must appear in the text
+        forbidden_terms: List of terms that must not appear
+        case_sensitive: Whether term matching is case-sensitive
+    """
 
     def __init__(
         self,

@@ -1,11 +1,49 @@
-"""Unified configuration for Sifaka."""
+"""Configuration system for Sifaka text improvement.
+
+This module provides a centralized configuration class that controls all
+aspects of Sifaka's behavior. The Config class uses Pydantic for validation
+and provides sensible defaults while allowing full customization.
+
+Configuration can be provided in multiple ways:
+1. Direct instantiation: Config(model="gpt-4", temperature=0.9)
+2. From environment variables (with SIFAKA_ prefix)
+3. From configuration files (JSON/YAML)
+4. Through the API functions"""
 
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict
 
 
 class Config(BaseModel):
-    """Unified configuration for Sifaka with sensible defaults."""
+    """Central configuration for all Sifaka operations.
+    
+    This configuration object controls every aspect of the text improvement
+    process, from model selection to critic behavior to retry policies.
+    All fields have sensible defaults, so a Config() with no arguments
+    will work out of the box.
+    
+    The configuration is organized into logical sections:
+    - Model settings: LLM model selection and parameters
+    - Critic settings: How critics behave and which models they use
+    - Iteration control: How many rounds of improvement to attempt
+    - Timeouts and retries: Reliability and performance settings
+    - Critic-specific options: Custom settings for individual critics
+    
+    Example:
+        >>> # Basic configuration
+        >>> config = Config(model="gpt-4", temperature=0.8)
+        >>> 
+        >>> # Advanced configuration
+        >>> config = Config(
+        ...     model="claude-3-opus",
+        ...     temperature=0.7,
+        ...     critic_model="claude-3-sonnet",  # Cheaper model for critics
+        ...     max_iterations=5,
+        ...     style_description="Academic writing style"
+        ... )
+    
+    Attributes are grouped below by category for clarity.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
