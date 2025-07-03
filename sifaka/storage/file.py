@@ -357,7 +357,7 @@ class FileStorage(StorageBackend):
             return True
         return False
 
-    async def search(self, query: str, limit: int = 10) -> List[str]:
+    async def search(self, query: str, limit: int = 10) -> List[SifakaResult]:
         """Search results by text content.
         
         Performs a simple case-insensitive substring search across both
@@ -371,16 +371,15 @@ class FileStorage(StorageBackend):
                 Defaults to 10 to prevent excessive I/O.
                 
         Returns:
-            List of result IDs that contain the search query
+            List of SifakaResult objects that contain the search query
             
         Example:
             >>> # Search for results about machine learning
             >>> ml_results = await storage.search("machine learning")
             >>> 
-            >>> # Load and display matches
-            >>> for result_id in ml_results:
-            ...     result = await storage.load(result_id)
-            ...     print(f"{result_id[:8]}: {result.final_text[:50]}...")
+            >>> # Display matches
+            >>> for result in ml_results:
+            ...     print(f"{result.id[:8]}: {result.final_text[:50]}...")
             
         Performance warning:
             This performs a full scan of all files, loading and searching
@@ -405,7 +404,7 @@ class FileStorage(StorageBackend):
                         query_lower in result.original_text.lower()
                         or query_lower in result.final_text.lower()
                     ):
-                        matches.append(file_path.stem)
+                        matches.append(result)
 
                     if len(matches) >= limit:
                         break
@@ -460,3 +459,13 @@ class FileStorage(StorageBackend):
                 deleted_count += 1
 
         return deleted_count
+
+    async def cleanup(self) -> None:
+        """Clean up resources (no-op for FileStorage).
+        
+        FileStorage doesn't maintain persistent connections or resources
+        that need cleanup. This method exists for API compatibility with
+        other storage backends.
+        """
+        # No cleanup needed for file storage
+        pass

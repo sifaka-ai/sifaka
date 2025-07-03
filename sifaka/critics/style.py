@@ -1,13 +1,62 @@
-"""Style critic implementation.
+"""Style critic implementation for voice, tone, and writing style transformation.
 
-The Style critic helps transform text to match a specific writing style,
-voice, or tone by analyzing reference text and applying its characteristics.
+This module provides sophisticated style analysis and transformation capabilities,
+enabling text to be adapted to match specific writing styles, brand voices, or
+publication standards through detailed pattern recognition and application.
 
-This critic is useful for:
-- Matching brand voice and tone
-- Adapting content to specific audiences
-- Maintaining consistent writing style across documents
-- Emulating author styles or publication standards
+## Core Capabilities:
+
+- **Style Analysis**: Deep pattern recognition across multiple style dimensions
+- **Voice Transformation**: Active/passive voice adjustment and perspective shifts
+- **Tone Adaptation**: Formal/informal, professional/casual tone calibration
+- **Structural Matching**: Sentence patterns, rhythm, and flow replication
+- **Vocabulary Alignment**: Word choice and complexity level matching
+
+## Style Dimensions Analyzed:
+
+1. **Tone**: Overall emotional and formality register
+2. **Voice**: Active/passive balance, personal/impersonal perspective
+3. **Sentence Structure**: Length, complexity, and variety patterns
+4. **Vocabulary**: Word choice, technical level, and domain specificity
+5. **Rhythm**: Pacing, punctuation patterns, and paragraph flow
+6. **Distinctive Patterns**: Unique stylistic fingerprints and signatures
+
+## Usage Patterns:
+
+    >>> # Match a reference text style
+    >>> critic = StyleCritic(
+    ...     reference_text="Your brand voice sample text here...",
+    ...     style_description="Professional yet approachable"
+    ... )
+    >>> 
+    >>> # Use specific style examples
+    >>> critic = StyleCritic(
+    ...     style_examples=[
+    ...         "We're excited to announce...",
+    ...         "Our team has discovered...",
+    ...         "Join us in celebrating..."
+    ...     ]
+    ... )
+    >>> 
+    >>> # Load style from file
+    >>> critic = style_critic_from_file("brand_voice_guide.txt")
+
+## Style Matching Process:
+
+1. **Analysis Phase**: Extract patterns from reference material
+2. **Comparison Phase**: Identify mismatches in current text
+3. **Suggestion Phase**: Provide specific rewrites and adjustments
+4. **Scoring Phase**: Quantify style alignment (0.0-1.0)
+
+## Best Practices:
+
+- Provide substantial reference text (500+ words) for accurate pattern extraction
+- Combine reference text with explicit style descriptions for best results
+- Use style examples for specific phrase patterns you want to maintain
+- Review alignment scores: >0.8 = good match, <0.6 = significant work needed
+
+This critic excels at maintaining brand consistency, adapting content for different
+audiences, and ensuring stylistic coherence across document collections.
 """
 
 from typing import Optional, Union, List, Dict, Any
@@ -92,17 +141,64 @@ class StyleCritic(BaseCritic):
         style_description: Optional[str] = None,
         style_examples: Optional[List[str]] = None,
     ):
-        """Initialize the Style critic.
-
+        """Initialize the Style critic for voice and tone transformation.
+        
+        Creates a style-aware critic that analyzes and transforms text to match
+        specific writing styles, brand voices, or publication standards. Supports
+        multiple configuration approaches from reference text to explicit descriptions.
+        
         Args:
-            model: LLM model to use
-            temperature: Generation temperature
-            provider: LLM provider
-            api_key: API key override
-            config: Full Sifaka configuration
-            reference_text: Text exemplifying the target style
-            style_description: Description of the desired style
-            style_examples: List of example phrases/sentences in target style
+            model: LLM model for style analysis. GPT-4o-mini provides good
+                balance of quality and cost for style matching.
+            temperature: Generation temperature (0.0-1.0). Higher values (0.7-0.9)
+                allow more creative style adaptations, lower values (0.3-0.5)
+                ensure more consistent matching.
+            provider: LLM provider (OpenAI, Anthropic, etc.). Defaults to
+                environment configuration.
+            api_key: API key override if not using environment variables
+            config: Full Sifaka configuration object. Style-specific fields
+                (style_reference_text, style_description, style_examples)
+                override individual parameters if present.
+            reference_text: Sample text exemplifying the target style. Provide
+                500+ words for best pattern extraction. This is the most
+                effective way to capture complex style nuances.
+            style_description: Explicit description of desired style characteristics
+                (e.g., "Professional yet approachable with active voice").
+                Combine with reference_text for best results.
+            style_examples: List of specific phrases or sentences that exemplify
+                the target style. Useful for capturing signature expressions
+                or standard openings/closings.
+                
+        Example:
+            >>> # Brand voice from reference document
+            >>> critic = StyleCritic(
+            ...     reference_text=open("brand_voice_guide.txt").read(),
+            ...     style_description="Conversational but authoritative"
+            ... )
+            >>> 
+            >>> # Academic style with examples
+            >>> critic = StyleCritic(
+            ...     style_description="Academic writing with passive voice",
+            ...     style_examples=[
+            ...         "It has been demonstrated that...",
+            ...         "The results indicate a significant correlation...",
+            ...         "Further research is warranted to explore..."
+            ...     ]
+            ... )
+            >>> 
+            >>> # Marketing copy style
+            >>> critic = StyleCritic(
+            ...     model="gpt-4",  # Higher quality for nuanced marketing copy
+            ...     temperature=0.8,  # More creative adaptations
+            ...     style_description="Persuasive, benefit-focused, action-oriented"
+            ... )
+            
+        Best practices:
+            - Provide substantial reference text (500+ words) when available
+            - Combine reference_text with style_description for clarity
+            - Use style_examples for specific phrases you want to preserve
+            - Consider using GPT-4 for highly nuanced style matching
+            - Test with representative content to tune temperature
         """
         super().__init__(model, temperature, config, provider, api_key)
         self.reference_text = reference_text
@@ -120,16 +216,65 @@ class StyleCritic(BaseCritic):
 
     @property
     def name(self) -> str:
+        """Return the unique identifier for this critic.
+        
+        Returns:
+            "style" - Used in configuration, logging, and result metadata
+            to identify this critic's contributions.
+        """
         return "style"
 
     def _get_response_type(self) -> type[BaseModel]:
-        """Use custom StyleResponse for structured output."""
+        """Specify the structured response format for style analysis.
+        
+        Returns:
+            StyleResponse class that includes:
+            - Detailed style analysis breakdown
+            - Specific improvement suggestions
+            - Style alignment score (0.0-1.0)
+            - Target style characteristics
+            
+        Note:
+            The structured response ensures consistent, actionable feedback
+            with quantifiable style matching metrics.
+        """
         return StyleResponse
 
     async def _create_messages(
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
-        """Create messages for style critique."""
+        """Create detailed prompts for comprehensive style analysis.
+        
+        Constructs a sophisticated prompt that guides the LLM to perform
+        deep style analysis, identify specific mismatches, and provide
+        actionable transformation suggestions.
+        
+        Args:
+            text: Text to analyze for style alignment. The critic examines
+                sentence structure, vocabulary, tone, voice, and rhythm.
+            result: SifakaResult containing iteration history and context.
+                Previous feedback is incorporated to avoid repetition.
+                
+        Returns:
+            List of message dictionaries with:
+            - System message: Expert style analyst persona with focus on
+              specificity and actionable feedback
+            - User message: Structured analysis request with target style
+              guidance and detailed evaluation criteria
+              
+        Analysis dimensions:
+            1. **Sentence Structure**: Length, complexity, variety patterns
+            2. **Voice**: Active/passive balance, perspective consistency
+            3. **Tone**: Formality level, emotional register, professional markers
+            4. **Vocabulary**: Word choice, technical level, domain specificity
+            5. **Rhythm**: Pacing, punctuation patterns, paragraph flow
+            
+        The prompt emphasizes:
+            - Specific examples over general observations
+            - Exact rewrites rather than vague suggestions
+            - Quantifiable metrics (sentence length, voice ratios)
+            - Before/after comparisons for clarity
+        """
         # Get previous context
         previous_context = self._get_previous_context(result)
 
@@ -188,7 +333,52 @@ When analyzing, be extremely specific. Instead of "make it more formal", say "re
         ]
 
     def _build_style_guidance(self) -> str:
-        """Build the style guidance section based on available inputs."""
+        """Construct comprehensive style guidance from available sources.
+        
+        Assembles style requirements from multiple inputs (reference text,
+        descriptions, examples) into a unified guidance section that the
+        LLM uses for style matching.
+        
+        Returns:
+            Formatted string containing:
+            - Target style requirements (if description provided)
+            - Reference text analysis instructions (if reference provided)
+            - Specific style examples to incorporate (if examples provided)
+            - Default professional style guidance (if no inputs provided)
+            
+        Priority order:
+            1. Explicit style description (clearest intent)
+            2. Reference text (richest pattern source)
+            3. Style examples (specific patterns to match)
+            4. Default guidelines (fallback for consistency)
+            
+        Text processing:
+            - Reference texts over 2000 chars are truncated with ellipsis
+            - Maximum 10 style examples are included to avoid prompt bloat
+            - Each section includes specific extraction instructions
+            
+        Example output:
+            ```
+            TARGET STYLE REQUIREMENTS:
+            Professional yet approachable, active voice preferred
+            
+            REFERENCE TEXT TO MATCH:
+            [First 2000 chars of reference...]
+            
+            Key style elements to extract from this reference:
+            - Typical sentence length and structure
+            - Common phrases and word choices
+            - Tone and formality level
+            - Punctuation and formatting patterns
+            - Voice (first/third person, active/passive)
+            
+            SPECIFIC STYLE EXAMPLES TO INCORPORATE:
+            - "We're excited to announce..."
+            - "Our team has discovered..."
+            
+            Use these exact phrases or similar patterns where appropriate.
+            ```
+        """
         sections = []
 
         if self.style_description:
@@ -234,7 +424,34 @@ Use these exact phrases or similar patterns where appropriate.""")
         return "\n\n".join(sections)
 
     def _post_process_response(self, response: StyleResponse) -> StyleResponse:
-        """Post-process the response to ensure quality."""
+        """Adjust response metrics for accuracy and consistency.
+        
+        Post-processes the LLM's style analysis to ensure logical consistency
+        between different response fields and adjust confidence based on
+        available style guidance.
+        
+        Args:
+            response: Raw StyleResponse from LLM containing initial analysis
+            
+        Returns:
+            Adjusted StyleResponse with:
+            - Confidence capped at 0.5 if no style guidance was provided
+            - Alignment score synchronized with needs_improvement flag
+            - Logical consistency between all metrics
+            
+        Adjustments made:
+            1. **Confidence adjustment**: Without reference text or description,
+               confidence is capped at 0.5 since style matching is guesswork
+            2. **Alignment synchronization**: 
+               - If needs_improvement=True, alignment score ≤ 0.7
+               - If needs_improvement=False, alignment score ≥ 0.7
+            3. **Score normalization**: Ensures scores stay within valid ranges
+            
+        This ensures users receive consistent, interpretable metrics where:
+            - Low confidence indicates limited style guidance
+            - Alignment scores align with improvement recommendations
+            - All metrics tell a coherent story about style matching
+        """
         # Adjust confidence based on how much style guidance was provided
         if not self.reference_text and not self.style_description:
             response.confidence = min(response.confidence, 0.5)
@@ -255,16 +472,59 @@ def style_critic_from_file(
     temperature: float = 0.7,
     **kwargs: Any,
 ) -> StyleCritic:
-    """Create a StyleCritic using a reference file.
+    """Create a StyleCritic using a reference file for style matching.
+    
+    Convenience function that loads style reference text from a file and
+    creates a configured StyleCritic. Ideal for maintaining consistent
+    style across projects by using a standard reference document.
 
     Args:
-        style_file_path: Path to file containing reference text
-        model: LLM model to use
-        temperature: Generation temperature
-        **kwargs: Additional arguments for StyleCritic
+        style_file_path: Path to file containing reference text that
+            exemplifies the target style. Can be absolute or relative path.
+            Supports any text file format (.txt, .md, .doc content as text).
+        model: LLM model for style analysis. Defaults to gpt-4o-mini for
+            cost-effective style matching. Consider gpt-4 for nuanced styles.
+        temperature: Generation temperature (0.0-1.0). Default 0.7 balances
+            consistency with creative adaptation.
+        **kwargs: Additional arguments passed to StyleCritic:
+            - provider: LLM provider override
+            - api_key: API key override  
+            - config: Full configuration object
+            - style_description: Additional style clarification
+            - style_examples: Specific phrases to incorporate
 
     Returns:
-        Configured StyleCritic instance
+        Configured StyleCritic instance ready for style transformation
+        
+    Raises:
+        ValueError: If the style file cannot be read, including:
+            - File not found
+            - Permission denied
+            - Encoding errors
+            
+    Example:
+        >>> # Load brand voice from file
+        >>> critic = style_critic_from_file("brand_voice_guide.txt")
+        >>> 
+        >>> # Academic style with additional description
+        >>> critic = style_critic_from_file(
+        ...     "academic_sample.txt",
+        ...     model="gpt-4",
+        ...     style_description="Formal academic tone with citations"
+        ... )
+        >>> 
+        >>> # Marketing style with high creativity
+        >>> critic = style_critic_from_file(
+        ...     "marketing_copy_samples.txt", 
+        ...     temperature=0.9
+        ... )
+        
+    Best practices:
+        - Use substantial reference files (500+ words) for best results
+        - Include diverse examples of the target style in the file
+        - Consider adding style_description for clarity
+        - Test with representative content to validate matching
+        - Store reference files in version control for consistency
     """
     try:
         with open(style_file_path, "r", encoding="utf-8") as f:

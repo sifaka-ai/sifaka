@@ -32,6 +32,7 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "aiofiles>=24.1.0", # Required for FileStorage backend
     "logfire>=3.21.1",
+    "redis>=6.2.0",
 ]
 
 [project.optional-dependencies]
