@@ -28,7 +28,7 @@ publication standards through detailed pattern recognition and application.
     ...     reference_text="Your brand voice sample text here...",
     ...     style_description="Professional yet approachable"
     ... )
-    >>> 
+    >>>
     >>> # Use specific style examples
     >>> critic = StyleCritic(
     ...     style_examples=[
@@ -37,7 +37,7 @@ publication standards through detailed pattern recognition and application.
     ...         "Join us in celebrating..."
     ...     ]
     ... )
-    >>> 
+    >>>
     >>> # Load style from file
     >>> critic = style_critic_from_file("brand_voice_guide.txt")
 
@@ -142,11 +142,11 @@ class StyleCritic(BaseCritic):
         style_examples: Optional[List[str]] = None,
     ):
         """Initialize the Style critic for voice and tone transformation.
-        
+
         Creates a style-aware critic that analyzes and transforms text to match
         specific writing styles, brand voices, or publication standards. Supports
         multiple configuration approaches from reference text to explicit descriptions.
-        
+
         Args:
             model: LLM model for style analysis. GPT-4o-mini provides good
                 balance of quality and cost for style matching.
@@ -168,14 +168,14 @@ class StyleCritic(BaseCritic):
             style_examples: List of specific phrases or sentences that exemplify
                 the target style. Useful for capturing signature expressions
                 or standard openings/closings.
-                
+
         Example:
             >>> # Brand voice from reference document
             >>> critic = StyleCritic(
             ...     reference_text=open("brand_voice_guide.txt").read(),
             ...     style_description="Conversational but authoritative"
             ... )
-            >>> 
+            >>>
             >>> # Academic style with examples
             >>> critic = StyleCritic(
             ...     style_description="Academic writing with passive voice",
@@ -185,14 +185,14 @@ class StyleCritic(BaseCritic):
             ...         "Further research is warranted to explore..."
             ...     ]
             ... )
-            >>> 
+            >>>
             >>> # Marketing copy style
             >>> critic = StyleCritic(
             ...     model="gpt-4",  # Higher quality for nuanced marketing copy
             ...     temperature=0.8,  # More creative adaptations
             ...     style_description="Persuasive, benefit-focused, action-oriented"
             ... )
-            
+
         Best practices:
             - Provide substantial reference text (500+ words) when available
             - Combine reference_text with style_description for clarity
@@ -217,7 +217,7 @@ class StyleCritic(BaseCritic):
     @property
     def name(self) -> str:
         """Return the unique identifier for this critic.
-        
+
         Returns:
             "style" - Used in configuration, logging, and result metadata
             to identify this critic's contributions.
@@ -226,14 +226,14 @@ class StyleCritic(BaseCritic):
 
     def _get_response_type(self) -> type[BaseModel]:
         """Specify the structured response format for style analysis.
-        
+
         Returns:
             StyleResponse class that includes:
             - Detailed style analysis breakdown
             - Specific improvement suggestions
             - Style alignment score (0.0-1.0)
             - Target style characteristics
-            
+
         Note:
             The structured response ensures consistent, actionable feedback
             with quantifiable style matching metrics.
@@ -244,31 +244,31 @@ class StyleCritic(BaseCritic):
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
         """Create detailed prompts for comprehensive style analysis.
-        
+
         Constructs a sophisticated prompt that guides the LLM to perform
         deep style analysis, identify specific mismatches, and provide
         actionable transformation suggestions.
-        
+
         Args:
             text: Text to analyze for style alignment. The critic examines
                 sentence structure, vocabulary, tone, voice, and rhythm.
             result: SifakaResult containing iteration history and context.
                 Previous feedback is incorporated to avoid repetition.
-                
+
         Returns:
             List of message dictionaries with:
             - System message: Expert style analyst persona with focus on
               specificity and actionable feedback
             - User message: Structured analysis request with target style
               guidance and detailed evaluation criteria
-              
+
         Analysis dimensions:
             1. **Sentence Structure**: Length, complexity, variety patterns
             2. **Voice**: Active/passive balance, perspective consistency
             3. **Tone**: Formality level, emotional register, professional markers
             4. **Vocabulary**: Word choice, technical level, domain specificity
             5. **Rhythm**: Pacing, punctuation patterns, paragraph flow
-            
+
         The prompt emphasizes:
             - Specific examples over general observations
             - Exact rewrites rather than vague suggestions
@@ -296,7 +296,7 @@ PROVIDE SPECIFIC ANALYSIS:
    - Voice (active/passive ratio)
    - Tone markers (formal/informal words)
    - Punctuation style
-   
+
 2. SPECIFIC MISMATCHES:
    - Quote exact phrases that don't match the target style
    - Explain WHY each doesn't match
@@ -309,7 +309,7 @@ PROVIDE SPECIFIC ANALYSIS:
 
 4. ALIGNMENT SCORE: X/10 (convert to 0.0-1.0 scale)
    - Vocabulary match (0.3 weight)
-   - Sentence structure match (0.3 weight)  
+   - Sentence structure match (0.3 weight)
    - Tone/voice match (0.4 weight)
 
 Set needs_improvement=true if alignment < 0.8
@@ -334,48 +334,48 @@ When analyzing, be extremely specific. Instead of "make it more formal", say "re
 
     def _build_style_guidance(self) -> str:
         """Construct comprehensive style guidance from available sources.
-        
+
         Assembles style requirements from multiple inputs (reference text,
         descriptions, examples) into a unified guidance section that the
         LLM uses for style matching.
-        
+
         Returns:
             Formatted string containing:
             - Target style requirements (if description provided)
             - Reference text analysis instructions (if reference provided)
             - Specific style examples to incorporate (if examples provided)
             - Default professional style guidance (if no inputs provided)
-            
+
         Priority order:
             1. Explicit style description (clearest intent)
             2. Reference text (richest pattern source)
             3. Style examples (specific patterns to match)
             4. Default guidelines (fallback for consistency)
-            
+
         Text processing:
             - Reference texts over 2000 chars are truncated with ellipsis
             - Maximum 10 style examples are included to avoid prompt bloat
             - Each section includes specific extraction instructions
-            
+
         Example output:
             ```
             TARGET STYLE REQUIREMENTS:
             Professional yet approachable, active voice preferred
-            
+
             REFERENCE TEXT TO MATCH:
             [First 2000 chars of reference...]
-            
+
             Key style elements to extract from this reference:
             - Typical sentence length and structure
             - Common phrases and word choices
             - Tone and formality level
             - Punctuation and formatting patterns
             - Voice (first/third person, active/passive)
-            
+
             SPECIFIC STYLE EXAMPLES TO INCORPORATE:
             - "We're excited to announce..."
             - "Our team has discovered..."
-            
+
             Use these exact phrases or similar patterns where appropriate.
             ```
         """
@@ -391,24 +391,28 @@ When analyzing, be extremely specific. Instead of "make it more formal", say "re
                 if len(self.reference_text) > 2000
                 else self.reference_text
             )
-            sections.append(f"""REFERENCE TEXT TO MATCH:
+            sections.append(
+                f"""REFERENCE TEXT TO MATCH:
 {ref_text}
 
 Key style elements to extract from this reference:
 - Typical sentence length and structure
-- Common phrases and word choices  
+- Common phrases and word choices
 - Tone and formality level
 - Punctuation and formatting patterns
-- Voice (first/third person, active/passive)""")
+- Voice (first/third person, active/passive)"""
+            )
 
         if self.style_examples:
             examples = "\n".join(
                 f"- {ex}" for ex in self.style_examples[:10]
             )  # Limit to 10 examples
-            sections.append(f"""SPECIFIC STYLE EXAMPLES TO INCORPORATE:
+            sections.append(
+                f"""SPECIFIC STYLE EXAMPLES TO INCORPORATE:
 {examples}
 
-Use these exact phrases or similar patterns where appropriate.""")
+Use these exact phrases or similar patterns where appropriate."""
+            )
 
         if not sections:
             # More specific default guidance
@@ -425,28 +429,28 @@ Use these exact phrases or similar patterns where appropriate.""")
 
     def _post_process_response(self, response: StyleResponse) -> StyleResponse:
         """Adjust response metrics for accuracy and consistency.
-        
+
         Post-processes the LLM's style analysis to ensure logical consistency
         between different response fields and adjust confidence based on
         available style guidance.
-        
+
         Args:
             response: Raw StyleResponse from LLM containing initial analysis
-            
+
         Returns:
             Adjusted StyleResponse with:
             - Confidence capped at 0.5 if no style guidance was provided
             - Alignment score synchronized with needs_improvement flag
             - Logical consistency between all metrics
-            
+
         Adjustments made:
             1. **Confidence adjustment**: Without reference text or description,
                confidence is capped at 0.5 since style matching is guesswork
-            2. **Alignment synchronization**: 
+            2. **Alignment synchronization**:
                - If needs_improvement=True, alignment score ≤ 0.7
                - If needs_improvement=False, alignment score ≥ 0.7
             3. **Score normalization**: Ensures scores stay within valid ranges
-            
+
         This ensures users receive consistent, interpretable metrics where:
             - Low confidence indicates limited style guidance
             - Alignment scores align with improvement recommendations
@@ -473,7 +477,7 @@ def style_critic_from_file(
     **kwargs: Any,
 ) -> StyleCritic:
     """Create a StyleCritic using a reference file for style matching.
-    
+
     Convenience function that loads style reference text from a file and
     creates a configured StyleCritic. Ideal for maintaining consistent
     style across projects by using a standard reference document.
@@ -488,37 +492,37 @@ def style_critic_from_file(
             consistency with creative adaptation.
         **kwargs: Additional arguments passed to StyleCritic:
             - provider: LLM provider override
-            - api_key: API key override  
+            - api_key: API key override
             - config: Full configuration object
             - style_description: Additional style clarification
             - style_examples: Specific phrases to incorporate
 
     Returns:
         Configured StyleCritic instance ready for style transformation
-        
+
     Raises:
         ValueError: If the style file cannot be read, including:
             - File not found
             - Permission denied
             - Encoding errors
-            
+
     Example:
         >>> # Load brand voice from file
         >>> critic = style_critic_from_file("brand_voice_guide.txt")
-        >>> 
+        >>>
         >>> # Academic style with additional description
         >>> critic = style_critic_from_file(
         ...     "academic_sample.txt",
         ...     model="gpt-4",
         ...     style_description="Formal academic tone with citations"
         ... )
-        >>> 
+        >>>
         >>> # Marketing style with high creativity
         >>> critic = style_critic_from_file(
-        ...     "marketing_copy_samples.txt", 
+        ...     "marketing_copy_samples.txt",
         ...     temperature=0.9
         ... )
-        
+
     Best practices:
         - Use substantial reference files (500+ words) for best results
         - Include diverse examples of the target style in the file

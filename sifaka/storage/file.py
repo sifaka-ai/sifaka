@@ -22,16 +22,16 @@ Files are named using one of two patterns:
 ## Usage:
 
     >>> storage = FileStorage("./thoughts")
-    >>> 
+    >>>
     >>> # Save a result
     >>> result_id = await storage.save(sifaka_result)
-    >>> 
+    >>>
     >>> # Load it back
     >>> loaded = await storage.load(result_id)
-    >>> 
+    >>>
     >>> # Search by content
     >>> matching_ids = await storage.search("machine learning")
-    >>> 
+    >>>
     >>> # Clean up old files
     >>> deleted = storage.cleanup_old_files(days_old=30)
 
@@ -62,36 +62,36 @@ from ..core.exceptions import StorageError
 
 class FileStorage(StorageBackend):
     """File-based storage backend for persistent storage.
-    
+
     Provides a simple, reliable way to persist SifakaResults to the local
     file system. Each result is stored as a JSON file, making it easy to
     inspect, backup, and migrate data.
-    
+
     Key features:
     - Automatic directory creation
     - Descriptive file naming with critic names and timestamps
     - Partial ID matching for convenient lookups
     - Async I/O throughout for non-blocking operations
     - Built-in cleanup for old files
-    
+
     Example:
         >>> # Initialize with custom directory
         >>> storage = FileStorage("./my_thoughts")
-        >>> 
+        >>>
         >>> # Save a result (returns ID)
         >>> result_id = await storage.save(my_result)
         >>> print(f"Saved as: {result_id}")
-        >>> 
+        >>>
         >>> # Load by full or partial ID
         >>> loaded = await storage.load(result_id[:8])
-        >>> 
+        >>>
         >>> # List recent results
         >>> recent_ids = await storage.list(limit=10)
-        >>> 
+        >>>
         >>> # Clean up old files
         >>> deleted = storage.cleanup_old_files(days_old=7)
         >>> print(f"Deleted {deleted} old files")
-    
+
     Attributes:
         storage_dir: Path to the directory where files are stored.
             Created automatically if it doesn't exist.
@@ -99,16 +99,16 @@ class FileStorage(StorageBackend):
 
     def __init__(self, storage_dir: str = "./thoughts"):
         """Initialize file storage with the specified directory.
-        
+
         Args:
             storage_dir: Directory path for storing JSON files.
                 Defaults to "./thoughts" in the current directory.
                 Directory is created if it doesn't exist.
-                
+
         Example:
             >>> # Use default directory
             >>> storage = FileStorage()
-            >>> 
+            >>>
             >>> # Use custom directory
             >>> storage = FileStorage("/data/sifaka_results")
         """
@@ -119,18 +119,18 @@ class FileStorage(StorageBackend):
         self, result_id: str, critics: Optional[List[str]] = None
     ) -> Path:
         """Generate file path for a result ID.
-        
+
         Creates descriptive filenames that include critic names and timestamps
         when available, making it easier to browse and organize results.
-        
+
         Args:
             result_id: Unique identifier for the result (UUID)
             critics: Optional list of critic names used. If provided,
                 creates a more descriptive filename.
-                
+
         Returns:
             Path object pointing to where the file should be stored
-            
+
         File naming patterns:
         - With critics: `{critics}_{timestamp}_{id_prefix}.json`
           Example: "style_reflexion_20240115_143022_a1b2c3d4.json"
@@ -145,28 +145,28 @@ class FileStorage(StorageBackend):
 
     async def save(self, result: SifakaResult) -> str:
         """Save a SifakaResult to disk as JSON.
-        
+
         Extracts critic names from the result to create a descriptive filename,
         then serializes the result to JSON with proper formatting.
-        
+
         Args:
             result: The SifakaResult to save. Must have a valid ID.
                 All nested objects (generations, critiques, etc.) are
                 automatically serialized.
-                
+
         Returns:
             The result ID for future retrieval
-            
+
         Raises:
             StorageError: If save fails due to permissions, disk space,
                 or other I/O errors. Includes specific error details.
-                
+
         Example:
             >>> result = await sifaka.improve("My text")
             >>> storage = FileStorage()
             >>> saved_id = await storage.save(result)
             >>> print(f"Saved with ID: {saved_id}")
-            
+
         Note:
             Files are saved with indentation for readability. Large results
             may create sizeable files - consider cleanup_old_files() for
@@ -198,34 +198,34 @@ class FileStorage(StorageBackend):
 
     async def load(self, result_id: str) -> Optional[SifakaResult]:
         """Load a SifakaResult from disk by ID.
-        
+
         Supports both full and partial ID matching. First tries exact filename
         match, then searches for files containing the ID prefix.
-        
+
         Args:
             result_id: Full or partial result ID. Can be:
                 - Full UUID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 - Prefix (min 8 chars): "a1b2c3d4"
-                
+
         Returns:
             The loaded SifakaResult if found, None if not found
-            
+
         Raises:
             StorageError: If file exists but cannot be read or parsed.
                 Does NOT raise for missing files (returns None).
-                
+
         Example:
             >>> # Load by full ID
             >>> result = await storage.load("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
-            >>> 
+            >>>
             >>> # Load by prefix (convenient for CLI)
             >>> result = await storage.load("a1b2c3d4")
-            >>> 
+            >>>
             >>> if result:
             ...     print(f"Loaded: {result.final_text[:50]}...")
             ... else:
             ...     print("Result not found")
-                
+
         Performance note:
             Partial ID matching requires scanning directory entries, so
             full IDs are faster for large directories.
@@ -248,20 +248,20 @@ class FileStorage(StorageBackend):
 
     async def _load_from_path(self, file_path: Path) -> Optional[SifakaResult]:
         """Load a SifakaResult from a specific file path.
-        
+
         Internal method that handles the actual file reading and deserialization.
         Includes proper error handling for various failure modes.
-        
+
         Args:
             file_path: Path object pointing to the JSON file
-            
+
         Returns:
             Deserialized SifakaResult or None if file doesn't exist
-            
+
         Raises:
             StorageError: For permission errors, I/O errors, or corrupt JSON.
                 Missing files return None rather than raising.
-                
+
         Note:
             Uses Pydantic's model_validate for robust deserialization with
             validation. Handles version compatibility automatically.
@@ -289,30 +289,30 @@ class FileStorage(StorageBackend):
 
     async def list(self, limit: int = 100, offset: int = 0) -> List[str]:
         """List stored result IDs, newest first.
-        
+
         Returns a paginated list of result IDs sorted by modification time.
         Useful for displaying recent results or implementing a UI.
-        
+
         Args:
             limit: Maximum number of IDs to return. Defaults to 100.
                 Set to smaller values for better performance.
             offset: Number of results to skip. Use for pagination.
                 Example: offset=100 with limit=100 gets results 101-200.
-                
+
         Returns:
             List of result IDs (filenames without .json extension).
             May return fewer than `limit` if not enough results exist.
-            
+
         Example:
             >>> # Get first page of results
             >>> page1 = await storage.list(limit=20, offset=0)
-            >>> 
+            >>>
             >>> # Get second page
             >>> page2 = await storage.list(limit=20, offset=20)
-            >>> 
+            >>>
             >>> # Get all results (careful with large directories)
             >>> all_ids = await storage.list(limit=10000)
-            
+
         Performance:
             Lists directory contents and sorts by mtime. For very large
             directories (>10k files), consider using smaller limits.
@@ -328,16 +328,16 @@ class FileStorage(StorageBackend):
 
     async def delete(self, result_id: str) -> bool:
         """Delete a stored result from disk.
-        
+
         Permanently removes the JSON file for the given result ID.
         Only exact ID matches are deleted (no partial matching).
-        
+
         Args:
             result_id: The exact result ID to delete
-            
+
         Returns:
             True if file was deleted, False if file didn't exist
-            
+
         Example:
             >>> # Delete a specific result
             >>> deleted = await storage.delete("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
@@ -345,7 +345,7 @@ class FileStorage(StorageBackend):
             ...     print("Result deleted")
             ... else:
             ...     print("Result not found")
-            
+
         Note:
             Deletion is permanent. Consider implementing a soft delete
             or backup mechanism if you need recovery options.
@@ -359,35 +359,35 @@ class FileStorage(StorageBackend):
 
     async def search(self, query: str, limit: int = 10) -> List[SifakaResult]:
         """Search results by text content.
-        
+
         Performs a simple case-insensitive substring search across both
         original and final text of all stored results. Results are returned
         in the order they're found (typically newest first).
-        
+
         Args:
             query: Search term to look for in result texts.
                 Case-insensitive substring match.
             limit: Maximum number of matching results to return.
                 Defaults to 10 to prevent excessive I/O.
-                
+
         Returns:
             List of SifakaResult objects that contain the search query
-            
+
         Example:
             >>> # Search for results about machine learning
             >>> ml_results = await storage.search("machine learning")
-            >>> 
+            >>>
             >>> # Display matches
             >>> for result in ml_results:
             ...     print(f"{result.id[:8]}: {result.final_text[:50]}...")
-            
+
         Performance warning:
             This performs a full scan of all files, loading and searching
             each one. For large collections, this can be slow. Consider:
             - Using smaller search limits
             - Implementing an external search index
             - Caching frequently accessed results
-            
+
         Error handling:
             Corrupt or inaccessible files are logged and skipped rather
             than failing the entire search.
@@ -421,10 +421,10 @@ class FileStorage(StorageBackend):
 
     def cleanup_old_files(self, days_old: int = 30) -> int:
         """Clean up files older than specified days.
-        
+
         Maintenance method to prevent unbounded growth of stored results.
         Deletes JSON files based on modification time (not creation time).
-        
+
         Args:
             days_old: Delete files older than this many days.
                 Defaults to 30 days. Use smaller values for more
@@ -432,20 +432,20 @@ class FileStorage(StorageBackend):
 
         Returns:
             Number of files deleted
-            
+
         Example:
             >>> # Clean up files older than a week
             >>> deleted = storage.cleanup_old_files(days_old=7)
             >>> print(f"Deleted {deleted} old result files")
-            >>> 
+            >>>
             >>> # Very aggressive cleanup (older than 1 day)
             >>> deleted = storage.cleanup_old_files(days_old=1)
-            
+
         Safety notes:
             - Only deletes *.json files in the storage directory
             - Uses modification time, so recently accessed files are preserved
             - Deletion is permanent - ensure you have backups if needed
-            
+
         Suggested usage:
             Run periodically (e.g., daily cron job) to maintain disk space.
             Adjust days_old based on your retention requirements.
@@ -462,7 +462,7 @@ class FileStorage(StorageBackend):
 
     async def cleanup(self) -> None:
         """Clean up resources (no-op for FileStorage).
-        
+
         FileStorage doesn't maintain persistent connections or resources
         that need cleanup. This method exists for API compatibility with
         other storage backends.

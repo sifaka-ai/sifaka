@@ -17,7 +17,7 @@ capabilities using RediSearch. Falls back to basic search if RediSearch is not a
 
 import json
 import logging
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 try:
@@ -25,6 +25,7 @@ try:
     from redis.commands.search.field import TextField, NumericField, TagField
     from redis.commands.search.index_definition import IndexDefinition, IndexType
     from redis.commands.search.query import Query
+
     HAS_REDIS = True
 except ImportError:
     HAS_REDIS = False
@@ -118,14 +119,13 @@ class RedisStorage(StorageBackend):
                 if self._has_redisearch:
                     await self._ensure_index_exists()
         return self._client
-    
+
     async def _check_redisearch_support(self) -> None:
         """Check if RediSearch module is available."""
         try:
             modules = await self._client.module_list()
             self._has_redisearch = any(
-                module.get(b"name", b"").decode() == "search" 
-                for module in modules
+                module.get(b"name", b"").decode() == "search" for module in modules
             )
             if self._has_redisearch:
                 logger.info("RediSearch module detected - enabling advanced search")
@@ -135,14 +135,14 @@ class RedisStorage(StorageBackend):
             # MODULE LIST command not available or failed
             self._has_redisearch = False
             logger.info("Could not detect RediSearch - using basic search")
-    
+
     async def _ensure_index_exists(self) -> None:
         """Create RediSearch index if it doesn't exist."""
         if self._index_created:
             return
-            
+
         index_name = f"{self.prefix}idx:results"
-        
+
         try:
             # Check if index exists
             await self._client.ft(index_name).info()
@@ -156,7 +156,7 @@ class RedisStorage(StorageBackend):
             except Exception as e:
                 logger.warning(f"Failed to create RediSearch index: {e}")
                 self._has_redisearch = False
-    
+
     async def _create_search_index(self, index_name: str) -> None:
         """Create RediSearch index for Sifaka results."""
         # Define index schema
@@ -165,22 +165,20 @@ class RedisStorage(StorageBackend):
             TextField("$.final_text", as_name="final_text"),
             TextField("$.feedback", as_name="feedback"),  # Combined feedback field
             TagField("$.critics[*]", as_name="critic"),  # All critics used
-            NumericField("$.max_confidence", as_name="confidence"),  # Highest confidence
+            NumericField(
+                "$.max_confidence", as_name="confidence"
+            ),  # Highest confidence
             NumericField("$.iteration_count", as_name="iterations"),
             NumericField("$.timestamp", as_name="timestamp"),  # For date filtering
             TagField("$.result_id", as_name="result_id"),
         ]
-        
+
         # Create index on JSON documents
         definition = IndexDefinition(
-            prefix=[f"{self.prefix}result:"],
-            index_type=IndexType.JSON
+            prefix=[f"{self.prefix}result:"], index_type=IndexType.JSON
         )
-        
-        await self._client.ft(index_name).create_index(
-            schema,
-            definition=definition
-        )
+
+        await self._client.ft(index_name).create_index(schema, definition=definition)
 
     def _make_key(self, key: str) -> str:
         """Create namespaced Redis key."""
@@ -199,16 +197,18 @@ class RedisStorage(StorageBackend):
 
         # Prepare data for storage and indexing
         data = result.model_dump(mode="json")
-        
+
         # Add fields for better search
         search_data = {
             **data,
             "result_id": result_id,
             "critics": list(set(crit.critic for crit in result.critiques)),
             "feedback": " ".join(crit.feedback for crit in result.critiques),
-            "max_confidence": max((crit.confidence for crit in result.critiques), default=0.0),
+            "max_confidence": max(
+                (crit.confidence for crit in result.critiques), default=0.0
+            ),
             "iteration_count": len(result.generations),
-            "timestamp": datetime.utcnow().timestamp()
+            "timestamp": datetime.utcnow().timestamp(),
         }
 
         # Store as JSON (RediSearch will index if available)
@@ -285,7 +285,7 @@ class RedisStorage(StorageBackend):
             data = await client.get(key)
             if data:
                 data = json.loads(data)
-        
+
         if not data:
             return None
 
@@ -333,40 +333,44 @@ class RedisStorage(StorageBackend):
         list_key = self._make_key("results:list")
         await client.lrem(list_key, 0, result_id)
 
-    async def search(self, query: str, limit: int = 10, offset: int = 0) -> List[SifakaResult]:
+    async def search(
+        self, query: str, limit: int = 10, offset: int = 0
+    ) -> List[SifakaResult]:
         """Search results using RediSearch or fallback to basic search.
-        
+
         With RediSearch, supports:
         - Full-text search: "improve clarity"
         - Critic filter: "@critic:{style}"
         - Confidence filter: "@confidence:[0.8 1.0]"
         - Combined: "@critic:{style} improve* @confidence:[0.7 1.0]"
         - Date filter: "@timestamp:[1704067200 +inf]"  # After Jan 1, 2024
-        
+
         Without RediSearch:
         - Basic text matching in original and final text
         """
         client = await self._get_client()
-        
+
         if self._has_redisearch:
             try:
                 return await self._search_with_redisearch(query, limit, offset)
             except Exception as e:
                 logger.warning(f"RediSearch query failed, falling back: {e}")
-        
+
         # Fallback to basic search
         return await self._basic_search(query, limit)
-    
-    async def _search_with_redisearch(self, query: str, limit: int, offset: int) -> List[SifakaResult]:
+
+    async def _search_with_redisearch(
+        self, query: str, limit: int, offset: int
+    ) -> List[SifakaResult]:
         """Search using RediSearch."""
         index_name = f"{self.prefix}idx:results"
-        
+
         # Create query
         q = Query(query).paging(offset, limit).sort_by("timestamp", asc=False)
-        
+
         # Execute search
         results = await self._client.ft(index_name).search(q)
-        
+
         # Load full results
         sifaka_results = []
         for doc in results.docs:
@@ -375,9 +379,9 @@ class RedisStorage(StorageBackend):
             result = await self.load(result_id)
             if result:
                 sifaka_results.append(result)
-        
+
         return sifaka_results
-    
+
     async def _basic_search(self, query: str, limit: int) -> List[SifakaResult]:
         """Fallback basic text search."""
         results = await self.list(limit=100)  # Get recent results
@@ -390,14 +394,16 @@ class RedisStorage(StorageBackend):
             if (
                 query_lower in result.original_text.lower()
                 or query_lower in result.final_text.lower()
-                or any(query_lower in crit.feedback.lower() for crit in result.critiques)
+                or any(
+                    query_lower in crit.feedback.lower() for crit in result.critiques
+                )
             ):
                 matches.append(result)
                 if len(matches) >= limit:
                     break
 
         return matches
-    
+
     async def search_advanced(
         self,
         query: Optional[str] = None,
@@ -407,49 +413,49 @@ class RedisStorage(StorageBackend):
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         limit: int = 10,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[SifakaResult]:
         """Advanced search with multiple filters.
-        
+
         Args:
             query: Full-text search query
             critics: Filter by critic types used
             min_confidence: Minimum confidence score
-            max_confidence: Maximum confidence score  
+            max_confidence: Maximum confidence score
             start_date: Results after this date
             end_date: Results before this date
             limit: Maximum results to return
             offset: Pagination offset
-            
+
         Returns:
             List of matching SifakaResult objects
         """
         if not self._has_redisearch:
             # Fallback to basic search with query only
             return await self._basic_search(query or "*", limit)
-        
+
         # Build RediSearch query
         query_parts = []
-        
+
         if query:
             query_parts.append(query)
         else:
             query_parts.append("*")  # Match all
-        
+
         if critics:
             critic_filter = " | ".join(f"@critic:{{{c}}}" for c in critics)
             query_parts.append(f"({critic_filter})")
-        
+
         if min_confidence is not None or max_confidence is not None:
             min_conf = min_confidence or 0.0
             max_conf = max_confidence or 1.0
             query_parts.append(f"@confidence:[{min_conf} {max_conf}]")
-        
+
         if start_date or end_date:
             start_ts = start_date.timestamp() if start_date else 0
             end_ts = end_date.timestamp() if end_date else "+inf"
             query_parts.append(f"@timestamp:[{start_ts} {end_ts}]")
-        
+
         full_query = " ".join(query_parts)
         return await self._search_with_redisearch(full_query, limit, offset)
 
@@ -473,16 +479,16 @@ class RedisStorage(StorageBackend):
         if self._client:
             await self._client.close()
             self._client = None
-    
+
     async def get_search_stats(self) -> Dict[str, Any]:
         """Get search index statistics if RediSearch is available."""
         if not self._has_redisearch:
             return {"available": False, "message": "RediSearch not available"}
-        
+
         try:
             index_name = f"{self.prefix}idx:results"
             info = await self._client.ft(index_name).info()
-            
+
             return {
                 "available": True,
                 "index_name": index_name,

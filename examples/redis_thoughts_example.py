@@ -10,7 +10,6 @@ This demonstrates:
 
 import asyncio
 import os
-from datetime import datetime, timedelta
 from sifaka import improve, Config
 from sifaka.storage import MultiStorage, RedisStorage, FileStorage
 
@@ -19,23 +18,23 @@ async def main() -> None:
     """Demonstrate MultiStorage with Redis and FileStorage."""
     print("🏛️ MultiStorage Example (Redis + FileStorage)")
     print("=" * 50)
-    
+
     try:
         # Part 1: Setup MultiStorage
         storage = await setup_multi_storage()
-        
+
         # Part 2: Create multiple improvements
         await demo_multiple_improvements(storage)
-        
+
         # Part 3: Demonstrate search capabilities
         await demo_search_capabilities(storage)
-        
+
         # Part 4: Show storage status and benefits
         await demo_storage_benefits(storage)
-        
+
         # Cleanup
         await storage.cleanup()
-        
+
     except ImportError:
         print("❌ Redis package not installed")
         print("   Install with: pip install redis")
@@ -43,6 +42,7 @@ async def main() -> None:
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -50,53 +50,53 @@ async def setup_multi_storage() -> MultiStorage:
     """Setup MultiStorage with Redis and FileStorage."""
     print("\n🏛️ Part 1: Setting up MultiStorage")
     print("=" * 50)
-    
+
     # Create FileStorage (always works)
-    file_storage = FileStorage(
-        storage_dir="./thoughts"
-    )
+    file_storage = FileStorage(storage_dir="./thoughts")
     print("✅ FileStorage configured: ./thoughts/")
-    
+
     # Try to create Redis storage
     backends = [file_storage]  # FileStorage is always available
-    
+
     try:
         redis_storage = RedisStorage(
             host="localhost",
             port=6379,
             prefix="sifaka:multi:",
             ttl=86400,  # Keep for 24 hours
-            use_redisearch=True
+            use_redisearch=True,
         )
-        
+
         # Test Redis connection
         await redis_storage._get_client()
         backends.append(redis_storage)
-        
+
         print("✅ RedisStorage connected")
-        
+
         # Check RediSearch
         stats = await redis_storage.get_search_stats()
         if stats["available"]:
             print("🔍 RediSearch enabled - advanced search available!")
         else:
             print("📌 Basic Redis search (install Redis Stack for more)")
-            
+
     except Exception as e:
         print(f"⚠️  Redis not available: {e}")
         print("📁 Using FileStorage only")
-    
+
     # Create MultiStorage
     storage = MultiStorage(
         backends=backends,
-        primary_backend=1 if len(backends) > 1 else 0  # Use Redis for reads if available
+        primary_backend=(
+            1 if len(backends) > 1 else 0
+        ),  # Use Redis for reads if available
     )
-    
+
     status = storage.get_backend_status()
     print(f"\n📦 MultiStorage configured with {len(status['backends'])} backends:")
-    for backend in status['backends']:
+    for backend in status["backends"]:
         print(f"   - {backend}")
-    
+
     return storage
 
 
@@ -105,7 +105,7 @@ async def demo_multiple_improvements(storage: MultiStorage) -> None:
     print("\n🚀 Part 2: Creating Multiple Improvements")
     print("=" * 50)
     print("\nEach improvement will be saved to all configured backends.")
-    
+
     # Different texts to improve with different critics
     test_cases = [
         {
@@ -114,32 +114,32 @@ Machine learning is when computers learn from data. They use algorithms
 to find patterns. Deep learning uses neural networks. It's very powerful.
 """,
             "critics": ["style", "self_refine"],
-            "description": "Technical explanation"
+            "description": "Technical explanation",
         },
         {
-            "text": """The implementation of the new feature should be done carefully. 
+            "text": """The implementation of the new feature should be done carefully.
 We need to consider all edge cases. Testing is important. Documentation too.""",
             "critics": ["self_refine", "style"],
-            "description": "Software development"
+            "description": "Software development",
         },
         {
-            "text": """Our product revolutionizes how businesses operate. It provides 
+            "text": """Our product revolutionizes how businesses operate. It provides
 amazing benefits. Customers love it. You should buy it now.""",
             "critics": ["style", "constitutional"],
-            "description": "Marketing copy"
+            "description": "Marketing copy",
         },
         {
-            "text": """The research shows interesting results. The data supports our 
+            "text": """The research shows interesting results. The data supports our
 hypothesis. More studies are needed. This could be significant.""",
             "critics": ["reflexion", "style"],
-            "description": "Research summary"
-        }
+            "description": "Research summary",
+        },
     ]
-    
+
     # Process each test case
     for i, test_case in enumerate(test_cases, 1):
         print(f"\n📝 Improving text {i}/4: {test_case['description']}")
-        
+
         result = await improve(
             test_case["text"],
             critics=test_case["critics"],
@@ -150,8 +150,8 @@ hypothesis. More studies are needed. This could be significant.""",
                 model="gpt-4o-mini",  # Fast model for demo
             ),
         )
-        
-        print(f"   ✅ Saved to all backends")
+
+        print("   ✅ Saved to all backends")
         print(f"   Critics used: {', '.join(test_case['critics'])}")
         print(f"   Final confidence: {result.critiques[-1].confidence:.2f}")
 
@@ -161,41 +161,37 @@ async def demo_search_capabilities(storage: MultiStorage) -> None:
     print("\n🔍 Part 3: Search Capabilities")
     print("=" * 50)
     print("\nMultiStorage will use the best available search backend.")
-    
+
     # Test different search queries
     search_tests = [
-        {
-            "query": "machine learning",
-            "description": "Full-text search"
-        },
-        {
-            "query": "improve clarity",
-            "description": "Search in feedback"
-        },
+        {"query": "machine learning", "description": "Full-text search"},
+        {"query": "improve clarity", "description": "Search in feedback"},
         {
             "query": "@critic:{style}",
-            "description": "Filter by critic (RediSearch only)"
+            "description": "Filter by critic (RediSearch only)",
         },
         {
             "query": "@confidence:[0.8 1.0]",
-            "description": "High confidence results (RediSearch only)"
+            "description": "High confidence results (RediSearch only)",
         },
         {
             "query": "@critic:{style} @confidence:[0.7 1.0]",
-            "description": "Combined filters (RediSearch only)"
-        }
+            "description": "Combined filters (RediSearch only)",
+        },
     ]
-    
+
     for test in search_tests:
         print(f"\n🔎 {test['description']}: '{test['query']}'")
         try:
             results = await storage.search(test["query"], limit=3)
             print(f"   Found {len(results)} results")
-            
+
             for j, result in enumerate(results, 1):
                 critics_used = list(set(crit.critic for crit in result.critiques))
                 max_confidence = max(crit.confidence for crit in result.critiques)
-                print(f"   {j}. Critics: {', '.join(critics_used)}, Confidence: {max_confidence:.2f}")
+                print(
+                    f"   {j}. Critics: {', '.join(critics_used)}, Confidence: {max_confidence:.2f}"
+                )
                 print(f"      Preview: {result.original_text[:60].strip()}...")
         except Exception as e:
             print(f"   ⚠️  Query not supported without RediSearch: {e}")
@@ -205,27 +201,27 @@ async def demo_storage_benefits(storage: MultiStorage) -> None:
     """Demonstrate the benefits of MultiStorage."""
     print("\n🎆 Part 4: MultiStorage Benefits")
     print("=" * 50)
-    
+
     # Show storage status
     status = storage.get_backend_status()
-    print(f"\n📦 Storage Configuration:")
+    print("\n📦 Storage Configuration:")
     print(f"   Backends: {', '.join(status['backends'])}")
     print(f"   Primary for reads: {status['primary_name'] or 'First available'}")
-    
+
     # List recent results
     print("\n📋 Recent improvements:")
     results = await storage.list(limit=5)
     print(f"   Found {len(results)} recent results")
-    
+
     # Demonstrate fallback
     print("\n🔄 Fallback demonstration:")
     if len(results) > 0:
-        result_id = results[0].id if hasattr(results[0], 'id') else "test-id"
+        result_id = results[0].id if hasattr(results[0], "id") else "test-id"
         loaded = await storage.load(result_id)
         if loaded:
-            print(f"   ✅ Loaded result from primary backend")
+            print("   ✅ Loaded result from primary backend")
             print(f"   Original text preview: {loaded.original_text[:50]}...")
-    
+
     # Show benefits
     print("\n🌟 Benefits of MultiStorage:")
     print("   1. 📦 Redundancy - Data saved to multiple locations")
@@ -233,21 +229,19 @@ async def demo_storage_benefits(storage: MultiStorage) -> None:
     print("   3. 🔄 Fallback - Continues working if one backend fails")
     print("   4. 🔍 Search - Uses best available search (Redis if present)")
     print("   5. 📁 Archival - FileStorage provides permanent records")
-    
+
     # Check if Redis has advanced search
     for backend in storage.backends:
         if isinstance(backend, RedisStorage):
             stats = await backend.get_search_stats()
             if stats["available"]:
                 print("\n🔍 Advanced Redis Search Available:")
-                
+
                 # Try advanced search
                 try:
                     # Get the Redis backend directly for advanced search
                     results = await backend.search_advanced(
-                        critics=["style"],
-                        min_confidence=0.7,
-                        limit=3
+                        critics=["style"], min_confidence=0.7, limit=3
                     )
                     print(f"   Found {len(results)} high-confidence style improvements")
                 except Exception as e:

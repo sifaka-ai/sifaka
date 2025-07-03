@@ -15,7 +15,7 @@ not have the programming expertise to implement custom validators.
 ## Key Capabilities:
 
 - **Custom Criteria**: Define any evaluation criteria in natural language
-- **Domain Flexibility**: Adapt to any content type or industry requirement  
+- **Domain Flexibility**: Adapt to any content type or industry requirement
 - **Rapid Prototyping**: Test new evaluation approaches without coding
 - **Expert Knowledge**: Encode domain expertise directly in prompts
 - **Iterative Refinement**: Easily adjust criteria based on results
@@ -28,7 +28,7 @@ not have the programming expertise to implement custom validators.
 - Academic tone consistency
 - Literature review completeness
 
-### Technical Documentation  
+### Technical Documentation
 - API documentation standards
 - Code example accuracy
 - Prerequisite clarity
@@ -57,7 +57,7 @@ not have the programming expertise to implement custom validators.
     ...     4. Performance implications
     ...     Rate each dimension and provide specific improvements.\"\"\"
     ... )
-    >>> 
+    >>>
     >>> # Domain-specific critic
     >>> medical_critic = PromptCritic(
     ...     custom_prompt=\"\"\"As a medical reviewer, evaluate for:
@@ -66,7 +66,7 @@ not have the programming expertise to implement custom validators.
     ...     - Regulatory compliance (FDA, HIPAA)
     ...     - Clarity for patient understanding\"\"\"
     ... )
-    >>> 
+    >>>
     >>> # Multi-stakeholder evaluation
     >>> stakeholder_critic = PromptCritic(
     ...     custom_prompt='''Evaluate from three perspectives:
@@ -111,11 +111,11 @@ from ..core.config import Config
 
 class PromptResponse(BaseModel):
     """Structured response format for prompt-based evaluation results.
-    
+
     Provides consistent output structure regardless of the custom evaluation
     criteria, ensuring seamless integration with the Sifaka improvement pipeline.
     The response captures both high-level assessment and detailed feedback.
-    
+
     Attributes:
         feedback: Comprehensive evaluation based on the custom criteria defined
             in the prompt. Should directly address each evaluation dimension
@@ -151,7 +151,7 @@ class PromptResponse(BaseModel):
 
 class PromptCritic(BaseCritic):
     """Flexible critic using custom prompts for domain-specific evaluation.
-    
+
     Enables rapid deployment of specialized critics through natural language
     prompt engineering rather than code implementation. Ideal for domain experts
     who understand their content requirements but want to avoid custom development.
@@ -179,36 +179,36 @@ class PromptCritic(BaseCritic):
     - **Academic Requirements**: "Check thesis statement and citation format"
     - **Accessibility**: "Evaluate for WCAG 2.1 AA compliance"
     - **Industry Jargon**: "Ensure appropriate medical terminology usage"
-    
+
     ## Prompt Engineering Tips:
-    
+
     1. **Structure**: Use numbered lists or categories for clarity
     2. **Specificity**: Define exact criteria, not general quality
     3. **Examples**: Include examples of good/bad in your prompt
     4. **Priorities**: Indicate which criteria are most important
     5. **Evidence**: Request specific examples in the feedback
-    
+
     ## Advanced Usage:
-    
+
         >>> # Multi-perspective evaluation
         >>> critic = PromptCritic(
         ...     custom_prompt='''Evaluate from multiple stakeholder perspectives:
-        ...     
+        ...
         ...     CUSTOMER: Is the value proposition clear? Benefits obvious?
         ...     LEGAL: Any claims that need substantiation? Risk exposure?
         ...     BRAND: Does this align with our premium positioning?
-        ...     
+        ...
         ...     Provide perspective-specific feedback and overall recommendations.'''
         ... )
-        >>> 
+        >>>
         >>> # Rubric-based evaluation
         >>> critic = PromptCritic(
         ...     custom_prompt='''Score each criterion (1-5) and explain:
-        ...     
+        ...
         ...     1. Clarity (weight: 30%): Is the main point immediately clear?
         ...     2. Evidence (weight: 40%): Are claims supported with data?
         ...     3. Action (weight: 30%): Is the next step obvious?
-        ...     
+        ...
         ...     Calculate weighted score and identify top improvement priority.'''
         ... )
     """
@@ -223,11 +223,11 @@ class PromptCritic(BaseCritic):
         config: Optional[Config] = None,
     ):
         """Initialize a custom prompt-based critic.
-        
+
         Creates a flexible critic that evaluates text based on user-defined
         criteria expressed in natural language. The prompt defines what aspects
         of the text to evaluate and how to assess quality.
-        
+
         Args:
             custom_prompt: Natural language prompt defining evaluation criteria.
                 Should clearly specify what to evaluate and how to judge quality.
@@ -241,7 +241,7 @@ class PromptCritic(BaseCritic):
             provider: LLM provider (OpenAI, Anthropic, etc.)
             api_key: API key override if not using environment variables
             config: Full Sifaka configuration object
-            
+
         Example:
             >>> # Technical documentation critic
             >>> critic = PromptCritic(
@@ -252,7 +252,7 @@ class PromptCritic(BaseCritic):
             ...     4. Errors: How are error cases handled?
             ...     Score each dimension and provide specific improvements.'''
             ... )
-            >>> 
+            >>>
             >>> # Inclusive language critic
             >>> critic = PromptCritic(
             ...     custom_prompt='''Review for inclusive language:
@@ -262,7 +262,7 @@ class PromptCritic(BaseCritic):
             ...     - Ensure accessibility considerations
             ...     Highlight specific issues and suggest alternatives.'''
             ... )
-            
+
         Prompt design tips:
             - Start with clear evaluation objectives
             - Break down complex criteria into specific dimensions
@@ -280,7 +280,7 @@ class PromptCritic(BaseCritic):
     @property
     def name(self) -> str:
         """Return the identifier for this critic type.
-        
+
         Returns:
             "prompt" - Used in configuration and logging to identify
             custom prompt-based evaluation.
@@ -289,7 +289,7 @@ class PromptCritic(BaseCritic):
 
     def _get_response_type(self) -> type[BaseModel]:
         """Specify the structured response format for prompt-based evaluation.
-        
+
         Returns:
             PromptResponse class that provides consistent structure
             regardless of custom evaluation criteria, ensuring smooth
@@ -301,26 +301,26 @@ class PromptCritic(BaseCritic):
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
         """Create evaluation messages using the custom prompt.
-        
+
         Constructs the evaluation request by combining the user's custom
         prompt with the text to evaluate and any relevant context from
         previous iterations.
-        
+
         Args:
             text: Text to evaluate against custom criteria
             result: SifakaResult containing iteration history and context
-            
+
         Returns:
             List of message dictionaries with:
             - System message: Establishes the critic as a flexible evaluator
             - User message: Combines custom prompt, text, and context
-            
+
         Message structure:
             1. Custom evaluation criteria (from user's prompt)
             2. Text to evaluate
             3. Previous iteration context (if applicable)
             4. Request for specific, actionable feedback
-            
+
         The prompt is designed to elicit:
             - Specific examples from the text
             - Clear rationale for assessments
@@ -351,11 +351,11 @@ def create_academic_critic(
     model: str = "gpt-4o-mini", temperature: float = 0.7, **kwargs: Any
 ) -> PromptCritic:
     """Create a pre-configured critic for academic writing evaluation.
-    
+
     Provides comprehensive evaluation of academic texts across key scholarly
     dimensions. Suitable for research papers, dissertations, academic articles,
     and scholarly communications.
-    
+
     Args:
         model: LLM model for evaluation. Default gpt-4o-mini balances
             quality and cost. Consider gpt-4 for nuanced academic evaluation.
@@ -365,35 +365,35 @@ def create_academic_critic(
             - provider: LLM provider override
             - api_key: API key override
             - config: Full configuration object
-            
+
     Returns:
         PromptCritic configured for academic writing evaluation with
         focus on scholarly standards and conventions
-        
+
     Evaluation criteria:
         1. **Clarity and Precision**: Technical accuracy, unambiguous language
-        2. **Logical Flow**: Argument structure, transitions, coherence  
+        2. **Logical Flow**: Argument structure, transitions, coherence
         3. **Evidence Usage**: Citation quality, source credibility, support
         4. **Academic Tone**: Formal register, objective voice, scholarly style
         5. **Field Contribution**: Originality, significance, research gap
-        
+
     Example:
         >>> # Standard academic evaluation
         >>> critic = create_academic_critic()
-        >>> 
+        >>>
         >>> # High-precision evaluation for journal submission
         >>> critic = create_academic_critic(
         ...     model="gpt-4",
         ...     temperature=0.5
         ... )
-        >>> 
+        >>>
         >>> # Evaluate a research abstract
         >>> result = await improve(
         ...     abstract_text,
         ...     critics=[critic],
         ...     max_iterations=3
         ... )
-        
+
     Best suited for:
         - Research paper drafts
         - Dissertation chapters
@@ -418,11 +418,11 @@ def create_business_critic(
     model: str = "gpt-4o-mini", temperature: float = 0.7, **kwargs: Any
 ) -> PromptCritic:
     """Create a pre-configured critic for business document evaluation.
-    
+
     Optimized for professional business communications including proposals,
     reports, presentations, and strategic documents. Focuses on clarity,
     professionalism, and business impact.
-    
+
     Args:
         model: LLM model for evaluation. Default gpt-4o-mini provides
             good business judgment. Use gpt-4 for executive-level content.
@@ -432,35 +432,35 @@ def create_business_critic(
             - provider: LLM provider override
             - api_key: API key override
             - config: Full configuration object
-            
+
     Returns:
         PromptCritic configured for business document evaluation with
         focus on professional communication standards
-        
+
     Evaluation criteria:
         1. **Message Clarity**: Clear value proposition, obvious next steps
         2. **Professional Tone**: Appropriate formality, credibility, polish
         3. **Value Focus**: Benefits over features, ROI, business impact
         4. **Structure**: Logical flow, scannable format, executive summary
         5. **Persuasiveness**: Compelling arguments, evidence, call-to-action
-        
+
     Example:
         >>> # Standard business document review
         >>> critic = create_business_critic()
-        >>> 
+        >>>
         >>> # Executive presentation review
         >>> critic = create_business_critic(
         ...     model="gpt-4",
         ...     temperature=0.6  # More consistent for formal docs
         ... )
-        >>> 
+        >>>
         >>> # Evaluate a business proposal
         >>> result = await improve(
         ...     proposal_text,
         ...     critics=[critic],
         ...     validators=[LengthValidator(max_length=5000)]
         ... )
-        
+
     Best suited for:
         - Business proposals and RFPs
         - Executive summaries
@@ -486,11 +486,11 @@ def create_creative_critic(
     model: str = "gpt-4o-mini", temperature: float = 0.7, **kwargs: Any
 ) -> PromptCritic:
     """Create a pre-configured critic for creative writing evaluation.
-    
+
     Tailored for fiction, creative non-fiction, poetry, and other artistic
     writing. Emphasizes narrative craft, emotional resonance, and artistic merit
     over technical correctness.
-    
+
     Args:
         model: LLM model for evaluation. Default gpt-4o-mini offers
             good creative insights. Consider gpt-4 for literary analysis.
@@ -501,35 +501,35 @@ def create_creative_critic(
             - provider: LLM provider override
             - api_key: API key override
             - config: Full configuration object
-            
+
     Returns:
         PromptCritic configured for creative writing evaluation with
         focus on artistic elements and reader engagement
-        
+
     Evaluation criteria:
         1. **Narrative Flow**: Pacing, tension, story arc, scene transitions
         2. **Character Voice**: Authenticity, consistency, development, dialogue
         3. **Imagery**: Sensory details, metaphors, descriptive power, showing vs telling
         4. **Emotional Impact**: Reader engagement, empathy, memorable moments
         5. **Originality**: Fresh perspectives, unique voice, creative choices
-        
+
     Example:
         >>> # Standard creative writing review
         >>> critic = create_creative_critic()
-        >>> 
+        >>>
         >>> # Literary fiction evaluation
         >>> critic = create_creative_critic(
         ...     model="gpt-4",
         ...     temperature=0.8  # More creative feedback
         ... )
-        >>> 
+        >>>
         >>> # Evaluate a short story excerpt
         >>> result = await improve(
         ...     story_excerpt,
         ...     critics=[critic],
         ...     max_iterations=5  # Allow more creative iterations
         ... )
-        
+
     Best suited for:
         - Short stories and novels
         - Creative non-fiction
@@ -538,7 +538,7 @@ def create_creative_critic(
         - Personal narratives
         - Descriptive passages
         - Character sketches
-        
+
     Note:
         This critic prioritizes artistic merit over technical rules.
         Combine with other critics (e.g., style, grammar) for comprehensive

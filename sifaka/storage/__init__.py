@@ -43,10 +43,10 @@ deployments with complex search needs. Requires 'asyncpg' package.
     >>> from sifaka import improve, FileStorage
     >>> storage = FileStorage(directory=\"./results\")
     >>> result = await improve(\"text\", storage=storage)
-    >>> 
+    >>>
     >>> # Later, load the result
     >>> loaded = await storage.load(result.id)
-    >>> 
+    >>>
     >>> # Redis with search (requires Redis Stack)
     >>> from sifaka.storage import RedisStorage
     >>> storage = RedisStorage()
@@ -55,7 +55,7 @@ deployments with complex search needs. Requires 'asyncpg' package.
     ...     critics=[\"style\"],
     ...     min_confidence=0.8
     ... )
-    >>> 
+    >>>
     >>> # Multi-storage for redundancy and best of both worlds
     >>> from sifaka.storage import MultiStorage, FileStorage, RedisStorage
     >>> storage = MultiStorage([
@@ -82,7 +82,13 @@ from .multi import MultiStorage
 try:
     from .redis import RedisStorage
 
-    __all__ = ["StorageBackend", "MemoryStorage", "FileStorage", "MultiStorage", "RedisStorage"]
+    __all__ = [
+        "StorageBackend",
+        "MemoryStorage",
+        "FileStorage",
+        "MultiStorage",
+        "RedisStorage",
+    ]
 except ImportError:
     # Redis not installed
     __all__ = ["StorageBackend", "MemoryStorage", "FileStorage", "MultiStorage"]
