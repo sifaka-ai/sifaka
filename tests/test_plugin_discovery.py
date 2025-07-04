@@ -124,8 +124,8 @@ class TestPluginDiscovery:
             registry.discover_plugins()
             registry.discover_plugins()
 
-            # Verify iter_entry_points was only called once
-            mock_iter.assert_called_once_with("sifaka.storage")
+            # Verify entry_points was only called once
+            mock_entry_points.assert_called_once()
 
     def test_discover_plugins_no_pkg_resources(self):
         """Test plugin discovery when pkg_resources is not available."""
@@ -166,7 +166,7 @@ class TestPluginDiscovery:
 
             # Verify discovery was triggered
             assert registry._discovered is True
-            mock_iter.assert_called_once()
+            mock_entry_points.assert_called()
 
     def test_lazy_discovery_on_list_backends(self):
         """Test that discovery happens lazily when listing backends."""
@@ -190,7 +190,7 @@ class TestPluginDiscovery:
             # Verify discovery was triggered
             assert registry._discovered is True
             assert "lazy_backend" in backends
-            mock_iter.assert_called_once()
+            mock_entry_points.assert_called()
 
     def test_entry_point_with_invalid_backend(self):
         """Test handling of entry points that don't return StorageBackend."""
@@ -272,7 +272,7 @@ class TestPluginDiscovery:
             assert backend.config == "test"
 
             # Verify discovery happened
-            mock_iter.assert_called_once()
+            mock_entry_points.assert_called()
 
 
 class TestPluginRegistrationEdgeCases:

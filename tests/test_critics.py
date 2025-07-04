@@ -6,6 +6,7 @@ from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.prompt import PromptCritic, create_academic_critic
 from sifaka.core.models import SifakaResult, CritiqueResult
+from sifaka.core.config import Config
 
 
 class TestReflexionCritic:
@@ -51,7 +52,7 @@ class TestReflexionCritic:
         assert critic.config.response_format == "json"
 
         # Test that config can be customized
-        custom_config = CriticConfig(response_format="structured")
+        custom_config = Config(response_format="structured")
         critic2 = ReflexionCritic(config=custom_config)
         assert critic2.config.response_format == "json"  # Reflexion forces JSON
 

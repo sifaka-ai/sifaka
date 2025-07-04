@@ -348,8 +348,6 @@ class RedisStorage(StorageBackend):
         Without RediSearch:
         - Basic text matching in original and final text
         """
-        client = await self._get_client()
-
         if self._has_redisearch:
             try:
                 return await self._search_with_redisearch(query, limit, offset)

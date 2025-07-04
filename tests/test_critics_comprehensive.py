@@ -79,7 +79,7 @@ class TestSelfConsistencyCritic:
             result = await critic.critique(sample_text, sample_result)
 
             assert "inconsistency" in " ".join(result.suggestions).lower()
-            assert result.needs_improvement == True
+            assert result.needs_improvement
 
     @pytest.mark.asyncio
     async def test_critique_error_handling(self, critic, sample_text, sample_result):
@@ -172,7 +172,7 @@ CORRECTIONS: Consider adding more specific examples"""
             result = await critic.critique(sample_text, sample_result)
 
             assert result.confidence == 0.4
-            assert result.needs_improvement == True
+            assert result.needs_improvement
             assert "Assessment reliability could be enhanced" in result.suggestions
 
     @pytest.mark.asyncio
@@ -247,7 +247,7 @@ SUGGESTIONS: 1. Major revisions needed"""
             mock_create.return_value = mock_api_response
             result = await critic.critique(sample_text, sample_result)
 
-            assert result.needs_improvement == True  # consensus < 0.75
+            assert result.needs_improvement  # consensus < 0.75
             assert result.confidence == 0.6  # 0.5 + 0.1
 
     def test_custom_perspectives(self):
@@ -311,7 +311,7 @@ REFINEMENTS: 1. Consider minor stylistic improvements"""
             result = await critic.critique(sample_text, sample_result)
 
             assert (
-                result.needs_improvement == False
+                not result.needs_improvement
             )  # quality >= 0.8 and len(suggestions) <= 2
             assert result.confidence == 0.9  # min(0.9, 0.9 + 0.1)
 
@@ -385,7 +385,7 @@ SUGGESTIONS: 1. Retrieve current statistics on the topic
 
             assert isinstance(result, CritiqueResult)
             assert result.critic == "self_rag"
-            assert result.needs_improvement == True
+            assert result.needs_improvement
             assert (
                 result.confidence == 0.8
             )  # Higher confidence when retrieval need is clear
@@ -411,7 +411,7 @@ SUGGESTIONS: 1. Minor stylistic improvements could enhance readability"""
             mock_create.return_value = mock_api_response
             result = await critic.critique(sample_text, sample_result)
 
-            assert result.needs_improvement == False
+            assert not result.needs_improvement
             assert result.confidence == 0.7  # Lower confidence when no retrieval needed
             assert "Content evaluation" in result.feedback
 
@@ -436,7 +436,7 @@ SUGGESTIONS: 1. Verify accuracy of statistical claims
 
             # Should need improvement due to "accuracy" in suggestions or feedback
             assert (
-                result.needs_improvement == True
+                result.needs_improvement
                 or "accuracy" in result.feedback.lower()
             )
             # Check if accuracy is mentioned somewhere in the result
@@ -456,7 +456,7 @@ ASSESSMENT: Basic assessment"""
             incomplete_response
         )
 
-        assert needs_retrieval == True
+        assert needs_retrieval
         assert len(suggestions) == 1  # Fallback suggestion
         assert suggestions[0] == "Consider retrieval-augmented improvements"
 

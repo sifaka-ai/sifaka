@@ -277,7 +277,7 @@ SUGGESTIONS: Add examples"""
             mock_client.chat.completions.create = create_mock
             mock_openai.return_value = mock_client
 
-            result = await improve(
+            await improve(
                 "Test text",
                 model="gpt-4",
                 temperature=0.9,

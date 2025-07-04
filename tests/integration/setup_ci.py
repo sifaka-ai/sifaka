@@ -8,7 +8,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from tests.integration.mock_helpers import setup_ci_environment
+from tests.integration.mock_helpers import setup_ci_environment  # noqa: E402
 
 # Set up CI environment if running in CI
 if __name__ == "__main__":
