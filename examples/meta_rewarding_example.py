@@ -33,10 +33,9 @@ async def main() -> None:
             text,
             critics=["meta_rewarding"],
             max_iterations=2,
-            provider="anthropic",
-            model="claude-3-haiku-20240307",
             config=Config(
-                critic_model="claude-3-haiku-20240307",
+                model="gpt-3.5-turbo",
+                critic_model="gpt-3.5-turbo",
                 temperature=0.6,  # Lower for consistent evaluation
             ),
             storage=FileStorage(),
@@ -47,9 +46,11 @@ async def main() -> None:
             text,
             critics=["meta_rewarding"],
             max_iterations=2,
-            provider="google",
-            model="gemini-1.5-pro",  # Pro model for complex meta-evaluation
-            config=Config(critic_model="gemini-1.5-pro", temperature=0.6),
+            config=Config(
+                model="gpt-4o-mini",  # Pro model for complex meta-evaluation
+                critic_model="gpt-4o-mini",
+                temperature=0.6
+            ),
             storage=FileStorage(),
         )
     else:

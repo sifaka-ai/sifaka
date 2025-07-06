@@ -33,6 +33,8 @@ dependencies = [
     "aiofiles>=24.1.0", # Required for FileStorage backend
     "logfire>=3.21.1",
     "redis>=6.2.0",
+    "beautifulsoup4>=4.12.0",  # Required for web_search tool
+    "numpy>=1.24.0",  # Required for vector embeddings
 ]
 
 [project.optional-dependencies]

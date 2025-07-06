@@ -33,10 +33,9 @@ async def main() -> None:
             text,
             critics=["self_consistency"],
             max_iterations=2,
-            provider="google",
-            model="gemini-1.5-flash",  # Fast for parallel evaluations
             config=Config(
-                critic_model="gemini-1.5-flash",
+                model="gpt-4o-mini",  # Fast for parallel evaluations
+                critic_model="gpt-4o-mini",
                 temperature=0.5,  # Lower for consistency
             ),
             storage=FileStorage(),
@@ -47,9 +46,11 @@ async def main() -> None:
             text,
             critics=["self_consistency"],
             max_iterations=2,
-            provider="openai",
-            model="gpt-4o-mini",
-            config=Config(critic_model="gpt-4o-mini", temperature=0.5),
+            config=Config(
+                model="gpt-4o-mini",
+                critic_model="gpt-4o-mini",
+                temperature=0.5
+            ),
             storage=FileStorage(),
         )
     else:

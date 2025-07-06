@@ -99,52 +99,42 @@ class ReflexionCritic(BaseCritic):
         >>> # The critic will progressively refine its feedback
         >>> for critique in result.critiques:
         ...     if critique.critic == "reflexion":
-        ...         print(f"Iteration {critique.iteration}: {critique.feedback}")
-    
-    Key Features:
-        - Maintains context from previous iterations
-        - Learns from what has and hasn't worked
-        - Provides increasingly targeted feedback
-        - Best suited for 3-5 iteration workflows
+        ...         print(f"Iteration: {critique.feedback}")
     """
-
-    def __init__(
-        self,
-        model: str = "gpt-4o-mini",
-        temperature: float = 0.7,
-        provider: Optional[Union[str, Provider]] = None,
-        api_key: Optional[str] = None,
-        config: Optional[Config] = None,
-    ):
-        # Initialize with custom config for reflexion
-        if config is None:
-            config = Config()
-        super().__init__(model, temperature, config, provider, api_key)
 
     @property
     def name(self) -> str:
+        """Return the identifier for this critic."""
         return "reflexion"
 
+    def _get_system_prompt(self) -> str:
+        """System prompt that establishes the reflexion approach."""
+        return """You are an expert text critic using the Reflexion technique for iterative improvement.
+
+Your approach:
+1. Analyze the current text quality
+2. Reflect on what has improved from previous versions (if any)
+3. Identify remaining areas that need work
+4. Provide specific, actionable suggestions
+
+Focus on:
+- Learning from past attempts
+- Avoiding repetition of previous feedback
+- Building on successful improvements
+- Identifying persistent issues
+
+Be constructive and specific in your feedback."""
+
     def _get_response_type(self) -> type[BaseModel]:
-        """Use custom ReflexionResponse for structured output."""
+        """Use our custom response model."""
         return ReflexionResponse
 
-    def _get_system_prompt(self) -> str:
-        """Get system prompt for Reflexion critic.
-        
-        The prompt emphasizes the self-reflective nature of the Reflexion
-        approach and the importance of learning from previous iterations.
-        """
-        return "You are an expert text critic using the Reflexion technique for self-improvement through iterative reflection."
-
-    async def _create_messages(
-        self, text: str, result: SifakaResult
-    ) -> List[Dict[str, str]]:
-        """Create messages for the LLM using reflection approach."""
+    def get_instructions(self, text: str, result: SifakaResult) -> str:
+        """Generate reflexion-specific instructions."""
         # Build context from previous iterations
         context = self._build_context(result)
 
-        instructions = f"""You are a thoughtful critic using self-reflection to improve text.
+        return f"""You are a thoughtful critic using self-reflection to improve text.
 
 Context from previous iterations:
 {context}
@@ -157,8 +147,6 @@ Reflect on this text and identify:
 
 Focus on being constructive and specific. Analyze the text's strengths, weaknesses, clarity, engagement, and completeness."""
 
-        return await self._simple_critique(text, result, instructions)
-
     def _build_context(self, result: SifakaResult) -> str:
         """Build episodic memory context from previous iterations.
         
@@ -168,31 +156,40 @@ Focus on being constructive and specific. Analyze the text's strengths, weakness
         the text's evolution.
         
         Args:
-            result: The SifakaResult containing critique history
+            result: The result object containing all previous iterations
             
         Returns:
-            Formatted string summarizing previous iterations
+            Formatted context string summarizing the improvement history
         """
-        if not result.critiques:
-            return "This is the first iteration. No previous feedback available."
+        if result.iteration == 0:
+            return "This is the first iteration - no previous context."
 
-        context_parts = ["Previous reflections and evolution:"]
+        context_parts = []
 
-        # Get last few critiques for context
-        # Convert deque to list for slicing
-        critiques_list = list(result.critiques)
-        recent_critiques = critiques_list[-3:]  # Last 3 critiques
+        # Get recent critiques (not just from this critic)
+        recent_critiques = list(result.critiques)[-self.config.critic_context_window :]
 
         for i, critique in enumerate(recent_critiques, 1):
-            context_parts.append(f"\nIteration {i} ({critique.critic}):")
-            context_parts.append(f"  Feedback: {critique.feedback[:200]}...")
+            context_parts.append(f"Iteration {i} ({critique.critic}):")
+            context_parts.append(f"- Feedback: {critique.feedback[:200]}...")
             if critique.suggestions:
-                context_parts.append(f"  Key suggestion: {critique.suggestions[0]}")
+                context_parts.append(
+                    f"- Key suggestion: {critique.suggestions[0][:100]}..."
+                )
+            context_parts.append(f"- Confidence: {critique.confidence:.2f}")
+            context_parts.append("")
 
-        # Note the evolution
+        # Add evolution summary if we have multiple generations
         if len(result.generations) > 1:
+            context_parts.append("Text evolution:")
             context_parts.append(
-                f"\nText has gone through {len(result.generations)} iterations."
+                f"- Started with {len(result.original_text.split())} words"
+            )
+            context_parts.append(
+                f"- Now has {len(result.generations[-1].text.split())} words"
+            )
+            context_parts.append(
+                f"- Has undergone {len(result.generations)} revisions"
             )
 
-        return "\n".join(context_parts)
+        return "\n".join(context_parts) if context_parts else "No previous context available."

@@ -35,9 +35,11 @@ async def main() -> None:
             text,
             critics=["reflexion"],
             max_iterations=3,
-            provider="google",
-            model="gemini-1.5-flash",
-            config=Config(critic_model="gemini-1.5-flash", temperature=0.7),
+            config=Config(
+                model="gpt-4o-mini",
+                critic_model="gpt-4o-mini",
+                temperature=0.7
+            ),
             storage=FileStorage(),
         )
 
@@ -54,9 +56,11 @@ async def main() -> None:
             text,
             critics=["reflexion"],
             max_iterations=3,
-            provider="anthropic",
-            model="claude-3-haiku-20240307",
-            config=Config(critic_model="claude-3-haiku-20240307", temperature=0.6),
+            config=Config(
+                model="gpt-3.5-turbo",
+                critic_model="gpt-3.5-turbo",
+                temperature=0.6
+            ),
             storage=FileStorage(),
         )
 
@@ -73,9 +77,11 @@ async def main() -> None:
             text,
             critics=["reflexion"],
             max_iterations=3,
-            provider="openai",
-            model="gpt-4o-mini",
-            config=Config(critic_model="gpt-4o-mini", temperature=0.7),
+            config=Config(
+                model="gpt-4o-mini",
+                critic_model="gpt-4o-mini",
+                temperature=0.7
+            ),
             storage=FileStorage(),
         )
 
@@ -126,9 +132,10 @@ async def reflexion_comparison():
             test_text,
             critics=["reflexion"],
             max_iterations=2,
-            provider="google",
-            model="gemini-1.5-flash",
-            config=Config(critic_model="gemini-1.5-flash"),
+            config=Config(
+                model="gpt-4o-mini",
+                critic_model="gpt-4o-mini"
+            ),
         )
         results["Gemini Flash"] = {
             "time": asyncio.get_event_loop().time() - start,
@@ -141,9 +148,10 @@ async def reflexion_comparison():
             test_text,
             critics=["reflexion"],
             max_iterations=2,
-            provider="anthropic",
-            model="claude-3-haiku-20240307",
-            config=Config(critic_model="claude-3-haiku-20240307"),
+            config=Config(
+                model="gpt-3.5-turbo",
+                critic_model="gpt-3.5-turbo"
+            ),
         )
         results["Claude Haiku"] = {
             "time": asyncio.get_event_loop().time() - start,

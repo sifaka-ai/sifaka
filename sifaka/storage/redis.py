@@ -22,9 +22,10 @@ from datetime import datetime
 
 try:
     import redis.asyncio as redis
-    from redis.commands.search.field import TextField, NumericField, TagField
+    from redis.commands.search.field import TextField, NumericField, TagField, VectorField
     from redis.commands.search.index_definition import IndexDefinition, IndexType
     from redis.commands.search.query import Query
+    import numpy as np
 
     HAS_REDIS = True
 except ImportError:
@@ -73,9 +74,11 @@ class RedisStorage(StorageBackend):
         prefix: str = "sifaka:",
         ttl: int = 3600,  # 1 hour default TTL
         use_redisearch: bool = True,
+        enable_embeddings: bool = False,
+        embedding_model: Optional[str] = None,
         **kwargs,
     ):
-        """Initialize Redis storage with optional RediSearch support.
+        """Initialize Redis storage with optional RediSearch and vector support.
 
         Args:
             host: Redis host
@@ -84,6 +87,8 @@ class RedisStorage(StorageBackend):
             prefix: Key prefix for all Sifaka data
             ttl: Time-to-live in seconds (0 = no expiration)
             use_redisearch: Try to use RediSearch if available
+            enable_embeddings: Enable vector embeddings for semantic search
+            embedding_model: Embedding model to use (defaults to OpenAI)
             **kwargs: Additional Redis connection parameters
         """
         if not HAS_REDIS:
@@ -98,10 +103,18 @@ class RedisStorage(StorageBackend):
         self.prefix = prefix
         self.ttl = ttl
         self.use_redisearch = use_redisearch
+        self.enable_embeddings = enable_embeddings
+        self.embedding_model = embedding_model
         self.kwargs = kwargs
         self._client: Optional[redis.Redis] = None
         self._has_redisearch: Optional[bool] = None
         self._index_created = False
+        self._embedding_generator = None
+        
+        # Initialize embeddings if enabled
+        if self.enable_embeddings:
+            from ..core.embeddings import get_embedding_generator
+            self._embedding_generator = get_embedding_generator(model=embedding_model)
 
     async def _get_client(self) -> redis.Redis:
         """Get or create Redis client."""
@@ -158,7 +171,7 @@ class RedisStorage(StorageBackend):
                 self._has_redisearch = False
 
     async def _create_search_index(self, index_name: str) -> None:
-        """Create RediSearch index for Sifaka results."""
+        """Create RediSearch index for Sifaka results with vector support."""
         # Define index schema
         schema = [
             TextField("$.original_text", as_name="original_text"),
@@ -171,6 +184,27 @@ class RedisStorage(StorageBackend):
             NumericField("$.iteration_count", as_name="iterations"),
             NumericField("$.timestamp", as_name="timestamp"),  # For date filtering
             TagField("$.result_id", as_name="result_id"),
+            # Vector fields for semantic search
+            VectorField(
+                "$.original_embedding",
+                "FLAT",
+                {
+                    "TYPE": "FLOAT32",
+                    "DIM": 1536,  # OpenAI embedding dimension
+                    "DISTANCE_METRIC": "COSINE"
+                },
+                as_name="original_vector"
+            ),
+            VectorField(
+                "$.final_embedding", 
+                "FLAT",
+                {
+                    "TYPE": "FLOAT32",
+                    "DIM": 1536,
+                    "DISTANCE_METRIC": "COSINE"
+                },
+                as_name="final_vector"
+            ),
         ]
 
         # Create index on JSON documents
@@ -210,6 +244,20 @@ class RedisStorage(StorageBackend):
             "iteration_count": len(result.generations),
             "timestamp": datetime.utcnow().timestamp(),
         }
+        
+        # Generate embeddings if enabled
+        if self.enable_embeddings and self._embedding_generator:
+            try:
+                # Generate embeddings for semantic search
+                original_embedding = await self._embedding_generator.embed(result.original_text)
+                final_embedding = await self._embedding_generator.embed(result.final_text)
+                
+                # Convert to bytes for Redis storage
+                search_data["original_embedding"] = np.array(original_embedding, dtype=np.float32).tobytes()
+                search_data["final_embedding"] = np.array(final_embedding, dtype=np.float32).tobytes()
+            except Exception as e:
+                logger.warning(f"Failed to generate embeddings: {e}")
+                # Continue without embeddings
 
         # Store as JSON (RediSearch will index if available)
         if self.ttl > 0:
@@ -261,11 +309,12 @@ class RedisStorage(StorageBackend):
 
             thoughts_data.append(thought)
 
-        # Store as JSON
+        # Store as JSON using Redis JSON commands
         if self.ttl > 0:
-            await client.setex(thoughts_key, self.ttl, json.dumps(thoughts_data))
+            await client.json().set(thoughts_key, "$", thoughts_data)
+            await client.expire(thoughts_key, self.ttl)
         else:
-            await client.set(thoughts_key, json.dumps(thoughts_data))
+            await client.json().set(thoughts_key, "$", thoughts_data)
 
     async def load(self, result_id: str) -> Optional[SifakaResult]:
         """Load result from Redis."""
@@ -465,12 +514,74 @@ class RedisStorage(StorageBackend):
         client = await self._get_client()
         thoughts_key = self._make_key(f"thoughts:{result_id}")
 
-        # Get thoughts JSON
-        data = await client.get(thoughts_key)
+        # Get thoughts JSON using Redis JSON commands
+        data = await client.json().get(thoughts_key)
         if not data:
             return []
+        return data
 
-        return json.loads(data)
+    async def search_semantic(
+        self,
+        query_text: str,
+        search_field: str = "final",  # "original" or "final"
+        limit: int = 10,
+        similarity_threshold: float = 0.7
+    ) -> List[SifakaResult]:
+        """Perform semantic search using vector similarity.
+        
+        Args:
+            query_text: Text to search for semantically
+            search_field: Which text field to search ("original" or "final")
+            limit: Maximum results to return
+            similarity_threshold: Minimum cosine similarity (0-1)
+            
+        Returns:
+            List of semantically similar SifakaResult objects
+        """
+        if not self.enable_embeddings or not self._embedding_generator:
+            raise ValueError("Semantic search requires enable_embeddings=True")
+        
+        if not self._has_redisearch:
+            raise ValueError("Semantic search requires RediSearch with vector support")
+        
+        # Generate query embedding
+        query_embedding = await self._embedding_generator.embed(query_text)
+        query_vector = np.array(query_embedding, dtype=np.float32).tobytes()
+        
+        # Build vector search query
+        vector_field = f"{search_field}_vector"
+        index_name = f"{self.prefix}idx:results"
+        
+        # Create KNN query for vector similarity
+        knn_query = (
+            Query(f"*=>[KNN {limit} @{vector_field} $vec AS score]")
+            .sort_by("score")
+            .paging(0, limit)
+            .dialect(2)
+        )
+        
+        # Execute search
+        results = await self._client.ft(index_name).search(
+            knn_query,
+            query_params={"vec": query_vector}
+        )
+        
+        # Filter by similarity threshold and load results
+        sifaka_results = []
+        for doc in results.docs:
+            # Score is 1 - cosine_distance, so higher is better
+            similarity = float(doc.score)
+            if similarity >= similarity_threshold:
+                result_id = doc.result_id
+                result = await self.load(result_id)
+                if result:
+                    # Add similarity score to metadata
+                    if not hasattr(result, 'search_metadata'):
+                        result.search_metadata = {}
+                    result.search_metadata['similarity_score'] = similarity
+                    sifaka_results.append(result)
+        
+        return sifaka_results
 
     async def cleanup(self) -> None:
         """Close Redis connection."""

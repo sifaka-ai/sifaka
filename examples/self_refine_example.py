@@ -26,17 +26,19 @@ async def main() -> None:
     print(text.strip())
     print()
 
-    # Run improvement with Self-Refine critic using Gemini
-    if os.getenv("GOOGLE_API_KEY"):
-        print("🌐 Using Google Gemini 1.5 Flash for refinement...")
+    # Run improvement with Self-Refine critic
+    if os.getenv("OPENAI_API_KEY"):
+        print("🤖 Using OpenAI GPT-4o-mini for refinement...")
         result = await improve(
             text,
             critics=["self_refine"],
             max_iterations=3,
-            provider="google",
-            model="gemini-1.5-flash",
-            config=Config(critic_model="gemini-1.5-flash", temperature=0.7),
-            storage=FileStorage(),
+            config=Config(
+                model="gpt-4o-mini",
+                critic_model="gpt-3.5-turbo", 
+                temperature=0.7
+            ),
+            storage=FileStorage(storage_dir="./thoughts"),
         )
     elif os.getenv("ANTHROPIC_API_KEY"):
         print("🤖 Using Anthropic Claude as fallback...")
@@ -44,9 +46,11 @@ async def main() -> None:
             text,
             critics=["self_refine"],
             max_iterations=3,
-            provider="anthropic",
-            model="claude-3-haiku-20240307",
-            config=Config(critic_model="claude-3-haiku-20240307", temperature=0.7),
+            config=Config(
+                model="gpt-3.5-turbo",
+                critic_model="gpt-3.5-turbo", 
+                temperature=0.7
+            ),
             storage=FileStorage(),
         )
     else:

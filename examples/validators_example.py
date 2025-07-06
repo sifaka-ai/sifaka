@@ -31,18 +31,9 @@ async def main() -> None:
         tweet_text,
         validators=[tweet_validator],
         max_iterations=3,
-        provider="google" if os.getenv("GOOGLE_API_KEY") else "anthropic",
-        model=(
-            "gemini-1.5-flash"
-            if os.getenv("GOOGLE_API_KEY")
-            else "claude-3-haiku-20240307"
-        ),
         config=Config(
-            critic_model=(
-                "gemini-1.5-flash"
-                if os.getenv("GOOGLE_API_KEY")
-                else "claude-3-haiku-20240307"
-            ),
+            model="gpt-4o-mini",
+            critic_model="gpt-3.5-turbo",
             temperature=0.8,  # Higher for creative tweets
         ),
         storage=FileStorage(),
@@ -69,18 +60,9 @@ async def main() -> None:
         validators=[blog_validator],
         critics=["self_refine"],
         max_iterations=3,
-        provider="anthropic" if os.getenv("ANTHROPIC_API_KEY") else "google",
-        model=(
-            "claude-3-haiku-20240307"
-            if os.getenv("ANTHROPIC_API_KEY")
-            else "gemini-1.5-flash"
-        ),
         config=Config(
-            critic_model=(
-                "claude-3-haiku-20240307"
-                if os.getenv("ANTHROPIC_API_KEY")
-                else "gemini-1.5-flash"
-            ),
+            model="gpt-4o-mini",
+            critic_model="gpt-3.5-turbo",
             temperature=0.7,
         ),
         storage=FileStorage(),
@@ -108,16 +90,9 @@ async def main() -> None:
         validators=[academic_validator],
         critics=["constitutional", "self_refine"],
         max_iterations=3,
-        provider="openai" if os.getenv("OPENAI_API_KEY") else "anthropic",
-        model=(
-            "gpt-4o-mini" if os.getenv("OPENAI_API_KEY") else "claude-3-haiku-20240307"
-        ),
         config=Config(
-            critic_model=(
-                "gpt-4o-mini"
-                if os.getenv("OPENAI_API_KEY")
-                else "claude-3-haiku-20240307"
-            ),
+            model="gpt-4o-mini",
+            critic_model="gpt-3.5-turbo",
             temperature=0.5,  # Lower for academic writing
         ),
         storage=FileStorage(),

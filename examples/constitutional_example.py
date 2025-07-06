@@ -31,10 +31,8 @@ async def main() -> None:
         critics=["constitutional"],
         max_iterations=3,
         config=Config(
-            provider="anthropic",
-            model="claude-3-haiku-20240307",  # Fast Anthropic model
-            api_key=os.getenv("ANTHROPIC_API_KEY"),
-            critic_model="claude-3-haiku-20240307",  # Same model for critics
+            model="gpt-3.5-turbo",  # Fast Anthropic model
+            critic_model="gpt-3.5-turbo",  # Same model for critics
             temperature=0.6,
         ),
         storage=FileStorage(),  # Enable thought logging

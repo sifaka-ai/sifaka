@@ -163,7 +163,7 @@ class Config(BaseModel):
 
     # Tool settings
     enable_tools: bool = Field(
-        default=False, description="Enable tool usage for critics"
+        default=True, description="Enable tool usage for critics that support it"
     )
 
     tool_timeout: float = Field(default=5.0, description="Maximum time for tool calls")
@@ -184,3 +184,142 @@ class Config(BaseModel):
         },
         description="Per-critic tool configuration",
     )
+
+    @classmethod
+    def fast(cls) -> "Config":
+        """Fast configuration for quick iterations.
+        
+        Uses cheaper, faster models with lower quality thresholds.
+        Good for drafts, testing, or when speed matters more than quality.
+        
+        Returns:
+            Config optimized for speed
+            
+        Example:
+            >>> result = await improve(text, config=Config.fast())
+        """
+        return cls(
+            model="gpt-3.5-turbo",
+            critic_model="gpt-3.5-turbo",
+            temperature=0.7,
+            max_iterations=2,
+            timeout_seconds=60,
+            critic_timeout_seconds=15,
+            force_improvements=False,
+        )
+
+    @classmethod
+    def quality(cls) -> "Config":
+        """High-quality configuration for best results.
+        
+        Uses more powerful models with thorough critique.
+        Good for final drafts, important content, or when quality matters most.
+        
+        Returns:
+            Config optimized for quality
+            
+        Example:
+            >>> result = await improve(text, config=Config.quality())
+        """
+        return cls(
+            model="gpt-4o",
+            critic_model="gpt-4o-mini",
+            temperature=0.6,
+            max_iterations=5,
+            timeout_seconds=600,
+            critic_timeout_seconds=60,
+            force_improvements=True,
+            critic_base_confidence=0.8,
+        )
+
+    @classmethod
+    def creative(cls) -> "Config":
+        """Creative configuration for imaginative content.
+        
+        Higher temperature and creative-focused critics.
+        Good for stories, marketing copy, or creative writing.
+        
+        Returns:
+            Config optimized for creativity
+            
+        Example:
+            >>> result = await improve(
+            ...     text,
+            ...     critics=["reflexion", "style"],
+            ...     config=Config.creative()
+            ... )
+        """
+        return cls(
+            model="gpt-4o-mini",
+            critic_model="gpt-4o-mini",
+            temperature=0.9,
+            critic_temperature=0.7,
+            max_iterations=3,
+            force_improvements=True,
+        )
+
+    @classmethod
+    def research(cls) -> "Config":
+        """Research configuration with fact-checking tools.
+        
+        Enables tools for fact verification and source checking.
+        Good for academic writing, journalism, or fact-heavy content.
+        
+        Returns:
+            Config optimized for research and accuracy
+            
+        Example:
+            >>> result = await improve(
+            ...     text,
+            ...     critics=["self_rag", "constitutional"],
+            ...     config=Config.research()
+            ... )
+        """
+        return cls(
+            model="gpt-4o",
+            critic_model="gpt-4o",
+            temperature=0.5,
+            max_iterations=4,
+            enable_tools=True,
+            critic_tool_settings={
+                "self_rag": {"enable_tools": True},
+                "constitutional": {"enable_tools": True},
+                "reflexion": {"enable_tools": True},
+            },
+            force_improvements=True,
+        )
+
+    @classmethod
+    def style_transfer(
+        cls,
+        style_guide: str,
+        examples: Optional[List[str]] = None,
+        reference_text: Optional[str] = None,
+    ) -> "Config":
+        """Configuration for style transformation.
+        
+        Args:
+            style_guide: Description of target style
+            examples: Optional example phrases in target style
+            reference_text: Optional full text exemplifying the style
+            
+        Returns:
+            Config optimized for style transformation
+            
+        Example:
+            >>> config = Config.style_transfer(
+            ...     "Professional business email",
+            ...     examples=["Per our discussion", "Moving forward"]
+            ... )
+            >>> result = await improve(text, critics=["style"], config=config)
+        """
+        return cls(
+            model="gpt-4o-mini",
+            critic_model="gpt-3.5-turbo",
+            temperature=0.7,
+            max_iterations=3,
+            style_description=style_guide,
+            style_examples=examples,
+            style_reference_text=reference_text,
+            force_improvements=True,
+        )

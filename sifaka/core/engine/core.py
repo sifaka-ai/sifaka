@@ -153,6 +153,9 @@ class SifakaEngine:
                 # Add critiques to result (preserve all traceability data)
                 for critique in critiques:
                     result.critiques.append(critique)
+                    # Add any tools used by this critique
+                    for tool_usage in critique.tools_used:
+                        result.tools_used.append(tool_usage)
                     result.updated_at = datetime.now()
 
                 # Check if improvement needed

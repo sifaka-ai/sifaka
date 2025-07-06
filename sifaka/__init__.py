@@ -33,7 +33,7 @@ https://docs.sifaka.ai/
 """
 
 # Core API
-from .api import improve, improve_sync, improve_advanced
+from .api import improve, improve_sync
 
 # Core classes
 from .core.models import SifakaResult
@@ -86,7 +86,6 @@ __all__ = [
     # Main API
     "improve",
     "improve_sync",
-    "improve_advanced",
     # Core classes
     "SifakaResult",
     "Config",

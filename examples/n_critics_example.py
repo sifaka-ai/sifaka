@@ -35,9 +35,11 @@ async def main() -> None:
             text,
             critics=["n_critics"],
             max_iterations=2,
-            provider="openai",
-            model="gpt-4o-mini",
-            config=Config(critic_model="gpt-4o-mini", temperature=0.7),
+            config=Config(
+                model="gpt-4o-mini",
+                critic_model="gpt-4o-mini",
+                temperature=0.7
+            ),
             storage=FileStorage(),
         )
         print(f"Improved: {result1.final_text[:100]}...")
@@ -59,17 +61,17 @@ async def main() -> None:
                 "Behavioral Economist": "Consider psychological biases and human behavior",
                 "Tech Expert": "Assess technological aspects and future trends",
             },
-            api_key=os.getenv("ANTHROPIC_API_KEY"),
-            model="claude-3-haiku-20240307",
+            model="gpt-3.5-turbo",
         )
 
         result2 = await improve(
             text,
             critics=[custom_critic],
             max_iterations=2,
-            provider="anthropic",
-            model="claude-3-haiku-20240307",
-            config=Config(temperature=0.6),
+            config=Config(
+                model="gpt-3.5-turbo",
+                temperature=0.6
+            ),
             storage=FileStorage(),
         )
 
@@ -95,9 +97,11 @@ async def main() -> None:
             text,
             critics=["n_critics"],
             max_iterations=1,  # Just one fast iteration
-            provider="google",
-            model="gemini-1.5-flash",
-            config=Config(critic_model="gemini-1.5-flash", temperature=0.7),
+            config=Config(
+                model="gpt-4o-mini",
+                critic_model="gpt-4o-mini",
+                temperature=0.7
+            ),
             storage=FileStorage(),
         )
         print(f"✅ Quick improvement in {result3.processing_time:.2f}s")

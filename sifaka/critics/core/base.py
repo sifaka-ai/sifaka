@@ -13,7 +13,7 @@ Key features:
 
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 
 from ...core.models import CritiqueResult, SifakaResult
 from ...core.config import Config
@@ -22,7 +22,6 @@ from ...core.llm_client import LLMClient, LLMManager, Provider
 from ...tools.base import ToolInterface
 
 from pydantic import BaseModel, Field
-from typing import Any
 from .confidence import ConfidenceCalculator
 
 
@@ -81,11 +80,8 @@ class BaseCritic(Critic, ABC):
         ...     def name(self) -> str:
         ...         return "my_critic"
         ...     
-        ...     async def _create_messages(self, text, result):
-        ...         return [{
-        ...             "role": "user",
-        ...             "content": f"Analyze this: {text}"
-        ...         }]
+        ...     def get_instructions(self, text: str, result: SifakaResult) -> str:
+        ...         return "Analyze this text for clarity and conciseness..."
     """
 
     def __init__(
@@ -149,10 +145,10 @@ class BaseCritic(Critic, ABC):
             Configured LLMClient instance for making API calls
         """
         if self._client is None:
-            self._client = LLMManager.get_client(
-                provider=self.provider,
+            self._client = LLMManager.create_client(
                 model=self.model,
                 temperature=self.temperature,
+                provider=self.provider,
                 api_key=self._api_key,
             )
         return self._client
@@ -203,50 +199,75 @@ class BaseCritic(Critic, ABC):
         """
         return CriticResponse
 
-    @abstractmethod
+    def get_instructions(self, text: str, result: SifakaResult) -> str:
+        """Get the critique instructions for this critic.
+        
+        This is the main method subclasses should implement to define their
+        critique logic. The instructions will be sent to the LLM along with
+        the text to evaluate.
+        
+        Args:
+            text: Current version of the text to evaluate
+            result: Full result object with history and metadata
+            
+        Returns:
+            Instructions string that will be sent to the LLM
+            
+        Example:
+            >>> def get_instructions(self, text: str, result: SifakaResult) -> str:
+            ...     return '''Analyze this text for clarity and coherence.
+            ...     Focus on:
+            ...     1. Clear main points
+            ...     2. Logical flow
+            ...     3. Concise language'''
+        """
+        return "Please analyze this text and provide specific, actionable feedback."
+
     async def _create_messages(
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
-        """Create the message history for the LLM.
+        """Create messages for the LLM API call.
         
-        This is the main method subclasses must implement to define their
-        critique logic. The messages should include all necessary context
-        and instructions for the critic's analysis.
-
+        This method builds the conversation history that will be sent to
+        the LLM. The default implementation uses the get_instructions()
+        method which is easier for subclasses to override.
+        
+        Subclasses can override this method for full control over message
+        creation, but in most cases overriding get_instructions() is simpler.
+        
         Args:
-            text: The current text to critique
-            result: SifakaResult containing history of previous iterations,
-                critiques, and improvements
-
+            text: Current version of the text to critique
+            result: Complete result object with all history and metadata
+                   including previous critiques and generations
+        
         Returns:
-            List of message dictionaries with 'role' and 'content' keys.
-            Typically includes a system message and user message.
-            
-        Example:
-            >>> return [
-            ...     {"role": "system", "content": "You are a helpful critic."},
-            ...     {"role": "user", "content": f"Analyze: {text}"}
-            ... ]
+            List of message dictionaries with 'role' and 'content' keys
+            ready for the LLM API
         """
-        pass
+        instructions = self.get_instructions(text, result)
+        return await self._simple_critique(text, result, instructions)
 
     async def critique(self, text: str, result: SifakaResult) -> CritiqueResult:
-        """Critique the given text and provide structured feedback.
+        """Critique the given text and provide improvement suggestions.
         
-        This is the main entry point for critics. It handles the complete
-        critique workflow including LLM interaction, response parsing,
-        confidence calculation, and error handling.
-
+        This is the main entry point called by the orchestrator. It handles
+        the complete critique workflow including LLM interaction, response
+        parsing, confidence calculation, and result formatting.
+        
         Args:
-            text: The current text to critique. This is typically either
-                the original text or the most recent improvement.
-            result: The complete SifakaResult object containing all history
-                from previous iterations, including past critiques and
-                improvements. Critics can use this for context.
-
+            text: The current version of the text to critique. This is
+                  typically the latest generation from the improvement process.
+            result: The complete result object containing:
+                    - original_text: Starting text before any improvements
+                    - generations: All previous versions of the text
+                    - critiques: All previous critique feedback
+                    - validations: Results from quality validators
+                    - metadata: Additional context and metrics
+        
         Returns:
             CritiqueResult containing:
-            - feedback: Qualitative assessment of the text
+            - critic: Name of this critic
+            - feedback: Natural language feedback about the text
             - suggestions: Specific improvement recommendations  
             - needs_improvement: Whether further iteration is needed
             - confidence: How certain the critic is (0.0-1.0)
@@ -348,34 +369,25 @@ class BaseCritic(Critic, ABC):
             return critique_result
 
         except Exception as e:
-            # Return error result with traceability
-            return CritiqueResult(
-                critic=self.name,
-                feedback=f"Error during critique: {str(e)}",
-                suggestions=["Please review the text manually"],
-                needs_improvement=True,
-                confidence=0.0,
-                metadata={"error": str(e)},
-                # Add traceability even for errors
-                model_used=(
-                    self.client.model if hasattr(self.client, "model") else self.model
-                ),
-                temperature_used=(
-                    self.client.temperature
-                    if hasattr(self.client, "temperature")
-                    else self.temperature
-                ),
-                prompt_sent=None,  # No prompt sent due to error
-                tokens_used=0,
-                processing_time=0.0,
+            # Wrap any exceptions with context
+            raise ModelProviderError(
+                f"Critic '{self.name}' failed to process text",
+                provider=str(self.provider or "unknown"),
+                original_error=e,
             )
 
     def _get_previous_context(self, result: SifakaResult) -> str:
-        """Get context from previous critiques."""
-        if not result.critiques:
-            return ""
-
-        # Get recent critiques from this critic
+        """Extract relevant context from previous critiques.
+        
+        Builds a summary of recent feedback from this critic to avoid
+        repetition and track improvement trajectory.
+        
+        Args:
+            result: The result object containing critique history
+            
+        Returns:
+            Formatted string of previous feedback or empty string
+        """
         recent = []
         for critique in list(result.critiques)[-self.config.critic_context_window :]:
             if critique.critic == self.name:
@@ -415,3 +427,7 @@ Please provide specific, actionable feedback."""
                 "content": self._build_user_prompt(text, result, instructions),
             },
         ]
+
+
+# Import the custom error after BaseCritic is defined
+from ...core.exceptions import ModelProviderError

@@ -16,7 +16,8 @@ This module defines all custom exceptions used throughout Sifaka, providing:
     ├── StorageError - Storage backend issues
     ├── PluginError - Plugin loading/execution failures
     ├── TimeoutError - Operation time limit exceeded
-    └── MemoryError - Memory bounds reached
+    ├── MemoryError - Memory bounds reached
+    └── EmbeddingError - Embedding generation failures
 
 ## Design Principles:
 
@@ -405,6 +406,36 @@ class MemoryError(SifakaError):
 
         suggestion = "Memory bounds reached - older items have been removed to prevent memory issues"
         super().__init__(message, suggestion)
+
+
+class EmbeddingError(SifakaError):
+    """Exception for embedding generation failures.
+    
+    Covers errors in generating text embeddings for semantic search
+    and RAG functionality.
+    
+    Example:
+        >>> raise EmbeddingError(
+        ...     "API key not found",
+        ...     provider="openai"
+        ... )
+    """
+    
+    def __init__(self, message: str, provider: Optional[str] = None, **kwargs):
+        """Initialize embedding error with provider context."""
+        if provider:
+            message = f"[{provider}] {message}"
+        
+        suggestions = []
+        if "API key" in message:
+            suggestions.append("Set the appropriate API key environment variable")
+        if "dimension" in message.lower():
+            suggestions.append("Check model supports requested dimensions")
+        if not suggestions:
+            suggestions.append("Check provider documentation for embedding models")
+            
+        suggestion = " | ".join(suggestions)
+        super().__init__(message, suggestion, **kwargs)
 
 
 def classify_openai_error(error: Any) -> ModelProviderError:
