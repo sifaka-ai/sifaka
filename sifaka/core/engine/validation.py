@@ -29,13 +29,13 @@ Validators serve three key purposes:
 
     >>> runner = ValidationRunner()
     >>> validators = [LengthValidator(min_length=100)]
-    >>> 
+    >>>
     >>> all_passed = await runner.run_validators(
     ...     text="Current text",
     ...     result=sifaka_result,
     ...     validators=validators
     ... )
-    >>> 
+    >>>
     >>> if not all_passed:
     ...     print("Text needs improvement")
 
@@ -53,39 +53,39 @@ from ..interfaces import Validator
 
 class ValidationRunner:
     """Orchestrates validator execution and result collection.
-    
+
     The ValidationRunner is responsible for executing all configured
     validators against the current text and collecting their results.
     It provides error handling, result tracking, and memory management.
-    
+
     Key responsibilities:
     - Execute validators in sequence
     - Handle validator errors gracefully
     - Track validation results in the SifakaResult
     - Manage memory bounds for long-running sessions
     - Provide clear pass/fail status
-    
+
     Example:
         >>> runner = ValidationRunner()
-        >>> 
+        >>>
         >>> # Run multiple validators
         >>> validators = [
         ...     LengthValidator(min_length=50, max_length=500),
         ...     ContentValidator(required_terms=["AI", "benefits"]),
         ...     FormatValidator(min_sentences=3)
         ... ]
-        >>> 
+        >>>
         >>> passed = await runner.run_validators(
         ...     text="Improved text here...",
         ...     result=result,
         ...     validators=validators
         ... )
-        >>> 
+        >>>
         >>> # Check specific validation results
         >>> for val in result.validations:
         ...     if not val.passed:
         ...         print(f"{val.validator}: {val.details}")
-    
+
     The runner ensures that even if individual validators fail,
     the overall process continues with appropriate error tracking.
     """
@@ -94,7 +94,7 @@ class ValidationRunner:
         self, text: str, result: SifakaResult, validators: List[Validator]
     ) -> bool:
         """Execute all validators and collect their results.
-        
+
         Runs each validator in sequence, collecting results and tracking
         overall pass/fail status. Validator errors are caught and converted
         to failed validations to ensure process continuity.
@@ -112,12 +112,12 @@ class ValidationRunner:
             True if all validators pass, False if any validator fails
             or encounters an error. This determines whether improvement
             should continue.
-            
+
         Error Handling:
             If a validator raises an exception, it's caught and recorded
             as a failed validation with the error message. This ensures
             one faulty validator doesn't break the entire process.
-            
+
         Example:
             >>> # All validators pass
             >>> passed = await runner.run_validators(
@@ -126,8 +126,8 @@ class ValidationRunner:
             ...     [length_validator, content_validator]
             ... )
             >>> assert passed == True
-            >>> 
-            >>> # One validator fails  
+            >>>
+            >>> # One validator fails
             >>> passed = await runner.run_validators(
             ...     "Too short",
             ...     result,
@@ -171,7 +171,7 @@ class ValidationRunner:
         self, result: SifakaResult, max_elements: int = 1000
     ) -> None:
         """Enforce memory limits on result collections.
-        
+
         For long-running improvement sessions, the collections of
         generations, critiques, and validations can grow without bound.
         This method ensures they stay within reasonable limits by
@@ -184,17 +184,17 @@ class ValidationRunner:
                 collection (generations, critiques, validations).
                 Defaults to 1000 which provides good history while
                 preventing excessive memory use.
-                
+
         Memory Management:
             When a collection exceeds max_elements, the oldest entries
             are removed to bring it back to the limit. This maintains
             the most recent and relevant history.
-            
+
         Note:
             This method is typically called periodically by the engine
             during long improvement sessions. Most users don't need to
             call it directly.
-            
+
         Example:
             >>> # After many iterations
             >>> print(f"Critiques before: {len(result.critiques)}")

@@ -357,7 +357,7 @@ class FileStorage(StorageBackend):
             return True
         return False
 
-    async def search(self, query: str, limit: int = 10) -> List[SifakaResult]:
+    async def search(self, query: str, limit: int = 10) -> List[str]:
         """Search results by text content.
 
         Performs a simple case-insensitive substring search across both
@@ -371,7 +371,7 @@ class FileStorage(StorageBackend):
                 Defaults to 10 to prevent excessive I/O.
 
         Returns:
-            List of SifakaResult objects that contain the search query
+            List of result IDs that contain the search query
 
         Example:
             >>> # Search for results about machine learning
@@ -404,7 +404,7 @@ class FileStorage(StorageBackend):
                         query_lower in result.original_text.lower()
                         or query_lower in result.final_text.lower()
                     ):
-                        matches.append(result)
+                        matches.append(result.id)
 
                     if len(matches) >= limit:
                         break

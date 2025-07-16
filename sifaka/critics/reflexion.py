@@ -46,12 +46,11 @@ Avoid when:
 - Quick, simple edits are sufficient
 """
 
-from typing import Optional, Union, List, Dict
+from typing import List, Type
+
 from pydantic import BaseModel, Field
 
 from ..core.models import SifakaResult
-from ..core.llm_client import Provider
-from ..core.config import Config
 from .core.base import BaseCritic
 
 
@@ -61,7 +60,7 @@ class ReflexionResponse(BaseModel):
     feedback: str = Field(
         ..., description="Reflective feedback on the text and its evolution"
     )
-    suggestions: list[str] = Field(
+    suggestions: List[str] = Field(
         default_factory=list, description="Specific improvements based on reflection"
     )
     needs_improvement: bool = Field(
@@ -77,17 +76,17 @@ class ReflexionResponse(BaseModel):
 
 class ReflexionCritic(BaseCritic):
     """Self-reflective critic that learns from previous improvement attempts.
-    
+
     ReflexionCritic implements the core insight from the Reflexion paper:
     agents can improve by reflecting on their previous attempts. In the
     context of text improvement, this means each iteration considers what
     worked and didn't work in previous iterations.
-    
+
     The critic maintains an episodic memory of previous critiques and uses
     this history to provide increasingly refined feedback. This makes it
     particularly effective for complex writing tasks that benefit from
     multiple rounds of revision.
-    
+
     Example:
         >>> # Use reflexion for iterative improvement
         >>> result = await improve(
@@ -95,7 +94,7 @@ class ReflexionCritic(BaseCritic):
         ...     critics=["reflexion"],
         ...     max_iterations=5  # Reflexion benefits from multiple iterations
         ... )
-        >>> 
+        >>>
         >>> # The critic will progressively refine its feedback
         >>> for critique in result.critiques:
         ...     if critique.critic == "reflexion":
@@ -125,7 +124,7 @@ Focus on:
 
 Be constructive and specific in your feedback."""
 
-    def _get_response_type(self) -> type[BaseModel]:
+    def _get_response_type(self) -> Type[BaseModel]:
         """Use our custom response model."""
         return ReflexionResponse
 
@@ -149,15 +148,15 @@ Focus on being constructive and specific. Analyze the text's strengths, weakness
 
     def _build_context(self, result: SifakaResult) -> str:
         """Build episodic memory context from previous iterations.
-        
+
         This method creates a summary of previous critiques and improvements,
         allowing the critic to learn from past attempts. The context helps
         the critic avoid repeating suggestions and recognize patterns in
         the text's evolution.
-        
+
         Args:
             result: The result object containing all previous iterations
-            
+
         Returns:
             Formatted context string summarizing the improvement history
         """
@@ -188,8 +187,10 @@ Focus on being constructive and specific. Analyze the text's strengths, weakness
             context_parts.append(
                 f"- Now has {len(result.generations[-1].text.split())} words"
             )
-            context_parts.append(
-                f"- Has undergone {len(result.generations)} revisions"
-            )
+            context_parts.append(f"- Has undergone {len(result.generations)} revisions")
 
-        return "\n".join(context_parts) if context_parts else "No previous context available."
+        return (
+            "\n".join(context_parts)
+            if context_parts
+            else "No previous context available."
+        )

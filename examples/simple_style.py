@@ -104,7 +104,9 @@ async def main():
     print(f"\n📊 Iterations: {result.iteration}")
     if result.critiques:
         last_critique = result.critiques[-1]
-        print(f"📈 Final alignment score: {getattr(last_critique, 'alignment_score', 'N/A')}")
+        print(
+            f"📈 Final alignment score: {getattr(last_critique, 'alignment_score', 'N/A')}"
+        )
 
     print("\n💡 Key improvements made:")
     print("- Added specific parameter documentation")

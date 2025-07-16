@@ -20,11 +20,11 @@ from pydantic import BaseModel, Field
 
 class Generation(BaseModel):
     """Represents a single text generation attempt with full metadata.
-    
+
     Each generation captures the text produced, the model used, timing
     information, and the prompt that created it. This provides full
     traceability for understanding how text evolved.
-    
+
     Attributes:
         text: The generated text content
         model: Name of the LLM model used (e.g., 'gpt-4', 'claude-3')
@@ -46,11 +46,11 @@ class Generation(BaseModel):
 
 class ToolUsage(BaseModel):
     """Tracks usage of external tools or APIs during processing.
-    
+
     This generic structure captures tool calls made by critics like
     self_rag (which may use search/retrieval tools) without assuming
     specific tool interfaces.
-    
+
     Attributes:
         tool_name: Name of the tool or API called
         status: 'success' or 'failure' status of the call
@@ -82,10 +82,10 @@ class ToolUsage(BaseModel):
 
 class ValidationResult(BaseModel):
     """Result from a quality validation check.
-    
+
     Validators ensure text meets specific criteria like minimum length,
     appropriate content, or custom business rules.
-    
+
     Attributes:
         validator: Name of the validator that ran
         passed: Whether the validation passed (True) or failed (False)
@@ -103,11 +103,11 @@ class ValidationResult(BaseModel):
 
 class CritiqueResult(BaseModel):
     """Comprehensive feedback from a critic's evaluation.
-    
+
     Critics analyze text and provide structured feedback about quality,
     issues, and suggestions for improvement. This model captures all
     aspects of their evaluation including confidence and metadata.
-    
+
     Attributes:
         critic: Name of the critic that provided this feedback
         feedback: Main feedback text explaining the evaluation
@@ -145,12 +145,12 @@ class CritiqueResult(BaseModel):
 
 class SifakaResult(BaseModel):
     """Complete result container with full audit trail of the improvement process.
-    
+
     This is the main object returned by improve() functions. It contains
     the final improved text along with a complete history of all generations,
     critiques, and validations. Uses memory-bounded collections (deque) to
     prevent unbounded growth during long sessions.
-    
+
     Attributes:
         final_text: The final improved text after all iterations
         original_text: The original input text before any improvements
@@ -164,7 +164,7 @@ class SifakaResult(BaseModel):
         updated_at: When this result was last modified
         processing_time: Total time in seconds for all processing
         config_used: Configuration dictionary used for this session
-    
+
     Example:
         >>> result = await improve("Short text")
         >>> print(f"Original: {result.original_text}")
@@ -205,10 +205,10 @@ class SifakaResult(BaseModel):
         processing_time: float = 0.0,
     ) -> None:
         """Add a new text generation to the history.
-        
+
         Automatically manages memory bounds - old generations are removed
         when the deque reaches its maximum size.
-        
+
         Args:
             text: The generated text
             model: Model name that generated this text
@@ -235,7 +235,7 @@ class SifakaResult(BaseModel):
         details: str = "",
     ) -> None:
         """Add a validation result to the history.
-        
+
         Args:
             validator: Name of the validator
             passed: Whether validation passed
@@ -258,7 +258,7 @@ class SifakaResult(BaseModel):
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Add a critique result to the history.
-        
+
         Args:
             critic: Name of the critic
             feedback: Main feedback text
@@ -280,7 +280,7 @@ class SifakaResult(BaseModel):
 
     def increment_iteration(self) -> None:
         """Increment the iteration counter.
-        
+
         Called at the start of each improvement iteration to track progress.
         """
         self.iteration += 1
@@ -288,7 +288,7 @@ class SifakaResult(BaseModel):
 
     def set_final_text(self, text: str) -> None:
         """Set the final improved text.
-        
+
         Args:
             text: The final text after all improvements
         """
@@ -298,11 +298,11 @@ class SifakaResult(BaseModel):
     @property
     def current_text(self) -> str:
         """Get the current text being worked on.
-        
+
         Returns the most recent generation if any exist, otherwise
         returns the original text. This represents the current state
         of the text improvement process.
-        
+
         Returns:
             The most recent text version
         """
@@ -313,10 +313,10 @@ class SifakaResult(BaseModel):
     @property
     def all_passed(self) -> bool:
         """Check if all validators are currently passing.
-        
+
         Examines the most recent validation result for each unique
         validator to determine overall validation status.
-        
+
         Returns:
             True if all validators passed on their last run, False otherwise
         """
@@ -332,10 +332,10 @@ class SifakaResult(BaseModel):
     @property
     def needs_improvement(self) -> bool:
         """Check if any critics think the text needs improvement.
-        
+
         Examines the most recent critique from each unique critic
         to determine if further improvement is recommended.
-        
+
         Returns:
             True if any critic suggests improvement, False if all are satisfied
         """
@@ -350,7 +350,7 @@ class SifakaResult(BaseModel):
 
     def _get_most_recent_critique(self) -> Optional[CritiqueResult]:
         """Get the most recent critique result.
-        
+
         Returns:
             The most recent CritiqueResult, or None if no critiques exist
         """

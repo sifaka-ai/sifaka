@@ -34,9 +34,7 @@ async def main() -> None:
             critics=["self_refine"],
             max_iterations=3,
             config=Config(
-                model="gpt-4o-mini",
-                critic_model="gpt-3.5-turbo", 
-                temperature=0.7
+                model="gpt-4o-mini", critic_model="gpt-3.5-turbo", temperature=0.7
             ),
             storage=FileStorage(storage_dir="./thoughts"),
         )
@@ -47,9 +45,7 @@ async def main() -> None:
             critics=["self_refine"],
             max_iterations=3,
             config=Config(
-                model="gpt-3.5-turbo",
-                critic_model="gpt-3.5-turbo", 
-                temperature=0.7
+                model="gpt-3.5-turbo", critic_model="gpt-3.5-turbo", temperature=0.7
             ),
             storage=FileStorage(),
         )

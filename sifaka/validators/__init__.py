@@ -56,20 +56,20 @@ Validators in Sifaka are designed to be:
     ...     ContentValidator(required_terms=["AI", "benefits"])
     ... ]
     >>> result = await improve(text, validators=validators)
-    
+
     >>> # Composable validation with logical operators
     >>> from sifaka.validators import Validator
     >>> length_ok = Validator.length(100, 500)
     >>> has_keywords = Validator.contains(["AI", "ML"])
     >>> combined = length_ok & has_keywords  # Both must pass
-    >>> 
+    >>>
     >>> # Complex validation builder
     >>> essay_validator = (Validator.create("essay")
     ...     .length(500, 2000)
-    ...     .sentences(5, 25)  
+    ...     .sentences(5, 25)
     ...     .contains(["thesis", "conclusion"])
     ...     .build())
-    
+
     >>> # Safety and compliance validation
     >>> from sifaka.validators import GuardrailsValidator  # Requires guardrails-ai
     >>> safety_validator = GuardrailsValidator([
@@ -82,7 +82,7 @@ Validators in Sifaka are designed to be:
 
     >>> from sifaka.core.interfaces import Validator
     >>> from sifaka.core.models import ValidationResult
-    >>> 
+    >>>
     >>> class SentimentValidator(Validator):
     ...     async def validate(self, text, result):
     ...         # Custom sentiment analysis logic

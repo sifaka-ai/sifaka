@@ -29,10 +29,10 @@ business rule validation.
     >>> # Content safety validator
     >>> safety_validator = GuardrailsValidator([
     ...     "toxic-language",
-    ...     "detect-pii", 
+    ...     "detect-pii",
     ...     "profanity-free"
     ... ])
-    >>> 
+    >>>
     >>> # Business compliance validator
     >>> compliance_validator = GuardrailsValidator([
     ...     "competitors-check",
@@ -68,8 +68,8 @@ from typing import List, Optional, Tuple
 # GuardrailsAI optional dependency handling
 # Allows graceful degradation when GuardrailsAI is not installed
 try:
-    import guardrails as gr  # type: ignore[import-not-found]
-    from guardrails.hub import install  # type: ignore[import-not-found]
+    import guardrails as gr
+    from guardrails.hub import install
 
     HAS_GUARDRAILS = True
 except ImportError:
@@ -83,36 +83,36 @@ from .base import BaseValidator, ValidatorConfig
 
 class GuardrailsValidator(BaseValidator):
     """Validator that integrates GuardrailsAI for advanced content validation.
-    
+
     Provides access to GuardrailsAI's extensive validator hub for sophisticated
     content validation including safety checks, compliance validation, and
     business rule enforcement. Automatically handles validator installation
     and Guard creation for seamless integration.
-    
+
     Key capabilities:
     - 50+ pre-built validators from GuardrailsAI hub
     - Automatic validator installation on first use
     - Thread-safe Guard creation and reuse
     - Configurable failure handling actions
     - Detailed validation reporting with specific failure reasons
-    
+
     Popular validator categories:
-    
+
     **Safety & Moderation:**
     - toxic-language: Detects toxic or offensive language
     - profanity-free: Ensures text is free from profanity
     - gibberish: Detects nonsensical or meaningless text
-    
+
     **Privacy & Compliance:**
     - detect-pii: Identifies personally identifiable information
     - competitors-check: Checks for competitor mentions
     - valid-url: Validates URLs in text
-    
+
     **Format & Structure:**
     - one-line: Ensures text is a single line
     - length: Validates text length constraints
     - json: Validates JSON format
-    
+
     Example:
         >>> # Comprehensive safety validator
         >>> safety_validator = GuardrailsValidator([
@@ -121,18 +121,18 @@ class GuardrailsValidator(BaseValidator):
         ...     "profanity-free",
         ...     "gibberish"
         ... ])
-        >>> 
+        >>>
         >>> # Business compliance validator
         >>> business_validator = GuardrailsValidator([
         ...     "competitors-check",
         ...     "valid-url"
         ... ], on_fail="exception")
-        >>> 
+        >>>
         >>> # Use in validation
         >>> result = await safety_validator.validate(text, sifaka_result)
         >>> if not result.passed:
         ...     print(f"Safety violations: {result.details}")
-    
+
     Performance notes:
         - Validators are installed once and cached for subsequent use
         - Guard objects are reused across multiple validations
@@ -146,7 +146,7 @@ class GuardrailsValidator(BaseValidator):
         config: Optional[ValidatorConfig] = None,
     ):
         """Initialize GuardrailsValidator with specified validators.
-        
+
         Creates a validator that uses GuardrailsAI validators for content
         validation. Validators are installed automatically on first use.
 
@@ -160,11 +160,11 @@ class GuardrailsValidator(BaseValidator):
                 - "refrain": Stop processing and return failure
                 - "exception": Raise an exception on failure
             config: Optional validator configuration for advanced settings
-            
+
         Raises:
             ImportError: If GuardrailsAI is not installed
             ValueError: If a validator fails to install from the hub
-            
+
         Example:
             >>> # Content moderation validator
             >>> validator = GuardrailsValidator([
@@ -172,13 +172,13 @@ class GuardrailsValidator(BaseValidator):
             ...     "profanity-free",
             ...     "detect-pii"
             ... ])
-            >>> 
+            >>>
             >>> # Strict compliance validator that raises exceptions
             >>> strict_validator = GuardrailsValidator([
             ...     "competitors-check",
             ...     "valid-url"
             ... ], on_fail="exception")
-            
+
         Installation note:
             Requires GuardrailsAI package. Install with:
             pip install sifaka[guardrails] or pip install guardrails-ai
@@ -197,13 +197,13 @@ class GuardrailsValidator(BaseValidator):
 
     def _ensure_validators_installed(self) -> None:
         """Ensure all required validators are installed from GuardrailsAI hub.
-        
+
         Downloads and installs validators on-demand from the GuardrailsAI hub.
         Validators are cached after installation to avoid repeated downloads.
-        
+
         Raises:
             ValueError: If any validator fails to install from the hub
-            
+
         Note:
             This method is called automatically during Guard creation and
             uses caching to avoid redundant installation attempts.
@@ -221,18 +221,18 @@ class GuardrailsValidator(BaseValidator):
 
     def _build_guard(self) -> None:
         """Build the GuardrailsAI Guard object with configured validators.
-        
+
         Creates a Guard object using RAIL (Reliable AI Language) specification
         that includes all configured validators. The Guard is cached for reuse
         across multiple validations.
-        
+
         Note:
             This method is called automatically during first validation and
             uses lazy initialization for optimal performance. The Guard object
             is thread-safe and can be reused across concurrent validations.
         """
         if self._guard is not None:
-            return
+            return  # type: ignore[unreachable]  # Already initialized
 
         self._ensure_validators_installed()
 
@@ -259,7 +259,7 @@ class GuardrailsValidator(BaseValidator):
         self, text: str, result: SifakaResult
     ) -> Tuple[bool, float, str]:
         """Validate text using GuardrailsAI validators.
-        
+
         Executes all configured GuardrailsAI validators against the text and
         returns comprehensive validation results with detailed failure information.
 
@@ -273,24 +273,24 @@ class GuardrailsValidator(BaseValidator):
             - bool: True if all validators pass, False if any validator fails
             - float: Score from 0.0-1.0 based on proportion of validators that passed
             - str: Detailed feedback including specific validator failures
-            
+
         Process:
         1. Initialize Guard object with validators (thread-safe, cached)
         2. Execute validation using GuardrailsAI's validation engine
         3. Collect detailed failure information from validator logs
         4. Calculate proportional score based on validator success rate
         5. Return comprehensive results with actionable feedback
-        
+
         Error handling:
             Validator installation errors and Guard creation errors are
             propagated as exceptions. Runtime validation errors are handled
             by the base validator's error handling mechanism.
-            
+
         Example output:
             >>> # All validators pass
             >>> (True, 1.0, "All GuardrailsAI validators passed")
-            >>> 
-            >>> # Some validators fail  
+            >>>
+            >>> # Some validators fail
             >>> (False, 0.67, "toxic-language: Detected offensive content; detect-pii: Found email address")
         """
         # Thread-safe guard initialization
@@ -299,9 +299,10 @@ class GuardrailsValidator(BaseValidator):
 
         try:
             # Run validation
-            if self._guard is None:
-                raise RuntimeError("Guard not initialized")
-            validated_output = self._guard.validate({"text": text})
+            guard = self._guard
+            if guard is None:
+                raise RuntimeError("Guard not initialized after _build_guard")
+            validated_output = guard.validate({"text": text})  # type: ignore[unreachable]
 
             # Check if validation passed
             if validated_output.validation_passed:
@@ -333,11 +334,11 @@ class GuardrailsValidator(BaseValidator):
     @property
     def name(self) -> str:
         """Return descriptive validator name including configured validators.
-        
+
         Returns:
             String identifier that includes all configured validator names
             for easy identification in logs and validation results
-            
+
         Example:
             >>> validator = GuardrailsValidator(["toxic-language", "detect-pii"])
             >>> print(validator.name)

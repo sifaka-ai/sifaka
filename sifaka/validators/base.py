@@ -12,12 +12,12 @@ along with common utilities for score calculation and result formatting.
 ## Creating Custom Validators:
 
     >>> from sifaka.validators.base import BaseValidator
-    >>> 
+    >>>
     >>> class MyValidator(BaseValidator):
     ...     @property
     ...     def name(self) -> str:
     ...         return "my_validator"
-    ...     
+    ...
     ...     async def _perform_validation(self, text, result):
     ...         # Validation logic here
     ...         passed = len(text) > 100
@@ -43,11 +43,11 @@ from ..core.models import ValidationResult, SifakaResult
 
 class ValidatorConfig(BaseModel):
     """Configuration options for validator behavior.
-    
+
     This configuration allows fine-tuning how validators evaluate text
     and report results. It provides control over scoring thresholds,
     strictness levels, and feedback detail.
-    
+
     Example:
         >>> # Strict validation that requires perfect scores
         >>> config = ValidatorConfig(
@@ -56,13 +56,13 @@ class ValidatorConfig(BaseModel):
         ...     detailed_feedback=True
         ... )
         >>> validator = MyValidator(config=config)
-        
+
         >>> # Lenient validation with minimal feedback
         >>> config = ValidatorConfig(
         ...     pass_threshold=0.5,
         ...     detailed_feedback=False
         ... )
-    
+
     Attributes:
         min_score: Minimum possible score (floor)
         max_score: Maximum possible score (ceiling)
@@ -85,38 +85,38 @@ class ValidatorConfig(BaseModel):
 
 class BaseValidator(Validator, ABC):
     """Abstract base class providing common validator functionality.
-    
+
     BaseValidator handles the standard validation workflow, score normalization,
     and error handling, allowing subclasses to focus on their specific
     validation logic.
-    
+
     The base class provides:
     - Configuration management
     - Score calculation utilities
     - Result formatting helpers
     - Error handling with graceful degradation
     - Consistent validation workflow
-    
+
     Subclasses only need to implement:
     - name property: Unique validator identifier
     - _perform_validation method: Core validation logic
-    
+
     Example:
         >>> class WordCountValidator(BaseValidator):
         ...     def __init__(self, min_words: int, max_words: int, **kwargs):
         ...         super().__init__(**kwargs)
         ...         self.min_words = min_words
         ...         self.max_words = max_words
-        ...     
+        ...
         ...     @property
         ...     def name(self) -> str:
         ...         return f"word_count_{self.min_words}_{self.max_words}"
-        ...     
+        ...
         ...     async def _perform_validation(self, text, result):
         ...         word_count = len(text.split())
         ...         passed = self.min_words <= word_count <= self.max_words
         ...         score = self._calculate_score(
-        ...             word_count, 
+        ...             word_count,
         ...             (self.min_words + self.max_words) / 2
         ...         )
         ...         details = f"Word count: {word_count}"
@@ -125,7 +125,7 @@ class BaseValidator(Validator, ABC):
 
     def __init__(self, config: Optional[ValidatorConfig] = None):
         """Initialize validator with optional configuration.
-        
+
         Args:
             config: Configuration for validator behavior. If not provided,
                 uses default configuration with sensible values.
@@ -136,11 +136,11 @@ class BaseValidator(Validator, ABC):
     @abstractmethod
     def name(self) -> str:
         """Return the unique name identifier for this validator.
-        
+
         The name is used for tracking validation results and should be
         stable across runs. Include configuration in the name if it
         affects behavior.
-        
+
         Returns:
             Unique string identifier, e.g., "length_100_500"
         """
@@ -151,7 +151,7 @@ class BaseValidator(Validator, ABC):
         self, text: str, result: SifakaResult
     ) -> tuple[bool, float, str]:
         """Perform the core validation logic.
-        
+
         This is the main method subclasses implement to define their
         validation behavior. It should analyze the text and return
         validation results.
@@ -165,7 +165,7 @@ class BaseValidator(Validator, ABC):
             - passed (bool): Whether validation passed
             - score (float): Quality score from 0.0 to 1.0
             - details (str): Human-readable explanation
-            
+
         Note:
             This method should be deterministic and fast. Avoid
             external API calls or heavy computation.
@@ -174,21 +174,21 @@ class BaseValidator(Validator, ABC):
 
     async def validate(self, text: str, result: SifakaResult) -> ValidationResult:
         """Validate text and return standardized result.
-        
+
         This method implements the complete validation workflow:
         1. Call _perform_validation to get raw results
         2. Apply configuration rules (strict mode, thresholds)
         3. Normalize scores to configured range
         4. Format details based on configuration
         5. Handle any errors gracefully
-        
+
         Args:
             text: Text to validate
             result: Current result with history
-            
+
         Returns:
             ValidationResult with pass/fail status, score, and details
-            
+
         Note:
             This method handles all error cases, always returning a valid
             ValidationResult even if validation logic fails.
@@ -232,7 +232,7 @@ class BaseValidator(Validator, ABC):
         tolerance: float = 0.1,
     ) -> float:
         """Calculate a score based on proximity to target value.
-        
+
         This utility method provides a standard way to score numeric
         values against targets. It uses linear scoring within tolerance
         and exponential decay beyond.
@@ -250,7 +250,7 @@ class BaseValidator(Validator, ABC):
             - 0.9 = 10% deviation (with default tolerance)
             - 0.5 = 50% deviation
             - 0.0 = 100% or more deviation
-            
+
         Example:
             >>> # Score text length against target of 100 words
             >>> score = self._calculate_score(
@@ -279,7 +279,7 @@ class BaseValidator(Validator, ABC):
         suggestions: Optional[list[str]] = None,
     ) -> str:
         """Format validation feedback in a consistent structure.
-        
+
         This utility helps create well-formatted validation messages
         with optional additional context and suggestions.
 
@@ -290,7 +290,7 @@ class BaseValidator(Validator, ABC):
 
         Returns:
             Multi-line formatted string with clear structure
-            
+
         Example:
             >>> details = self._format_details(
             ...     primary="Text is too short",

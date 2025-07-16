@@ -69,11 +69,11 @@ from ..core.config import Config
 
 class MetaRewardingResponse(BaseModel):
     """Structured response model for Meta-Rewarding critique.
-    
+
     Contains the final refined critique after the three-stage meta-rewarding
     process, providing high-quality feedback that has been self-evaluated
     and improved through meta-reflection.
-    
+
     Attributes:
         feedback: Final refined critique incorporating meta-evaluation insights.
             Represents the highest-quality assessment after self-improvement.
@@ -109,13 +109,13 @@ class MetaRewardingResponse(BaseModel):
 
 class MetaRewardingCritic(BaseCritic):
     """Implements Meta-Rewarding three-stage critique for superior quality.
-    
+
     Provides the highest-quality critiques through a sophisticated three-stage
     process: initial evaluation, meta-assessment of that evaluation, and
     refined critique based on self-improvement insights.
-    
+
     ## When to Use This Critic:
-    
+
     ✅ **Ideal for:**
     - High-stakes content requiring exceptional critique quality
     - Documents where accuracy of evaluation is critical
@@ -123,14 +123,14 @@ class MetaRewardingCritic(BaseCritic):
     - Final quality assurance before important publications
     - Content where the cost of poor feedback is high
     - Situations requiring the most thorough possible evaluation
-    
+
     ❌ **Avoid when:**
     - Quick iterative improvements during drafting
     - Simple text corrections or minor edits
     - Resource-constrained environments (3x token cost)
     - Time-sensitive evaluations needing rapid feedback
     - Content where good-enough critique suffices
-    
+
     🎯 **Optimal applications:**
     - C-suite communications and board presentations
     - Legal documents and compliance materials
@@ -139,23 +139,23 @@ class MetaRewardingCritic(BaseCritic):
     - Public relations and crisis communications
     - Academic papers and peer review preparation
     - High-visibility marketing and brand content
-    
+
     ## Process Overview:
-    
+
     1. **Initial Critique**: Comprehensive evaluation across standard dimensions
     2. **Meta-Evaluation**: Self-assessment of critique quality and completeness
     3. **Refined Critique**: Enhanced feedback incorporating meta-insights
-    
+
     ## Quality Guarantees:
-    
+
     - **Accuracy**: Meta-evaluation catches assessment errors
     - **Completeness**: Ensures all important aspects are covered
     - **Actionability**: Emphasizes practical, implementable suggestions
     - **Balance**: Self-correction prevents overly harsh or lenient feedback
     - **Specificity**: Meta-evaluation promotes concrete over generic observations
-    
+
     ## Resource Considerations:
-    
+
     This critic uses approximately 3x the tokens of standard critics due to
     the three-stage process. Budget accordingly for high-volume usage.
     """
@@ -169,11 +169,11 @@ class MetaRewardingCritic(BaseCritic):
         config: Optional[Config] = None,
     ):
         """Initialize Meta-Rewarding critic for premium-quality evaluation.
-        
+
         Creates a sophisticated critic that uses three-stage evaluation to
         deliver the highest possible critique quality through self-improvement
         and meta-reflection.
-        
+
         Args:
             model: LLM model for the three-stage evaluation process.
                 GPT-4o-mini recommended for cost-effectiveness, though
@@ -183,21 +183,21 @@ class MetaRewardingCritic(BaseCritic):
             provider: LLM provider (OpenAI, Anthropic, etc.)
             api_key: API key override if not using environment variables
             config: Full Sifaka configuration object
-            
+
         Example:
             >>> # Standard high-quality critic
             >>> critic = MetaRewardingCritic()
-            >>> 
+            >>>
             >>> # Premium critic for critical content
             >>> critic = MetaRewardingCritic(model="gpt-4")
-            >>> 
+            >>>
             >>> # Conservative, consistent evaluation
             >>> critic = MetaRewardingCritic(temperature=0.5)
-            
+
         Resource planning:
             This critic uses ~3x the tokens of standard critics. Consider
             this when budgeting for high-volume or cost-sensitive applications.
-            
+
         Note:
             The three-stage process (initial → meta-eval → refined) happens
             within a single critique() call for seamless integration.
@@ -210,7 +210,7 @@ class MetaRewardingCritic(BaseCritic):
     @property
     def name(self) -> str:
         """Return the unique identifier for this critic.
-        
+
         Returns:
             "meta_rewarding" - used in configuration, logging, and metadata
         """
@@ -218,7 +218,7 @@ class MetaRewardingCritic(BaseCritic):
 
     def _get_response_type(self) -> type[BaseModel]:
         """Specify the structured response format for meta-rewarding critique.
-        
+
         Returns:
             MetaRewardingResponse class providing refined, high-quality
             critique results after three-stage meta-evaluation process.
@@ -229,18 +229,18 @@ class MetaRewardingCritic(BaseCritic):
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
         """Create comprehensive messages for three-stage meta-rewarding critique.
-        
+
         Builds detailed instructions for the sophisticated evaluation process,
         including initial critique, meta-evaluation, and refined assessment.
-        
+
         Args:
             text: Text to evaluate using the meta-rewarding process
             result: SifakaResult containing context and history
-            
+
         Returns:
             List of message dictionaries instructing the LLM to perform
             the complete three-stage meta-rewarding evaluation process
-            
+
         Note:
             The process is designed to be completed in a single LLM call
             for efficiency, with the model performing all three stages

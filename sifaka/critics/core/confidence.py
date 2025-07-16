@@ -39,21 +39,21 @@ from typing import List, Optional, Dict, Any
 
 class ConfidenceCalculator:
     """Simple, objective confidence scoring for critic assessments.
-    
+
     This calculator provides a pragmatic approach to scoring confidence
     based on easily measurable factors. It avoids complex heuristics
     in favor of simple metrics that correlate with feedback quality.
-    
+
     The scoring system is designed to be:
     - Predictable: Same inputs always produce same score
     - Transparent: Clear which factors affect the score
     - Objective: Based on measurable quantities, not subjective analysis
     - Bounded: Always returns values between 0.0 and 1.0
-    
+
     Example:
         >>> # Standard usage
         >>> calc = ConfidenceCalculator()
-        >>> 
+        >>>
         >>> # High confidence: detailed feedback with specific suggestions
         >>> high_conf = calc.calculate(
         ...     feedback="" * 150,  # 150 words
@@ -63,7 +63,7 @@ class ConfidenceCalculator:
         ...     ],
         ...     response_length=1000
         ... )
-        >>> 
+        >>>
         >>> # Low confidence: minimal feedback
         >>> low_conf = calc.calculate(
         ...     feedback="Needs work",
@@ -74,7 +74,7 @@ class ConfidenceCalculator:
 
     def __init__(self, base_confidence: float = 0.7):
         """Initialize calculator with base confidence level.
-        
+
         Args:
             base_confidence: Starting confidence level before adjustments.
                 Should be between 0.0 and 1.0. Default of 0.7 represents
@@ -90,7 +90,7 @@ class ConfidenceCalculator:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> float:
         """Calculate confidence score based on objective metrics.
-        
+
         Uses simple, measurable factors to estimate confidence in the
         critic's assessment. The scoring adjusts the base confidence
         up or down based on feedback characteristics.
@@ -111,7 +111,7 @@ class ConfidenceCalculator:
             - 1.0 = Maximum confidence in the assessment
             - 0.7 = Default moderate confidence
             - 0.0 = No confidence in the assessment
-            
+
         Scoring Factors:
             - Feedback length: +0.05 for >100 words, -0.05 for <20 words
             - Suggestion count: +0.05 for 1-3, -0.05 for >5, -0.1 for 0
@@ -153,17 +153,17 @@ class ConfidenceCalculator:
 
     def _score_specificity(self, text: str) -> float:
         """Deprecated method kept for backward compatibility.
-        
+
         This method attempted to score text specificity using complex
         heuristics but was found to be unreliable. Now returns a
         neutral score.
-        
+
         Args:
             text: Text to analyze (ignored)
-            
+
         Returns:
             Always returns 0.5 (neutral score)
-            
+
         Deprecated:
             Use the main calculate() method instead.
         """
@@ -171,17 +171,17 @@ class ConfidenceCalculator:
 
     def _score_uncertainty(self, text: str) -> float:
         """Deprecated method kept for backward compatibility.
-        
+
         This method attempted to detect uncertainty in text using
         keyword matching but produced unreliable results. Now returns
         a neutral score.
-        
+
         Args:
             text: Text to analyze (ignored)
-            
+
         Returns:
             Always returns 0.5 (neutral score)
-            
+
         Deprecated:
             Use the main calculate() method instead.
         """

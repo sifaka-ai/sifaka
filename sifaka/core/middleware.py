@@ -24,19 +24,19 @@ Middleware components form a chain where each component can:
 
     >>> from sifaka import improve, MiddlewarePipeline
     >>> from sifaka.core.middleware import LoggingMiddleware, MetricsMiddleware
-    >>> 
+    >>>
     >>> # Create middleware pipeline
     >>> pipeline = MiddlewarePipeline([
     ...     LoggingMiddleware(log_level="DEBUG"),
     ...     MetricsMiddleware(),
     ... ])
-    >>> 
+    >>>
     >>> # Use with improve()
     >>> result = await improve(
     ...     "text to improve",
     ...     middleware=pipeline
     ... )
-    >>> 
+    >>>
     >>> # Access metrics
     >>> metrics = pipeline.get_middleware(MetricsMiddleware)
     >>> print(metrics.get_metrics())
@@ -47,13 +47,13 @@ Middleware components form a chain where each component can:
     ...     async def process(self, text, next_handler, context):
     ...         # Pre-processing
     ...         print(f"Processing: {text[:50]}...")
-    ...         
+    ...
     ...         # Call next in chain
     ...         result = await next_handler(text)
-    ...         
+    ...
     ...         # Post-processing
     ...         print(f"Completed with {result.iteration} iterations")
-    ...         
+    ...
     ...         return result
 """
 
@@ -71,18 +71,18 @@ logger = logging.getLogger(__name__)
 
 class Middleware(ABC):
     """Abstract base class for all middleware components.
-    
+
     Middleware allows you to intercept and modify the improvement process
     without changing core Sifaka logic. Each middleware can inspect or
     modify the request, add to the context, and process the response.
-    
+
     The middleware pattern enables:
     - Logging and debugging
     - Performance monitoring
     - Caching and optimization
     - Security and rate limiting
     - Request/response transformation
-    
+
     Example:
         >>> class TimingMiddleware(Middleware):
         ...     async def process(self, text, next_handler, context):
@@ -98,7 +98,7 @@ class Middleware(ABC):
         self, text: str, next_handler: Callable[[str], Any], context: Dict[str, Any]
     ) -> SifakaResult:
         """Process the request through this middleware.
-        
+
         This is the main method that each middleware must implement. It
         receives the request, can perform pre-processing, must call the
         next handler, and can perform post-processing.
@@ -116,22 +116,22 @@ class Middleware(ABC):
         Returns:
             SifakaResult from the improvement process. Middleware can
             inspect or modify this before returning.
-            
+
         Raises:
             Any exception from the improvement process. Middleware can
             catch and handle exceptions or let them propagate.
-            
+
         Example:
             >>> async def process(self, text, next_handler, context):
             ...     # Pre-processing
             ...     context['start_time'] = time.time()
-            ...     
+            ...
             ...     # Must call next handler
             ...     result = await next_handler(text)
-            ...     
+            ...
             ...     # Post-processing
             ...     context['duration'] = time.time() - context['start_time']
-            ...     
+            ...
             ...     return result
         """
         pass
@@ -139,24 +139,24 @@ class Middleware(ABC):
 
 class LoggingMiddleware(Middleware):
     """Middleware that logs all improvement operations.
-    
+
     Provides detailed logging of the improvement process including:
     - Input text (truncated)
     - Configuration (critics, validators)
     - Processing time
     - Results (iterations, confidence, success)
     - Errors with full context
-    
+
     Useful for debugging, monitoring, and understanding how
     improvements are performed.
-    
+
     Example:
         >>> # Basic usage
         >>> middleware = LoggingMiddleware()
-        >>> 
+        >>>
         >>> # With custom log level
         >>> middleware = LoggingMiddleware(log_level="DEBUG")
-        >>> 
+        >>>
         >>> # In pipeline
         >>> pipeline = MiddlewarePipeline([LoggingMiddleware()])
         >>> result = await improve(text, middleware=pipeline)
@@ -217,7 +217,7 @@ class LoggingMiddleware(Middleware):
 
 class MetricsMiddleware(Middleware):
     """Middleware that collects detailed metrics about improvements.
-    
+
     Tracks comprehensive metrics including:
     - Total requests and success rate
     - Processing time statistics
@@ -225,18 +225,18 @@ class MetricsMiddleware(Middleware):
     - Confidence score trends
     - Token usage and costs
     - Error rates and types
-    
+
     Metrics are accumulated across all requests and can be retrieved
     for analysis or monitoring dashboards.
-    
+
     Example:
         >>> metrics_mw = MetricsMiddleware()
         >>> pipeline = MiddlewarePipeline([metrics_mw])
-        >>> 
+        >>>
         >>> # Process some requests
         >>> for text in texts:
         ...     await improve(text, middleware=pipeline)
-        >>> 
+        >>>
         >>> # Get metrics
         >>> stats = metrics_mw.get_metrics()
         >>> print(f"Average time: {stats['average_time']:.2f}s")
@@ -245,7 +245,7 @@ class MetricsMiddleware(Middleware):
 
     def __init__(self) -> None:
         """Initialize metrics collection with zero counters.
-        
+
         Creates a metrics dictionary that tracks:
         - total_requests: Number of improve() calls
         - total_iterations: Sum of all iterations across requests

@@ -16,23 +16,23 @@ from pydantic import BaseModel, Field, ConfigDict
 
 class Config(BaseModel):
     """Central configuration for all Sifaka operations.
-    
+
     This configuration object controls every aspect of the text improvement
     process, from model selection to critic behavior to retry policies.
     All fields have sensible defaults, so a Config() with no arguments
     will work out of the box.
-    
+
     The configuration is organized into logical sections:
     - Model settings: LLM model selection and parameters
     - Critic settings: How critics behave and which models they use
     - Iteration control: How many rounds of improvement to attempt
     - Timeouts and retries: Reliability and performance settings
     - Critic-specific options: Custom settings for individual critics
-    
+
     Example:
         >>> # Basic configuration
         >>> config = Config(model="gpt-4", temperature=0.8)
-        >>> 
+        >>>
         >>> # Advanced configuration
         >>> config = Config(
         ...     model="claude-3-opus",
@@ -41,7 +41,7 @@ class Config(BaseModel):
         ...     max_iterations=5,
         ...     style_description="Academic writing style"
         ... )
-    
+
     Attributes are grouped below by category for clarity.
     """
 
@@ -188,13 +188,13 @@ class Config(BaseModel):
     @classmethod
     def fast(cls) -> "Config":
         """Fast configuration for quick iterations.
-        
+
         Uses cheaper, faster models with lower quality thresholds.
         Good for drafts, testing, or when speed matters more than quality.
-        
+
         Returns:
             Config optimized for speed
-            
+
         Example:
             >>> result = await improve(text, config=Config.fast())
         """
@@ -211,13 +211,13 @@ class Config(BaseModel):
     @classmethod
     def quality(cls) -> "Config":
         """High-quality configuration for best results.
-        
+
         Uses more powerful models with thorough critique.
         Good for final drafts, important content, or when quality matters most.
-        
+
         Returns:
             Config optimized for quality
-            
+
         Example:
             >>> result = await improve(text, config=Config.quality())
         """
@@ -235,13 +235,13 @@ class Config(BaseModel):
     @classmethod
     def creative(cls) -> "Config":
         """Creative configuration for imaginative content.
-        
+
         Higher temperature and creative-focused critics.
         Good for stories, marketing copy, or creative writing.
-        
+
         Returns:
             Config optimized for creativity
-            
+
         Example:
             >>> result = await improve(
             ...     text,
@@ -261,13 +261,13 @@ class Config(BaseModel):
     @classmethod
     def research(cls) -> "Config":
         """Research configuration with fact-checking tools.
-        
+
         Enables tools for fact verification and source checking.
         Good for academic writing, journalism, or fact-heavy content.
-        
+
         Returns:
             Config optimized for research and accuracy
-            
+
         Example:
             >>> result = await improve(
             ...     text,
@@ -297,15 +297,15 @@ class Config(BaseModel):
         reference_text: Optional[str] = None,
     ) -> "Config":
         """Configuration for style transformation.
-        
+
         Args:
             style_guide: Description of target style
             examples: Optional example phrases in target style
             reference_text: Optional full text exemplifying the style
-            
+
         Returns:
             Config optimized for style transformation
-            
+
         Example:
             >>> config = Config.style_transfer(
             ...     "Professional business email",

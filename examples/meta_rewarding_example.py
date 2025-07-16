@@ -49,7 +49,7 @@ async def main() -> None:
             config=Config(
                 model="gpt-4o-mini",  # Pro model for complex meta-evaluation
                 critic_model="gpt-4o-mini",
-                temperature=0.6
+                temperature=0.6,
             ),
             storage=FileStorage(),
         )

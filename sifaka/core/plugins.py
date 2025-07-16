@@ -26,10 +26,10 @@ it via setuptools entry points:
 ## Usage:
 
     >>> from sifaka.core.plugins import create_storage_backend
-    >>> 
+    >>>
     >>> # Automatically discovers and loads redis plugin
     >>> storage = create_storage_backend('redis', url='redis://localhost')
-    >>> 
+    >>>
     >>> # List all available backends
     >>> from sifaka.core.plugins import list_storage_backends
     >>> print(list_storage_backends())
@@ -63,30 +63,30 @@ from ..storage.base import StorageBackend
 
 class PluginRegistry:
     """Registry for storage backend plugins.
-    
+
     Manages the discovery, registration, and retrieval of storage backend
     plugins. Provides both automatic discovery via entry points and manual
     registration for custom backends.
-    
+
     Key features:
     - Lazy plugin discovery (on first use)
     - Type checking for all registered backends
     - Graceful handling of plugin loading failures
     - Support for both built-in and third-party backends
-    
+
     Example:
         >>> registry = PluginRegistry()
-        >>> 
+        >>>
         >>> # Manual registration
         >>> registry.register('custom', CustomStorageBackend)
-        >>> 
+        >>>
         >>> # Get a backend (triggers discovery if needed)
         >>> backend_class = registry.get_backend('redis')
-        >>> 
+        >>>
         >>> # List all available backends
         >>> backends = registry.list_backends()
         >>> print(f"Available: {backends}")
-    
+
     Thread safety:
         This class is not thread-safe. Use the global instance or provide
         your own synchronization if needed.
@@ -94,7 +94,7 @@ class PluginRegistry:
 
     def __init__(self) -> None:
         """Initialize an empty plugin registry.
-        
+
         Sets up internal storage for backend classes and tracks discovery
         state to avoid redundant plugin scanning.
         """
@@ -103,7 +103,7 @@ class PluginRegistry:
 
     def register(self, name: str, backend_class: Type[StorageBackend]) -> None:
         """Register a storage backend plugin.
-        
+
         Manually registers a backend class with the given name. Useful for
         built-in backends or when you want to override plugin discovery.
 
@@ -112,19 +112,19 @@ class PluginRegistry:
                 Used as the key for backend retrieval. Must be unique.
             backend_class: StorageBackend implementation class.
                 Must inherit from StorageBackend interface.
-                
+
         Raises:
             TypeError: If backend_class doesn't inherit from StorageBackend
-            
+
         Example:
             >>> class CustomStorage(StorageBackend):
             ...     # Implementation here
             ...     pass
-            >>> 
+            >>>
             >>> registry = PluginRegistry()
             >>> registry.register('custom', CustomStorage)
             >>> storage = registry.get_backend('custom')
-            
+
         Note:
             Manual registration takes precedence over entry point discovery.
             If you register a backend with the same name as a plugin, the
@@ -137,7 +137,7 @@ class PluginRegistry:
 
     def get_backend(self, name: str) -> Type[StorageBackend]:
         """Get a registered storage backend by name.
-        
+
         Retrieves a backend class by its registered name. Triggers plugin
         discovery if this is the first call to any getter method.
 
@@ -152,19 +152,19 @@ class PluginRegistry:
         Raises:
             KeyError: If backend is not registered. Error message includes
                 list of available backends for troubleshooting.
-                
+
         Example:
             >>> # Get and instantiate a backend
             >>> backend_class = registry.get_backend('redis')
             >>> storage = backend_class(url='redis://localhost')
-            >>> 
+            >>>
             >>> # Handle missing backends
             >>> try:
             ...     backend_class = registry.get_backend('unknown')
             >>> except KeyError as e:
             ...     print(f"Backend not found: {e}")
             ...     print(f"Available: {registry.list_backends()}")
-            
+
         Performance:
             First call triggers plugin discovery, subsequent calls are O(1)
             dictionary lookups.
@@ -181,22 +181,22 @@ class PluginRegistry:
 
     def list_backends(self) -> List[str]:
         """List all registered backend names.
-        
+
         Returns a list of all available backend names. Triggers plugin
         discovery if not already performed.
-        
+
         Returns:
             List of backend names in registration order. Typically includes
             built-in backends ('memory', 'file') plus any discovered plugins.
-            
+
         Example:
             >>> backends = registry.list_backends()
             >>> print(f"Available storage backends: {', '.join(backends)}")
-            >>> 
+            >>>
             >>> # Check if specific backend is available
             >>> if 'redis' in backends:
             ...     storage = create_storage_backend('redis', url='...')
-            
+
         Note:
             The order reflects registration order, not alphabetical or
             priority order. Built-in backends are typically registered first.
@@ -207,26 +207,26 @@ class PluginRegistry:
 
     def discover_plugins(self) -> None:
         """Auto-discover storage plugins via entry points.
-        
+
         Scans installed packages for entry points in the 'sifaka.storage'
         group and attempts to load them as storage backends. Handles various
         Python versions and gracefully deals with plugin loading failures.
-        
+
         Entry point format:
             [sifaka.storage]
             redis = my_plugin.redis_storage:RedisStorage
             postgres = my_plugin.pg_storage:PostgresStorage
-            
+
         Error handling:
         - Missing optional dependencies are logged as warnings
         - Malformed entry points are skipped
         - Import errors don't stop discovery of other plugins
         - Discovery failures don't crash the application
-        
+
         Note:
             This method is idempotent - calling it multiple times has no
             additional effect. Discovery state is tracked internally.
-            
+
         Compatibility:
             Handles importlib.metadata differences across Python versions:
             - Python 3.10+: Uses entry_points().select()
@@ -276,7 +276,7 @@ discover_storage_plugins = _registry.discover_plugins
 
 def create_storage_backend(backend_type: str, **kwargs: Any) -> StorageBackend:
     """Create a storage backend instance by name.
-    
+
     Convenience function that gets the backend class and instantiates it
     with the provided arguments. This is the main public API for creating
     storage backends.
@@ -292,25 +292,25 @@ def create_storage_backend(backend_type: str, **kwargs: Any) -> StorageBackend:
 
     Returns:
         Initialized StorageBackend instance ready for use
-        
+
     Raises:
         KeyError: If backend_type is not registered
         TypeError: If kwargs don't match backend constructor
-        
+
     Example:
         >>> # File storage with custom directory
         >>> storage = create_storage_backend('file', storage_dir='./my_results')
-        >>> 
+        >>>
         >>> # Redis storage with connection details
         >>> storage = create_storage_backend(
-        ...     'redis', 
+        ...     'redis',
         ...     url='redis://localhost:6379',
         ...     db=1
         ... )
-        >>> 
+        >>>
         >>> # Use the storage
         >>> result_id = await storage.save(my_result)
-        
+
     Plugin loading:
         If this is the first call to any storage function, it will trigger
         automatic plugin discovery, which may cause a slight delay.

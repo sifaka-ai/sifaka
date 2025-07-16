@@ -177,7 +177,7 @@ class MultiStorage(StorageBackend):
 
         return None
 
-    async def list(self, limit: int = 10, offset: int = 0) -> List[SifakaResult]:
+    async def list(self, limit: int = 10, offset: int = 0) -> List[str]:
         """List results from the first available backend.
 
         Uses read order (primary first if configured).
@@ -187,7 +187,7 @@ class MultiStorage(StorageBackend):
             offset: Number of results to skip
 
         Returns:
-            List of SifakaResult objects
+            List of result IDs
         """
         for backend in self._read_order:
             try:
@@ -200,7 +200,7 @@ class MultiStorage(StorageBackend):
 
         return []
 
-    async def delete(self, result_id: str) -> None:
+    async def delete(self, result_id: str) -> bool:
         """Delete result from all backends.
 
         Attempts deletion from all backends. Logs warnings for failures
@@ -226,7 +226,9 @@ class MultiStorage(StorageBackend):
                 if self.require_all:
                     raise Exception(f"Required deletion failed: {error_msg}")
 
-    async def search(self, query: str, limit: int = 10) -> List[SifakaResult]:
+        return len(errors) == 0
+
+    async def search(self, query: str, limit: int = 10) -> List[str]:
         """Search using the first backend that supports it.
 
         Tries backends in read order until one returns results.
@@ -237,7 +239,7 @@ class MultiStorage(StorageBackend):
             limit: Maximum results to return
 
         Returns:
-            List of matching SifakaResult objects
+            List of matching result IDs
         """
         for backend in self._read_order:
             try:
@@ -261,8 +263,9 @@ class MultiStorage(StorageBackend):
         """
         for backend in self.backends:
             try:
-                await backend.cleanup()
-                logger.debug(f"Cleaned up {backend.__class__.__name__}")
+                if hasattr(backend, "cleanup"):
+                    await backend.cleanup()
+                    logger.debug(f"Cleaned up {backend.__class__.__name__}")
             except Exception as e:
                 logger.warning(f"Cleanup failed for {backend.__class__.__name__}: {e}")
 

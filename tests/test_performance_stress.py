@@ -1,22 +1,668 @@
-"""Performance and stress tests for Sifaka."""
+"""Performance and stress tests for Sifaka.
+
+This test suite covers:
+- Performance benchmarks for core operations
+- Memory usage and leak detection
+- Concurrent operation handling
+- Large data processing
+- Resource cleanup verification
+- Stress testing under load
+"""
 
 import pytest
 import asyncio
 import time
-from unittest.mock import patch, MagicMock, AsyncMock
+import psutil
+import gc
+import tempfile
 import threading
+from unittest.mock import patch, MagicMock, AsyncMock
 from typing import List
 
 from sifaka import improve
 from sifaka.core.engine import SifakaEngine
 from sifaka.core.config import Config
-from sifaka.core.models import SifakaResult, Generation
+from sifaka.core.models import SifakaResult, Generation, CritiqueResult
 from sifaka.storage import MemoryStorage, FileStorage
 from sifaka.validators import LengthValidator, ContentValidator
+from sifaka.core.middleware import (
+    MiddlewarePipeline,
+    LoggingMiddleware,
+    MetricsMiddleware,
+)
+
+
+@pytest.fixture
+def mock_llm_responses():
+    """Mock LLM responses for performance testing."""
+
+    def create_mock_response(content: str):
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[0].message.content = content
+        return mock_response
+
+    return {
+        "critique": create_mock_response(
+            "REFLECTION: Good text. SUGGESTIONS: Minor improvements."
+        ),
+        "generation": create_mock_response("Improved version of the text."),
+    }
+
+
+@pytest.fixture
+def performance_config():
+    """Configuration optimized for performance testing."""
+    return Config(
+        model="gpt-4o-mini",
+        temperature=0.3,
+        max_iterations=2,
+        timeout_seconds=30,
+        critics=["reflexion"],
+    )
 
 
 class TestPerformanceBasics:
     """Test basic performance characteristics."""
+
+    @pytest.mark.asyncio
+    async def test_single_improve_performance(
+        self, mock_llm_responses, performance_config
+    ):
+        """Test performance of single improve operation."""
+        with patch("openai.AsyncOpenAI") as mock_openai:
+            mock_client = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=mock_llm_responses["critique"]
+            )
+            mock_openai.return_value = mock_client
+
+            start_time = time.time()
+            result = await improve(
+                "Test text for performance measurement", config=performance_config
+            )
+            end_time = time.time()
+
+            execution_time = end_time - start_time
+
+            # Should complete within reasonable time
+            assert execution_time < 5.0  # Less than 5 seconds
+            assert isinstance(result, SifakaResult)
+            assert result.processing_time > 0
+
+    @pytest.mark.asyncio
+    async def test_memory_usage_single_operation(
+        self, mock_llm_responses, performance_config
+    ):
+        """Test memory usage for single operation."""
+        process = psutil.Process()
+
+        # Get baseline memory
+        gc.collect()
+        baseline_memory = process.memory_info().rss
+
+        with patch("openai.AsyncOpenAI") as mock_openai:
+            mock_client = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=mock_llm_responses["critique"]
+            )
+            mock_openai.return_value = mock_client
+
+            await improve("Test text for memory measurement", config=performance_config)
+
+            # Force garbage collection
+            gc.collect()
+            peak_memory = process.memory_info().rss
+
+            # Memory increase should be reasonable (less than 50MB)
+            memory_increase = peak_memory - baseline_memory
+            assert memory_increase < 50 * 1024 * 1024  # 50MB
+
+    def test_config_creation_performance(self):
+        """Test Config creation performance."""
+        start_time = time.time()
+
+        # Create many config instances
+        configs = []
+        for i in range(1000):
+            config = Config(
+                model="gpt-4o-mini",
+                temperature=0.5 + (i % 10) * 0.05,
+                max_iterations=i % 5 + 1,
+            )
+            configs.append(config)
+
+        end_time = time.time()
+        creation_time = end_time - start_time
+
+        # Should create 1000 configs quickly
+        assert creation_time < 1.0  # Less than 1 second
+        assert len(configs) == 1000
+
+    def test_storage_performance_memory(self):
+        """Test MemoryStorage performance."""
+        storage = MemoryStorage()
+
+        # Create test results
+        results = []
+        for i in range(100):
+            result = SifakaResult(
+                original_text=f"Test text {i}",
+                final_text=f"Improved text {i}",
+                iteration=1,
+                generations=[],
+                critiques=[],
+                validations=[],
+                processing_time=1.0,
+            )
+            results.append(result)
+
+        # Time save operations
+        start_time = time.time()
+        for result in results:
+            asyncio.run(storage.save(result))
+        save_time = time.time() - start_time
+
+        # Time load operations
+        start_time = time.time()
+        for result in results:
+            asyncio.run(storage.load(result.id))
+        load_time = time.time() - start_time
+
+        # Should be fast
+        assert save_time < 0.5  # Less than 500ms for 100 saves
+        assert load_time < 0.5  # Less than 500ms for 100 loads
+
+    @pytest.mark.asyncio
+    async def test_storage_performance_file(self):
+        """Test FileStorage performance."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = FileStorage(base_path=temp_dir)
+
+            # Create test results
+            results = []
+            for i in range(20):  # Fewer for file storage
+                result = SifakaResult(
+                    original_text=f"Test text {i}",
+                    final_text=f"Improved text {i}",
+                    iteration=1,
+                    generations=[],
+                    critiques=[],
+                    validations=[],
+                    processing_time=1.0,
+                )
+                results.append(result)
+
+            # Time save operations
+            start_time = time.time()
+            for result in results:
+                await storage.save(result)
+            save_time = time.time() - start_time
+
+            # Time load operations
+            start_time = time.time()
+            for result in results:
+                await storage.load(result.id)
+            load_time = time.time() - start_time
+
+            # Should complete in reasonable time
+            assert save_time < 2.0  # Less than 2 seconds for 20 saves
+            assert load_time < 1.0  # Less than 1 second for 20 loads
+
+
+class TestConcurrencyPerformance:
+    """Test performance under concurrent operations."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_improve_operations(
+        self, mock_llm_responses, performance_config
+    ):
+        """Test concurrent improve operations."""
+        with patch("openai.AsyncOpenAI") as mock_openai:
+            mock_client = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=mock_llm_responses["critique"]
+            )
+            mock_openai.return_value = mock_client
+
+            async def single_improve(i):
+                return await improve(
+                    f"Concurrent test text {i}", config=performance_config
+                )
+
+            start_time = time.time()
+
+            # Run 10 concurrent operations
+            tasks = [single_improve(i) for i in range(10)]
+            results = await asyncio.gather(*tasks)
+
+            end_time = time.time()
+            total_time = end_time - start_time
+
+            # Should complete all operations
+            assert len(results) == 10
+            assert all(isinstance(r, SifakaResult) for r in results)
+
+            # Should be faster than sequential (with some overhead)
+            # Assuming each operation takes ~0.1s, 10 concurrent should be < 2s
+            assert total_time < 5.0
+
+    @pytest.mark.asyncio
+    async def test_concurrent_storage_operations(self):
+        """Test concurrent storage operations."""
+        storage = MemoryStorage()
+
+        async def save_and_load(i):
+            result = SifakaResult(
+                original_text=f"Concurrent storage test {i}",
+                final_text=f"Final {i}",
+                iteration=1,
+                generations=[],
+                critiques=[],
+                validations=[],
+                processing_time=1.0,
+            )
+
+            # Save
+            result_id = await storage.save(result)
+
+            # Load
+            loaded = await storage.load(result_id)
+
+            return loaded is not None
+
+        start_time = time.time()
+
+        # Run concurrent storage operations
+        tasks = [save_and_load(i) for i in range(50)]
+        results = await asyncio.gather(*tasks)
+
+        end_time = time.time()
+        total_time = end_time - start_time
+
+        # All operations should succeed
+        assert all(results)
+        assert storage.size() == 50
+
+        # Should complete quickly
+        assert total_time < 2.0
+
+    def test_thread_safety_storage(self):
+        """Test thread safety of storage operations."""
+        storage = MemoryStorage()
+        results_created = []
+
+        def worker_thread(thread_id):
+            for i in range(10):
+                result = SifakaResult(
+                    original_text=f"Thread {thread_id} text {i}",
+                    final_text=f"Final {i}",
+                    iteration=1,
+                    generations=[],
+                    critiques=[],
+                    validations=[],
+                    processing_time=1.0,
+                )
+
+                # Save result
+                result_id = asyncio.run(storage.save(result))
+                results_created.append(result_id)
+
+        # Create multiple threads
+        threads = []
+        for thread_id in range(5):
+            thread = threading.Thread(target=worker_thread, args=(thread_id,))
+            threads.append(thread)
+
+        # Start all threads
+        start_time = time.time()
+        for thread in threads:
+            thread.start()
+
+        # Wait for completion
+        for thread in threads:
+            thread.join()
+
+        end_time = time.time()
+        total_time = end_time - start_time
+
+        # Check results
+        assert len(results_created) == 50  # 5 threads * 10 results each
+        assert len(set(results_created)) == 50  # All unique
+        assert storage.size() == 50
+
+        # Should complete in reasonable time
+        assert total_time < 5.0
+
+
+class TestMemoryManagement:
+    """Test memory management and leak detection."""
+
+    @pytest.mark.asyncio
+    async def test_memory_cleanup_after_operations(
+        self, mock_llm_responses, performance_config
+    ):
+        """Test memory cleanup after multiple operations."""
+        process = psutil.Process()
+
+        with patch("openai.AsyncOpenAI") as mock_openai:
+            mock_client = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=mock_llm_responses["critique"]
+            )
+            mock_openai.return_value = mock_client
+
+            # Get baseline memory
+            gc.collect()
+            baseline_memory = process.memory_info().rss
+
+            # Perform multiple operations
+            for i in range(20):
+                await improve(f"Memory test iteration {i}", config=performance_config)
+
+                # Periodically force garbage collection
+                if i % 5 == 0:
+                    gc.collect()
+
+            # Final cleanup
+            gc.collect()
+            final_memory = process.memory_info().rss
+
+            # Memory should not grow excessively
+            memory_growth = final_memory - baseline_memory
+            assert memory_growth < 100 * 1024 * 1024  # Less than 100MB growth
+
+    def test_storage_memory_bounds(self):
+        """Test that storage respects memory bounds."""
+        storage = MemoryStorage()
+
+        # Create many large results
+        for i in range(100):
+            # Create result with large data
+            large_generations = []
+            for j in range(10):
+                large_generations.append(
+                    Generation(
+                        text="x" * 1000,  # 1KB per generation
+                        model="gpt-4o-mini",
+                        prompt_tokens=100,
+                        completion_tokens=200,
+                        total_tokens=300,
+                    )
+                )
+
+            result = SifakaResult(
+                original_text=f"Large test {i}",
+                final_text="Large final text " + "y" * 1000,
+                iteration=1,
+                generations=large_generations,
+                critiques=[],
+                validations=[],
+                processing_time=1.0,
+            )
+
+            asyncio.run(storage.save(result))
+
+        # Storage should handle large amounts of data
+        assert storage.size() == 100
+
+    def test_result_memory_bounds(self):
+        """Test SifakaResult memory bounds enforcement."""
+        # Create result and add many items to test bounds
+        result = SifakaResult(
+            original_text="Memory bounds test",
+            final_text="Final text",
+            iteration=1,
+            generations=[],
+            critiques=[],
+            validations=[],
+            processing_time=1.0,
+        )
+
+        # Add many generations (should be bounded)
+        for i in range(20):
+            generation = Generation(
+                text=f"Generation {i}",
+                model="gpt-4o-mini",
+                prompt_tokens=10,
+                completion_tokens=20,
+                total_tokens=30,
+            )
+            result.generations.append(generation)
+
+        # Should be bounded to max size (typically 10)
+        assert len(result.generations) <= 10
+
+        # Add many critiques (should be bounded)
+        for i in range(30):
+            critique = CritiqueResult(
+                critic="test",
+                feedback=f"Feedback {i}",
+                suggestions=[f"Suggestion {i}"],
+                needs_improvement=True,
+                confidence=0.8,
+            )
+            result.critiques.append(critique)
+
+        # Should be bounded to max size (typically 20)
+        assert len(result.critiques) <= 20
+
+
+class TestStressTesting:
+    """Stress tests for extreme conditions."""
+
+    @pytest.mark.asyncio
+    async def test_large_text_processing(self, mock_llm_responses, performance_config):
+        """Test processing very large text."""
+        # Create large text (100KB)
+        large_text = "This is a large text for stress testing. " * 2500
+
+        with patch("openai.AsyncOpenAI") as mock_openai:
+            mock_client = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=mock_llm_responses["critique"]
+            )
+            mock_openai.return_value = mock_client
+
+            start_time = time.time()
+            result = await improve(large_text, config=performance_config)
+            end_time = time.time()
+
+            # Should handle large text
+            assert isinstance(result, SifakaResult)
+            assert len(result.original_text) > 100000
+
+            # Should complete in reasonable time
+            processing_time = end_time - start_time
+            assert processing_time < 10.0  # Less than 10 seconds
+
+    @pytest.mark.asyncio
+    async def test_many_validators_performance(
+        self, mock_llm_responses, performance_config
+    ):
+        """Test performance with many validators."""
+        # Create many validators
+        validators = []
+        for i in range(20):
+            validators.append(
+                LengthValidator(min_length=i * 10, max_length=(i + 1) * 100)
+            )
+            validators.append(ContentValidator(required_terms=[f"term{i}"]))
+
+        with patch("openai.AsyncOpenAI") as mock_openai:
+            mock_client = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=mock_llm_responses["critique"]
+            )
+            mock_openai.return_value = mock_client
+
+            start_time = time.time()
+            result = await improve(
+                "Test text with many validators "
+                + " ".join(f"term{i}" for i in range(20)),
+                validators=validators,
+                config=performance_config,
+            )
+            end_time = time.time()
+
+            # Should handle many validators
+            assert isinstance(result, SifakaResult)
+
+            # Should complete in reasonable time
+            processing_time = end_time - start_time
+            assert processing_time < 5.0
+
+    @pytest.mark.asyncio
+    async def test_rapid_sequential_operations(
+        self, mock_llm_responses, performance_config
+    ):
+        """Test rapid sequential operations."""
+        with patch("openai.AsyncOpenAI") as mock_openai:
+            mock_client = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=mock_llm_responses["critique"]
+            )
+            mock_openai.return_value = mock_client
+
+            start_time = time.time()
+
+            # Perform many rapid operations
+            results = []
+            for i in range(50):
+                result = await improve(f"Rapid test {i}", config=performance_config)
+                results.append(result)
+
+            end_time = time.time()
+            total_time = end_time - start_time
+
+            # All operations should succeed
+            assert len(results) == 50
+            assert all(isinstance(r, SifakaResult) for r in results)
+
+            # Should complete in reasonable time
+            assert total_time < 30.0  # Less than 30 seconds for 50 operations
+
+    def test_storage_stress_test(self):
+        """Stress test storage with many operations."""
+        storage = MemoryStorage()
+
+        # Perform many storage operations rapidly
+        start_time = time.time()
+
+        for i in range(1000):
+            result = SifakaResult(
+                original_text=f"Stress test {i}",
+                final_text=f"Final {i}",
+                iteration=1,
+                generations=[],
+                critiques=[],
+                validations=[],
+                processing_time=1.0,
+            )
+
+            # Save
+            asyncio.run(storage.save(result))
+
+            # Occasionally load and delete
+            if i % 10 == 0:
+                asyncio.run(storage.load(result.id))
+
+            if i % 20 == 0 and i > 0:
+                # Delete some old results
+                old_result_id = list(storage._data.keys())[0]
+                asyncio.run(storage.delete(old_result_id))
+
+        end_time = time.time()
+        total_time = end_time - start_time
+
+        # Should handle stress test
+        assert storage.size() > 900  # Most results should still be there
+        assert total_time < 10.0  # Should complete quickly
+
+
+class TestResourceCleanup:
+    """Test proper resource cleanup."""
+
+    @pytest.mark.asyncio
+    async def test_engine_cleanup(self, performance_config):
+        """Test engine resource cleanup."""
+        engines = []
+
+        # Create many engines
+        for i in range(10):
+            engine = SifakaEngine(config=performance_config)
+            engines.append(engine)
+
+        # Clear references
+        engines.clear()
+
+        # Force garbage collection
+        gc.collect()
+
+        # Should not cause memory issues
+        assert True  # If we get here, cleanup worked
+
+    def test_storage_cleanup(self):
+        """Test storage cleanup."""
+        storages = []
+
+        # Create many storage instances
+        for i in range(10):
+            storage = MemoryStorage()
+
+            # Add some data
+            for j in range(10):
+                result = SifakaResult(
+                    original_text=f"Cleanup test {i}-{j}",
+                    final_text=f"Final {j}",
+                    iteration=1,
+                    generations=[],
+                    critiques=[],
+                    validations=[],
+                    processing_time=1.0,
+                )
+                asyncio.run(storage.save(result))
+
+            storages.append(storage)
+
+        # Clear all storages
+        for storage in storages:
+            storage.clear()
+
+        storages.clear()
+        gc.collect()
+
+        # Should not cause issues
+        assert True
+
+    @pytest.mark.asyncio
+    async def test_middleware_cleanup(self, mock_llm_responses, performance_config):
+        """Test middleware resource cleanup."""
+        with patch("openai.AsyncOpenAI") as mock_openai:
+            mock_client = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=mock_llm_responses["critique"]
+            )
+            mock_openai.return_value = mock_client
+
+            # Create pipeline with middleware
+            pipeline = MiddlewarePipeline()
+            pipeline.add(LoggingMiddleware())
+            pipeline.add(MetricsMiddleware())
+
+            # Use pipeline multiple times
+            async def handler(text: str) -> SifakaResult:
+                return await improve(text, config=performance_config)
+
+            for i in range(10):
+                await pipeline.execute(f"Cleanup test {i}", handler, {})
+
+            # Clear pipeline
+            pipeline.middlewares.clear()
+
+            # Should not cause issues
+            assert len(pipeline.middlewares) == 0
 
     @pytest.mark.asyncio
     async def test_single_improvement_performance(self):

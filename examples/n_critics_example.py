@@ -36,9 +36,7 @@ async def main() -> None:
             critics=["n_critics"],
             max_iterations=2,
             config=Config(
-                model="gpt-4o-mini",
-                critic_model="gpt-4o-mini",
-                temperature=0.7
+                model="gpt-4o-mini", critic_model="gpt-4o-mini", temperature=0.7
             ),
             storage=FileStorage(),
         )
@@ -68,10 +66,7 @@ async def main() -> None:
             text,
             critics=[custom_critic],
             max_iterations=2,
-            config=Config(
-                model="gpt-3.5-turbo",
-                temperature=0.6
-            ),
+            config=Config(model="gpt-3.5-turbo", temperature=0.6),
             storage=FileStorage(),
         )
 
@@ -98,9 +93,7 @@ async def main() -> None:
             critics=["n_critics"],
             max_iterations=1,  # Just one fast iteration
             config=Config(
-                model="gpt-4o-mini",
-                critic_model="gpt-4o-mini",
-                temperature=0.7
+                model="gpt-4o-mini", critic_model="gpt-4o-mini", temperature=0.7
             ),
             storage=FileStorage(),
         )

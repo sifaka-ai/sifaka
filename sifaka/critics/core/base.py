@@ -13,24 +13,25 @@ Key features:
 
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Union, Any
-
-from ...core.models import CritiqueResult, SifakaResult
-from ...core.config import Config
-from ...core.interfaces import Critic
-from ...core.llm_client import LLMClient, LLMManager, Provider
-from ...tools.base import ToolInterface
+from typing import Any, Dict, List, Optional, Type, Union
 
 from pydantic import BaseModel, Field
+
+from ...core.config import Config
+from ...core.exceptions import ModelProviderError
+from ...core.interfaces import Critic
+from ...core.llm_client import LLMClient, Provider
+from ...core.models import CritiqueResult, SifakaResult
+from ...tools.base import ToolInterface
 from .confidence import ConfidenceCalculator
 
 
 class CriticResponse(BaseModel):
     """Standardized response format for all critics.
-    
+
     This model defines the common structure that all critics must return,
     ensuring consistency across different critic implementations.
-    
+
     Attributes:
         feedback: Main qualitative feedback explaining the text's strengths
             and weaknesses according to this critic's perspective
@@ -45,7 +46,7 @@ class CriticResponse(BaseModel):
     """
 
     feedback: str = Field(..., description="Main feedback about the text")
-    suggestions: list[str] = Field(
+    suggestions: List[str] = Field(
         default_factory=list, description="Specific improvement suggestions"
     )
     needs_improvement: bool = Field(
@@ -54,18 +55,18 @@ class CriticResponse(BaseModel):
     confidence: float = Field(
         0.7, ge=0.0, le=1.0, description="Confidence in the assessment"
     )
-    metadata: dict[str, Any] = Field(
+    metadata: Dict[str, Any] = Field(
         default_factory=dict, description="Additional critic-specific data"
     )
 
 
 class BaseCritic(Critic, ABC):
     """Abstract base class for all Sifaka critics.
-    
+
     This class provides the foundation for implementing critics that analyze
     and provide feedback on text. Subclasses must implement the abstract
     methods to define their specific critique logic.
-    
+
     The base class handles:
     - LLM client initialization and management
     - Standardized request/response flow
@@ -73,13 +74,13 @@ class BaseCritic(Critic, ABC):
     - Error handling and retry logic
     - Tool integration (if enabled)
     - Performance tracking and traceability
-    
+
     Example:
         >>> class MyCritic(BaseCritic):
         ...     @property
         ...     def name(self) -> str:
         ...         return "my_critic"
-        ...     
+        ...
         ...     def get_instructions(self, text: str, result: SifakaResult) -> str:
         ...         return "Analyze this text for clarity and conciseness..."
     """
@@ -94,7 +95,7 @@ class BaseCritic(Critic, ABC):
         enable_tools: Optional[bool] = None,
     ):
         """Initialize the critic with configuration options.
-        
+
         Args:
             model: Name of the LLM model to use (e.g., 'gpt-4', 'claude-3').
                 Defaults to 'gpt-4o-mini' or the configured critic_model.
@@ -122,7 +123,9 @@ class BaseCritic(Critic, ABC):
         self._client: Optional[LLMClient] = None
 
         # Components
-        self._confidence_calc = ConfidenceCalculator(self.config.critic_base_confidence)
+        self._confidence_calc: ConfidenceCalculator = ConfidenceCalculator(
+            self.config.critic_base_confidence
+        )
 
         # Tool support
         self.enable_tools = (
@@ -137,18 +140,23 @@ class BaseCritic(Critic, ABC):
     @property
     def client(self) -> LLMClient:
         """Get or lazily create the LLM client.
-        
+
         The client is created on first access to avoid initialization
         overhead if the critic is never used.
-        
+
         Returns:
             Configured LLMClient instance for making API calls
         """
         if self._client is None:
-            self._client = LLMManager.create_client(
+            # Convert string provider to Provider enum if needed
+            provider_value = self.provider
+            if isinstance(provider_value, str):
+                provider_value = Provider(provider_value)
+
+            self._client = LLMClient(
                 model=self.model,
                 temperature=self.temperature,
-                provider=self.provider,
+                provider=provider_value if provider_value else Provider.OPENAI,
                 api_key=self._api_key,
             )
         return self._client
@@ -157,10 +165,10 @@ class BaseCritic(Critic, ABC):
     @abstractmethod
     def name(self) -> str:
         """Return the unique name identifier for this critic.
-        
+
         This name is used for registration, configuration, and tracking.
         It should be lowercase with underscores (e.g., 'self_refine').
-        
+
         Returns:
             The critic's unique name identifier
         """
@@ -168,10 +176,10 @@ class BaseCritic(Critic, ABC):
 
     def _get_available_tools(self) -> List[ToolInterface]:
         """Specify which tools this critic can use.
-        
+
         Override in subclasses that need tool support (e.g., self_rag
         for retrieval tools).
-        
+
         Returns:
             List of ToolInterface instances this critic can use
         """
@@ -179,21 +187,21 @@ class BaseCritic(Critic, ABC):
 
     def _get_system_prompt(self) -> str:
         """Get the system prompt for the LLM.
-        
+
         Override in subclasses to provide critic-specific instructions
         and context. The system prompt shapes the critic's behavior.
-        
+
         Returns:
             System prompt string for the LLM
         """
         return f"You are an expert text critic using the {self.name} technique for text improvement."
 
-    def _get_response_type(self) -> type[BaseModel]:
+    def _get_response_type(self) -> Type[BaseModel]:
         """Get the Pydantic model for structured output.
-        
+
         Override in subclasses that need custom response formats beyond
         the standard CriticResponse.
-        
+
         Returns:
             Pydantic model class for parsing LLM responses
         """
@@ -201,18 +209,18 @@ class BaseCritic(Critic, ABC):
 
     def get_instructions(self, text: str, result: SifakaResult) -> str:
         """Get the critique instructions for this critic.
-        
+
         This is the main method subclasses should implement to define their
         critique logic. The instructions will be sent to the LLM along with
         the text to evaluate.
-        
+
         Args:
             text: Current version of the text to evaluate
             result: Full result object with history and metadata
-            
+
         Returns:
             Instructions string that will be sent to the LLM
-            
+
         Example:
             >>> def get_instructions(self, text: str, result: SifakaResult) -> str:
             ...     return '''Analyze this text for clarity and coherence.
@@ -227,19 +235,19 @@ class BaseCritic(Critic, ABC):
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
         """Create messages for the LLM API call.
-        
+
         This method builds the conversation history that will be sent to
         the LLM. The default implementation uses the get_instructions()
         method which is easier for subclasses to override.
-        
+
         Subclasses can override this method for full control over message
         creation, but in most cases overriding get_instructions() is simpler.
-        
+
         Args:
             text: Current version of the text to critique
             result: Complete result object with all history and metadata
                    including previous critiques and generations
-        
+
         Returns:
             List of message dictionaries with 'role' and 'content' keys
             ready for the LLM API
@@ -249,11 +257,11 @@ class BaseCritic(Critic, ABC):
 
     async def critique(self, text: str, result: SifakaResult) -> CritiqueResult:
         """Critique the given text and provide improvement suggestions.
-        
+
         This is the main entry point called by the orchestrator. It handles
         the complete critique workflow including LLM interaction, response
         parsing, confidence calculation, and result formatting.
-        
+
         Args:
             text: The current version of the text to critique. This is
                   typically the latest generation from the improvement process.
@@ -263,21 +271,21 @@ class BaseCritic(Critic, ABC):
                     - critiques: All previous critique feedback
                     - validations: Results from quality validators
                     - metadata: Additional context and metrics
-        
+
         Returns:
             CritiqueResult containing:
             - critic: Name of this critic
             - feedback: Natural language feedback about the text
-            - suggestions: Specific improvement recommendations  
+            - suggestions: Specific improvement recommendations
             - needs_improvement: Whether further iteration is needed
             - confidence: How certain the critic is (0.0-1.0)
             - metadata: Additional critic-specific information
             - Traceability data (model, prompt, tokens, timing)
-            
+
         Raises:
             ModelProviderError: If the LLM API call fails after retries
             ValueError: If the response cannot be parsed
-            
+
         Note:
             This method is called by the orchestrator for each iteration.
             Critics should be stateless - use the result parameter for
@@ -371,20 +379,19 @@ class BaseCritic(Critic, ABC):
         except Exception as e:
             # Wrap any exceptions with context
             raise ModelProviderError(
-                f"Critic '{self.name}' failed to process text",
+                f"Critic '{self.name}' failed to process text: {e}",
                 provider=str(self.provider or "unknown"),
-                original_error=e,
             )
 
     def _get_previous_context(self, result: SifakaResult) -> str:
         """Extract relevant context from previous critiques.
-        
+
         Builds a summary of recent feedback from this critic to avoid
         repetition and track improvement trajectory.
-        
+
         Args:
             result: The result object containing critique history
-            
+
         Returns:
             Formatted string of previous feedback or empty string
         """
@@ -427,7 +434,3 @@ Please provide specific, actionable feedback."""
                 "content": self._build_user_prompt(text, result, instructions),
             },
         ]
-
-
-# Import the custom error after BaseCritic is defined
-from ...core.exceptions import ModelProviderError

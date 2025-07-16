@@ -7,7 +7,7 @@ This module provides the primary interface for using Sifaka:
 The API is designed to be simple for basic use cases while allowing
 full customization through the Config object."""
 
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 import asyncio
 
 from .core.models import SifakaResult
@@ -16,7 +16,7 @@ from .core.interfaces import Validator
 from .core.engine import SifakaEngine
 from .core.constants import DEFAULT_CRITIC, DEFAULT_MAX_ITERATIONS
 from .core.middleware import MiddlewarePipeline
-from .storage import StorageBackend
+from .storage.base import StorageBackend
 
 
 async def improve(
@@ -59,20 +59,20 @@ async def improve(
     Examples:
         >>> # Basic usage
         >>> result = await improve("Write about AI benefits")
-        
+
         >>> # With multiple critics
         >>> result = await improve(
         ...     "Explain quantum computing",
         ...     critics=["reflexion", "self_refine"],
         ...     max_iterations=5
         ... )
-        
+
         >>> # Fast mode with specific model
         >>> result = await improve(
         ...     text,
         ...     config=Config.fast()
         ... )
-        
+
         >>> # Style transformation
         >>> result = await improve(
         ...     formal_text,
@@ -106,7 +106,7 @@ async def improve(
 
     # Execute with middleware if provided
     if middleware:
-        context = {
+        context: Dict[str, Any] = {
             "critics": critics,
             "validators": validators,
             "config": engine_config,
@@ -116,7 +116,7 @@ async def improve(
             return await engine.improve(text, validators)
 
         return await middleware.execute(text, final_handler, context)
-    
+
     return await engine.improve(text, validators)
 
 

@@ -29,7 +29,7 @@ This module defines all custom exceptions used throughout Sifaka, providing:
 ## Usage:
 
     >>> from sifaka.core.exceptions import ConfigurationError
-    >>> 
+    >>>
     >>> # Raise with helpful context
     >>> if temperature > 2.0:
     ...     raise ConfigurationError(
@@ -37,7 +37,7 @@ This module defines all custom exceptions used throughout Sifaka, providing:
     ...         parameter="temperature",
     ...         valid_range="0.0-2.0"
     ...     )
-    >>> 
+    >>>
     >>> # Exception includes suggestion
     >>> # ConfigurationError: Temperature too high
     >>> # 💡 Suggestion: Set temperature to a value within 0.0-2.0
@@ -53,11 +53,11 @@ from typing import Optional, List, Any
 
 class SifakaError(Exception):
     """Base exception class for all Sifaka-specific errors.
-    
+
     All Sifaka exceptions inherit from this base class, providing
     consistent error formatting and optional suggestions for resolution.
     The suggestion feature helps users quickly understand how to fix issues.
-    
+
     Example:
         >>> raise SifakaError(
         ...     "Something went wrong",
@@ -66,7 +66,7 @@ class SifakaError(Exception):
         >>> # Output:
         >>> # Something went wrong
         >>> # 💡 Suggestion: Try adjusting the parameters
-    
+
     Attributes:
         message: The primary error message
         suggestion: Optional helpful suggestion for resolution
@@ -85,11 +85,11 @@ class SifakaError(Exception):
 
 class ConfigurationError(SifakaError):
     """Exception for invalid configuration parameters.
-    
+
     Raised when configuration values are out of range, incompatible,
     or otherwise invalid. Provides specific parameter information and
     valid ranges to help users correct the issue.
-    
+
     Example:
         >>> # Temperature out of range
         >>> raise ConfigurationError(
@@ -97,13 +97,13 @@ class ConfigurationError(SifakaError):
         ...     parameter="temperature",
         ...     valid_range="0.0-2.0"
         ... )
-        >>> 
+        >>>
         >>> # Missing required configuration
         >>> raise ConfigurationError(
         ...     "Model not specified",
         ...     parameter="model"
         ... )
-    
+
     Common scenarios:
     - Parameter values outside valid ranges
     - Missing required configuration
@@ -131,11 +131,11 @@ class ConfigurationError(SifakaError):
 
 class ModelProviderError(SifakaError):
     """Exception for LLM provider API failures.
-    
+
     Handles various failure modes when communicating with LLM providers
     like OpenAI, Anthropic, or Gemini. Includes specific error codes and
     targeted suggestions based on the failure type.
-    
+
     Example:
         >>> # Authentication failure
         >>> raise ModelProviderError(
@@ -144,7 +144,7 @@ class ModelProviderError(SifakaError):
         ...     error_code="authentication"
         ... )
         >>> # Suggestion: Check your API key is set correctly in environment variables
-        >>> 
+        >>>
         >>> # Rate limit exceeded
         >>> raise ModelProviderError(
         ...     "Too many requests",
@@ -152,7 +152,7 @@ class ModelProviderError(SifakaError):
         ...     error_code="rate_limit"
         ... )
         >>> # Suggestion: Wait a moment and try again, or check your API usage limits
-    
+
     Error codes and their meanings:
     - authentication: API key invalid or missing
     - rate_limit: Request rate exceeded
@@ -186,11 +186,11 @@ class ModelProviderError(SifakaError):
 
 class CriticError(SifakaError):
     """Exception for critic evaluation failures.
-    
+
     Raised when a critic fails to analyze text or provide feedback.
     Includes information about which critic failed and whether the
     error is likely transient (retryable) or permanent.
-    
+
     Example:
         >>> # Transient failure (retryable)
         >>> raise CriticError(
@@ -198,14 +198,14 @@ class CriticError(SifakaError):
         ...     critic_name="reflexion",
         ...     retryable=True
         ... )
-        >>> 
+        >>>
         >>> # Permanent failure
         >>> raise CriticError(
         ...     "Critic configuration invalid",
         ...     critic_name="constitutional",
         ...     retryable=False
         ... )
-    
+
     The retryable flag helps the engine decide whether to:
     - Retry with the same critic (if True)
     - Skip the critic and continue (if False)
@@ -225,11 +225,11 @@ class CriticError(SifakaError):
 
 class ValidationError(SifakaError):
     """Exception for text validation failures.
-    
+
     Raised when text fails to meet validation criteria. Includes
     the validator name and specific violations to help users
     understand what needs to be fixed.
-    
+
     Example:
         >>> # Length validation failure
         >>> raise ValidationError(
@@ -237,14 +237,14 @@ class ValidationError(SifakaError):
         ...     validator_name="length",
         ...     violations=["Minimum 100 characters required", "Current: 45"]
         ... )
-        >>> 
+        >>>
         >>> # Content validation failure
         >>> raise ValidationError(
         ...     "Required terms missing",
         ...     validator_name="content",
         ...     violations=["Missing: 'AI'", "Missing: 'benefits'"]
         ... )
-    
+
     Note:
         This exception is typically not raised during normal operation.
         Failed validations are recorded as ValidationResult objects.
@@ -263,11 +263,11 @@ class ValidationError(SifakaError):
 
 class StorageError(SifakaError):
     """Exception for storage backend operation failures.
-    
+
     Covers all storage-related errors including save, load, delete,
     and search operations. Provides operation-specific suggestions
     for resolution.
-    
+
     Example:
         >>> # Save failure
         >>> raise StorageError(
@@ -276,7 +276,7 @@ class StorageError(SifakaError):
         ...     operation="save"
         ... )
         >>> # Suggestion: Check storage permissions and available space
-        >>> 
+        >>>
         >>> # Load failure
         >>> raise StorageError(
         ...     "Result not found",
@@ -284,7 +284,7 @@ class StorageError(SifakaError):
         ...     operation="load"
         ... )
         >>> # Suggestion: Verify the result ID exists and storage is accessible
-    
+
     Operations and common failures:
     - save: Permission issues, space limitations
     - load: Missing data, connectivity issues
@@ -311,10 +311,10 @@ class StorageError(SifakaError):
 
 class PluginError(SifakaError):
     """Exception for plugin system failures.
-    
+
     Raised when plugins fail to load, register, or execute. Includes
     guidance on installing missing plugins.
-    
+
     Example:
         >>> # Missing plugin
         >>> raise PluginError(
@@ -323,14 +323,14 @@ class PluginError(SifakaError):
         ...     plugin_type="storage"
         ... )
         >>> # Suggestion: Ensure redis plugin is properly installed: pip install sifaka-redis
-        >>> 
+        >>>
         >>> # Plugin initialization failure
         >>> raise PluginError(
         ...     "Failed to initialize PostgreSQL connection",
         ...     plugin_name="postgres",
         ...     plugin_type="storage"
         ... )
-    
+
     Plugin types:
     - storage: Storage backend plugins
     - critic: Custom critic plugins
@@ -347,10 +347,10 @@ class PluginError(SifakaError):
 
 class TimeoutError(SifakaError):
     """Exception for operations that exceed configured time limits.
-    
+
     Provides specific timing information to help users adjust timeouts
     or optimize their operations.
-    
+
     Example:
         >>> # Operation timeout
         >>> raise TimeoutError(
@@ -359,7 +359,7 @@ class TimeoutError(SifakaError):
         ... )
         >>> # Operation timeout: 305.2s >= 300.0s
         >>> # 💡 Suggestion: Increase timeout_seconds parameter or reduce complexity to complete within 300s
-    
+
     Common causes:
     - Complex text requiring many iterations
     - Slow LLM API responses
@@ -378,11 +378,11 @@ class TimeoutError(SifakaError):
 
 class MemoryError(SifakaError):
     """Exception for memory bound violations.
-    
+
     Raised when collections (generations, critiques, validations)
     approach memory limits. This is more of a warning than an error,
     as the system automatically prunes old entries.
-    
+
     Example:
         >>> # Memory bounds reached
         >>> raise MemoryError(
@@ -390,12 +390,12 @@ class MemoryError(SifakaError):
         ...     collection_type="critiques"
         ... )
         >>> # Suggestion: Memory bounds reached - older items have been removed to prevent memory issues
-    
+
     Collection types:
     - generations: Text generation history
     - critiques: Critic feedback history
     - validations: Validation result history
-    
+
     Note:
         This exception is rarely seen in practice as the system
         handles memory management automatically.
@@ -410,22 +410,24 @@ class MemoryError(SifakaError):
 
 class EmbeddingError(SifakaError):
     """Exception for embedding generation failures.
-    
+
     Covers errors in generating text embeddings for semantic search
     and RAG functionality.
-    
+
     Example:
         >>> raise EmbeddingError(
         ...     "API key not found",
         ...     provider="openai"
         ... )
     """
-    
-    def __init__(self, message: str, provider: Optional[str] = None, **kwargs):
+
+    def __init__(
+        self, message: str, provider: Optional[str] = None, **kwargs: Any
+    ) -> None:
         """Initialize embedding error with provider context."""
         if provider:
             message = f"[{provider}] {message}"
-        
+
         suggestions = []
         if "API key" in message:
             suggestions.append("Set the appropriate API key environment variable")
@@ -433,30 +435,30 @@ class EmbeddingError(SifakaError):
             suggestions.append("Check model supports requested dimensions")
         if not suggestions:
             suggestions.append("Check provider documentation for embedding models")
-            
+
         suggestion = " | ".join(suggestions)
         super().__init__(message, suggestion, **kwargs)
 
 
 def classify_openai_error(error: Any) -> ModelProviderError:
     """Convert OpenAI API errors into appropriate ModelProviderError types.
-    
+
     Analyzes OpenAI error messages to determine the specific failure type
     and creates a ModelProviderError with appropriate error code and
     suggestion.
-    
+
     Args:
         error: The original error from OpenAI API (any type)
-        
+
     Returns:
         ModelProviderError with specific error_code and helpful suggestion
-        
+
     Example:
         >>> try:
         ...     response = await openai_client.complete(...)
         >>> except Exception as e:
         ...     raise classify_openai_error(e)
-        
+
     Error classifications:
     - "authentication" or "api key" → authentication error
     - "rate limit" → rate limit error

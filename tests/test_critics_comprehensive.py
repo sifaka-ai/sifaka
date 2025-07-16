@@ -435,10 +435,7 @@ SUGGESTIONS: 1. Verify accuracy of statistical claims
             result = await critic.critique(sample_text, sample_result)
 
             # Should need improvement due to "accuracy" in suggestions or feedback
-            assert (
-                result.needs_improvement
-                or "accuracy" in result.feedback.lower()
-            )
+            assert result.needs_improvement or "accuracy" in result.feedback.lower()
             # Check if accuracy is mentioned somewhere in the result
             accuracy_mentioned = (
                 any("accuracy" in s.lower() for s in result.suggestions)

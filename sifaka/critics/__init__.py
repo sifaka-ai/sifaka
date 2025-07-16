@@ -7,7 +7,7 @@ analysis, offering diverse perspectives for comprehensive content improvement.
 
 ## Research-Based Critics:
 
-### 🧠 **ReflexionCritic** 
+### 🧠 **ReflexionCritic**
 📖 *"Reflexion: Language Agents with Verbal Reinforcement Learning"* (Shinn et al., 2023)
 
 **Core Innovation**: Self-reflection on previous iterations for refined feedback
@@ -80,22 +80,22 @@ analysis, offering diverse perspectives for comprehensive content improvement.
 ## Usage Patterns:
 
     >>> from sifaka import improve
-    >>> 
+    >>>
     >>> # Single critic for focused improvement
     >>> result = await improve(text, critics=["reflexion"])
-    >>> 
+    >>>
     >>> # Multi-critic ensemble for comprehensive analysis
     >>> result = await improve(
     ...     text,
     ...     critics=["self_refine", "constitutional", "n_critics"],
     ...     max_iterations=5
     ... )
-    >>> 
+    >>>
     >>> # Domain-specific configuration
     >>> academic_critics = ["self_consistency", "self_rag", "constitutional"]
     >>> business_critics = ["style", "constitutional", "meta_rewarding"]
     >>> creative_critics = ["reflexion", "self_refine", "style"]
-    >>> 
+    >>>
     >>> # Custom critic creation
     >>> from sifaka.critics import create_critic
     >>> custom_critic = create_critic(
@@ -109,18 +109,18 @@ analysis, offering diverse perspectives for comprehensive content improvement.
 
     >>> from sifaka.critics import BaseCritic
     >>> from sifaka.core.models import CritiqueResult
-    >>> 
+    >>>
     >>> class DomainExpertCritic(BaseCritic):
     ...     @property
     ...     def name(self) -> str:
     ...         return "domain_expert"
-    ...     
+    ...
     ...     async def _create_messages(self, text, result):
     ...         return [{
     ...             "role": "system",
     ...             "content": "You are a domain expert providing specialized feedback"
     ...         }, {
-    ...             "role": "user", 
+    ...             "role": "user",
     ...             "content": f"Evaluate this text: {text}"
     ...         }]
 
@@ -130,7 +130,7 @@ analysis, offering diverse perspectives for comprehensive content improvement.
 - Best for: Iterative refinement with increasing sophistication
 - Example: `["self_refine", "constitutional", "meta_rewarding"]`
 
-**Parallel Processing**: Critics evaluate independently for diverse perspectives  
+**Parallel Processing**: Critics evaluate independently for diverse perspectives
 - Best for: Comprehensive analysis with multiple viewpoints
 - Example: `["n_critics", "self_consistency", "self_rag"]`
 
@@ -172,29 +172,25 @@ __all__ = [
     # Base classes for custom critic development
     "BaseCritic",
     "CriticResponse",
-    
     # Research-based critics
-    "ReflexionCritic",           # Self-reflective learning
-    "SelfRefineCritic",          # Multi-dimensional refinement
-    "ConstitutionalCritic",      # Principle-based evaluation
-    "MetaRewardingCritic",       # Self-improving critique quality
-    "SelfConsistencyCritic",     # Consensus-based evaluation
-    "NCriticsCritic",            # Multi-perspective ensemble
-    "SelfRAGCritic",             # Tool-enabled fact-checking
-    
+    "ReflexionCritic",  # Self-reflective learning
+    "SelfRefineCritic",  # Multi-dimensional refinement
+    "ConstitutionalCritic",  # Principle-based evaluation
+    "MetaRewardingCritic",  # Self-improving critique quality
+    "SelfConsistencyCritic",  # Consensus-based evaluation
+    "NCriticsCritic",  # Multi-perspective ensemble
+    "SelfRAGCritic",  # Tool-enabled fact-checking
     # Specialized critics
-    "StyleCritic",               # Style and voice transformation
-    "PromptCritic",              # Custom prompt-engineered critics
-    
+    "StyleCritic",  # Style and voice transformation
+    "PromptCritic",  # Custom prompt-engineered critics
     # Factory and management
-    "CriticFactory",             # Advanced critic creation
-    "create_critic",             # Simple critic instantiation
-    "create_critics",            # Batch critic creation
-    "list_available_critics",    # Discovery and introspection
-    "register_critic",           # Custom critic registration
-    "CriticRegistry",            # Critic management system
-    
+    "CriticFactory",  # Advanced critic creation
+    "create_critic",  # Simple critic instantiation
+    "create_critics",  # Batch critic creation
+    "list_available_critics",  # Discovery and introspection
+    "register_critic",  # Custom critic registration
+    "CriticRegistry",  # Critic management system
     # Convenience factory functions
-    "create_academic_critic",    # Pre-configured academic writing critic
-    "style_critic_from_file",    # Style critic from file-based configuration
+    "create_academic_critic",  # Pre-configured academic writing critic
+    "style_critic_from_file",  # Style critic from file-based configuration
 ]

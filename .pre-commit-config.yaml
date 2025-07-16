@@ -31,5 +31,7 @@ repos:
         additional_dependencies:
           - pydantic>=2.11.3
           - types-aiofiles
-        args: [--strict]
-        exclude: ^tests/
+          - types-redis
+        args: [--config-file=.mypy.ini]
+        files: ^sifaka/
+        exclude: ^(tests/|examples/|sifaka/tests/)

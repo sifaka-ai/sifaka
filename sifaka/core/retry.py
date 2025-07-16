@@ -19,13 +19,13 @@ selective retry based on error types.
     >>> @with_retry()
     >>> async def call_api():
     ...     return await llm_client.generate(prompt)
-    
+
     >>> # Use custom configuration
     >>> config = RetryConfig(max_attempts=5, delay=2.0)
     >>> @with_retry(config)
     >>> async def reliable_call():
     ...     return await critical_operation()
-    
+
     >>> # Use preset configuration
     >>> @with_retry(RETRY_PERSISTENT)
     >>> async def important_call():
@@ -52,31 +52,31 @@ T = TypeVar("T")
 
 class RetryConfig:
     """Configuration for retry behavior with exponential backoff.
-    
+
     This class defines how retry logic should behave when operations fail.
     It controls the number of attempts, delays between attempts, and how
     delays increase over time.
-    
+
     The retry delay follows this pattern:
     - 1st retry: delay seconds
     - 2nd retry: delay * backoff seconds
     - 3rd retry: delay * backoff^2 seconds
     - And so on...
-    
+
     Example:
         >>> # Quick retries for fast operations
         >>> quick = RetryConfig(max_attempts=2, delay=0.5, backoff=1.5)
-        >>> 
+        >>>
         >>> # Patient retries for slow APIs
         >>> patient = RetryConfig(max_attempts=5, delay=2.0, backoff=2.0)
-        >>> 
+        >>>
         >>> # Custom configuration
         >>> custom = RetryConfig(
         ...     max_attempts=4,
         ...     delay=1.0,      # Start with 1 second
         ...     backoff=3.0     # Triple the delay each time
         ... )
-    
+
     Attributes:
         max_attempts: Maximum number of attempts before giving up (must be >= 1)
         delay: Initial delay in seconds between retries (must be > 0)
@@ -96,15 +96,15 @@ class RetryConfig:
             backoff: Exponential backoff multiplier. Applied to delay after
                 each failed attempt. Common values are 2.0 (double each time)
                 or 1.5 (50% increase each time).
-                
+
         Raises:
             ValueError: If any parameter is out of valid range
-            
+
         Example:
             >>> # Standard configuration
             >>> config = RetryConfig()  # 3 attempts, 1s delay, 2x backoff
-            >>> 
-            >>> # Aggressive retry for critical operations  
+            >>>
+            >>> # Aggressive retry for critical operations
             >>> config = RetryConfig(max_attempts=10, delay=0.5, backoff=1.2)
         """
         self.max_attempts = max_attempts
@@ -116,33 +116,33 @@ def with_retry(
     config: Optional[RetryConfig] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator that adds automatic retry logic to async functions.
-    
+
     This decorator wraps async functions to automatically retry them when
     they raise retryable exceptions. It implements exponential backoff
     between retries to avoid overwhelming services.
-    
+
     Args:
         config: Retry configuration to use. If None, uses default
             configuration (3 attempts, 1s initial delay, 2x backoff).
-            
+
     Returns:
         Decorator function that wraps the target async function
-        
+
     Example:
         >>> @with_retry()  # Use default config
         >>> async def unreliable_api_call():
         ...     response = await client.post("/api/endpoint")
         ...     return response.json()
-        >>> 
+        >>>
         >>> @with_retry(RETRY_PERSISTENT)  # Use preset config
         >>> async def critical_operation():
         ...     return await database.commit()
-        >>> 
+        >>>
         >>> # Manual retry with custom config
         >>> config = RetryConfig(max_attempts=5)
         >>> wrapped = with_retry(config)(my_async_function)
         >>> result = await wrapped(arg1, arg2)
-        
+
     Note:
         Only retries specific exception types that indicate transient
         failures. Permanent errors (like validation errors) are raised

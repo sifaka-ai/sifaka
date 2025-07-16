@@ -3,10 +3,9 @@
 Provides direct access to Wikipedia content without external dependencies.
 """
 
-import asyncio
 import httpx
 import urllib.parse
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 from .base import ToolInterface
 from .registry import ToolRegistry
@@ -14,25 +13,25 @@ from .registry import ToolRegistry
 
 class WikipediaTool(ToolInterface):
     """Wikipedia search and content retrieval tool.
-    
+
     Uses Wikipedia's public API for searching and retrieving article content.
     No authentication required.
-    
+
     Features:
     - Search for articles by query
     - Retrieve article summaries
     - Get full article content
     - Extract specific sections
-    
+
     Example:
         >>> tool = WikipediaTool()
         >>> results = await tool("Eiffel Tower")
         >>> print(results[0]['summary'])
     """
-    
+
     def __init__(self, max_results: int = 3, timeout: float = 10.0):
         """Initialize Wikipedia tool.
-        
+
         Args:
             max_results: Maximum number of articles to return
             timeout: HTTP request timeout in seconds
@@ -41,23 +40,23 @@ class WikipediaTool(ToolInterface):
         self.timeout = timeout
         self.base_url = "https://en.wikipedia.org/api/rest_v1"
         self.search_url = "https://en.wikipedia.org/w/api.php"
-    
+
     @property
     def name(self) -> str:
         """Tool identifier."""
         return "wikipedia"
-    
+
     @property
     def description(self) -> str:
         """Human-readable description."""
         return "Search and retrieve information from Wikipedia"
-    
-    async def __call__(self, query: str) -> List[Dict[str, Any]]:
+
+    async def __call__(self, query: str, **kwargs: Any) -> List[Dict[str, Any]]:
         """Search Wikipedia and return article information.
-        
+
         Args:
             query: Search query or article title
-            
+
         Returns:
             List of article information with title, url, and summary
         """
@@ -69,58 +68,71 @@ class WikipediaTool(ToolInterface):
                     "format": "json",
                     "list": "search",
                     "srsearch": query,
-                    "srlimit": self.max_results
+                    "srlimit": self.max_results,
                 }
-                
+
                 search_response = await client.get(
-                    self.search_url, 
-                    params=search_params
+                    self.search_url, params=search_params
                 )
                 search_response.raise_for_status()
                 search_data = search_response.json()
-                
+
                 results = []
-                
+
                 # Get summaries for each search result
-                for item in search_data.get('query', {}).get('search', []):
-                    title = item['title']
-                    
+                for item in search_data.get("query", {}).get("search", []):
+                    title = item["title"]
+
                     # Get article summary
-                    summary_url = f"{self.base_url}/page/summary/{urllib.parse.quote(title)}"
-                    
+                    summary_url = (
+                        f"{self.base_url}/page/summary/{urllib.parse.quote(title)}"
+                    )
+
                     try:
                         summary_response = await client.get(summary_url)
                         summary_response.raise_for_status()
                         summary_data = summary_response.json()
-                        
-                        results.append({
-                            "title": summary_data.get('title', title),
-                            "url": summary_data.get('content_urls', {}).get('desktop', {}).get('page', ''),
-                            "summary": summary_data.get('extract', ''),
-                            "snippet": item.get('snippet', '').replace('<span class="searchmatch">', '').replace('</span>', ''),
-                            "source": "wikipedia"
-                        })
+
+                        results.append(
+                            {
+                                "title": summary_data.get("title", title),
+                                "url": summary_data.get("content_urls", {})
+                                .get("desktop", {})
+                                .get("page", ""),
+                                "summary": summary_data.get("extract", ""),
+                                "snippet": item.get("snippet", "")
+                                .replace('<span class="searchmatch">', "")
+                                .replace("</span>", ""),
+                                "source": "wikipedia",
+                            }
+                        )
                     except Exception:
                         # If summary fails, still include basic search result
-                        results.append({
-                            "title": title,
-                            "url": f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title)}",
-                            "summary": "",
-                            "snippet": item.get('snippet', '').replace('<span class="searchmatch">', '').replace('</span>', ''),
-                            "source": "wikipedia"
-                        })
-                
+                        results.append(
+                            {
+                                "title": title,
+                                "url": f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title)}",
+                                "summary": "",
+                                "snippet": item.get("snippet", "")
+                                .replace('<span class="searchmatch">', "")
+                                .replace("</span>", ""),
+                                "source": "wikipedia",
+                            }
+                        )
+
                 return results
-                
+
             except Exception as e:
                 # Return error information
-                return [{
-                    "title": "Wikipedia Error",
-                    "url": "",
-                    "summary": f"Failed to search Wikipedia: {str(e)}",
-                    "snippet": "",
-                    "source": "wikipedia"
-                }]
+                return [
+                    {
+                        "title": "Wikipedia Error",
+                        "url": "",
+                        "summary": f"Failed to search Wikipedia: {str(e)}",
+                        "snippet": "",
+                        "source": "wikipedia",
+                    }
+                ]
 
 
 # Auto-register the tool

@@ -20,13 +20,13 @@ this suitable for:
 
     >>> from sifaka import improve, MemoryStorage
     >>> storage = MemoryStorage()
-    >>> 
+    >>>
     >>> # Use with improve
     >>> result = await improve("text", storage=storage)
-    >>> 
+    >>>
     >>> # Later retrieval
     >>> loaded = await storage.load(result.id)
-    >>> 
+    >>>
     >>> # Check storage size
     >>> print(f"Storing {storage.size()} results")
 
@@ -47,32 +47,32 @@ from ..core.exceptions import StorageError
 
 class MemoryStorage(StorageBackend):
     """Non-persistent storage backend using Python dictionaries.
-    
+
     MemoryStorage provides the simplest possible storage implementation,
     keeping all results in a dictionary. It's the default storage backend
     when none is specified, offering fast access without any external
     dependencies.
-    
+
     The storage is process-local and volatile - all data is lost when
     the Python process ends. This makes it ideal for development, testing,
     and scenarios where persistence isn't needed.
-    
+
     Example:
         >>> # Create storage
         >>> storage = MemoryStorage()
-        >>> 
+        >>>
         >>> # Save a result
         >>> result_id = await storage.save(result)
-        >>> 
+        >>>
         >>> # List all stored results
         >>> all_ids = await storage.list()
-        >>> 
+        >>>
         >>> # Search for specific content
         >>> matching_ids = await storage.search("machine learning")
-        >>> 
+        >>>
         >>> # Clear all storage
         >>> storage.clear()
-    
+
     Thread Safety:
         The basic dictionary operations are thread-safe in CPython due to
         the GIL, but concurrent access from async coroutines is safe as
@@ -81,7 +81,7 @@ class MemoryStorage(StorageBackend):
 
     def __init__(self) -> None:
         """Initialize empty in-memory storage.
-        
+
         Creates an empty dictionary to store SifakaResult objects keyed
         by their IDs. No configuration is needed.
         """
@@ -89,19 +89,19 @@ class MemoryStorage(StorageBackend):
 
     async def save(self, result: SifakaResult) -> str:
         """Save a result to memory storage.
-        
+
         Stores the complete SifakaResult object in the internal dictionary.
         The result's ID is used as the key.
-        
+
         Args:
             result: Complete SifakaResult to store
-            
+
         Returns:
             The result's ID for later retrieval
-            
+
         Raises:
             StorageError: If save fails (unlikely for memory storage)
-            
+
         Note:
             Results are stored by reference, so modifications to the result
             object after saving will be reflected in storage.
@@ -118,18 +118,18 @@ class MemoryStorage(StorageBackend):
 
     async def load(self, result_id: str) -> Optional[SifakaResult]:
         """Load a result from memory storage.
-        
+
         Retrieves a previously saved result by its ID.
-        
+
         Args:
             result_id: Unique identifier of the result to load
-            
+
         Returns:
             The stored SifakaResult if found, None otherwise
-            
+
         Raises:
             StorageError: If load operation fails
-            
+
         Note:
             Returns the actual stored object, not a copy. Modifications
             will affect the stored version.
@@ -145,17 +145,17 @@ class MemoryStorage(StorageBackend):
 
     async def list(self, limit: int = 100, offset: int = 0) -> List[str]:
         """List IDs of all stored results with pagination.
-        
+
         Returns result IDs in the order they were added (dictionary
         insertion order is preserved in Python 3.7+).
-        
+
         Args:
             limit: Maximum number of IDs to return
             offset: Number of IDs to skip from the beginning
-            
+
         Returns:
             List of result IDs, may be empty
-            
+
         Example:
             >>> # Get first 10 results
             >>> first_page = await storage.list(limit=10)
@@ -167,15 +167,15 @@ class MemoryStorage(StorageBackend):
 
     async def delete(self, result_id: str) -> bool:
         """Delete a result from memory storage.
-        
+
         Removes the result from storage, freeing its memory.
-        
+
         Args:
             result_id: ID of the result to delete
-            
+
         Returns:
             True if a result was deleted, False if ID not found
-            
+
         Note:
             This is immediate and permanent within the process lifetime.
         """
@@ -186,20 +186,20 @@ class MemoryStorage(StorageBackend):
 
     async def search(self, query: str, limit: int = 10) -> List[str]:
         """Search for results containing specific text.
-        
+
         Performs case-insensitive substring search in both original
         and final text of stored results.
-        
+
         Args:
             query: Text to search for (case-insensitive)
             limit: Maximum number of matching IDs to return
-            
+
         Returns:
             List of IDs for results containing the query text
-            
+
         Raises:
             StorageError: If search operation fails
-            
+
         Example:
             >>> # Find results about AI
             >>> ai_results = await storage.search("artificial intelligence")
@@ -232,10 +232,10 @@ class MemoryStorage(StorageBackend):
 
     def clear(self) -> None:
         """Remove all results from storage.
-        
+
         Clears the internal dictionary, removing all stored results.
         This operation cannot be undone.
-        
+
         Example:
             >>> print(f"Before: {storage.size()} results")
             >>> storage.clear()
@@ -245,10 +245,10 @@ class MemoryStorage(StorageBackend):
 
     def size(self) -> int:
         """Get the number of results currently in storage.
-        
+
         Returns:
             Count of stored results
-            
+
         Example:
             >>> if storage.size() > 1000:
             ...     print("Warning: High memory usage")

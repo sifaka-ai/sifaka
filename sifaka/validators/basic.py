@@ -18,28 +18,28 @@ from .base import BaseValidator, ValidatorConfig
 
 class LengthValidator(BaseValidator):
     """Validates that text meets specified length requirements.
-    
+
     This validator ensures generated text falls within acceptable length
     boundaries. It's useful for enforcing constraints like minimum content
     requirements or maximum length limits for specific platforms.
-    
+
     The validator calculates a score based on how well the text matches
     the ideal length range, with perfect scores for text in the middle
     of the acceptable range.
-    
+
     Example:
         >>> # Require at least 100 characters
         >>> validator = LengthValidator(min_length=100)
-        >>> 
+        >>>
         >>> # Enforce both minimum and maximum
         >>> validator = LengthValidator(min_length=50, max_length=500)
-        >>> 
+        >>>
         >>> # Use in improve() call
         >>> result = await improve(
         ...     "Short text",
         ...     validators=[LengthValidator(min_length=100)]
         ... )
-    
+
     Attributes:
         min_length: Minimum required character count (None for no minimum)
         max_length: Maximum allowed character count (None for no maximum)
@@ -74,7 +74,7 @@ class LengthValidator(BaseValidator):
         self, text: str, result: SifakaResult
     ) -> Tuple[bool, float, str]:
         """Check if text meets length requirements.
-        
+
         Returns:
             Tuple of (passed, score, details) where:
             - passed: True if length is within bounds
@@ -118,15 +118,15 @@ class LengthValidator(BaseValidator):
 
 class ContentValidator(BaseValidator):
     """Validates presence or absence of specific terms in text.
-    
+
     This validator checks that text contains required terms and doesn't
     contain forbidden terms. Useful for ensuring key concepts are covered
     or inappropriate content is avoided.
-    
+
     Terms can be single words or phrases, with optional case sensitivity.
     The validator provides detailed feedback about which terms were found
     or missing.
-    
+
     Example:
         >>> # Ensure text mentions key products
         >>> validator = ContentValidator(
@@ -134,12 +134,12 @@ class ContentValidator(BaseValidator):
         ...     forbidden_terms=["competitor", "proprietary"],
         ...     case_sensitive=False
         ... )
-        >>> 
+        >>>
         >>> # Check for inappropriate content
         >>> validator = ContentValidator(
         ...     forbidden_terms=["offensive", "inappropriate"]
         ... )
-    
+
     Attributes:
         required_terms: List of terms that must appear in the text
         forbidden_terms: List of terms that must not appear

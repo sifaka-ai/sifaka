@@ -17,7 +17,7 @@ domain-specific formatting requirements.
     >>> # Validate code blocks are present
     >>> code_validator = create_code_validator()
     >>> result = await code_validator.validate(text, sifaka_result)
-    >>> 
+    >>>
     >>> # Custom pattern validation
     >>> validator = PatternValidator(
     ...     required_patterns={"email": r"\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b"},
@@ -50,18 +50,18 @@ from ..core.models import ValidationResult, SifakaResult
 
 class PatternValidator(Validator):
     """Validates text against configurable regex patterns.
-    
+
     Provides flexible pattern-based validation supporting required patterns,
     forbidden patterns, and pattern count requirements. Useful for enforcing
     structural requirements, formatting standards, and content policies.
-    
+
     Key capabilities:
     - Required patterns that must be present
-    - Forbidden patterns that must not be present  
+    - Forbidden patterns that must not be present
     - Pattern count validation (min/max occurrences)
     - Compiled regex patterns for performance
     - Detailed failure reporting with pattern names
-    
+
     Example:
         >>> # Validate document structure
         >>> validator = PatternValidator(
@@ -77,11 +77,11 @@ class PatternValidator(Validator):
         ...         "email": (1, None)  # At least 1 email required
         ...     }
         ... )
-        >>> 
+        >>>
         >>> result = await validator.validate(text, sifaka_result)
         >>> if not result.passed:
         ...     print(f"Validation failed: {result.details}")
-    
+
     Pattern naming:
         Use descriptive names for patterns to make validation errors clear.
         Names appear in error messages and help users understand requirements.
@@ -94,7 +94,7 @@ class PatternValidator(Validator):
         pattern_counts: Optional[Dict[str, tuple[int, Optional[int]]]] = None,
     ):
         """Initialize pattern validator with configurable pattern rules.
-        
+
         Creates a validator that checks text against regex patterns with
         flexible requirements for presence, absence, and occurrence counts.
 
@@ -108,7 +108,7 @@ class PatternValidator(Validator):
             pattern_counts: Dictionary mapping pattern names to (min, max) tuples
                 specifying required occurrence counts. Use None for max to allow
                 unlimited occurrences. Only applies to required_patterns.
-                
+
         Example:
             >>> # Document structure validator
             >>> validator = PatternValidator(
@@ -124,11 +124,11 @@ class PatternValidator(Validator):
             ...         "section": (2, None),  # At least 2 sections
             ...     }
             ... )
-            
+
         Pattern compilation:
             All patterns are compiled at initialization with re.MULTILINE flag
             for consistent line-based matching behavior.
-            
+
         Performance:
             Patterns are compiled once at initialization for efficient repeated
             validation across multiple texts.
@@ -150,7 +150,7 @@ class PatternValidator(Validator):
     @property
     def name(self) -> str:
         """Return the validator identifier.
-        
+
         Returns:
             "pattern_validator" - used in validation results and error messages
         """
@@ -158,26 +158,26 @@ class PatternValidator(Validator):
 
     async def validate(self, text: str, result: SifakaResult) -> ValidationResult:
         """Validate text against all configured patterns.
-        
+
         Performs comprehensive pattern validation checking required patterns,
         forbidden patterns, and pattern count requirements. Returns detailed
         results with specific failure information.
-        
+
         Args:
             text: Text to validate against patterns
             result: SifakaResult for context (not currently used but available)
-            
+
         Returns:
             ValidationResult with pass/fail status, score, and detailed feedback.
             Score is 1.0 for pass, 0.0 for fail. Details include specific
             pattern failures and success summaries.
-            
+
         Validation process:
         1. Check all required patterns are present
-        2. Verify pattern counts meet min/max requirements  
+        2. Verify pattern counts meet min/max requirements
         3. Ensure no forbidden patterns are found
         4. Return detailed results with first 3 issues for readability
-        
+
         Example:
             >>> result = await validator.validate("# Title\n\nContent here")
             >>> if result.passed:
@@ -247,16 +247,16 @@ class PatternValidator(Validator):
 
 def create_code_validator() -> PatternValidator:
     """Create a pre-configured validator for documents containing code blocks.
-    
+
     Creates a validator that ensures text contains at least one properly
     formatted code block using markdown triple-backtick syntax.
-    
+
     Returns:
         PatternValidator configured to require at least one code block
-        
+
     Example:
         >>> validator = create_code_validator()
-        >>> 
+        >>>
         >>> # This would pass validation
         >>> text_with_code = '''
         ... Here's some code:
@@ -264,13 +264,13 @@ def create_code_validator() -> PatternValidator:
         ... print("Hello, world!")
         ... ```
         ... '''
-        >>> 
+        >>>
         >>> # This would fail validation
         >>> text_without_code = "Just plain text"
-        
+
     Pattern details:
         Matches markdown code blocks with optional language specification:
-        - ```python ... ``` 
+        - ```python ... ```
         - ``` ... ```
         - ```javascript ... ```
     """
@@ -286,23 +286,23 @@ def create_code_validator() -> PatternValidator:
 
 def create_citation_validator() -> PatternValidator:
     """Create a pre-configured validator for academic citations.
-    
+
     Creates a validator that ensures text contains at least one citation
     in either numbered format [1] or author-year format (Author, 2023).
-    
+
     Returns:
         PatternValidator configured to require at least one citation
-        
+
     Example:
         >>> validator = create_citation_validator()
-        >>> 
+        >>>
         >>> # These would pass validation
         >>> text_with_numbered = "This is supported by research [1]."
         >>> text_with_author_year = "Studies show (Smith, 2023) that..."
-        >>> 
+        >>>
         >>> # This would fail validation
         >>> text_without_citations = "This is just my opinion."
-        
+
     Supported citation formats:
         - Numbered: [1], [23], [456]
         - Author-year: (Smith, 2023), (Johnson, 2022)
@@ -320,38 +320,38 @@ def create_citation_validator() -> PatternValidator:
 
 def create_structured_validator() -> PatternValidator:
     """Create a pre-configured validator for structured documents.
-    
+
     Creates a validator that ensures text has proper document structure
     with headings and list items, typical of well-organized documentation.
-    
+
     Returns:
         PatternValidator configured to require headings and list items
-        
+
     Example:
         >>> validator = create_structured_validator()
-        >>> 
+        >>>
         >>> # This would pass validation
         >>> structured_text = '''
         ... # Main Title
-        ... 
+        ...
         ... ## Section 1
-        ... 
+        ...
         ... - First point
         ... - Second point
         ... - Third point
         ... '''
-        >>> 
+        >>>
         >>> # This would fail validation
         >>> unstructured_text = "Just a paragraph of text."
-        
+
     Required structure:
         - At least 1 heading (markdown # or underlined)
         - At least 2 list items (bullet points or numbered)
-        
+
     Supported heading formats:
         - Markdown: # Title, ## Section, ### Subsection
         - Underlined: Title\n===== or Section\n-----
-        
+
     Supported list formats:
         - Bullet points: -, *, +, •
         - Numbered lists: 1., 2., 3.

@@ -18,22 +18,22 @@ from ..core.models import SifakaResult
 
 class StorageBackend(ABC):
     """Abstract base class for persistent storage of Sifaka results.
-    
+
     Storage backends provide a way to persist SifakaResult objects beyond
     the lifetime of a single improvement session. This enables features like:
     - Analyzing improvement patterns over time
     - Building training datasets from improvements
     - Debugging and auditing text transformations
     - Sharing results across systems or teams
-    
+
     All methods are async to support both local and remote storage systems.
-    
+
     Example:
         >>> class MyStorage(StorageBackend):
         ...     async def save(self, result):
         ...         # Implementation here
         ...         return result.id
-        >>> 
+        >>>
         >>> storage = MyStorage()
         >>> result = await improve("text", storage=storage)
     """
@@ -41,7 +41,7 @@ class StorageBackend(ABC):
     @abstractmethod
     async def save(self, result: SifakaResult) -> str:
         """Save a SifakaResult to persistent storage.
-        
+
         Implementations should serialize the entire result object including
         all generations, critiques, and metadata. The returned ID should be
         unique and suitable for later retrieval.
@@ -55,10 +55,10 @@ class StorageBackend(ABC):
             A unique string identifier for retrieving this result later.
             This could be the result.id, a database primary key, or any
             other unique identifier.
-            
+
         Raises:
             StorageError: If the save operation fails
-            
+
         Note:
             Implementations should handle serialization of datetime objects,
             deque collections, and nested Pydantic models appropriately.
@@ -68,7 +68,7 @@ class StorageBackend(ABC):
     @abstractmethod
     async def load(self, result_id: str) -> Optional[SifakaResult]:
         """Load a previously saved SifakaResult from storage.
-        
+
         Implementations should deserialize the complete result object
         with all its history and metadata intact.
 
@@ -80,10 +80,10 @@ class StorageBackend(ABC):
             The complete SifakaResult object if found, with all generations,
             critiques, and metadata restored. Returns None if no result
             exists with the given ID.
-            
+
         Raises:
             StorageError: If the load operation fails (not including not found)
-            
+
         Note:
             The loaded result should be identical to what was saved, including
             preservation of deque maxlen settings and all timestamps.
@@ -93,7 +93,7 @@ class StorageBackend(ABC):
     @abstractmethod
     async def list(self, limit: int = 100, offset: int = 0) -> List[str]:
         """List the IDs of stored results with pagination.
-        
+
         Useful for browsing available results or building indexes.
         Results should be returned in a consistent order (e.g., by
         creation time or ID).
@@ -107,11 +107,11 @@ class StorageBackend(ABC):
         Returns:
             List of result IDs that can be passed to load(). The list may
             be shorter than 'limit' if fewer results are available.
-            
+
         Example:
             >>> # Get first 10 results
             >>> ids = await storage.list(limit=10, offset=0)
-            >>> # Get next 10 results  
+            >>> # Get next 10 results
             >>> more_ids = await storage.list(limit=10, offset=10)
         """
         pass
@@ -119,7 +119,7 @@ class StorageBackend(ABC):
     @abstractmethod
     async def delete(self, result_id: str) -> bool:
         """Delete a stored result from persistent storage.
-        
+
         Implementations should remove all data associated with the result,
         including any indexes or metadata.
 
@@ -129,10 +129,10 @@ class StorageBackend(ABC):
         Returns:
             True if a result was found and deleted, False if no result
             existed with that ID. Should not raise an error for missing IDs.
-            
+
         Raises:
             StorageError: If the delete operation fails for other reasons
-            
+
         Note:
             Deletes should be permanent. Implementations may choose to
             support soft deletes internally but this should be transparent
@@ -143,7 +143,7 @@ class StorageBackend(ABC):
     @abstractmethod
     async def search(self, query: str, limit: int = 10) -> List[str]:
         """Search stored results by text content.
-        
+
         Implementations should search through both original and final text,
         and potentially critique feedback. The search algorithm is
         implementation-specific (could be simple substring, full-text, or
@@ -157,7 +157,7 @@ class StorageBackend(ABC):
         Returns:
             List of result IDs that match the query, ordered by relevance
             if the implementation supports ranking. Empty list if no matches.
-            
+
         Example:
             >>> # Find results about machine learning
             >>> ml_ids = await storage.search("machine learning", limit=5)
@@ -169,7 +169,7 @@ class StorageBackend(ABC):
 
     async def get_metadata(self, result_id: str) -> Optional[Dict[str, Any]]:
         """Get summary metadata for a result without loading the full object.
-        
+
         This method provides a lightweight way to get basic information about
         a stored result. Useful for building indexes or summary views.
 
@@ -181,7 +181,7 @@ class StorageBackend(ABC):
             None if the result doesn't exist. Default implementation includes:
             - id: The result ID
             - original_text: First 100 chars of original text
-            - final_text: First 100 chars of final text  
+            - final_text: First 100 chars of final text
             - iteration: Number of improvement iterations
             - processing_time: Total processing time in seconds
             - created_at: When the result was created
@@ -189,7 +189,7 @@ class StorageBackend(ABC):
             - num_generations: Count of text generations
             - num_validations: Count of validation runs
             - num_critiques: Count of critique evaluations
-            
+
         Note:
             This default implementation loads the full result. Storage backends
             may override this with more efficient implementations that query

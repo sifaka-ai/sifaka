@@ -69,11 +69,11 @@ DEFAULT_PRINCIPLES = [
 
 class ConstitutionalResponse(BaseModel):
     """Structured response model for Constitutional AI critique.
-    
+
     Provides a clear format for constitutional principle evaluation,
     including specific violations, actionable suggestions, and confidence
     in the assessment.
-    
+
     Attributes:
         feedback: Overall assessment of constitutional compliance
         suggestions: Specific improvements to address violations
@@ -99,35 +99,35 @@ class ConstitutionalResponse(BaseModel):
 
 class ConstitutionalCritic(BaseCritic):
     """Implements Constitutional AI principles for text evaluation.
-    
+
     Evaluates text against a set of constitutional principles to ensure
     content is helpful, harmless, and honest. Provides specific feedback
     on principle violations with actionable improvement suggestions.
-    
+
     ## When to Use This Critic:
-    
+
     ✅ **Best for:**
     - Safety-critical content (public communications, educational materials)
     - Compliance-sensitive documents (legal, medical, financial)
     - Content with ethical implications (social media, marketing)
     - Organizational value alignment (internal communications)
     - Multi-stakeholder content requiring broad acceptance
-    
+
     ❌ **Avoid when:**
     - Creative expression is the primary goal
     - Principles might unnecessarily constrain innovation
     - Speed is more important than thorough ethical review
     - Working with highly technical content where principles don't apply
-    
+
     🎯 **Ideal applications:**
     - Public-facing blog posts and marketing content
-    - Educational curricula and training materials  
+    - Educational curricula and training materials
     - Policy documents and compliance guides
     - Customer support response templates
     - Content moderation and review processes
-    
+
     ## Customization:
-    
+
     The critic supports custom principles for domain-specific needs:
     - Legal compliance principles for law firms
     - Medical ethics principles for healthcare
@@ -145,7 +145,7 @@ class ConstitutionalCritic(BaseCritic):
         principles: Optional[List[str]] = None,
     ):
         """Initialize Constitutional AI critic with principles.
-        
+
         Creates a critic that evaluates text against constitutional principles,
         providing feedback on ethical compliance and value alignment.
 
@@ -160,11 +160,11 @@ class ConstitutionalCritic(BaseCritic):
                 will be read from config.constitutional_principles.
             principles: Custom constitutional principles to use. If None,
                 uses principles from config or DEFAULT_PRINCIPLES.
-                
+
         Example:
             >>> # Use default principles
             >>> critic = ConstitutionalCritic()
-            >>> 
+            >>>
             >>> # Use custom principles for legal content
             >>> legal_principles = [
             ...     "Ensure accuracy of legal information",
@@ -172,7 +172,7 @@ class ConstitutionalCritic(BaseCritic):
             ...     "Include appropriate disclaimers"
             ... ]
             >>> critic = ConstitutionalCritic(principles=legal_principles)
-            
+
         Principle priority:
             1. Explicit principles parameter (highest priority)
             2. Principles from config.constitutional_principles
@@ -190,7 +190,7 @@ class ConstitutionalCritic(BaseCritic):
     @property
     def name(self) -> str:
         """Return the unique identifier for this critic.
-        
+
         Returns:
             "constitutional" - used in configuration, logging, and metadata
         """
@@ -200,18 +200,18 @@ class ConstitutionalCritic(BaseCritic):
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
         """Create structured messages for constitutional evaluation.
-        
+
         Builds a detailed prompt that includes the constitutional principles,
         the text to evaluate, and specific instructions for identifying
         violations and providing actionable feedback.
-        
+
         Args:
             text: Text to evaluate against constitutional principles
             result: SifakaResult with context (currently unused but available)
-            
+
         Returns:
             List of message dictionaries for the LLM conversation
-            
+
         Note:
             The prompt emphasizes specific, actionable feedback with principle
             numbers and quotes to ensure transparency and accountability.
@@ -241,13 +241,13 @@ Be specific and actionable. Generic feedback like 'doesn't align with principles
 
     def _get_system_prompt(self) -> str:
         """Generate system prompt for constitutional evaluation.
-        
+
         Creates a system prompt that establishes the critic's role and
         includes the specific constitutional principles to apply.
-        
+
         Returns:
             System prompt string with embedded principles
-            
+
         Note:
             The prompt focuses on practical, actionable feedback rather
             than academic analysis to ensure useful improvement suggestions.
@@ -262,7 +262,7 @@ Don't generate excessive metadata - only what's needed for meaningful improvemen
 
     def _get_response_type(self) -> type[BaseModel]:
         """Specify the structured response format.
-        
+
         Returns:
             ConstitutionalResponse class for type-safe critique results
         """
@@ -270,18 +270,18 @@ Don't generate excessive metadata - only what's needed for meaningful improvemen
 
     async def critique(self, text: str, result: "SifakaResult") -> "CritiqueResult":
         """Perform constitutional critique with principle tracking.
-        
+
         Evaluates the text against constitutional principles and adds
         the specific principles used to the result metadata for transparency
         and debugging.
-        
+
         Args:
             text: Text to evaluate
             result: SifakaResult to store critique in
-            
+
         Returns:
             CritiqueResult with constitutional feedback and principles used
-            
+
         Note:
             The principles used are stored in metadata.principles_used for
             full traceability of the evaluation criteria.

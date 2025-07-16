@@ -22,8 +22,13 @@ from datetime import datetime
 
 try:
     import redis.asyncio as redis
-    from redis.commands.search.field import TextField, NumericField, TagField, VectorField
-    from redis.commands.search.index_definition import IndexDefinition, IndexType
+    from redis.commands.search.field import (  # type: ignore
+        TextField,
+        NumericField,
+        TagField,
+        VectorField,
+    )
+    from redis.commands.search.index_definition import IndexDefinition, IndexType  # type: ignore
     from redis.commands.search.query import Query
     import numpy as np
 
@@ -76,7 +81,7 @@ class RedisStorage(StorageBackend):
         use_redisearch: bool = True,
         enable_embeddings: bool = False,
         embedding_model: Optional[str] = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         """Initialize Redis storage with optional RediSearch and vector support.
 
@@ -110,10 +115,11 @@ class RedisStorage(StorageBackend):
         self._has_redisearch: Optional[bool] = None
         self._index_created = False
         self._embedding_generator = None
-        
+
         # Initialize embeddings if enabled
         if self.enable_embeddings:
             from ..core.embeddings import get_embedding_generator
+
             self._embedding_generator = get_embedding_generator(model=embedding_model)
 
     async def _get_client(self) -> redis.Redis:
@@ -136,7 +142,10 @@ class RedisStorage(StorageBackend):
     async def _check_redisearch_support(self) -> None:
         """Check if RediSearch module is available."""
         try:
-            modules = await self._client.module_list()
+            client = self._client
+            if client is None:
+                return
+            modules = await client.module_list()
             self._has_redisearch = any(
                 module.get(b"name", b"").decode() == "search" for module in modules
             )
@@ -158,7 +167,10 @@ class RedisStorage(StorageBackend):
 
         try:
             # Check if index exists
-            await self._client.ft(index_name).info()
+            client = self._client
+            if client is None:
+                return
+            await client.ft(index_name).info()
             self._index_created = True
         except Exception:
             # Index doesn't exist, create it
@@ -191,19 +203,15 @@ class RedisStorage(StorageBackend):
                 {
                     "TYPE": "FLOAT32",
                     "DIM": 1536,  # OpenAI embedding dimension
-                    "DISTANCE_METRIC": "COSINE"
+                    "DISTANCE_METRIC": "COSINE",
                 },
-                as_name="original_vector"
+                as_name="original_vector",
             ),
             VectorField(
-                "$.final_embedding", 
+                "$.final_embedding",
                 "FLAT",
-                {
-                    "TYPE": "FLOAT32",
-                    "DIM": 1536,
-                    "DISTANCE_METRIC": "COSINE"
-                },
-                as_name="final_vector"
+                {"TYPE": "FLOAT32", "DIM": 1536, "DISTANCE_METRIC": "COSINE"},
+                as_name="final_vector",
             ),
         ]
 
@@ -212,7 +220,10 @@ class RedisStorage(StorageBackend):
             prefix=[f"{self.prefix}result:"], index_type=IndexType.JSON
         )
 
-        await self._client.ft(index_name).create_index(schema, definition=definition)
+        if self._client:
+            await self._client.ft(index_name).create_index(
+                schema, definition=definition
+            )
 
     def _make_key(self, key: str) -> str:
         """Create namespaced Redis key."""
@@ -239,22 +250,35 @@ class RedisStorage(StorageBackend):
             "critics": list(set(crit.critic for crit in result.critiques)),
             "feedback": " ".join(crit.feedback for crit in result.critiques),
             "max_confidence": max(
-                (crit.confidence for crit in result.critiques), default=0.0
+                (
+                    crit.confidence
+                    for crit in result.critiques
+                    if crit.confidence is not None
+                ),
+                default=0.0,
             ),
             "iteration_count": len(result.generations),
             "timestamp": datetime.utcnow().timestamp(),
         }
-        
+
         # Generate embeddings if enabled
         if self.enable_embeddings and self._embedding_generator:
             try:
                 # Generate embeddings for semantic search
-                original_embedding = await self._embedding_generator.embed(result.original_text)
-                final_embedding = await self._embedding_generator.embed(result.final_text)
-                
+                original_embedding = await self._embedding_generator.embed(
+                    result.original_text
+                )
+                final_embedding = await self._embedding_generator.embed(
+                    result.final_text
+                )
+
                 # Convert to bytes for Redis storage
-                search_data["original_embedding"] = np.array(original_embedding, dtype=np.float32).tobytes()
-                search_data["final_embedding"] = np.array(final_embedding, dtype=np.float32).tobytes()
+                search_data["original_embedding"] = np.array(
+                    original_embedding, dtype=np.float32
+                ).tobytes()
+                search_data["final_embedding"] = np.array(
+                    final_embedding, dtype=np.float32
+                ).tobytes()
             except Exception as e:
                 logger.warning(f"Failed to generate embeddings: {e}")
                 # Continue without embeddings
@@ -349,7 +373,7 @@ class RedisStorage(StorageBackend):
 
         return SifakaResult.model_validate(data)
 
-    async def list(self, limit: int = 10, offset: int = 0) -> List[SifakaResult]:
+    async def list(self, limit: int = 10, offset: int = 0) -> List[str]:
         """List recent results."""
         client = await self._get_client()
         list_key = self._make_key("results:list")
@@ -357,16 +381,10 @@ class RedisStorage(StorageBackend):
         # Get result IDs
         result_ids = await client.lrange(list_key, offset, offset + limit - 1)
 
-        # Load results
-        results = []
-        for result_id in result_ids:
-            result = await self.load(result_id)
-            if result:
-                results.append(result)
+        # Return result IDs
+        return [rid.decode() if isinstance(rid, bytes) else rid for rid in result_ids]
 
-        return results
-
-    async def delete(self, result_id: str) -> None:
+    async def delete(self, result_id: str) -> bool:
         """Delete a result from Redis."""
         client = await self._get_client()
 
@@ -381,10 +399,9 @@ class RedisStorage(StorageBackend):
         # Remove from list
         list_key = self._make_key("results:list")
         await client.lrem(list_key, 0, result_id)
+        return True
 
-    async def search(
-        self, query: str, limit: int = 10, offset: int = 0
-    ) -> List[SifakaResult]:
+    async def search(self, query: str, limit: int = 10) -> List[str]:
         """Search results using RediSearch or fallback to basic search.
 
         With RediSearch, supports:
@@ -399,53 +416,46 @@ class RedisStorage(StorageBackend):
         """
         if self._has_redisearch:
             try:
-                return await self._search_with_redisearch(query, limit, offset)
+                return await self._search_with_redisearch(query, limit)
             except Exception as e:
                 logger.warning(f"RediSearch query failed, falling back: {e}")
 
         # Fallback to basic search
         return await self._basic_search(query, limit)
 
-    async def _search_with_redisearch(
-        self, query: str, limit: int, offset: int
-    ) -> List[SifakaResult]:
+    async def _search_with_redisearch(self, query: str, limit: int) -> List[str]:
         """Search using RediSearch."""
         index_name = f"{self.prefix}idx:results"
 
         # Create query
-        q = Query(query).paging(offset, limit).sort_by("timestamp", asc=False)
+        q = Query(query).paging(0, limit).sort_by("timestamp", asc=False)
 
         # Execute search
-        results = await self._client.ft(index_name).search(q)
+        if self._client is None:
+            return []
+        results = self._client.ft(index_name).search(q)
 
-        # Load full results
-        sifaka_results = []
-        for doc in results.docs:
-            # Extract result_id from document
-            result_id = doc.result_id
-            result = await self.load(result_id)
-            if result:
-                sifaka_results.append(result)
+        # Return result IDs
+        return [doc.result_id for doc in results.docs]
 
-        return sifaka_results
-
-    async def _basic_search(self, query: str, limit: int) -> List[SifakaResult]:
+    async def _basic_search(self, query: str, limit: int) -> List[str]:
         """Fallback basic text search."""
-        results = await self.list(limit=100)  # Get recent results
+        result_ids = await self.list(limit=100)  # Get recent result IDs
 
         # Simple text search
         matches = []
         query_lower = query.lower()
 
-        for result in results:
-            if (
+        for result_id in result_ids:
+            result = await self.load(result_id)
+            if result and (
                 query_lower in result.original_text.lower()
                 or query_lower in result.final_text.lower()
                 or any(
                     query_lower in crit.feedback.lower() for crit in result.critiques
                 )
             ):
-                matches.append(result)
+                matches.append(result_id)
                 if len(matches) >= limit:
                     break
 
@@ -461,7 +471,7 @@ class RedisStorage(StorageBackend):
         end_date: Optional[datetime] = None,
         limit: int = 10,
         offset: int = 0,
-    ) -> List[SifakaResult]:
+    ) -> List[str]:
         """Advanced search with multiple filters.
 
         Args:
@@ -475,7 +485,7 @@ class RedisStorage(StorageBackend):
             offset: Pagination offset
 
         Returns:
-            List of matching SifakaResult objects
+            List of matching result IDs
         """
         if not self._has_redisearch:
             # Fallback to basic search with query only
@@ -504,7 +514,7 @@ class RedisStorage(StorageBackend):
             query_parts.append(f"@timestamp:[{start_ts} {end_ts}]")
 
         full_query = " ".join(query_parts)
-        return await self._search_with_redisearch(full_query, limit, offset)
+        return await self._search_with_redisearch(full_query, limit)
 
     async def get_thoughts(self, result_id: str) -> List[Dict[str, Any]]:
         """Get thoughts for a result.
@@ -518,40 +528,40 @@ class RedisStorage(StorageBackend):
         data = await client.json().get(thoughts_key)
         if not data:
             return []
-        return data
+        return list(data) if isinstance(data, list) else []
 
     async def search_semantic(
         self,
         query_text: str,
         search_field: str = "final",  # "original" or "final"
         limit: int = 10,
-        similarity_threshold: float = 0.7
-    ) -> List[SifakaResult]:
+        similarity_threshold: float = 0.7,
+    ) -> List[str]:
         """Perform semantic search using vector similarity.
-        
+
         Args:
             query_text: Text to search for semantically
             search_field: Which text field to search ("original" or "final")
             limit: Maximum results to return
             similarity_threshold: Minimum cosine similarity (0-1)
-            
+
         Returns:
-            List of semantically similar SifakaResult objects
+            List of semantically similar result IDs
         """
         if not self.enable_embeddings or not self._embedding_generator:
             raise ValueError("Semantic search requires enable_embeddings=True")
-        
+
         if not self._has_redisearch:
             raise ValueError("Semantic search requires RediSearch with vector support")
-        
+
         # Generate query embedding
         query_embedding = await self._embedding_generator.embed(query_text)
         query_vector = np.array(query_embedding, dtype=np.float32).tobytes()
-        
+
         # Build vector search query
         vector_field = f"{search_field}_vector"
         index_name = f"{self.prefix}idx:results"
-        
+
         # Create KNN query for vector similarity
         knn_query = (
             Query(f"*=>[KNN {limit} @{vector_field} $vec AS score]")
@@ -559,29 +569,23 @@ class RedisStorage(StorageBackend):
             .paging(0, limit)
             .dialect(2)
         )
-        
+
         # Execute search
-        results = await self._client.ft(index_name).search(
-            knn_query,
-            query_params={"vec": query_vector}
+        if self._client is None:
+            return []
+        results = self._client.ft(index_name).search(
+            knn_query, query_params={"vec": query_vector}
         )
-        
-        # Filter by similarity threshold and load results
-        sifaka_results = []
+
+        # Filter by similarity threshold and return IDs
+        result_ids = []
         for doc in results.docs:
             # Score is 1 - cosine_distance, so higher is better
             similarity = float(doc.score)
             if similarity >= similarity_threshold:
-                result_id = doc.result_id
-                result = await self.load(result_id)
-                if result:
-                    # Add similarity score to metadata
-                    if not hasattr(result, 'search_metadata'):
-                        result.search_metadata = {}
-                    result.search_metadata['similarity_score'] = similarity
-                    sifaka_results.append(result)
-        
-        return sifaka_results
+                result_ids.append(doc.result_id)
+
+        return result_ids
 
     async def cleanup(self) -> None:
         """Close Redis connection."""
@@ -596,6 +600,8 @@ class RedisStorage(StorageBackend):
 
         try:
             index_name = f"{self.prefix}idx:results"
+            if self._client is None:
+                return {"available": False, "error": "Redis client not initialized"}
             info = await self._client.ft(index_name).info()
 
             return {

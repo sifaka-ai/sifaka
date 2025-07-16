@@ -47,9 +47,7 @@ async def main() -> None:
             critics=["self_consistency"],
             max_iterations=2,
             config=Config(
-                model="gpt-4o-mini",
-                critic_model="gpt-4o-mini",
-                temperature=0.5
+                model="gpt-4o-mini", critic_model="gpt-4o-mini", temperature=0.5
             ),
             storage=FileStorage(),
         )

@@ -20,11 +20,11 @@ and overall processing time.
     >>> async with monitor.track_operation("improve") as metrics:
     ...     result = await improve("text")
     >>> print(metrics.to_dict())
-    
+
     >>> # Global monitoring
     >>> from sifaka import get_global_monitor
     >>> monitor = get_global_monitor()
-    >>> 
+    >>>
     >>> # Context manager for specific operations
     >>> async with monitor_context("critical_operation"):
     ...     await process_important_text()
@@ -66,11 +66,11 @@ if os.getenv("LOGFIRE_TOKEN"):
 @dataclass
 class PerformanceMetrics:
     """Comprehensive metrics for a single text improvement operation.
-    
+
     This dataclass collects all performance-related data during the
     execution of an improve() call. It tracks timing, resource usage,
     and quality metrics to provide full observability.
-    
+
     The metrics are organized into categories:
     - Timing: How long different operations took
     - LLM: Language model usage and performance
@@ -80,7 +80,7 @@ class PerformanceMetrics:
     - Results: Quality and confidence measurements
     - Memory: Resource usage tracking
     - Errors: Failure information
-    
+
     Example:
         >>> metrics = PerformanceMetrics(start_time=time.time())
         >>> # ... perform operations ...
@@ -90,7 +90,7 @@ class PerformanceMetrics:
         >>> metrics.finalize()
         >>> print(f"Total time: {metrics.total_duration:.2f}s")
         >>> print(f"Tokens/sec: {metrics.tokens_per_second:.1f}")
-    
+
     Attributes:
         start_time: Unix timestamp when operation began
         end_time: Unix timestamp when operation completed
@@ -156,10 +156,10 @@ class PerformanceMetrics:
 
     def finalize(self) -> None:
         """Calculate derived metrics after operation completes.
-        
+
         This method should be called after all operations are finished
         to calculate final values like total duration and rates.
-        
+
         Calculates:
         - total_duration from start and end times
         - tokens_per_second from tokens and time
@@ -175,11 +175,11 @@ class PerformanceMetrics:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert metrics to a structured dictionary for reporting.
-        
+
         Organizes metrics into logical groups for easy analysis and
         serialization. All timing values are rounded to 3 decimal places
         for readability.
-        
+
         Returns:
             Dictionary with metrics organized by category:
             - timing: Duration measurements
@@ -189,7 +189,7 @@ class PerformanceMetrics:
             - iterations: Progress metrics
             - quality: Confidence and improvement metrics
             - errors: Error count and details
-            
+
         Example:
             >>> metrics_dict = metrics.to_dict()
             >>> print(f"Total time: {metrics_dict['timing']['total_duration']}")
@@ -251,10 +251,10 @@ class PerformanceMetrics:
 
     def __str__(self) -> str:
         """Generate a human-readable performance summary.
-        
+
         Provides a concise overview of key metrics suitable for logging
         or console output. Formats percentages and rates for readability.
-        
+
         Returns:
             Multi-line string with performance highlights
         """
@@ -271,38 +271,38 @@ class PerformanceMetrics:
 
 class PerformanceMonitor:
     """Central performance monitoring system for Sifaka operations.
-    
+
     This class provides comprehensive tracking of all performance-related
     metrics during text improvement operations. It integrates with Logfire
     for production monitoring and maintains a history of operations for
     analysis.
-    
+
     The monitor tracks:
     - LLM API calls and token usage
     - Critic evaluation performance
     - Validator execution time
     - Overall operation timing
     - Error rates and types
-    
+
     Example:
         >>> monitor = PerformanceMonitor()
         >>> metrics = monitor.start_monitoring(max_iterations=3)
-        >>> 
+        >>>
         >>> # Track operations
         >>> await monitor.track_llm_call(async_llm_function)
         >>> await monitor.track_critic_call("reflexion", critic_func)
-        >>> 
+        >>>
         >>> # Finalize and get results
         >>> final_metrics = monitor.end_monitoring()
         >>> print(final_metrics)
-        
+
     The monitor is thread-safe for the current operation but should not
     be shared across concurrent improve() calls.
     """
 
     def __init__(self) -> None:
         """Initialize a new performance monitor.
-        
+
         Creates an empty monitor ready to track operations. Each monitor
         instance should be used for a single improve() call or a series
         of related operations.
@@ -312,21 +312,21 @@ class PerformanceMonitor:
 
     def start_monitoring(self, max_iterations: int = 0) -> PerformanceMetrics:
         """Begin monitoring a new text improvement operation.
-        
+
         Initializes metrics collection and starts timing. Only one operation
         can be monitored at a time per monitor instance.
-        
+
         Args:
             max_iterations: Maximum iterations configured for this operation.
                 Used to calculate completion percentage.
-                
+
         Returns:
             New PerformanceMetrics instance that will be populated during
             the operation. The same instance is available via current_metrics.
-            
+
         Raises:
             RuntimeError: If monitoring is already active
-            
+
         Example:
             >>> metrics = monitor.start_monitoring(max_iterations=5)
             >>> # ... perform operations ...
@@ -339,16 +339,16 @@ class PerformanceMonitor:
 
     def end_monitoring(self) -> PerformanceMetrics:
         """Complete monitoring and finalize all metrics.
-        
+
         Stops timing, calculates derived metrics, and adds the completed
         metrics to history. The monitor is then ready for a new operation.
-        
+
         Returns:
             Finalized PerformanceMetrics with all calculations complete
-            
+
         Raises:
             RuntimeError: If no monitoring session is active
-            
+
         Example:
             >>> metrics = monitor.end_monitoring()
             >>> print(f"Operation took {metrics.total_duration:.2f} seconds")
@@ -370,24 +370,24 @@ class PerformanceMonitor:
 
     async def track_llm_call(self, func: Callable[[], Any]) -> Any:
         """Track execution of an LLM API call.
-        
+
         Wraps an async function that makes an LLM call, tracking its
         duration and handling errors. Integrates with Logfire for
         distributed tracing.
-        
+
         Args:
             func: Async function that makes an LLM API call
-            
+
         Returns:
             Whatever the wrapped function returns
-            
+
         Raises:
             Any exception from the wrapped function (after logging)
-            
+
         Example:
             >>> async def generate_text():
             ...     return await llm_client.complete(prompt)
-            >>> 
+            >>>
             >>> result = await monitor.track_llm_call(generate_text)
         """
         if not self.current_metrics:
@@ -410,24 +410,24 @@ class PerformanceMonitor:
 
     async def track_critic_call(self, critic_name: str, func: Callable[[], Any]) -> Any:
         """Track execution of a critic evaluation.
-        
+
         Wraps an async function that runs a critic, tracking its duration
         and which critic was used. Helps identify slow critics.
-        
+
         Args:
             critic_name: Name of the critic being called (e.g., "reflexion")
             func: Async function that runs the critic
-            
+
         Returns:
             Whatever the wrapped function returns
-            
+
         Raises:
             Any exception from the wrapped function (after logging)
-            
+
         Example:
             >>> async def run_critic():
             ...     return await critic.critique(text, result)
-            >>> 
+            >>>
             >>> critique = await monitor.track_critic_call("reflexion", run_critic)
         """
         if not self.current_metrics:

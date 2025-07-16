@@ -36,9 +36,7 @@ async def main() -> None:
             critics=["reflexion"],
             max_iterations=3,
             config=Config(
-                model="gpt-4o-mini",
-                critic_model="gpt-4o-mini",
-                temperature=0.7
+                model="gpt-4o-mini", critic_model="gpt-4o-mini", temperature=0.7
             ),
             storage=FileStorage(),
         )
@@ -57,9 +55,7 @@ async def main() -> None:
             critics=["reflexion"],
             max_iterations=3,
             config=Config(
-                model="gpt-3.5-turbo",
-                critic_model="gpt-3.5-turbo",
-                temperature=0.6
+                model="gpt-3.5-turbo", critic_model="gpt-3.5-turbo", temperature=0.6
             ),
             storage=FileStorage(),
         )
@@ -78,9 +74,7 @@ async def main() -> None:
             critics=["reflexion"],
             max_iterations=3,
             config=Config(
-                model="gpt-4o-mini",
-                critic_model="gpt-4o-mini",
-                temperature=0.7
+                model="gpt-4o-mini", critic_model="gpt-4o-mini", temperature=0.7
             ),
             storage=FileStorage(),
         )
@@ -132,10 +126,7 @@ async def reflexion_comparison():
             test_text,
             critics=["reflexion"],
             max_iterations=2,
-            config=Config(
-                model="gpt-4o-mini",
-                critic_model="gpt-4o-mini"
-            ),
+            config=Config(model="gpt-4o-mini", critic_model="gpt-4o-mini"),
         )
         results["Gemini Flash"] = {
             "time": asyncio.get_event_loop().time() - start,
@@ -148,10 +139,7 @@ async def reflexion_comparison():
             test_text,
             critics=["reflexion"],
             max_iterations=2,
-            config=Config(
-                model="gpt-3.5-turbo",
-                critic_model="gpt-3.5-turbo"
-            ),
+            config=Config(model="gpt-3.5-turbo", critic_model="gpt-3.5-turbo"),
         )
         results["Claude Haiku"] = {
             "time": asyncio.get_event_loop().time() - start,

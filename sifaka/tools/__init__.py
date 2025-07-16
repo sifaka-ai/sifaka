@@ -13,7 +13,7 @@ perform fact-checking, and enhance their analysis with external data sources.
 ## Tool System Architecture:
 
     Critics → ToolRegistry → Tool Implementations → External Services
-    
+
     1. Critics check if tools are enabled and available
     2. ToolRegistry provides access to registered tool classes
     3. Tool implementations handle external service integration
@@ -22,10 +22,10 @@ perform fact-checking, and enhance their analysis with external data sources.
 ## Usage:
 
     >>> from sifaka.tools import ToolRegistry, ToolInterface
-    >>> 
+    >>>
     >>> # Check available tools
     >>> print("Available tools:", ToolRegistry.list_available())
-    >>> 
+    >>>
     >>> # Get a tool for use
     >>> search_tool_class = ToolRegistry.get("web_search")
     >>> if search_tool_class:
@@ -40,15 +40,15 @@ Implement the ToolInterface protocol and register with ToolRegistry:
     ...     async def __call__(self, query: str) -> List[Dict[str, Any]]:
     ...         # Implementation here
     ...         return [{"result": "data"}]
-    ...     
+    ...
     ...     @property
     ...     def name(self) -> str:
     ...         return "my_tool"
-    ...     
+    ...
     ...     @property
     ...     def description(self) -> str:
     ...         return "My custom tool description"
-    >>> 
+    >>>
     >>> # Register for use by critics
     >>> ToolRegistry.register("my_tool", MyCustomTool)
 
@@ -72,4 +72,11 @@ from . import web_search
 from . import wikipedia
 from . import arxiv
 
-__all__ = ["ToolInterface", "StorageInterface", "ToolRegistry"]
+__all__ = [
+    "ToolInterface",
+    "StorageInterface",
+    "ToolRegistry",
+    "web_search",
+    "wikipedia",
+    "arxiv",
+]

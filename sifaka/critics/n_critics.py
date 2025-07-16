@@ -68,11 +68,11 @@ from .core.base import BaseCritic
 
 class NCriticsResponse(BaseModel):
     """Structured response model for N-Critics ensemble critique.
-    
+
     Provides synthesized feedback from multiple critical perspectives,
     including consensus scoring and confidence metrics based on
     inter-perspective agreement.
-    
+
     Attributes:
         feedback: Synthesized feedback combining insights from all
             critical perspectives into comprehensive assessment.
@@ -110,13 +110,13 @@ class NCriticsResponse(BaseModel):
 
 class NCriticsCritic(BaseCritic):
     """Implements N-Critics ensemble approach for multi-perspective evaluation.
-    
+
     Provides comprehensive text assessment using multiple critical perspectives
     that work together to identify issues, strengths, and improvements that
     single-perspective critics might miss.
-    
+
     ## When to Use This Critic:
-    
+
     ✅ **Ideal for:**
     - Complex, multifaceted content requiring comprehensive review
     - High-stakes documents needing thorough quality assessment
@@ -124,14 +124,14 @@ class NCriticsCritic(BaseCritic):
     - Situations where single critics might have blind spots
     - Final quality assurance before important publications
     - Content spanning multiple domains or audiences
-    
+
     ❌ **Avoid when:**
     - Quick, single-dimension quality checks
     - Simple content where perspectives would be redundant
     - Resource-constrained environments (higher token usage)
     - Time-sensitive evaluations needing rapid feedback
     - Content with narrow, specialized focus
-    
+
     🎯 **Optimal applications:**
     - Comprehensive document reviews (reports, proposals, papers)
     - Multi-stakeholder content (presentations, communications)
@@ -139,31 +139,31 @@ class NCriticsCritic(BaseCritic):
     - Editorial reviews for publication-quality content
     - Cross-functional content needing diverse expert perspectives
     - Quality assurance for customer-facing materials
-    
+
     ## Perspective Framework:
-    
+
     **Default Perspectives:**
     1. **Clarity**: Readability, structure, comprehensibility
     2. **Accuracy**: Factual correctness, logical consistency
     3. **Completeness**: Thoroughness, adequate coverage
     4. **Style**: Tone, voice, audience appropriateness
-    
+
     **Custom Perspectives:**
     Can be tailored for specific domains:
     - Technical writing: Accuracy, Completeness, Usability, Maintainability
     - Marketing: Persuasiveness, Brand alignment, Clarity, Call-to-action
     - Academic: Rigor, Methodology, Citations, Contribution
-    
+
     ## Consensus Building:
-    
+
     The critic synthesizes perspectives by:
     - Evaluating text independently from each viewpoint
     - Identifying areas of agreement and disagreement
     - Building consensus feedback that addresses all perspectives
     - Providing confidence metrics based on inter-perspective consistency
-    
+
     ## Value Proposition:
-    
+
     This approach is particularly valuable when:
     - Multiple expert opinions would naturally be sought
     - Content complexity benefits from diverse analytical angles
@@ -174,18 +174,18 @@ class NCriticsCritic(BaseCritic):
     # Default critical perspectives for comprehensive evaluation
     DEFAULT_PERSPECTIVES = [
         "Clarity: Focus on readability, structure, and comprehensibility",
-        "Accuracy: Focus on factual correctness and logical consistency", 
+        "Accuracy: Focus on factual correctness and logical consistency",
         "Completeness: Focus on thoroughness and adequate coverage",
         "Style: Focus on tone, voice, and appropriateness for audience",
     ]
     """Default ensemble of critical perspectives.
-    
+
     These four perspectives provide comprehensive coverage for most content types:
     - Clarity ensures the content is understandable and well-organized
     - Accuracy verifies factual correctness and logical flow
     - Completeness checks for adequate coverage and thoroughness
     - Style evaluates appropriateness for audience and purpose
-    
+
     Can be customized for domain-specific evaluation needs.
     """
 
@@ -201,10 +201,10 @@ class NCriticsCritic(BaseCritic):
         perspective_count: int = 4,
     ):
         """Initialize N-Critics ensemble critic with multiple perspectives.
-        
+
         Creates a comprehensive critic that evaluates text from multiple
         expert viewpoints to provide thorough, well-rounded feedback.
-        
+
         Args:
             model: LLM model for multi-perspective evaluation. GPT-4o-mini
                 provides good balance for ensemble evaluation tasks.
@@ -219,11 +219,11 @@ class NCriticsCritic(BaseCritic):
                 perspectives based on text content (experimental feature).
             perspective_count: Number of perspectives when auto-generating.
                 Only used if auto_generate_perspectives=True.
-                
+
         Example:
             >>> # Use default perspectives
             >>> critic = NCriticsCritic()
-            >>> 
+            >>>
             >>> # Custom perspectives for technical writing
             >>> tech_perspectives = [
             ...     "Accuracy: Technical correctness and precision",
@@ -232,14 +232,14 @@ class NCriticsCritic(BaseCritic):
             ...     "Clarity: Accessibility to target audience"
             ... ]
             >>> critic = NCriticsCritic(perspectives=tech_perspectives)
-            >>> 
+            >>>
             >>> # Auto-generate context-specific perspectives
             >>> critic = NCriticsCritic(auto_generate_perspectives=True)
-            
+
         Perspective format:
             Each perspective should be formatted as "Name: Description"
             where the description guides the evaluation focus.
-            
+
         Resource considerations:
             Ensemble evaluation uses more tokens than single-perspective
             critics due to multi-viewpoint analysis.
@@ -256,7 +256,7 @@ class NCriticsCritic(BaseCritic):
     @property
     def name(self) -> str:
         """Return the unique identifier for this critic.
-        
+
         Returns:
             "n_critics" - used in configuration, logging, and metadata
         """
@@ -264,7 +264,7 @@ class NCriticsCritic(BaseCritic):
 
     def _get_response_type(self) -> type[BaseModel]:
         """Specify the structured response format for ensemble critique.
-        
+
         Returns:
             NCriticsResponse class providing synthesized multi-perspective
             feedback with consensus scoring and confidence metrics.
@@ -275,18 +275,18 @@ class NCriticsCritic(BaseCritic):
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
         """Create comprehensive messages for multi-perspective ensemble critique.
-        
+
         Builds detailed instructions for evaluating text from multiple critical
         perspectives, synthesizing insights, and building consensus feedback.
-        
+
         Args:
             text: Text to evaluate from multiple critical perspectives
             result: SifakaResult containing context and evaluation history
-            
+
         Returns:
             List of message dictionaries instructing the LLM to perform
             comprehensive multi-perspective evaluation with consensus building
-            
+
         Note:
             If auto_generate_perspectives is enabled, this method will first
             generate context-appropriate perspectives before evaluation.
@@ -330,24 +330,24 @@ Focus on constructive, actionable feedback that considers all viewpoints."""
         self, text: str, result: SifakaResult
     ) -> List[str]:
         """Generate context-appropriate perspectives for the text.
-        
+
         Analyzes the text content and context to dynamically generate
         the most relevant critical perspectives for evaluation.
-        
+
         Args:
             text: Text content to analyze for perspective generation
             result: SifakaResult providing additional context
-            
+
         Returns:
             List of generated perspectives tailored to the content type
             and evaluation context
-            
+
         Note:
             This is an experimental feature. Currently returns default
             perspectives, but could be enhanced to use LLM analysis
             for dynamic perspective generation based on content type,
             domain, audience, and purpose.
-            
+
         Future enhancements:
             - Content type detection (technical, marketing, academic, etc.)
             - Domain-specific perspective libraries

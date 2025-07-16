@@ -16,7 +16,7 @@ critics.
 - **Multiple Critics**: Choose from various critique strategies like
   reflexion, self-refine, constitutional AI, and more
 - **Iterative Improvement**: Automatically refines text through multiple
-  rounds based on critic feedback  
+  rounds based on critic feedback
 - **Quality Validators**: Ensure text meets specific requirements
 - **Full Observability**: Track every step of the improvement process
 - **Extensible**: Add custom critics, validators, and storage backends

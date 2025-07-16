@@ -18,7 +18,7 @@ business rules around numeric content.
     >>> # Validate age ranges
     >>> age_validator = create_age_validator()
     >>> result = await age_validator.validate("John is 25 years old", sifaka_result)
-    >>> 
+    >>>
     >>> # Custom numeric ranges
     >>> validator = NumericRangeValidator(
     ...     min_value=0,
@@ -36,7 +36,7 @@ business rules around numeric content.
 ## Common Use Cases:
 
 - **Data Quality**: Ensure statistics and metrics are realistic
-- **Business Rules**: Enforce pricing, age, or quantity constraints  
+- **Business Rules**: Enforce pricing, age, or quantity constraints
 - **Content Safety**: Prevent unrealistic or harmful numeric claims
 - **Format Validation**: Ensure percentages are 0-100%, prices are positive
 
@@ -53,19 +53,19 @@ from ..core.models import ValidationResult, SifakaResult
 
 class NumericRangeValidator(Validator):
     """Validates numeric values in text are within specified ranges.
-    
+
     Extracts numeric values from text in various formats (plain numbers,
     percentages, currency) and validates them against configurable range
     constraints. Provides flexible validation for business rules and
     data quality requirements.
-    
+
     Key capabilities:
     - Multiple numeric format detection (numbers, percentages, currency)
     - Range validation with min/max bounds
     - Multiple allowed/forbidden ranges support
     - Format-specific validation rules (e.g., 0-100% for percentages)
     - Detailed error reporting with specific constraint violations
-    
+
     Example:
         >>> # Validate product reviews (1-5 stars, positive prices)
         >>> validator = NumericRangeValidator(
@@ -73,11 +73,11 @@ class NumericRangeValidator(Validator):
         ...     check_currency=True,      # Validate prices
         ...     check_percentages=False   # Skip percentage validation
         ... )
-        >>> 
+        >>>
         >>> text = "Great product! 4.5 stars, only $29.99"
         >>> result = await validator.validate(text, sifaka_result)
         >>> print(f"Valid: {result.passed}")  # True
-        
+
     Format detection:
         Numbers: Matches integers and decimals with optional minus sign
         Percentages: Matches numbers followed by % symbol
@@ -94,7 +94,7 @@ class NumericRangeValidator(Validator):
         check_currency: bool = True,
     ):
         """Initialize numeric range validator with flexible constraints.
-        
+
         Creates a validator that extracts and validates numeric values
         from text according to specified range constraints and format rules.
 
@@ -114,7 +114,7 @@ class NumericRangeValidator(Validator):
                 Automatically enforces 0-100% range when enabled.
             check_currency: Whether to detect and validate currency amounts.
                 Automatically enforces non-negative amounts when enabled.
-                
+
         Example:
             >>> # Business rules validator
             >>> validator = NumericRangeValidator(
@@ -125,13 +125,13 @@ class NumericRangeValidator(Validator):
             ...     check_percentages=True,         # Validate percentages 0-100%
             ...     check_currency=True             # Validate positive prices
             ... )
-            
+
         Range priority:
             1. Format-specific rules (0-100% for percentages, >=0 for currency)
             2. forbidden_ranges (values in these ranges always fail)
             3. allowed_ranges (if specified, values must be in at least one)
             4. min_value/max_value (global bounds for plain numbers)
-            
+
         Performance:
             Regex patterns are compiled at initialization for efficient
             repeated validation across multiple texts.
@@ -151,7 +151,7 @@ class NumericRangeValidator(Validator):
     @property
     def name(self) -> str:
         """Return the validator identifier.
-        
+
         Returns:
             "numeric_range_validator" - used in validation results and logging
         """
@@ -159,19 +159,19 @@ class NumericRangeValidator(Validator):
 
     async def validate(self, text: str, result: SifakaResult) -> ValidationResult:
         """Validate all numeric values found in text against range constraints.
-        
+
         Extracts numeric values in various formats, applies appropriate validation
         rules, and returns detailed results with specific constraint violations.
-        
+
         Args:
             text: Text to scan for numeric values and validate
             result: SifakaResult for context (not currently used but available)
-            
+
         Returns:
             ValidationResult with pass/fail status, score, and detailed feedback.
             Score is 1.0 for pass (all numbers valid), 0.0 for fail (any violations).
             Details include specific values that violated constraints.
-            
+
         Validation process:
         1. Extract plain numbers, percentages, and currency amounts
         2. Apply format-specific validation (0-100% for percentages, etc.)
@@ -179,12 +179,12 @@ class NumericRangeValidator(Validator):
         4. Verify allowed_ranges requirements if specified
         5. Check for forbidden_ranges violations
         6. Return comprehensive results with first 3 issues for readability
-        
+
         Format handling:
         - Plain numbers: Subject to min_value, max_value, and range constraints
         - Percentages: Auto-validated for 0-100% range, exempt from other rules
         - Currency: Auto-validated for non-negative amounts
-        
+
         Example:
             >>> text = "Product costs $25.99 with 15% discount"
             >>> result = await validator.validate(text)
@@ -293,22 +293,22 @@ class NumericRangeValidator(Validator):
 
 def create_percentage_validator() -> NumericRangeValidator:
     """Create a pre-configured validator for percentage values.
-    
+
     Creates a validator specifically for text containing percentages,
     ensuring all percentage values fall within the standard 0-100% range.
-    
+
     Returns:
         NumericRangeValidator configured to validate only percentages
-        
+
     Example:
         >>> validator = create_percentage_validator()
-        >>> 
+        >>>
         >>> # This would pass validation
         >>> valid_text = "Survey shows 85% satisfaction rate"
-        >>> 
+        >>>
         >>> # This would fail validation
         >>> invalid_text = "Improvement increased by 150%"
-        
+
     Configuration:
         - check_percentages=True: Detects and validates % values
         - check_currency=False: Ignores currency amounts
@@ -322,26 +322,26 @@ def create_percentage_validator() -> NumericRangeValidator:
 
 def create_price_validator(max_price: float = 10000.0) -> NumericRangeValidator:
     """Create a pre-configured validator for price values.
-    
+
     Creates a validator for currency amounts and general numeric values
     with reasonable bounds for pricing contexts.
-    
+
     Args:
         max_price: Maximum allowed price value. Defaults to $10,000
             for reasonable business pricing scenarios.
-            
+
     Returns:
         NumericRangeValidator configured for price validation
-        
+
     Example:
         >>> validator = create_price_validator(max_price=500.0)
-        >>> 
+        >>>
         >>> # This would pass validation
         >>> valid_text = "Item costs $25.99 plus shipping"
-        >>> 
+        >>>
         >>> # This would fail validation
         >>> invalid_text = "Premium version is $750.00"
-        
+
     Configuration:
         - min_value=0: No negative prices allowed
         - max_value=max_price: Upper bound for reasonable pricing
@@ -358,28 +358,28 @@ def create_price_validator(max_price: float = 10000.0) -> NumericRangeValidator:
 
 def create_age_validator() -> NumericRangeValidator:
     """Create a pre-configured validator for human age values.
-    
+
     Creates a validator that ensures age-related numeric values fall
     within realistic human lifespan ranges, preventing impossible ages.
-    
+
     Returns:
         NumericRangeValidator configured for age validation
-        
+
     Example:
         >>> validator = create_age_validator()
-        >>> 
+        >>>
         >>> # This would pass validation
         >>> valid_text = "Sarah is 34 years old"
-        >>> 
+        >>>
         >>> # This would fail validation
         >>> invalid_text = "Ancient wisdom from 500-year-old sage"
-        
+
     Configuration:
         - min_value=0: No negative ages
         - max_value=150: Realistic maximum human lifespan
         - forbidden_ranges=[(200, inf)]: Explicitly prohibits unrealistic ages
         - Validates plain numbers only (no percentages or currency)
-        
+
     Use cases:
         - Biographical content validation
         - User profile data quality

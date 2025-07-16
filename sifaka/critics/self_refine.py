@@ -60,15 +60,15 @@ from ..core.config import Config
 
 class RefinementArea(BaseModel):
     """Represents a specific area identified for refinement.
-    
+
     Defines a targeted improvement opportunity with a clear description
     of the desired end state. Used by the text generator to understand
     exactly what changes are needed.
-    
+
     Attributes:
         target_state: Clear description of how this area should be improved.
             Should be specific and actionable rather than vague.
-            
+
     Example:
         >>> area = RefinementArea(
         ...     target_state="Make the introduction more engaging by adding a hook"
@@ -80,10 +80,10 @@ class RefinementArea(BaseModel):
 
 class SelfRefineResponse(BaseModel):
     """Structured response model for Self-Refine critique.
-    
+
     Provides comprehensive feedback on text quality across multiple dimensions,
     with specific refinement areas and actionable suggestions for improvement.
-    
+
     Attributes:
         feedback: Detailed assessment of current text quality with specific
             observations about what works well and what needs improvement.
@@ -114,13 +114,13 @@ class SelfRefineResponse(BaseModel):
 
 class SelfRefineCritic(BaseCritic):
     """Implements Self-Refine iterative refinement approach.
-    
+
     Provides comprehensive text quality assessment and refinement guidance
     across multiple dimensions, with emphasis on iterative improvement
     through self-feedback loops.
-    
+
     ## When to Use This Critic:
-    
+
     ✅ **Ideal for:**
     - General text quality improvement and polishing
     - Iterative refinement of existing content over multiple cycles
@@ -128,14 +128,14 @@ class SelfRefineCritic(BaseCritic):
     - Making text more engaging and professionally written
     - Content that benefits from multiple revision rounds
     - Situations where you want comprehensive quality feedback
-    
+
     ❌ **Avoid when:**
     - Specific domain expertise or specialized knowledge is required
     - Primary need is fact-checking or accuracy verification
     - You need multiple perspectives or consensus-building
     - Content is already highly polished and near-final
     - Time constraints don't allow for iterative improvement
-    
+
     🎯 **Optimal applications:**
     - Blog posts and articles going through multiple drafts
     - Professional documents requiring high polish
@@ -143,18 +143,18 @@ class SelfRefineCritic(BaseCritic):
     - Marketing copy requiring engagement improvement
     - Technical documentation needing readability enhancement
     - Creative writing benefiting from structural refinement
-    
+
     ## Quality Dimensions Evaluated:
-    
+
     1. **Clarity**: Ease of understanding and comprehension
     2. **Completeness**: Coverage of all necessary aspects
     3. **Coherence**: Logical structure and organization
     4. **Engagement**: Interest and compelling nature
     5. **Accuracy**: Reasonableness and support for claims
     6. **Conciseness**: Appropriate brevity without meaning loss
-    
+
     ## Refinement Strategy:
-    
+
     The critic tracks refinement history to provide context-aware feedback,
     preventing over-refinement and focusing on the most impactful improvements
     at each iteration.
@@ -169,10 +169,10 @@ class SelfRefineCritic(BaseCritic):
         config: Optional[Config] = None,
     ):
         """Initialize Self-Refine critic with quality assessment capabilities.
-        
+
         Creates a critic focused on iterative text refinement across multiple
         quality dimensions, with tracking of refinement history for context.
-        
+
         Args:
             model: LLM model for refinement assessment. GPT-4o-mini provides
                 good balance of quality and cost for iterative refinement.
@@ -181,17 +181,17 @@ class SelfRefineCritic(BaseCritic):
             provider: LLM provider (OpenAI, Anthropic, etc.)
             api_key: API key override if not using environment variables
             config: Full Sifaka configuration object
-            
+
         Example:
             >>> # Standard refinement critic
             >>> critic = SelfRefineCritic()
-            >>> 
+            >>>
             >>> # More creative refinement suggestions
             >>> critic = SelfRefineCritic(temperature=0.8)
-            >>> 
+            >>>
             >>> # Conservative, consistent refinement
             >>> critic = SelfRefineCritic(temperature=0.5)
-            
+
         Note:
             The critic automatically tracks refinement iterations and provides
             context-aware feedback to prevent over-refinement.
@@ -204,7 +204,7 @@ class SelfRefineCritic(BaseCritic):
     @property
     def name(self) -> str:
         """Return the unique identifier for this critic.
-        
+
         Returns:
             "self_refine" - used in configuration, logging, and metadata
         """
@@ -212,7 +212,7 @@ class SelfRefineCritic(BaseCritic):
 
     def _get_response_type(self) -> type[BaseModel]:
         """Specify the structured response format for refinement feedback.
-        
+
         Returns:
             SelfRefineResponse class providing detailed refinement analysis
             with specific areas for improvement and target states.
@@ -221,11 +221,11 @@ class SelfRefineCritic(BaseCritic):
 
     def _get_system_prompt(self) -> str:
         """Generate system prompt for Self-Refine evaluation.
-        
+
         Creates a system prompt that establishes the critic's role as an
         iterative refinement specialist focused on quality improvement
         across multiple dimensions.
-        
+
         Returns:
             System prompt emphasizing iterative refinement and quality focus
         """
@@ -235,19 +235,19 @@ class SelfRefineCritic(BaseCritic):
         self, text: str, result: SifakaResult
     ) -> List[Dict[str, str]]:
         """Create comprehensive messages for self-refinement evaluation.
-        
+
         Builds detailed evaluation instructions that include refinement context,
         quality dimensions to assess, and guidance for providing actionable
         feedback.
-        
+
         Args:
             text: Text to evaluate for refinement opportunities
             result: SifakaResult containing refinement history and context
-            
+
         Returns:
             List of message dictionaries for LLM conversation, including
             system context and detailed evaluation instructions
-            
+
         Note:
             Incorporates refinement history to provide context-aware feedback
             and prevent over-refinement in later iterations.
@@ -274,20 +274,20 @@ Provide specific, actionable feedback for refinement. Focus on the most impactfu
 
     def _get_refinement_context(self, result: SifakaResult) -> str:
         """Generate context about the refinement process and history.
-        
+
         Analyzes the refinement history to provide context about how many
         iterations have occurred and how the text has evolved, helping
         guide appropriate feedback for the current iteration.
-        
+
         Args:
             result: SifakaResult containing generation history
-            
+
         Returns:
             Formatted string describing refinement context including:
             - Number of refinement iterations completed
             - Text length changes over iterations
             - Evolution indicators for context-aware feedback
-            
+
         Note:
             Provides important context to prevent over-refinement and focus
             on the most valuable improvements at each stage.

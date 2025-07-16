@@ -8,13 +8,10 @@ for fact-checking.
 Paper: https://arxiv.org/abs/2310.11511
 """
 
-import asyncio
-import re
 import time
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
-from collections import deque
 
 from .core.base import BaseCritic, CritiqueResult
 from ..core.models import SifakaResult, ToolUsage
@@ -38,7 +35,8 @@ class SelfRAGResponse(BaseModel):
         default_factory=list, description="Specific issues found in the text"
     )
     specific_corrections: List[str] = Field(
-        default_factory=list, description="Specific factual corrections based on search results"
+        default_factory=list,
+        description="Specific factual corrections based on search results",
     )
     factual_claims: List[str] = Field(
         default_factory=list, description="Factual claims that need verification"
@@ -111,76 +109,84 @@ class SelfRAGCritic(BaseCritic):
         # Get standard critique without tools first
         messages = await self._create_messages(text, result)
         base_critique = await self._perform_critique(messages)
-        
+
         # Check if tools are enabled
         tools_enabled = self._are_tools_enabled()
         if not tools_enabled:
             return base_critique
-            
+
         # Extract factual claims from the base critique
-        if hasattr(base_critique, 'metadata') and base_critique.metadata:
-            factual_claims = base_critique.metadata.get('factual_claims', [])
+        if hasattr(base_critique, "metadata") and base_critique.metadata:
+            factual_claims = base_critique.metadata.get("factual_claims", [])
         else:
             factual_claims = []
-            
+
         if not factual_claims:
             return base_critique
-            
+
         # Let the LLM decide which tool to use for verification
         tool_decision = await self._decide_tool_usage(text, factual_claims)
-        if not tool_decision or not tool_decision.get('use_tools'):
+        if not tool_decision or not tool_decision.get("use_tools"):
             return base_critique
-            
+
         # Use the selected tool
-        tool_name = tool_decision.get('tool_name', 'web_search')
+        tool_name = tool_decision.get("tool_name", "web_search")
         tool_class = ToolRegistry.get(tool_name)
         if not tool_class:
             return base_critique
-            
+
         # Perform searches with the selected tool
         tool_instance = tool_class()
         tool_results = []
-        
+
         for claim in factual_claims[:3]:  # Limit to 3 claims
-            search_query = tool_decision.get('queries', {}).get(claim, claim)
-            result_data = await self._search_with_tool(tool_instance, claim, search_query)
+            search_query = tool_decision.get("queries", {}).get(claim, claim)
+            result_data = await self._search_with_tool(
+                tool_instance, claim, search_query
+            )
             if result_data:
                 tool_results.append(result_data)
-                
+
         # Re-critique with tool results
         if tool_results:
-            messages_with_tools = await self._create_messages_with_tools(text, result, tool_results)
+            messages_with_tools = await self._create_messages_with_tools(
+                text, result, tool_results
+            )
             final_critique = await self._perform_critique(messages_with_tools)
-            
+
             # Add tool usage to the critique
             for tool_result in tool_results:
-                if 'tool_usage' in tool_result:
-                    final_critique.tools_used.append(tool_result['tool_usage'])
-                    
+                if "tool_usage" in tool_result:
+                    final_critique.tools_used.append(tool_result["tool_usage"])
+
             return final_critique
-            
+
         return base_critique
 
     def _are_tools_enabled(self) -> bool:
         """Check if tools are enabled for this critic."""
         if self.config and hasattr(self.config, "critic_tool_settings"):
-            return self.config.critic_tool_settings.get(self.name, {}).get(
-                "enable_tools", False
+            return bool(
+                self.config.critic_tool_settings.get(self.name, {}).get(
+                    "enable_tools", False
+                )
             )
         elif self.config and hasattr(self.config, "enable_tools"):
-            return self.config.enable_tools
+            return bool(self.config.enable_tools)
         return False
 
-    async def _decide_tool_usage(self, text: str, factual_claims: List[str]) -> Optional[Dict[str, Any]]:
+    async def _decide_tool_usage(
+        self, text: str, factual_claims: List[str]
+    ) -> Optional[Dict[str, Any]]:
         """Let the LLM decide which tool to use and how."""
         if not factual_claims:
             return None
-            
+
         # Get available tools
         available_tools = ToolRegistry.list_available()
         if not available_tools:
             return None
-            
+
         # Create tool descriptions
         tool_descriptions = []
         for tool_name in available_tools:
@@ -188,7 +194,7 @@ class SelfRAGCritic(BaseCritic):
             if tool_class:
                 tool = tool_class()
                 tool_descriptions.append(f"- {tool_name}: {tool.description}")
-                
+
         prompt = f"""Given this text and its factual claims, decide which tool (if any) to use for verification.
 
 Text: {text}
@@ -215,19 +221,24 @@ Respond in JSON format:
 }}"""
 
         try:
+
+            class ToolDecision(BaseModel):
+                tool: str
+                rationale: str
+
             agent = self.client.create_agent(
                 system_prompt="You are a tool selection expert. Choose the most appropriate tool for fact-checking.",
-                result_type=dict,
+                result_type=ToolDecision,
             )
-            
+
             result = await agent.run(prompt)
-            return result.data
+            return result.data.model_dump() if result.data else None
         except Exception:
             # Default to web search if LLM fails
             return {
                 "use_tools": True,
                 "tool_name": "web_search",
-                "queries": {claim: claim for claim in factual_claims}
+                "queries": {claim: claim for claim in factual_claims},
             }
 
     async def _search_with_tool(
@@ -235,11 +246,11 @@ Respond in JSON format:
     ) -> Optional[Dict[str, Any]]:
         """Search using the provided tool."""
         start_time = time.time()
-        
+
         try:
             results = await tool_instance(search_query)
             processing_time = time.time() - start_time
-            
+
             tool_usage = ToolUsage(
                 tool_name=tool_instance.name,
                 status="success",
@@ -251,17 +262,17 @@ Respond in JSON format:
                     "original_claim": claim,
                 },
             )
-            
+
             return {
                 "tool_usage": tool_usage,
                 "search_results": results,
                 "original_claim": claim,
                 "search_query": search_query,
             }
-            
+
         except Exception as e:
             processing_time = time.time() - start_time
-            
+
             tool_usage = ToolUsage(
                 tool_name=tool_instance.name,
                 status="failure",
@@ -273,7 +284,7 @@ Respond in JSON format:
                     "error_type": type(e).__name__,
                 },
             )
-            
+
             return {
                 "tool_usage": tool_usage,
                 "search_results": [],
@@ -287,7 +298,7 @@ Respond in JSON format:
     ) -> List[Dict[str, str]]:
         """Create messages for Self-RAG critique."""
         previous_context = self._get_previous_context(result)
-        
+
         user_prompt = f"""You are a Self-RAG critic using reflection tokens to evaluate content quality.
 
 Text to evaluate:
@@ -298,7 +309,7 @@ Apply Self-RAG's reflection framework:
 
 1. **Overall Assessment** (Reflection Tokens):
    - ISREL: Is the content relevant to its intended purpose?
-   - ISSUP: Is the content supported by evidence or verifiable information?  
+   - ISSUP: Is the content supported by evidence or verifiable information?
    - ISUSE: Is the content useful and valuable for readers?
 
 2. **Detailed Analysis**:
@@ -313,7 +324,7 @@ Apply Self-RAG's reflection framework:
 
 START YOUR RESPONSE WITH THE REFLECTION TOKENS:
 - ISREL: [YES/NO]
-- ISSUP: [YES/PARTIAL/NO]  
+- ISSUP: [YES/PARTIAL/NO]
 - ISUSE: [YES/PARTIAL/NO]
 
 Then provide detailed feedback. List all factual claims that should be verified."""
@@ -328,19 +339,19 @@ Then provide detailed feedback. List all factual claims that should be verified.
     ) -> List[Dict[str, str]]:
         """Create messages that include tool search results."""
         previous_context = self._get_previous_context(result)
-        
+
         # Format tool results
         tool_context = "\n\n**Fact-Checking Results:**\n"
-        for result in tool_results:
-            claim = result.get('original_claim', '')
+        for tool_result in tool_results:
+            claim = tool_result.get("original_claim", "")
             tool_context += f"\nClaim: {claim}\n"
-            
-            search_results = result.get('search_results', [])
+
+            search_results = tool_result.get("search_results", [])
             if search_results:
                 tool_context += "Found information:\n"
                 for i, sr in enumerate(search_results[:3], 1):
-                    title = sr.get('title', '')
-                    snippet = sr.get('snippet', '')
+                    title = sr.get("title", "")
+                    snippet = sr.get("snippet", "")
                     tool_context += f"  {i}. {title}\n"
                     tool_context += f"     {snippet}\n"
             else:
@@ -397,7 +408,7 @@ Then provide your analysis. You MUST include specific corrections for any incorr
 
             response = agent_result.data
 
-            # Get usage data  
+            # Get usage data
             tokens_used = 0
             try:
                 if hasattr(agent_result, "usage"):
@@ -410,17 +421,17 @@ Then provide your analysis. You MUST include specific corrections for any incorr
             # Build feedback
             feedback_parts = [
                 f"ISREL: {response.isrel}",
-                f"ISSUP: {response.issup}", 
+                f"ISSUP: {response.issup}",
                 f"ISUSE: {response.isuse}",
                 "",
-                response.overall_assessment
+                response.overall_assessment,
             ]
-            
+
             if response.specific_issues:
                 feedback_parts.append("\nSpecific issues:")
                 for issue in response.specific_issues:
                     feedback_parts.append(f"- {issue}")
-                    
+
             if response.specific_corrections:
                 feedback_parts.append("\nFactual corrections needed:")
                 for correction in response.specific_corrections:
@@ -444,7 +455,7 @@ Then provide your analysis. You MUST include specific corrections for any incorr
                 processing_time=processing_time,
                 tools_used=[],
             )
-            
+
         except Exception as e:
             return CritiqueResult(
                 critic=self.name,
@@ -457,7 +468,9 @@ Then provide your analysis. You MUST include specific corrections for any incorr
                 temperature_used=self.temperature,
                 prompt_sent=str(messages),
                 tokens_used=0,
-                processing_time=time.time() - start_time if 'start_time' in locals() else 0,
+                processing_time=(
+                    time.time() - start_time if "start_time" in locals() else 0
+                ),
                 tools_used=[],
             )
 

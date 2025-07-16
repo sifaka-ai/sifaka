@@ -49,11 +49,11 @@ from ..llm_client import LLMManager, LLMClient
 
 class ImprovementResponse(BaseModel):
     """Structured response model for text improvements.
-    
+
     This model ensures that improvements are returned in a consistent
     format with metadata about what changes were made. Using structured
     output improves reliability and enables better tracking.
-    
+
     Example:
         >>> response = ImprovementResponse(
         ...     improved_text="The enhanced text with improvements",
@@ -64,7 +64,7 @@ class ImprovementResponse(BaseModel):
         ...     ],
         ...     confidence=0.85
         ... )
-    
+
     Attributes:
         improved_text: The new version of text after improvements
         changes_made: List of specific changes applied (for transparency)
@@ -82,35 +82,35 @@ class ImprovementResponse(BaseModel):
 
 class TextGenerator:
     """Core component for generating improved text based on feedback.
-    
+
     The TextGenerator is responsible for taking the current text and all
     accumulated feedback (from critics and validators) and producing an
     improved version. It uses sophisticated prompt engineering to ensure
     all feedback is addressed while maintaining text coherence.
-    
+
     Key features:
     - Integrates feedback from multiple critics
     - Prioritizes validation failures
     - Deduplicates redundant feedback
     - Tracks improvement confidence
     - Handles critic-specific metadata
-    
+
     Example:
         >>> # Initialize generator
         >>> generator = TextGenerator(
         ...     model="gpt-4",
         ...     temperature=0.7  # Balance creativity and consistency
         ... )
-        >>> 
+        >>>
         >>> # Generate improvement
         >>> text, prompt, tokens, time = await generator.generate_improvement(
         ...     current_text="Current version",
         ...     result=result_with_feedback
         ... )
-        >>> 
+        >>>
         >>> if text:
         ...     print(f"Improved in {time:.2f}s using {tokens} tokens")
-    
+
     The generator uses a carefully crafted system prompt that emphasizes
     iterative improvement and attention to all feedback sources.
     """
@@ -140,10 +140,10 @@ class TextGenerator:
     @property
     def client(self) -> LLMClient:
         """Get or lazily create the LLM client.
-        
+
         Uses lazy initialization to avoid creating clients until needed.
         The client is cached for reuse across multiple improvements.
-        
+
         Returns:
             Configured LLMClient instance for the specified model
         """
@@ -157,7 +157,7 @@ class TextGenerator:
         self, current_text: str, result: SifakaResult, show_prompt: bool = False
     ) -> Tuple[Optional[str], Optional[str], int, float]:
         """Generate an improved version of text based on accumulated feedback.
-        
+
         This is the main method that synthesizes all feedback into a concrete
         improvement. It builds a comprehensive prompt from validation failures
         and critic suggestions, then generates a new version addressing all issues.
@@ -181,11 +181,11 @@ class TextGenerator:
             - prompt_used: The exact prompt sent to the LLM (for debugging)
             - tokens_used: Total tokens consumed (prompt + completion)
             - processing_time: Time in seconds for the generation
-            
+
         Note:
             The method gracefully handles failures by returning None for
             the improved text. The engine will handle retries or termination.
-            
+
         Example:
             >>> # With debugging enabled
             >>> text, prompt, tokens, time = await generator.generate_improvement(
@@ -193,7 +193,7 @@ class TextGenerator:
             ...     result=result_with_feedback,
             ...     show_prompt=True  # See exact prompt
             ... )
-            >>> 
+            >>>
             >>> if text:
             ...     print(f"Improvement generated: {text[:100]}...")
             ... else:
@@ -249,21 +249,21 @@ class TextGenerator:
 
     def _build_improvement_prompt(self, text: str, result: SifakaResult) -> str:
         """Build a comprehensive prompt for text improvement.
-        
+
         Constructs a carefully structured prompt that includes:
         1. Clear instructions for improvement
         2. The current text to improve
         3. Validation failures (highest priority)
         4. Critic feedback (organized by critic)
         5. Specific improvement instructions
-        
+
         The prompt is designed to be clear, actionable, and focused
         on addressing all identified issues.
-        
+
         Args:
             text: Current text to improve
             result: Result object with all feedback
-            
+
         Returns:
             Complete prompt string ready for LLM
         """
@@ -294,16 +294,16 @@ class TextGenerator:
 
     def _format_validation_feedback(self, result: SifakaResult) -> str:
         """Format validation failures into clear requirements.
-        
+
         Validation failures are the highest priority - the improved text
         MUST pass all validations. This method formats them clearly.
-        
+
         Args:
             result: Result containing validation history
-            
+
         Returns:
             Formatted string of validation requirements, empty if all pass
-            
+
         Note:
             Only includes failed validations from recent attempts to
             avoid cluttering the prompt with outdated issues.
@@ -321,18 +321,18 @@ class TextGenerator:
 
     def _format_critique_feedback(self, result: SifakaResult) -> str:
         """Format critic feedback into actionable improvements.
-        
+
         Organizes feedback from multiple critics into a clear structure,
         avoiding duplication and prioritizing specific suggestions.
         Includes critic-specific metadata when it provides actionable
         guidance.
-        
+
         Args:
             result: Result containing critique history
-            
+
         Returns:
             Formatted string of all relevant critic feedback
-            
+
         Design choices:
         - Limits to 5 most recent critiques to prevent prompt bloat
         - Deduplicates feedback from the same critic
@@ -372,7 +372,7 @@ class TextGenerator:
         self, critique: "CritiqueResult", lines: List[str]
     ) -> None:
         """Extract and format critic-specific insights from metadata.
-        
+
         Different critics provide specialized metadata that can guide
         improvements. This method extracts actionable insights while
         avoiding information overload.
@@ -380,12 +380,12 @@ class TextGenerator:
         Args:
             critique: Critique result potentially containing metadata
             lines: List to append formatted insights to
-            
+
         Critic-specific handling:
         - self_rag: Retrieval opportunities for missing information
         - self_refine: Specific refinement targets
         - n_critics: Consensus warnings for major disagreements
-        
+
         Design principle:
         Only include metadata that directly helps improve the text.
         Diagnostic information is excluded to keep prompts focused.
