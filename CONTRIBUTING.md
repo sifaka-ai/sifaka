@@ -34,7 +34,7 @@ By participating in this project, you agree to abide by our Code of Conduct. Ple
 
 ### Prerequisites
 
-- Python 3.9 or higher
+- Python 3.10 or higher
 - uv (recommended) or pip and virtualenv
 
 ### Setting up your environment with uv (Recommended)

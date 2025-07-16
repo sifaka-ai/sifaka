@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Python 3.9 or higher
+- Python 3.10 or higher
 - pip or uv package manager
 
 ## Basic Installation
@@ -130,7 +130,7 @@ If you get authentication errors:
 
 ### Python Version Issues
 
-Sifaka requires Python 3.9+. Check your version:
+Sifaka requires Python 3.10+. Check your version:
 
 ```bash
 python --version

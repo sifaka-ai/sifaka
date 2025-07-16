@@ -2,7 +2,7 @@
 
 **Simple AI text improvement through research-backed critique with complete observability**
 
-[![Python](https://img.shields.io/badge/python-3.9+-blue)](https://python.org)
+[![Python](https://img.shields.io/badge/python-3.10+-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.0.7-blue)](https://github.com/sifaka-ai/sifaka)
 [![CI](https://github.com/sifaka-ai/sifaka/workflows/CI/badge.svg)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
