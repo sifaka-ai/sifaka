@@ -200,7 +200,7 @@ class SelfRAGCritic(BaseCritic):
 Text: {text}
 
 Factual claims to verify:
-{chr(10).join(f'- {claim}' for claim in factual_claims)}
+{chr(10).join(f"- {claim}" for claim in factual_claims)}
 
 Available tools:
 {chr(10).join(tool_descriptions)}

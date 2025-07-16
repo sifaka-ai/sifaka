@@ -326,17 +326,17 @@ class ComposableValidator(BaseValidator):
             orig_detail = rule.detail_func
 
             def make_inverted_check(
-                orig: Callable[[str], bool]
+                orig: Callable[[str], bool],
             ) -> Callable[[str], bool]:
                 return lambda text: not orig(text)
 
             def make_inverted_score(
-                orig: Callable[[str], float]
+                orig: Callable[[str], float],
             ) -> Callable[[str], float]:
                 return lambda text: 1.0 - orig(text)
 
             def make_inverted_detail(
-                orig: Callable[[str], str]
+                orig: Callable[[str], str],
             ) -> Callable[[str], str]:
                 return lambda text: f"NOT ({orig(text)})"
 

@@ -167,10 +167,13 @@ class SifakaEngine:
 
                 # Generate improvement
                 try:
-                    improved_text, prompt, tokens, processing_time = (
-                        await self.generator.generate_improvement(
-                            current_text, result, self.config.show_improvement_prompt
-                        )
+                    (
+                        improved_text,
+                        prompt,
+                        tokens,
+                        processing_time,
+                    ) = await self.generator.generate_improvement(
+                        current_text, result, self.config.show_improvement_prompt
                     )
 
                     if improved_text:

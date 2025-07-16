@@ -221,7 +221,7 @@ class ConstitutionalCritic(BaseCritic):
                 "role": "user",
                 "content": f"""Evaluate the following text against these constitutional principles:
 
-{chr(10).join(f"{i+1}. {p}" for i, p in enumerate(self.principles))}
+{chr(10).join(f"{i + 1}. {p}" for i, p in enumerate(self.principles))}
 
 Text to evaluate:
 {text}

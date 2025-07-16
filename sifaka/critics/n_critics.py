@@ -299,7 +299,7 @@ class NCriticsCritic(BaseCritic):
             self.perspectives = await self._generate_perspectives(text, result)
 
         perspectives_text = "\n".join(
-            f"{i+1}. {perspective}" for i, perspective in enumerate(self.perspectives)
+            f"{i + 1}. {perspective}" for i, perspective in enumerate(self.perspectives)
         )
 
         # Get previous context

@@ -1,4 +1,4 @@
-"""Pattern-based validator for enforcing text structure and content patterns.
+r"""Pattern-based validator for enforcing text structure and content patterns.
 
 This module provides flexible regex-based validation for ensuring text contains
 required patterns, avoids forbidden patterns, and meets structural requirements.
@@ -49,7 +49,7 @@ from ..core.models import ValidationResult, SifakaResult
 
 
 class PatternValidator(Validator):
-    """Validates text against configurable regex patterns.
+    r"""Validates text against configurable regex patterns.
 
     Provides flexible pattern-based validation supporting required patterns,
     forbidden patterns, and pattern count requirements. Useful for enforcing
@@ -93,7 +93,7 @@ class PatternValidator(Validator):
         forbidden_patterns: Optional[Dict[str, str]] = None,
         pattern_counts: Optional[Dict[str, tuple[int, Optional[int]]]] = None,
     ):
-        """Initialize pattern validator with configurable pattern rules.
+        r"""Initialize pattern validator with configurable pattern rules.
 
         Creates a validator that checks text against regex patterns with
         flexible requirements for presence, absence, and occurrence counts.
