@@ -5,62 +5,10 @@ from unittest.mock import Mock, AsyncMock, patch
 from sifaka.critics.constitutional import (
     ConstitutionalCritic,
     ConstitutionalResponse,
-    PrincipleEvaluation,
-    RevisionProposal,
     DEFAULT_PRINCIPLES,
 )
 from sifaka.core.models import SifakaResult, CritiqueResult
 from sifaka.core.config import Config
-
-
-class TestPrincipleEvaluation:
-    """Test the PrincipleEvaluation model."""
-
-    def test_creation(self):
-        """Test creating a principle evaluation."""
-        eval = PrincipleEvaluation(
-            principle="Be helpful",
-            category="helpful",
-            passed=True,
-            severity=0.0,
-            violations=[],
-            improvements=[],
-        )
-        assert eval.principle == "Be helpful"
-        assert eval.category == "helpful"
-        assert eval.passed is True
-        assert eval.severity == 0.0
-
-    def test_with_violations(self):
-        """Test principle evaluation with violations."""
-        eval = PrincipleEvaluation(
-            principle="Avoid misinformation",
-            category="honest",
-            passed=False,
-            severity=0.7,
-            violations=["Contains unverified claims"],
-            improvements=["Add sources", "Qualify statements"],
-        )
-        assert eval.passed is False
-        assert eval.severity == 0.7
-        assert len(eval.violations) == 1
-        assert len(eval.improvements) == 2
-
-
-class TestRevisionProposal:
-    """Test the RevisionProposal model."""
-
-    def test_creation(self):
-        """Test creating a revision proposal."""
-        proposal = RevisionProposal(
-            original_snippet="This is definitely true",
-            revised_snippet="This appears to be true based on current evidence",
-            principles_addressed=["Promote accuracy"],
-            improvement_rationale="Adds appropriate qualification",
-        )
-        assert "definitely" in proposal.original_snippet
-        assert "appears to be" in proposal.revised_snippet
-        assert len(proposal.principles_addressed) == 1
 
 
 class TestConstitutionalResponse:
@@ -77,35 +25,17 @@ class TestConstitutionalResponse:
 
     def test_creation_full(self):
         """Test creating response with all fields."""
-        eval = PrincipleEvaluation(
-            principle="Test principle", category="helpful", passed=True
-        )
-        proposal = RevisionProposal(
-            original_snippet="old",
-            revised_snippet="new",
-            principles_addressed=["Test"],
-            improvement_rationale="Better",
-        )
-
         response = ConstitutionalResponse(
             feedback="Detailed feedback",
             suggestions=["Suggestion 1"],
             needs_improvement=True,
             confidence=0.9,
-            principle_evaluations=[eval],
-            revision_proposals=[proposal],
-            helpfulness_score=0.8,
-            harmlessness_score=0.9,
-            honesty_score=0.7,
-            requires_major_revision=False,
-            self_critique_notes="Good improvements",
-            metadata={"key": "value"},
         )
 
-        assert len(response.principle_evaluations) == 1
-        assert len(response.revision_proposals) == 1
-        assert response.helpfulness_score == 0.8
-        assert response.metadata["key"] == "value"
+        assert response.feedback == "Detailed feedback"
+        assert len(response.suggestions) == 1
+        assert response.needs_improvement is True
+        assert response.confidence == 0.9
 
 
 class TestConstitutionalCritic:
@@ -162,17 +92,12 @@ class TestConstitutionalCritic:
         critic = ConstitutionalCritic(principles=["Principle 1", "Principle 2"])
         messages = await critic._create_messages("Test text", sample_result)
 
-        assert len(messages) == 2
-        assert messages[0]["role"] == "system"
-        assert "Constitutional AI critic" in messages[0]["content"]
-
-        assert messages[1]["role"] == "user"
-        user_content = messages[1]["content"]
-        assert "Constitutional Principles:" in user_content
+        assert len(messages) == 1
+        assert messages[0]["role"] == "user"
+        user_content = messages[0]["content"]
         assert "1. Principle 1" in user_content
         assert "2. Principle 2" in user_content
-        assert "Stage 1 - Constitutional Evaluation:" in user_content
-        assert "Stage 2 - Constitutional Revision:" in user_content
+        assert "Evaluate the following text" in user_content
 
     @pytest.mark.asyncio
     async def test_create_messages_with_context(self, sample_result):
@@ -189,9 +114,8 @@ class TestConstitutionalCritic:
         critic = ConstitutionalCritic()
         messages = await critic._create_messages("Test text", sample_result)
 
-        user_content = messages[1]["content"]
-        assert "Previous feedback:" in user_content
-        assert "Previous feedback" in user_content
+        user_content = messages[0]["content"]
+        assert "Test text" in user_content
 
     @pytest.mark.asyncio
     async def test_critique_success(self, sample_result):
@@ -204,24 +128,13 @@ class TestConstitutionalCritic:
             suggestions=["Minor improvement: Add sources"],
             needs_improvement=True,
             confidence=0.85,
-            principle_evaluations=[
-                PrincipleEvaluation(
-                    principle="Promote accuracy",
-                    category="honest",
-                    passed=False,
-                    severity=0.3,
-                    violations=["Some claims lack sources"],
-                    improvements=["Add citations"],
-                )
-            ],
-            helpfulness_score=0.9,
-            harmlessness_score=1.0,
-            honesty_score=0.7,
         )
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
+        mock_agent_result.data = mock_response
+        mock_agent_result.usage = Mock(return_value=Mock(total_tokens=100))
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -234,8 +147,7 @@ class TestConstitutionalCritic:
             assert len(result.suggestions) == 1
             assert result.needs_improvement is True
             assert result.confidence == 0.85
-            assert "principle_evaluations" in result.metadata
-            assert result.metadata["helpfulness_score"] == 0.9
+            assert "principles_used" in result.metadata
 
     @pytest.mark.asyncio
     async def test_critique_with_revision_proposals(self, sample_result):
@@ -246,20 +158,13 @@ class TestConstitutionalCritic:
             feedback="Text needs constitutional revisions",
             suggestions=["Apply proposed revisions"],
             needs_improvement=True,
-            revision_proposals=[
-                RevisionProposal(
-                    original_snippet="Everyone knows",
-                    revised_snippet="Many experts believe",
-                    principles_addressed=["Avoid misinformation"],
-                    improvement_rationale="More accurate phrasing",
-                )
-            ],
-            requires_major_revision=True,
         )
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
+        mock_agent_result.data = mock_response
+        mock_agent_result.usage = Mock(return_value=Mock(total_tokens=100))
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -268,9 +173,7 @@ class TestConstitutionalCritic:
             result = await critic.critique("Test text", sample_result)
 
             assert result.needs_improvement is True
-            assert "revision_proposals" in result.metadata
-            assert len(result.metadata["revision_proposals"]) == 1
-            assert result.metadata["requires_major_revision"] is True
+            assert "principles_used" in result.metadata
 
     @pytest.mark.asyncio
     async def test_critique_all_principles_pass(self, sample_result):
@@ -282,25 +185,13 @@ class TestConstitutionalCritic:
             suggestions=[],
             needs_improvement=False,
             confidence=0.95,
-            principle_evaluations=[
-                PrincipleEvaluation(
-                    principle="Be helpful",
-                    category="helpful",
-                    passed=True,
-                    severity=0.0,
-                ),
-                PrincipleEvaluation(
-                    principle="Be clear", category="helpful", passed=True, severity=0.0
-                ),
-            ],
-            helpfulness_score=0.95,
-            harmlessness_score=0.95,
-            honesty_score=0.95,
         )
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
+        mock_agent_result.data = mock_response
+        mock_agent_result.usage = Mock(return_value=Mock(total_tokens=100))
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)

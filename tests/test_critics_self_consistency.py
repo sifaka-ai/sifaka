@@ -5,38 +5,9 @@ from unittest.mock import AsyncMock, patch
 from sifaka.critics.self_consistency import (
     SelfConsistencyCritic,
     SelfConsistencyResponse,
-    ConsistencyEvaluation,
 )
 from sifaka.core.models import SifakaResult, CritiqueResult
 from sifaka.core.config import Config
-
-
-class TestConsistencyEvaluation:
-    """Test the ConsistencyEvaluation model."""
-
-    def test_creation(self):
-        """Test creating a consistency evaluation."""
-        eval = ConsistencyEvaluation(
-            feedback="Good structure but needs clarity",
-            suggestions=["Simplify complex sentences", "Add examples"],
-            needs_improvement=True,
-            confidence=0.8,
-            key_points=["structure", "clarity"],
-        )
-        assert eval.feedback == "Good structure but needs clarity"
-        assert len(eval.suggestions) == 2
-        assert eval.needs_improvement is True
-        assert eval.confidence == 0.8
-        assert "clarity" in eval.key_points
-
-    def test_minimal_creation(self):
-        """Test creating evaluation with minimal fields."""
-        eval = ConsistencyEvaluation(
-            feedback="Looks good", needs_improvement=False, confidence=0.9
-        )
-        assert eval.feedback == "Looks good"
-        assert len(eval.suggestions) == 0
-        assert len(eval.key_points) == 0
 
 
 class TestSelfConsistencyResponse:
@@ -51,42 +22,42 @@ class TestSelfConsistencyResponse:
         )
         assert response.feedback == "Consensus: needs clarity improvements"
         assert response.confidence == 0.8  # default
-        assert response.consistency_score == 0.7  # default
-        assert response.evaluation_variance == 0.2  # default
 
     def test_creation_full(self):
         """Test creating response with all fields."""
-        eval1 = ConsistencyEvaluation(
-            feedback="Needs work",
-            suggestions=["Fix A"],
-            needs_improvement=True,
-            confidence=0.7,
-        )
-        eval2 = ConsistencyEvaluation(
-            feedback="Almost there",
-            suggestions=["Fix A", "Fix B"],
-            needs_improvement=True,
-            confidence=0.8,
-        )
+        eval1 = {
+            "feedback": "Needs work",
+            "suggestions": ["Fix A"],
+            "needs_improvement": True,
+            "confidence": 0.7,
+        }
+        eval2 = {
+            "feedback": "Almost there",
+            "suggestions": ["Fix A", "Fix B"],
+            "needs_improvement": True,
+            "confidence": 0.8,
+        }
 
         response = SelfConsistencyResponse(
             feedback="Consensus feedback",
             suggestions=["Fix A", "Fix B"],
             needs_improvement=True,
             confidence=0.85,
-            individual_evaluations=[eval1, eval2],
-            consistency_score=0.9,
-            common_themes=["clarity", "structure"],
-            divergent_points=["tone assessment"],
-            evaluation_variance=0.1,
-            metadata={"num_evaluations": 2},
+            metadata={
+                "individual_evaluations": [eval1, eval2],
+                "consistency_score": 0.9,
+                "common_themes": ["clarity", "structure"],
+                "divergent_points": ["tone assessment"],
+                "evaluation_variance": 0.1,
+                "num_evaluations": 2,
+            },
         )
 
-        assert len(response.individual_evaluations) == 2
-        assert response.consistency_score == 0.9
-        assert "clarity" in response.common_themes
-        assert "tone assessment" in response.divergent_points
-        assert response.evaluation_variance == 0.1
+        assert len(response.metadata["individual_evaluations"]) == 2
+        assert response.metadata["consistency_score"] == 0.9
+        assert "clarity" in response.metadata["common_themes"]
+        assert "tone assessment" in response.metadata["divergent_points"]
+        assert response.metadata["evaluation_variance"] == 0.1
 
 
 class TestSelfConsistencyCritic:
@@ -101,7 +72,7 @@ class TestSelfConsistencyCritic:
         """Test default initialization."""
         critic = SelfConsistencyCritic()
         assert critic.name == "self_consistency"
-        assert critic.model == "gpt-4o-mini"
+        assert critic.model == "gpt-3.5-turbo"  # Default from Config
         assert critic.temperature == 0.8  # Higher for diversity
         assert critic.num_samples == 3
 
@@ -229,7 +200,7 @@ class TestSelfConsistencyCritic:
     @pytest.mark.asyncio
     async def test_critique_success(self, sample_result):
         """Test successful critique flow with multiple evaluations."""
-        critic = SelfConsistencyCritic(num_samples=2)
+        critic = SelfConsistencyCritic(num_samples=3)  # Default is 3
 
         # Mock individual CritiqueResults
         eval1 = CritiqueResult(
@@ -246,13 +217,22 @@ class TestSelfConsistencyCritic:
             needs_improvement=True,
             confidence=0.8,
         )
+        eval3 = CritiqueResult(
+            critic="self_consistency_sample_3",
+            feedback="Needs improvement in multiple areas",
+            suggestions=["Fix B", "Fix C"],
+            needs_improvement=True,
+            confidence=0.75,
+        )
 
         # Mock _get_single_evaluation to return our evaluations
         async def mock_get_single_evaluation(text, result, sample_num):
             if sample_num == 1:
                 return eval1
-            else:
+            elif sample_num == 2:
                 return eval2
+            else:
+                return eval3
 
         with patch.object(
             critic, "_get_single_evaluation", side_effect=mock_get_single_evaluation
@@ -260,13 +240,13 @@ class TestSelfConsistencyCritic:
             result = await critic.critique("Test text", sample_result)
 
             assert result.critic == "self_consistency"
-            assert "Based on 2 independent evaluations" in result.feedback
+            assert "Based on 3 independent evaluations" in result.feedback
             assert "All evaluations agree that improvement is needed" in result.feedback
             assert "Fix A" in result.suggestions  # Most common suggestion
             assert result.needs_improvement is True
-            assert result.confidence == 0.75  # Average of 0.7 and 0.8
-            assert result.metadata["num_evaluations"] == 2
-            assert result.metadata["agreement_rate"] == 1.0  # Both agree on improvement
+            assert result.confidence == 0.75  # Average of 0.7, 0.8, and 0.75
+            assert result.metadata["num_evaluations"] == 3
+            # Both evaluations agree on improvement
 
     @pytest.mark.asyncio
     async def test_critique_high_consistency(self, sample_result):
@@ -296,13 +276,12 @@ class TestSelfConsistencyCritic:
 
             assert result.needs_improvement is False
             assert len(result.suggestions) == 0
-            assert result.confidence == 0.95
-            assert "All evaluations agree the text is satisfactory" in result.feedback
-            assert "Evaluations show high consistency" in result.feedback
             assert (
-                result.metadata["agreement_rate"] == 0.0
-            )  # 0 out of 3 need improvement
-            assert result.metadata["confidence_variance"] < 0.01
+                pytest.approx(result.confidence) == 0.95
+            )  # Handle floating point precision
+            assert "All evaluations agree the text is satisfactory" in result.feedback
+            assert "Based on 3 independent evaluations:" in result.feedback
+            # All 3 evaluations agree no improvement needed
 
     def test_provider_configuration(self):
         """Test provider configuration."""

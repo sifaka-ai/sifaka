@@ -50,13 +50,15 @@ it via setuptools entry points:
 4. Failed plugins are logged but don't stop discovery
 """
 
-from typing import Dict, Type, List, Any
+from typing import Dict, Type, List, Any, cast
 
 try:
     from importlib import metadata
+    from importlib.metadata import EntryPoints
 except ImportError:
     # Python 3.7 compatibility
     import importlib_metadata as metadata  # type: ignore[no-redef]
+    from importlib_metadata import EntryPoints  # type: ignore[no-redef]
 
 from ..storage.base import StorageBackend
 
@@ -246,7 +248,9 @@ class PluginRegistry:
                 storage_entries = entry_points.select(group="sifaka.storage")
             else:
                 # Python 3.8-3.9
-                storage_entries = entry_points.get("sifaka.storage", [])
+                storage_entries = cast(
+                    EntryPoints, entry_points.get("sifaka.storage", [])
+                )
 
             for entry_point in storage_entries:
                 try:

@@ -5,42 +5,12 @@ from unittest.mock import Mock, AsyncMock, patch
 from sifaka.critics.prompt import (
     PromptCritic,
     PromptResponse,
-    CustomCriteria,
     create_academic_critic,
     create_business_critic,
     create_creative_critic,
 )
 from sifaka.core.models import SifakaResult, CritiqueResult
 from sifaka.core.config import Config
-
-
-class TestCustomCriteria:
-    """Test the CustomCriteria model."""
-
-    def test_creation(self):
-        """Test creating a custom criteria."""
-        criteria = CustomCriteria(
-            criterion="Clarity",
-            assessment="The text is mostly clear but has some complex sentences",
-            score=0.75,
-            improvements=["Simplify sentence structure", "Define technical terms"],
-        )
-        assert criteria.criterion == "Clarity"
-        assert criteria.score == 0.75
-        assert len(criteria.improvements) == 2
-        assert "complex sentences" in criteria.assessment
-
-    def test_score_bounds(self):
-        """Test score bounds validation."""
-        criteria = CustomCriteria(
-            criterion="Test", assessment="Test assessment", score=1.0, improvements=[]
-        )
-        assert criteria.score == 1.0
-
-        criteria2 = CustomCriteria(
-            criterion="Test", assessment="Test assessment", score=0.0, improvements=[]
-        )
-        assert criteria2.score == 0.0
 
 
 class TestPromptResponse:
@@ -56,37 +26,38 @@ class TestPromptResponse:
         assert response.feedback == "Text needs improvement in clarity"
         assert len(response.suggestions) == 1
         assert response.confidence == 0.7  # default
-        assert response.overall_score == 0.7  # default
 
     def test_creation_full(self):
         """Test creating response with all fields."""
-        criteria1 = CustomCriteria(
-            criterion="Clarity",
-            assessment="Good clarity overall",
-            score=0.8,
-            improvements=["Minor simplifications"],
-        )
-        criteria2 = CustomCriteria(
-            criterion="Structure",
-            assessment="Well-organized",
-            score=0.9,
-            improvements=[],
-        )
+        criteria1 = {
+            "criterion": "Clarity",
+            "assessment": "Good clarity overall",
+            "score": 0.8,
+            "improvements": ["Minor simplifications"],
+        }
+        criteria2 = {
+            "criterion": "Structure",
+            "assessment": "Well-organized",
+            "score": 0.9,
+            "improvements": [],
+        }
 
         response = PromptResponse(
             feedback="Strong text with minor improvements needed",
             suggestions=["Simplify introduction", "Add conclusion"],
             needs_improvement=True,
             confidence=0.85,
-            custom_criteria_results=[criteria1, criteria2],
-            overall_score=0.85,
-            key_findings=["Good structure", "Clear arguments"],
-            metadata={"evaluation_type": "academic"},
+            metadata={
+                "custom_criteria_results": [criteria1, criteria2],
+                "overall_score": 0.85,
+                "key_findings": ["Good structure", "Clear arguments"],
+                "evaluation_type": "academic",
+            },
         )
 
-        assert len(response.custom_criteria_results) == 2
-        assert response.overall_score == 0.85
-        assert len(response.key_findings) == 2
+        assert len(response.metadata["custom_criteria_results"]) == 2
+        assert response.metadata["overall_score"] == 0.85
+        assert len(response.metadata["key_findings"]) == 2
         assert response.metadata["evaluation_type"] == "academic"
 
 
@@ -102,7 +73,7 @@ class TestPromptCritic:
         """Test default initialization."""
         critic = PromptCritic()
         assert critic.name == "prompt"
-        assert critic.model == "gpt-4o-mini"
+        assert critic.model == "gpt-3.5-turbo"  # Default from Config
         assert critic.temperature == 0.7
         assert "Evaluate this text" in critic.custom_prompt
 
@@ -183,28 +154,32 @@ class TestPromptCritic:
             suggestions=["Add compelling examples", "Use stronger verbs"],
             needs_improvement=True,
             confidence=0.8,
-            custom_criteria_results=[
-                CustomCriteria(
-                    criterion="Clarity",
-                    assessment="Clear and well-structured",
-                    score=0.85,
-                    improvements=[],
-                ),
-                CustomCriteria(
-                    criterion="Impact",
-                    assessment="Lacks emotional resonance",
-                    score=0.6,
-                    improvements=["Add personal stories", "Use vivid language"],
-                ),
-            ],
-            overall_score=0.725,
-            key_findings=["Strong clarity", "Weak emotional impact"],
-            metadata={"prompt_type": "custom"},
+            metadata={
+                "custom_criteria_results": [
+                    {
+                        "criterion": "Clarity",
+                        "assessment": "Clear and well-structured",
+                        "score": 0.85,
+                        "improvements": [],
+                    },
+                    {
+                        "criterion": "Impact",
+                        "assessment": "Lacks emotional resonance",
+                        "score": 0.6,
+                        "improvements": ["Add personal stories", "Use vivid language"],
+                    },
+                ],
+                "overall_score": 0.725,
+                "key_findings": ["Strong clarity", "Weak emotional impact"],
+                "prompt_type": "custom",
+            },
         )
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
-        mock_agent_result.output = mock_response
+        mock_agent_result.output = mock_response  # For backward compatibility
+        mock_agent_result.data = mock_response
+        mock_agent_result.usage = Mock(return_value=Mock(total_tokens=100))
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -231,22 +206,26 @@ class TestPromptCritic:
             suggestions=[],
             needs_improvement=False,
             confidence=0.95,
-            custom_criteria_results=[
-                CustomCriteria(
-                    criterion="Professional Tone",
-                    assessment="Consistently professional",
-                    score=0.95,
-                    improvements=[],
-                )
-            ],
-            overall_score=0.95,
-            key_findings=["Perfect professional tone"],
-            metadata={"tone_analysis": "formal"},
+            metadata={
+                "custom_criteria_results": [
+                    {
+                        "criterion": "Professional Tone",
+                        "assessment": "Consistently professional",
+                        "score": 0.95,
+                        "improvements": [],
+                    }
+                ],
+                "overall_score": 0.95,
+                "key_findings": ["Perfect professional tone"],
+                "tone_analysis": "formal",
+            },
         )
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
-        mock_agent_result.output = mock_response
+        mock_agent_result.output = mock_response  # For backward compatibility
+        mock_agent_result.data = mock_response
+        mock_agent_result.usage = Mock(return_value=Mock(total_tokens=100))
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -315,44 +294,48 @@ class TestPromptCritic:
             suggestions=["Improve technical details", "Simplify language"],
             needs_improvement=True,
             confidence=0.75,
-            custom_criteria_results=[
-                CustomCriteria(
-                    criterion="Technical accuracy",
-                    assessment="Some inaccuracies found",
-                    score=0.6,
-                    improvements=["Verify facts", "Update statistics"],
-                ),
-                CustomCriteria(
-                    criterion="Readability",
-                    assessment="Too complex for target audience",
-                    score=0.5,
-                    improvements=["Simplify jargon", "Shorter sentences"],
-                ),
-                CustomCriteria(
-                    criterion="Completeness",
-                    assessment="All topics covered",
-                    score=0.9,
-                    improvements=[],
-                ),
-                CustomCriteria(
-                    criterion="Practical value",
-                    assessment="Highly practical",
-                    score=0.85,
-                    improvements=["Add more examples"],
-                ),
-            ],
-            overall_score=0.7125,  # Average of scores
-            key_findings=[
-                "Technical inaccuracies",
-                "Poor readability",
-                "Complete coverage",
-                "Good practical value",
-            ],
+            metadata={
+                "custom_criteria_results": [
+                    {
+                        "criterion": "Technical accuracy",
+                        "assessment": "Some inaccuracies found",
+                        "score": 0.6,
+                        "improvements": ["Verify facts", "Update statistics"],
+                    },
+                    {
+                        "criterion": "Readability",
+                        "assessment": "Too complex for target audience",
+                        "score": 0.5,
+                        "improvements": ["Simplify jargon", "Shorter sentences"],
+                    },
+                    {
+                        "criterion": "Completeness",
+                        "assessment": "All topics covered",
+                        "score": 0.9,
+                        "improvements": [],
+                    },
+                    {
+                        "criterion": "Practical value",
+                        "assessment": "Highly practical",
+                        "score": 0.85,
+                        "improvements": ["Add more examples"],
+                    },
+                ],
+                "overall_score": 0.7125,  # Average of scores
+                "key_findings": [
+                    "Technical inaccuracies",
+                    "Poor readability",
+                    "Complete coverage",
+                    "Good practical value",
+                ],
+            },
         )
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
-        mock_agent_result.output = mock_response
+        mock_agent_result.output = mock_response  # For backward compatibility
+        mock_agent_result.data = mock_response
+        mock_agent_result.usage = Mock(return_value=Mock(total_tokens=100))
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)

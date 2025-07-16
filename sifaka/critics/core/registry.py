@@ -1,7 +1,8 @@
 """Dynamic critic registry for extensibility."""
 
-from typing import Dict, Type, Optional, List
+from typing import Dict, Type, Optional, List, cast
 import importlib.metadata
+from importlib.metadata import EntryPoints
 
 from ...core.interfaces import Critic
 from ...core.constants import ENTRY_POINT_CRITICS
@@ -67,11 +68,13 @@ class CriticRegistry:
                 critic_eps = entry_points.select(group=ENTRY_POINT_CRITICS)
             else:
                 # Fallback for different versions
-                critic_eps = entry_points.get(ENTRY_POINT_CRITICS, [])
+                critic_eps = cast(
+                    EntryPoints, entry_points.get(ENTRY_POINT_CRITICS, [])
+                )
         except AttributeError:
             # Python 3.9 compatibility
             entry_points = importlib.metadata.entry_points()
-            critic_eps = entry_points.get(ENTRY_POINT_CRITICS, [])
+            critic_eps = cast(EntryPoints, entry_points.get(ENTRY_POINT_CRITICS, []))
 
         for ep in critic_eps:
             try:

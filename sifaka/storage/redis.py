@@ -22,13 +22,13 @@ from datetime import datetime
 
 try:
     import redis.asyncio as redis
-    from redis.commands.search.field import (  # type: ignore
+    from redis.commands.search.field import (  # type: ignore[import-untyped]
         TextField,
         NumericField,
         TagField,
         VectorField,
     )
-    from redis.commands.search.index_definition import IndexDefinition, IndexType  # type: ignore
+    from redis.commands.search.index_definition import IndexDefinition, IndexType  # type: ignore[import-untyped]
     from redis.commands.search.query import Query
     import numpy as np
 
@@ -122,7 +122,7 @@ class RedisStorage(StorageBackend):
 
             self._embedding_generator = get_embedding_generator(model=embedding_model)
 
-    async def _get_client(self) -> redis.Redis:
+    async def _get_client(self) -> "redis.Redis[str]":
         """Get or create Redis client."""
         if self._client is None:
             self._client = redis.Redis(
@@ -382,7 +382,13 @@ class RedisStorage(StorageBackend):
         result_ids = await client.lrange(list_key, offset, offset + limit - 1)
 
         # Return result IDs
-        return [rid.decode() if isinstance(rid, bytes) else rid for rid in result_ids]
+        decoded_ids = []
+        for rid in result_ids:
+            if isinstance(rid, bytes):  # type: ignore[unreachable]
+                decoded_ids.append(rid.decode())  # type: ignore[unreachable]
+            else:
+                decoded_ids.append(str(rid))
+        return decoded_ids
 
     async def delete(self, result_id: str) -> bool:
         """Delete a result from Redis."""

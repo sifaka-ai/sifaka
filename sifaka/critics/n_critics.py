@@ -54,7 +54,7 @@ This approach is particularly valuable for complex content requiring
 comprehensive evaluation from multiple expert angles.
 """
 
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict, Union, Any
 from pydantic import BaseModel, Field
 
 from ..core.models import SifakaResult
@@ -105,6 +105,9 @@ class NCriticsResponse(BaseModel):
         ge=0.0,
         le=1.0,
         description="Overall consensus score from all perspectives",
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional n-critics data"
     )
 
 
