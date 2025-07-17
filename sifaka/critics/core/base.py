@@ -307,7 +307,15 @@ class BaseCritic(Critic, ABC):
             start_time = time.time()
             agent_result = await agent.run(user_prompt)
             processing_time = time.time() - start_time
-            critic_response = agent_result.output
+            critic_response: Any = agent_result.output
+
+            # Ensure we have the correct response type
+            if isinstance(critic_response, str):
+                # If pydantic-ai returns a string, create a proper response
+                response_type = self._get_response_type()
+                critic_response = response_type(
+                    feedback=critic_response, suggestions=[], needs_improvement=True
+                )
 
             # Get actual usage data
             tokens_used = 0
@@ -315,30 +323,39 @@ class BaseCritic(Critic, ABC):
                 if hasattr(agent_result, "usage"):
                     usage = agent_result.usage()  # Call as function
                     if usage and hasattr(usage, "total_tokens"):
-                        tokens_used = usage.total_tokens
+                        tokens_used = getattr(usage, "total_tokens", 0)
             except Exception:
                 # Fallback if usage() call fails
                 tokens_used = 0
 
             # Calculate confidence if not provided
-            if critic_response.confidence == 0.7:  # Default value
+            if (
+                hasattr(critic_response, "confidence")
+                and critic_response.confidence == 0.7
+            ):  # Default value
                 # Pass needs_improvement in metadata for smarter confidence calculation
                 # Handle response models that may not have a metadata field
                 calc_metadata = {}
                 if hasattr(critic_response, "metadata") and critic_response.metadata:
                     calc_metadata = critic_response.metadata.copy()
-                calc_metadata["needs_improvement"] = critic_response.needs_improvement
+                calc_metadata["needs_improvement"] = getattr(
+                    critic_response, "needs_improvement", True
+                )
 
                 critic_response.confidence = self._confidence_calc.calculate(
-                    feedback=critic_response.feedback,
-                    suggestions=critic_response.suggestions,
+                    feedback=getattr(critic_response, "feedback", ""),
+                    suggestions=getattr(critic_response, "suggestions", []),
                     response_length=len(str(critic_response)),
                     metadata=calc_metadata,
                 )
 
             # Create result with all metadata
             # Convert the entire response to dict to preserve all fields
-            response_dict = critic_response.model_dump()
+            response_dict = (
+                critic_response.model_dump()
+                if hasattr(critic_response, "model_dump")
+                else {}
+            )
 
             # Extract standard fields
             # Pop metadata if it exists to avoid nesting

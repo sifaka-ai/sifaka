@@ -232,7 +232,13 @@ Respond in JSON format:
             )
 
             result = await agent.run(prompt)
-            return result.data.model_dump() if result.data else None
+            output = result.output
+            if hasattr(output, "model_dump"):
+                return output.model_dump()  # type: ignore[no-any-return]
+            elif isinstance(output, dict):  # type: ignore[unreachable]
+                return output  # type: ignore[unreachable]
+            else:
+                return None
         except Exception:
             # Default to web search if LLM fails
             return {
@@ -406,7 +412,7 @@ Then provide your analysis. You MUST include specific corrections for any incorr
             agent_result = await agent.run(messages[1]["content"])
             processing_time = time.time() - start_time
 
-            response = agent_result.data
+            response = agent_result.output
 
             # Get usage data
             tokens_used = 0
@@ -414,38 +420,60 @@ Then provide your analysis. You MUST include specific corrections for any incorr
                 if hasattr(agent_result, "usage"):
                     usage = agent_result.usage()
                     if usage and hasattr(usage, "total_tokens"):
-                        tokens_used = usage.total_tokens
+                        tokens_used = getattr(usage, "total_tokens", 0)
             except Exception:
                 tokens_used = 0
 
-            # Build feedback
-            feedback_parts = [
-                f"ISREL: {response.isrel}",
-                f"ISSUP: {response.issup}",
-                f"ISUSE: {response.isuse}",
+            # Handle case where response is a string
+            if isinstance(response, str):
+                # Create a basic response
+                return CritiqueResult(
+                    critic=self.name,
+                    feedback=response,
+                    suggestions=[],
+                    needs_improvement=True,
+                    confidence=0.7,
+                    metadata={
+                        "retrieval_opportunities": [],
+                        "factual_claims": [],
+                        "tokens_used": tokens_used,
+                        "processing_time": processing_time,
+                    },
+                )
+
+            # Build feedback for structured response
+            feedback_parts = [  # type: ignore[unreachable]
+                f"ISREL: {getattr(response, 'isrel', 'N/A')}",
+                f"ISSUP: {getattr(response, 'issup', 'N/A')}",
+                f"ISUSE: {getattr(response, 'isuse', 'N/A')}",
                 "",
-                response.overall_assessment,
+                getattr(response, "overall_assessment", ""),
             ]
 
-            if response.specific_issues:
+            specific_issues = getattr(response, "specific_issues", None)
+            if specific_issues:
                 feedback_parts.append("\nSpecific issues:")
-                for issue in response.specific_issues:
+                for issue in specific_issues:
                     feedback_parts.append(f"- {issue}")
 
-            if response.specific_corrections:
+            specific_corrections = getattr(response, "specific_corrections", None)
+            if specific_corrections:
                 feedback_parts.append("\nFactual corrections needed:")
-                for correction in response.specific_corrections:
+                for correction in specific_corrections:
                     feedback_parts.append(f"- {correction}")
 
             return CritiqueResult(
                 critic=self.name,
                 feedback="\n".join(feedback_parts),
-                suggestions=response.improvement_suggestions or [],
-                needs_improvement=response.needs_improvement,
-                confidence=response.confidence_score,
+                suggestions=getattr(response, "improvement_suggestions", []) or [],
+                needs_improvement=getattr(response, "needs_improvement", True),
+                confidence=getattr(response, "confidence_score", 0.7),
                 metadata={
-                    "retrieval_opportunities": response.retrieval_opportunities or [],
-                    "factual_claims": response.factual_claims or [],
+                    "retrieval_opportunities": getattr(
+                        response, "retrieval_opportunities", []
+                    )
+                    or [],
+                    "factual_claims": getattr(response, "factual_claims", []) or [],
                 },
                 timestamp=datetime.now(),
                 model_used=self.model,

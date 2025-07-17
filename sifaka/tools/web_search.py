@@ -7,7 +7,7 @@ using DuckDuckGo's HTML interface for search results.
 import httpx
 import urllib.parse
 from typing import List, Dict, Any
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from .base import ToolInterface
 from .registry import ToolRegistry
@@ -82,17 +82,25 @@ class WebSearchTool(ToolInterface):
                     if len(results) >= self.max_results:
                         break
 
+                    # Ensure result_div is a Tag
+                    if not isinstance(result_div, Tag):
+                        continue
+
                     # Extract title and URL
                     title_elem = result_div.find("a", class_="result__a")
-                    if not title_elem:
+                    if not title_elem or not isinstance(title_elem, Tag):
                         continue
 
                     title = title_elem.get_text(strip=True)
-                    url = title_elem.get("href", "")
+                    url = str(title_elem.get("href", ""))
 
                     # Extract snippet
                     snippet_elem = result_div.find("a", class_="result__snippet")
-                    snippet = snippet_elem.get_text(strip=True) if snippet_elem else ""
+                    snippet = (
+                        snippet_elem.get_text(strip=True)
+                        if snippet_elem and isinstance(snippet_elem, Tag)
+                        else ""
+                    )
 
                     if title and url:
                         results.append(

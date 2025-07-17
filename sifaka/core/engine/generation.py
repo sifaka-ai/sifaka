@@ -229,19 +229,25 @@ class TextGenerator:
                 if hasattr(agent_result, "usage"):
                     usage = agent_result.usage()  # Call as function
                     if usage and hasattr(usage, "total_tokens"):
-                        tokens_used = usage.total_tokens
+                        tokens_used = getattr(usage, "total_tokens", 0)
             except Exception:
                 # Fallback if usage() call fails
                 tokens_used = 0
 
-            # Validate improvement
-            if (
-                not improvement.improved_text
-                or improvement.improved_text == current_text
-            ):
+            # Handle case where improvement is a string
+            if isinstance(improvement, str):
+                # If it's just a string, that's the improved text
+                if improvement and improvement != current_text:
+                    return improvement, prompt, tokens_used, processing_time
+                else:
+                    return None, prompt, tokens_used, processing_time
+
+            # Validate improvement for structured response
+            improved_text = getattr(improvement, "improved_text", None)  # type: ignore[unreachable]
+            if not improved_text or improved_text == current_text:
                 return None, prompt, tokens_used, processing_time
 
-            return improvement.improved_text, prompt, tokens_used, processing_time
+            return improved_text, prompt, tokens_used, processing_time
 
         except Exception:
             # Return None on error, let engine handle it

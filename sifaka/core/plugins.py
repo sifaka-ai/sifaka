@@ -58,7 +58,7 @@ try:
 except ImportError:
     # Python 3.7 compatibility
     import importlib_metadata as metadata  # type: ignore[no-redef]
-    from importlib_metadata import EntryPoints  # type: ignore[no-redef]
+    from importlib_metadata import EntryPoints  # type: ignore[assignment,no-redef]
 
 from ..storage.base import StorageBackend
 

@@ -580,7 +580,7 @@ class RedisStorage(StorageBackend):
         if self._client is None:
             return []
         results = self._client.ft(index_name).search(
-            knn_query, query_params={"vec": query_vector}
+            knn_query, query_params={"vec": query_vector}  # type: ignore[dict-item]
         )
 
         # Filter by similarity threshold and return IDs

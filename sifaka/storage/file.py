@@ -50,7 +50,7 @@ All file operations are wrapped with appropriate error handling:
 """
 
 import json
-import aiofiles
+import aiofiles  # type: ignore[import-untyped]
 from pathlib import Path
 from typing import Optional, List
 from datetime import datetime

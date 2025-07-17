@@ -5,7 +5,7 @@ Provides access to arXiv's repository of scientific papers across multiple disci
 
 import httpx
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 
 from .base import ToolInterface
 from .registry import ToolRegistry
@@ -63,7 +63,7 @@ class ArxivTool(ToolInterface):
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 # Build search query
-                params = {
+                params: Dict[str, Union[str, int]] = {
                     "search_query": query,
                     "start": 0,
                     "max_results": self.max_results,

@@ -5,7 +5,7 @@ Provides direct access to Wikipedia content without external dependencies.
 
 import httpx
 import urllib.parse
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 
 from .base import ToolInterface
 from .registry import ToolRegistry
@@ -63,7 +63,7 @@ class WikipediaTool(ToolInterface):
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 # First, search for relevant articles
-                search_params = {
+                search_params: Dict[str, Union[str, int]] = {
                     "action": "query",
                     "format": "json",
                     "list": "search",
