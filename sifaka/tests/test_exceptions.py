@@ -1,15 +1,15 @@
 """Tests for custom exceptions in sifaka.core.exceptions."""
 
 from sifaka.core.exceptions import (
-    SifakaError,
     ConfigurationError,
-    ModelProviderError,
     CriticError,
-    ValidationError,
-    StorageError,
-    PluginError,
-    TimeoutError,
     MemoryError,
+    ModelProviderError,
+    PluginError,
+    SifakaError,
+    StorageError,
+    TimeoutError,
+    ValidationError,
     classify_openai_error,
 )
 

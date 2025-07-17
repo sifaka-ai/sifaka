@@ -44,13 +44,14 @@ The critic ships with sensible defaults covering:
 These can be customized for specific domains or organizational needs.
 """
 
-from typing import Optional, Union, List, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
-from ..core.models import SifakaResult, CritiqueResult
-from ..core.llm_client import Provider
-from .core.base import BaseCritic
 from ..core.config import Config
+from ..core.llm_client import Provider
+from ..core.models import CritiqueResult, SifakaResult
+from .core.base import BaseCritic
 
 if TYPE_CHECKING:
     from ..core.models import SifakaResult

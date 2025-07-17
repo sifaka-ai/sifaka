@@ -5,7 +5,8 @@ Constitutional AI evaluates text against a set of principles for safety and qual
 
 import asyncio
 import os
-from sifaka import improve, Config
+
+from sifaka import Config, improve
 from sifaka.storage.file import FileStorage
 
 

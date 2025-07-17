@@ -1,7 +1,8 @@
 """Comprehensive tests for different model providers."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 
 from sifaka import improve
 from sifaka.core.models import SifakaResult
@@ -14,9 +15,9 @@ class TestOpenAIModels:
     async def test_gpt4_model(self):
         """Test GPT-4 model integration."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: GPT-4 analysis complete."
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: GPT-4 analysis complete."
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -200,9 +201,9 @@ class TestAnthropicModels:
     async def test_claude3_sonnet_model(self):
         """Test Claude-3 Sonnet model integration."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Claude-3 Sonnet analysis."
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Claude-3 Sonnet analysis."
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -222,9 +223,9 @@ class TestAnthropicModels:
     async def test_claude3_haiku_model(self):
         """Test Claude-3 Haiku model integration."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Claude-3 Haiku analysis."
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Claude-3 Haiku analysis."
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -248,9 +249,9 @@ class TestGoogleModels:
     async def test_gemini_15_pro_model(self):
         """Test Gemini 1.5 Pro model integration."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Gemini 1.5 Pro analysis."
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Gemini 1.5 Pro analysis."
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -270,9 +271,9 @@ class TestGoogleModels:
     async def test_gemini_15_flash_model(self):
         """Test Gemini 1.5 Flash model integration."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Gemini 1.5 Flash analysis."
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Gemini 1.5 Flash analysis."
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()

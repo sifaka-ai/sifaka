@@ -54,14 +54,14 @@ This approach is particularly valuable for complex content requiring
 comprehensive evaluation from multiple expert angles.
 """
 
-from typing import List, Optional, Dict, Union, Any
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
-from ..core.models import SifakaResult
-from ..core.llm_client import Provider
 from ..core.config import Config
+from ..core.llm_client import Provider
+from ..core.models import SifakaResult
 from .core.base import BaseCritic
-
 
 # Removed PerspectiveAssessment class since it's not used in generation.py
 

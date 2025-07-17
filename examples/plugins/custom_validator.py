@@ -5,9 +5,10 @@ that ensure generated text meets specific requirements.
 """
 
 import re
-from typing import Optional, List, Dict, Any
-from sifaka.validators.base import BaseValidator
+from typing import Any, Dict, List, Optional
+
 from sifaka.core.models import ValidationResult
+from sifaka.validators.base import BaseValidator
 
 
 class SEOValidator(BaseValidator):

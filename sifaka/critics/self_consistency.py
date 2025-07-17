@@ -28,15 +28,16 @@ consensus to improve reliability and identify inconsistencies.
 - Trades computation cost for evaluation reliability
 """
 
-from typing import List, Optional, Union, Dict, Any
-from collections import Counter
 import asyncio
+from collections import Counter
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
-from ..core.models import SifakaResult, CritiqueResult
-from ..core.llm_client import Provider
-from .core.base import BaseCritic
 from ..core.config import Config
+from ..core.llm_client import Provider
+from ..core.models import CritiqueResult, SifakaResult
+from .core.base import BaseCritic
 
 
 class SelfConsistencyResponse(BaseModel):

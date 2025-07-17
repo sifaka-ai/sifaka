@@ -1,26 +1,27 @@
 """Comprehensive edge case tests for all modules."""
 
-import pytest
 import json
-import tempfile
 import os
-from unittest.mock import patch, MagicMock, AsyncMock
+import tempfile
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from sifaka import improve
+from sifaka.core.exceptions import (
+    CriticError,
+    TimeoutError,
+)
 from sifaka.core.models import (
-    SifakaResult,
-    Generation,
     CritiqueResult,
+    Generation,
+    SifakaResult,
     ValidationResult,
 )
-from sifaka.core.exceptions import (
-    TimeoutError,
-    CriticError,
-)
-from sifaka.validators import LengthValidator, ContentValidator
-from sifaka.storage import MemoryStorage, FileStorage
-from sifaka.critics.reflexion import ReflexionCritic
 from sifaka.critics.constitutional import ConstitutionalCritic
+from sifaka.critics.reflexion import ReflexionCritic
+from sifaka.storage import FileStorage, MemoryStorage
+from sifaka.validators import ContentValidator, LengthValidator
 
 
 class TestTextEdgeCases:
@@ -38,7 +39,9 @@ class TestTextEdgeCases:
             mock_openai.return_value = mock_client
 
             result = await improve(
-                "", max_iterations=1, critics=["reflexion"]  # Empty text
+                "",
+                max_iterations=1,
+                critics=["reflexion"],  # Empty text
             )
 
             assert isinstance(result, SifakaResult)
@@ -184,7 +187,9 @@ class TestConfigurationEdgeCases:
 
             # Should default to reflexion critic
             result = await improve(
-                "Test text", critics=[], max_iterations=1  # Empty list
+                "Test text",
+                critics=[],
+                max_iterations=1,  # Empty list
             )
 
             assert isinstance(result, SifakaResult)
@@ -511,7 +516,9 @@ class TestErrorEdgeCases:
         # Very short timeout
         with pytest.raises(TimeoutError):
             await improve(
-                "Test text", timeout_seconds=0.001, critics=["reflexion"]  # 1ms timeout
+                "Test text",
+                timeout_seconds=0.001,
+                critics=["reflexion"],  # 1ms timeout
             )
 
     @pytest.mark.asyncio

@@ -1,11 +1,13 @@
 """Tests for the text generation engine module."""
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from sifaka.core.engine.generation import TextGenerator, ImprovementResponse
+
+from sifaka.core.engine.generation import ImprovementResponse, TextGenerator
 from sifaka.core.models import (
-    SifakaResult,
     CritiqueResult,
+    SifakaResult,
     ValidationResult,
 )
 

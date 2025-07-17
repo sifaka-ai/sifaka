@@ -42,7 +42,9 @@ class TestConfidenceCalculator:
         """Test that short responses decrease confidence."""
         calc = ConfidenceCalculator(base_confidence=0.7)
         confidence = calc.calculate(
-            feedback="Brief.", suggestions=["Do this"], response_length=50  # < 100
+            feedback="Brief.",
+            suggestions=["Do this"],
+            response_length=50,  # < 100
         )
         # Should get -0.1 penalty
         assert confidence < 0.7
@@ -62,7 +64,9 @@ class TestConfidenceCalculator:
         """Test that no suggestions decrease confidence."""
         calc = ConfidenceCalculator(base_confidence=0.7)
         confidence = calc.calculate(
-            feedback="Feedback", suggestions=[], response_length=200  # No suggestions
+            feedback="Feedback",
+            suggestions=[],
+            response_length=200,  # No suggestions
         )
         # Should get -0.1 penalty
         assert confidence < 0.7

@@ -64,13 +64,10 @@ Critics that support tools typically:
 See individual tool implementations for specific capabilities and usage patterns.
 """
 
-from .base import ToolInterface, StorageInterface
-from .registry import ToolRegistry
-
 # Import built-in tools to auto-register them
-from . import web_search
-from . import wikipedia
-from . import arxiv
+from . import arxiv, web_search, wikipedia
+from .base import StorageInterface, ToolInterface
+from .registry import ToolRegistry
 
 __all__ = [
     "ToolInterface",

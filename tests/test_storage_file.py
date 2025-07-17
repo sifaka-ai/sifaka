@@ -1,15 +1,16 @@
 """Tests for file-based storage backend."""
 
 import json
-import pytest
-import tempfile
 import shutil
-from pathlib import Path
+import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
 
-from sifaka.storage.file import FileStorage
-from sifaka.core.models import SifakaResult
+import pytest
+
 from sifaka.core.exceptions import StorageError
+from sifaka.core.models import SifakaResult
+from sifaka.storage.file import FileStorage
 
 
 class TestFileStorage:
@@ -68,7 +69,7 @@ class TestFileStorage:
         assert file_path.exists()
 
         # Verify content
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             data = json.load(f)
             assert data["id"] == sample_result.id
             assert data["original_text"] == sample_result.original_text

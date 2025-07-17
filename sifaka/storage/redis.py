@@ -17,20 +17,23 @@ capabilities using RediSearch. Falls back to basic search if RediSearch is not a
 
 import json
 import logging
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 try:
+    import numpy as np
     import redis.asyncio as redis
     from redis.commands.search.field import (  # type: ignore[import-untyped]
-        TextField,
         NumericField,
         TagField,
+        TextField,
         VectorField,
     )
-    from redis.commands.search.index_definition import IndexDefinition, IndexType  # type: ignore[import-untyped]
+    from redis.commands.search.index_definition import (  # type: ignore[import-untyped]
+        IndexDefinition,
+        IndexType,
+    )
     from redis.commands.search.query import Query
-    import numpy as np
 
     HAS_REDIS = True
 except ImportError:
@@ -580,7 +583,8 @@ class RedisStorage(StorageBackend):
         if self._client is None:
             return []
         results = self._client.ft(index_name).search(
-            knn_query, query_params={"vec": query_vector}  # type: ignore[dict-item]
+            knn_query,
+            query_params={"vec": query_vector},  # type: ignore[dict-item]
         )
 
         # Filter by similarity threshold and return IDs

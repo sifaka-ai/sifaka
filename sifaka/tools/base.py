@@ -42,7 +42,7 @@ Tools are discovered and used by critics that support tool calling:
 - Tool usage is tracked in CritiqueResult metadata
 """
 
-from typing import Protocol, List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional, Protocol
 
 
 class ToolInterface(Protocol):

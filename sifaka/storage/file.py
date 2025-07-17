@@ -50,14 +50,15 @@ All file operations are wrapped with appropriate error handling:
 """
 
 import json
-import aiofiles  # type: ignore[import-untyped]
-from pathlib import Path
-from typing import Optional, List
 from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
 
-from .base import StorageBackend
-from ..core.models import SifakaResult
+import aiofiles  # type: ignore[import-untyped]
+
 from ..core.exceptions import StorageError
+from ..core.models import SifakaResult
+from .base import StorageBackend
 
 
 class FileStorage(StorageBackend):
@@ -189,7 +190,7 @@ class FileStorage(StorageBackend):
                 await f.write(json.dumps(data, indent=2, default=str))
 
             return result.id
-        except (OSError, IOError, PermissionError) as e:
+        except (OSError, PermissionError) as e:
             raise StorageError(
                 f"Failed to save result {result.id}: {e}",
                 storage_type="file",
@@ -274,7 +275,7 @@ class FileStorage(StorageBackend):
                 return SifakaResult.model_validate(data)
         except FileNotFoundError:
             return None  # Result doesn't exist
-        except (OSError, IOError, PermissionError) as e:
+        except (OSError, PermissionError) as e:
             raise StorageError(
                 f"Failed to load from {file_path}: {e}",
                 storage_type="file",
@@ -468,4 +469,3 @@ class FileStorage(StorageBackend):
         other storage backends.
         """
         # No cleanup needed for file storage
-        pass

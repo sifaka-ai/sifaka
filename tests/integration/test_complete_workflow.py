@@ -1,9 +1,10 @@
 """End-to-end workflow tests demonstrating real-world usage patterns."""
 
-import pytest
 import os
 
-from sifaka import improve, Config
+import pytest
+
+from sifaka import Config, improve
 from sifaka.critics.n_critics import NCriticsCritic
 from sifaka.validators.composable import Validator
 

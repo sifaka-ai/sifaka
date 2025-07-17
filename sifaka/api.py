@@ -7,15 +7,15 @@ This module provides the primary interface for using Sifaka:
 The API is designed to be simple for basic use cases while allowing
 full customization through the Config object."""
 
-from typing import Any, Dict, List, Optional, Union
 import asyncio
+from typing import Any, Dict, List, Optional, Union
 
-from .core.models import SifakaResult
 from .core.config import Config
-from .core.interfaces import Validator
-from .core.engine import SifakaEngine
 from .core.constants import DEFAULT_CRITIC, DEFAULT_MAX_ITERATIONS
+from .core.engine import SifakaEngine
+from .core.interfaces import Validator
 from .core.middleware import MiddlewarePipeline
+from .core.models import SifakaResult
 from .storage.base import StorageBackend
 
 

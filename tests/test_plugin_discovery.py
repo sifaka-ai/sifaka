@@ -1,16 +1,16 @@
 """Tests for plugin discovery mechanism and entry point registration."""
 
-from unittest.mock import patch, MagicMock
-from typing import Optional, List
+from typing import List, Optional
+from unittest.mock import MagicMock, patch
 
+from sifaka.core.models import SifakaResult
 from sifaka.core.plugins import (
     PluginRegistry,
+    create_storage_backend,
     discover_storage_plugins,
     list_storage_backends,
-    create_storage_backend,
 )
 from sifaka.storage.base import StorageBackend
-from sifaka.core.models import SifakaResult
 
 
 class MockStorageBackend(StorageBackend):
@@ -197,8 +197,6 @@ class TestPluginDiscovery:
 
         class NotABackend:
             """Not a storage backend."""
-
-            pass
 
         mock_entry_point = MagicMock()
         mock_entry_point.name = "invalid_backend"

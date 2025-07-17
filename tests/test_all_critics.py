@@ -1,18 +1,19 @@
 """Comprehensive tests for all Sifaka critics."""
 
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from sifaka.core.models import SifakaResult, CritiqueResult
+import pytest
+
+from sifaka.core.models import CritiqueResult, SifakaResult
 from sifaka.critics import (
-    ReflexionCritic,
     ConstitutionalCritic,
-    SelfRefineCritic,
-    NCriticsCritic,
-    SelfRAGCritic,
     MetaRewardingCritic,
-    SelfConsistencyCritic,
+    NCriticsCritic,
     PromptCritic,
+    ReflexionCritic,
+    SelfConsistencyCritic,
+    SelfRAGCritic,
+    SelfRefineCritic,
 )
 
 

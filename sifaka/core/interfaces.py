@@ -11,7 +11,7 @@ critics can be added without modifying core Sifaka code."""
 
 from abc import ABC, abstractmethod
 
-from .models import SifakaResult, ValidationResult, CritiqueResult
+from .models import CritiqueResult, SifakaResult, ValidationResult
 
 
 class Validator(ABC):
@@ -70,7 +70,6 @@ class Validator(ABC):
             Validators should NOT modify the text. They only evaluate it.
             Text transformation should be done by critics and generators.
         """
-        pass
 
     @property
     @abstractmethod
@@ -84,7 +83,6 @@ class Validator(ABC):
         Returns:
             String identifier like 'min_length_50' or 'no_profanity'
         """
-        pass
 
 
 class Critic(ABC):
@@ -151,7 +149,6 @@ class Critic(ABC):
             generate improved text - that's done by the generator using
             the critics' feedback.
         """
-        pass
 
     @property
     @abstractmethod
@@ -164,4 +161,3 @@ class Critic(ABC):
         Returns:
             String identifier like 'reflexion', 'self_refine', or 'clarity'
         """
-        pass

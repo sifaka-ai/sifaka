@@ -42,10 +42,11 @@ formatting standards, contain required elements, or avoid problematic patterns.
 """
 
 import re
-from typing import Optional, Dict, Pattern as PatternType
+from re import Pattern as PatternType
+from typing import Dict, Optional
 
 from ..core.interfaces import Validator
-from ..core.models import ValidationResult, SifakaResult
+from ..core.models import SifakaResult, ValidationResult
 
 
 class PatternValidator(Validator):
@@ -203,10 +204,8 @@ class PatternValidator(Validator):
                     issues.append(
                         f"Pattern '{name}' must occur at most {max_count} times, found {match_count}"
                     )
-            else:
-                # Just check if pattern exists
-                if not matches:
-                    issues.append(f"Required pattern '{name}' not found")
+            elif not matches:
+                issues.append(f"Required pattern '{name}' not found")
 
         # Check forbidden patterns
         for name, pattern in self.forbidden_patterns.items():

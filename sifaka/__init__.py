@@ -34,52 +34,52 @@ https://docs.sifaka.ai/
 
 # Core API
 from .api import improve, improve_sync
-
-# Core classes
-from .core.models import SifakaResult
 from .core.config import Config
-from .core.interfaces import Validator
 from .core.engine import SifakaEngine
-from .core.retry import RetryConfig
 
-# Storage
-from .storage import StorageBackend, MemoryStorage, FileStorage
-
-# Critics
-from .critics import register_critic, CriticRegistry
+# Exceptions
+from .core.exceptions import (
+    ConfigurationError,
+    CriticError,
+    ModelProviderError,
+    PluginError,
+    SifakaError,
+    StorageError,
+    TimeoutError,
+    ValidationError,
+)
+from .core.interfaces import Validator
 
 # Middleware
 from .core.middleware import (
-    MiddlewarePipeline,
+    CachingMiddleware,
     LoggingMiddleware,
     MetricsMiddleware,
-    CachingMiddleware,
+    MiddlewarePipeline,
     RateLimitingMiddleware,
     monitor as monitor_context,
 )
 
-# Monitoring
-from .core.monitoring import monitor, get_global_monitor, PerformanceMetrics
+# Core classes
+from .core.models import SifakaResult
 
-# Exceptions
-from .core.exceptions import (
-    SifakaError,
-    ConfigurationError,
-    ModelProviderError,
-    CriticError,
-    ValidationError,
-    StorageError,
-    PluginError,
-    TimeoutError,
-)
+# Monitoring
+from .core.monitoring import PerformanceMetrics, get_global_monitor, monitor
 
 # Plugin system
 from .core.plugins import (
-    register_storage_backend,
+    create_storage_backend,
     get_storage_backend,
     list_storage_backends,
-    create_storage_backend,
+    register_storage_backend,
 )
+from .core.retry import RetryConfig
+
+# Critics
+from .critics import CriticRegistry, register_critic
+
+# Storage
+from .storage import FileStorage, MemoryStorage, StorageBackend
 
 # Expose key classes for advanced usage
 __all__ = [

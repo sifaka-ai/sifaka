@@ -1,20 +1,21 @@
 """Comprehensive tests for the plugin system."""
 
-import pytest
-from unittest.mock import patch
 from typing import Any, Dict, List, Optional
+from unittest.mock import patch
 
-from sifaka.core.plugins import (
-    register_storage_backend,
-    create_storage_backend,
-    list_storage_backends,
-    _registry,
-)
-from sifaka.storage.base import StorageBackend
+import pytest
+
+from sifaka.core.exceptions import ConfigurationError
 from sifaka.core.models import (
     SifakaResult,
 )
-from sifaka.core.exceptions import ConfigurationError
+from sifaka.core.plugins import (
+    _registry,
+    create_storage_backend,
+    list_storage_backends,
+    register_storage_backend,
+)
+from sifaka.storage.base import StorageBackend
 
 
 class TestStorageBackend:

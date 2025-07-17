@@ -11,9 +11,9 @@ All models use Pydantic for validation and include automatic memory
 bounds to prevent unbounded growth during long-running sessions."""
 
 import uuid
-from datetime import datetime
-from typing import List, Optional, Dict, Any, Deque
 from collections import deque
+from datetime import datetime
+from typing import Any, Deque, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 

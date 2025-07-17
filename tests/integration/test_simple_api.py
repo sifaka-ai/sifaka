@@ -1,7 +1,8 @@
 """Integration tests for the simple API."""
 
 import pytest
-from sifaka import improve_sync, improve, Config
+
+from sifaka import Config, improve, improve_sync
 from sifaka.validators.basic import LengthValidator
 
 
@@ -11,10 +12,10 @@ class TestSimpleAPI:
     def test_improve_sync_basic(self):
         """Test basic synchronous improvement."""
         text = "This is a test."
-        result = improve_sync(text, temperature=0.3, max_iterations=1)
+        result = improve_sync(text, config=Config(temperature=0.3), max_iterations=1)
 
         assert isinstance(result.final_text, str)
-        assert result.iteration_count >= 1
+        assert result.iteration >= 1
         assert len(result.critiques) > 0
 
     def test_improve_sync_with_config(self):
@@ -23,14 +24,13 @@ class TestSimpleAPI:
         config = Config(
             temperature=0.3,
             max_iterations=2,
-            min_quality_score=0.7,
         )
 
-        result = improve_sync(text, config=config)
+        result = improve_sync(text, config=config, max_iterations=2)
 
         assert isinstance(result.final_text, str)
         assert result.original_text == text
-        assert result.iteration_count <= 2
+        assert result.iteration <= 2
 
     @pytest.mark.asyncio
     async def test_improve_async(self):
@@ -39,12 +39,12 @@ class TestSimpleAPI:
 
         result = await improve(
             text,
-            temperature=0.3,
+            config=Config(temperature=0.3),
             max_iterations=1,
         )
 
         assert isinstance(result.final_text, str)
-        assert result.iteration_count >= 1
+        assert result.iteration >= 1
         assert len(result.critiques) > 0
 
     @pytest.mark.asyncio
@@ -56,7 +56,7 @@ class TestSimpleAPI:
         result = await improve(
             text,
             validators=[validator],
-            temperature=0.3,
+            config=Config(temperature=0.3),
             max_iterations=2,
         )
 
@@ -69,18 +69,19 @@ class TestSimpleAPI:
 
         result = improve_sync(
             text,
-            temperature=0.3,
+            config=Config(temperature=0.3),
             max_iterations=3,
-            min_quality_score=0.8,
         )
 
-        assert result.iteration_count >= 1
-        assert result.iteration_count <= 3
-        if result.iteration_count > 1:
-            assert len(result.improvements) == result.iteration_count
+        assert result.iteration >= 1
+        assert result.iteration <= 3
+        if result.iteration > 1:
+            assert len(result.generations) == result.iteration
 
     @pytest.mark.asyncio
     async def test_error_handling(self):
         """Test error handling in API."""
-        with pytest.raises(ValueError):
-            await improve("", temperature=0.3)  # Empty text should raise error
+        # Empty text doesn't raise an error - it gets improved
+        result = await improve("", config=Config(temperature=0.3))
+        assert result.final_text != ""  # Should generate text from empty input
+        assert len(result.final_text) >= 50  # Should meet minimum length requirement

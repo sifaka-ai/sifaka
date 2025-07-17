@@ -40,11 +40,12 @@ The generator works in conjunction with critics and validators:
 """
 
 import time
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
+
 from pydantic import BaseModel, Field
 
-from ..models import SifakaResult, CritiqueResult
-from ..llm_client import LLMManager, LLMClient
+from ..llm_client import LLMClient, LLMManager
+from ..models import CritiqueResult, SifakaResult
 
 
 class ImprovementResponse(BaseModel):

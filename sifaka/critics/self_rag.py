@@ -9,14 +9,15 @@ Paper: https://arxiv.org/abs/2310.11511
 """
 
 import time
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
-from .core.base import BaseCritic, CritiqueResult
-from ..core.models import SifakaResult, ToolUsage
 from ..core.config import Config
+from ..core.models import SifakaResult, ToolUsage
 from ..tools import ToolRegistry
+from .core.base import BaseCritic, CritiqueResult
 
 
 class SelfRAGResponse(BaseModel):
@@ -487,7 +488,7 @@ Then provide your analysis. You MUST include specific corrections for any incorr
         except Exception as e:
             return CritiqueResult(
                 critic=self.name,
-                feedback=f"Error during critique: {str(e)}",
+                feedback=f"Error during critique: {e!s}",
                 suggestions=["Review the text manually"],
                 needs_improvement=True,
                 confidence=0.0,

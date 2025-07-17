@@ -1,11 +1,12 @@
 """Factory for creating critics using the registry."""
 
-from typing import Optional, List, Union, Type, cast, Any
-from ...core.llm_client import Provider
-from ...core.interfaces import Critic
+from typing import Any, List, Optional, Type, Union, cast
+
 from ...core.config import Config
-from .registry import CriticRegistry
+from ...core.interfaces import Critic
+from ...core.llm_client import Provider
 from .base import BaseCritic
+from .registry import CriticRegistry
 
 
 def create_critic(

@@ -1,12 +1,13 @@
 """Tests for the GuardrailsAI validator module."""
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch
 import asyncio
 import sys
+from unittest.mock import MagicMock, Mock, patch
 
-from sifaka.validators.base import ValidatorConfig
+import pytest
+
 from sifaka.core.models import SifakaResult
+from sifaka.validators.base import ValidatorConfig
 
 
 class TestGuardrailsValidatorImportError:
@@ -20,7 +21,7 @@ class TestGuardrailsValidatorImportError:
             if "sifaka.validators.guardrails" in sys.modules:
                 del sys.modules["sifaka.validators.guardrails"]
 
-            from sifaka.validators.guardrails import GuardrailsValidator, HAS_GUARDRAILS
+            from sifaka.validators.guardrails import HAS_GUARDRAILS, GuardrailsValidator
 
             if not HAS_GUARDRAILS:
                 with pytest.raises(ImportError) as exc_info:

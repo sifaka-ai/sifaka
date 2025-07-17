@@ -1,11 +1,11 @@
 """Dynamic critic registry for extensibility."""
 
-from typing import Dict, Type, Optional, List, cast
 import importlib.metadata
 from importlib.metadata import EntryPoints
+from typing import Dict, List, Optional, Type, cast
 
-from ...core.interfaces import Critic
 from ...core.constants import ENTRY_POINT_CRITICS
+from ...core.interfaces import Critic
 
 
 class CriticRegistry:
@@ -94,15 +94,15 @@ class CriticRegistry:
 # Pre-register built-in critics
 def register_builtin_critics() -> None:
     """Register all built-in critics."""
-    from ..reflexion import ReflexionCritic
     from ..constitutional import ConstitutionalCritic
-    from ..self_refine import SelfRefineCritic
-    from ..n_critics import NCriticsCritic
-    from ..self_rag import SelfRAGCritic
     from ..meta_rewarding import MetaRewardingCritic
-    from ..self_consistency import SelfConsistencyCritic
-    from ..style import StyleCritic
+    from ..n_critics import NCriticsCritic
     from ..prompt import PromptCritic
+    from ..reflexion import ReflexionCritic
+    from ..self_consistency import SelfConsistencyCritic
+    from ..self_rag import SelfRAGCritic
+    from ..self_refine import SelfRefineCritic
+    from ..style import StyleCritic
 
     CriticRegistry.register("reflexion", ReflexionCritic, ["reflection"])
     CriticRegistry.register(

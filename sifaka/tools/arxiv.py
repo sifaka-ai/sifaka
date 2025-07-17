@@ -3,9 +3,10 @@
 Provides access to arXiv's repository of scientific papers across multiple disciplines.
 """
 
-import httpx
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Any, Union
+from typing import Any, Dict, List, Union
+
+import httpx
 
 from .base import ToolInterface
 from .registry import ToolRegistry
@@ -161,7 +162,7 @@ class ArxivTool(ToolInterface):
                 return [
                     {
                         "title": "arXiv Error",
-                        "abstract": f"Failed to search arXiv: {str(e)}",
+                        "abstract": f"Failed to search arXiv: {e!s}",
                         "authors": [],
                         "arxiv_id": "",
                         "url": "",

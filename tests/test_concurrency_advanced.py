@@ -1,17 +1,18 @@
 """Advanced concurrency tests for Sifaka."""
 
-import pytest
 import asyncio
 import concurrent.futures
-import time
-from unittest.mock import patch, MagicMock, AsyncMock
-from typing import List
 import random
+import time
+from typing import List
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from sifaka import improve
-from sifaka.core.models import SifakaResult
 from sifaka.core.config import Config
-from sifaka.storage import MemoryStorage, FileStorage
+from sifaka.core.models import SifakaResult
+from sifaka.storage import FileStorage, MemoryStorage
 from sifaka.validators import LengthValidator
 
 
@@ -22,9 +23,9 @@ class TestBasicConcurrency:
     async def test_concurrent_improve_calls(self):
         """Test multiple concurrent improve() calls."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Concurrent analysis complete."
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Concurrent analysis complete."
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -213,9 +214,9 @@ class TestAdvancedConcurrency:
         # Consumer: processes work items
         async def consumer(consumer_id: int):
             mock_response = MagicMock()
-            mock_response.choices[0].message.content = (
-                f"REFLECTION: Consumer {consumer_id} processed item."
-            )
+            mock_response.choices[
+                0
+            ].message.content = f"REFLECTION: Consumer {consumer_id} processed item."
 
             with patch("openai.AsyncOpenAI") as mock_openai:
                 mock_client = MagicMock()
@@ -268,9 +269,9 @@ class TestAdvancedConcurrency:
                 await asyncio.sleep(delay)  # Simulate rate limiting
 
                 mock_response = MagicMock()
-                mock_response.choices[0].message.content = (
-                    "REFLECTION: Rate limited operation."
-                )
+                mock_response.choices[
+                    0
+                ].message.content = "REFLECTION: Rate limited operation."
 
                 with patch("openai.AsyncOpenAI") as mock_openai:
                     mock_client = MagicMock()
@@ -418,8 +419,9 @@ class TestConcurrencyStressTests:
     @pytest.mark.asyncio
     async def test_memory_usage_under_concurrency(self):
         """Test memory usage under concurrent load."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

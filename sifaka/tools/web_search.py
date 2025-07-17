@@ -4,9 +4,10 @@ This tool provides web search capabilities without external dependencies,
 using DuckDuckGo's HTML interface for search results.
 """
 
-import httpx
 import urllib.parse
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
+import httpx
 from bs4 import BeautifulSoup, Tag
 
 from .base import ToolInterface
@@ -120,7 +121,7 @@ class WebSearchTool(ToolInterface):
                     {
                         "title": "Search Error",
                         "url": "",
-                        "snippet": f"Failed to search: {str(e)}",
+                        "snippet": f"Failed to search: {e!s}",
                         "source": "web_search",
                     }
                 ]

@@ -49,13 +49,14 @@ This critic excels at general-purpose text polishing and is particularly
 effective for content that benefits from multiple revision cycles.
 """
 
-from typing import Optional, Union, List, Dict
+from typing import Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
-from ..core.models import SifakaResult
-from ..core.llm_client import Provider
-from .core.base import BaseCritic
 from ..core.config import Config
+from ..core.llm_client import Provider
+from ..core.models import SifakaResult
+from .core.base import BaseCritic
 
 
 class RefinementArea(BaseModel):

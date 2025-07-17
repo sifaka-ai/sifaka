@@ -1,12 +1,13 @@
 """Basic tests for Sifaka functionality."""
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from sifaka import improve
-from sifaka.core.models import SifakaResult
 from sifaka.core.config import Config
-from sifaka.validators import LengthValidator, ContentValidator
+from sifaka.core.models import SifakaResult
+from sifaka.validators import ContentValidator, LengthValidator
 
 
 class TestBasicFunctionality:
@@ -18,9 +19,9 @@ class TestBasicFunctionality:
         # Mock OpenAI responses
         mock_response = AsyncMock()
         mock_response.choices = [AsyncMock()]
-        mock_response.choices[0].message.content = (
-            "This is improved text about renewable energy benefits with much better clarity and structure."
-        )
+        mock_response.choices[
+            0
+        ].message.content = "This is improved text about renewable energy benefits with much better clarity and structure."
 
         with patch("openai.AsyncOpenAI") as mock_client:
             mock_client.return_value.chat.completions.create = AsyncMock(

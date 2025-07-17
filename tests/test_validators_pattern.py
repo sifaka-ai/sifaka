@@ -1,13 +1,14 @@
 """Tests for pattern validator."""
 
 import pytest
+
+from sifaka.core.models import SifakaResult
 from sifaka.validators.pattern import (
     PatternValidator,
-    create_code_validator,
     create_citation_validator,
+    create_code_validator,
     create_structured_validator,
 )
-from sifaka.core.models import SifakaResult
 
 
 class TestPatternValidator:

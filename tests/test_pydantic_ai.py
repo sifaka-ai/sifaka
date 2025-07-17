@@ -1,7 +1,9 @@
 """Test PydanticAI integration."""
 
 import os
+
 import pytest
+
 from sifaka import improve_sync
 from sifaka.core.llm_client import LLMClient, Provider
 

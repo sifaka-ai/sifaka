@@ -74,8 +74,8 @@ deployments with complex search needs. Requires 'asyncpg' package.
 """
 
 from .base import StorageBackend
-from .memory import MemoryStorage
 from .file import FileStorage
+from .memory import MemoryStorage
 from .multi import MultiStorage
 
 # Optional Redis storage (requires redis package)

@@ -2,20 +2,20 @@
 
 import pytest
 
+from sifaka.core.interfaces import Validator
+from sifaka.core.models import SifakaResult, ValidationResult
 from sifaka.validators import (
-    LengthValidator,
     ContentValidator,
-    PatternValidator,
+    LengthValidator,
     NumericRangeValidator,
+    PatternValidator,
+    create_age_validator,
+    create_citation_validator,
+    create_code_validator,
     create_percentage_validator,
     create_price_validator,
-    create_age_validator,
-    create_code_validator,
-    create_citation_validator,
     create_structured_validator,
 )
-from sifaka.core.interfaces import Validator
-from sifaka.core.models import ValidationResult, SifakaResult
 
 
 class TestLengthValidator:

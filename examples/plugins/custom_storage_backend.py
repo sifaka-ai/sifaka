@@ -6,20 +6,20 @@ that can be used with Sifaka for persistent storage of results.
 
 import json
 import os
-from typing import Optional, List
 from datetime import datetime
+from typing import List, Optional
+
+from sifaka.core.models import (
+    CritiqueResult,
+    Generation,
+    SifakaResult,
+    ValidationResult,
+)
 
 # For this example, we'll use a simple file-based storage
 # In a real implementation, you would use redis-py
 # import redis
-
 from sifaka.storage.base import StorageBackend
-from sifaka.core.models import (
-    SifakaResult,
-    Generation,
-    CritiqueResult,
-    ValidationResult,
-)
 
 
 class RedisStorageBackend(StorageBackend):
@@ -97,7 +97,7 @@ class RedisStorageBackend(StorageBackend):
         if not os.path.exists(file_path):
             return None
 
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             data = json.load(f)
 
         # Reconstruct SifakaResult
@@ -153,7 +153,7 @@ class RedisStorageBackend(StorageBackend):
                 continue
 
             file_path = os.path.join(self.storage_dir, file_name)
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 data = json.load(f)
 
             # Simple text search
@@ -184,7 +184,7 @@ class RedisStorageBackend(StorageBackend):
 
 if __name__ == "__main__":
     # Example usage
-    from sifaka import register_storage_backend, create_storage_backend
+    from sifaka import create_storage_backend, register_storage_backend
 
     # Register the backend
     register_storage_backend("redis", RedisStorageBackend)

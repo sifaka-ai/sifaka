@@ -9,27 +9,28 @@ This test suite covers:
 - Stress testing under load
 """
 
-import pytest
 import asyncio
-import time
-import psutil
 import gc
 import tempfile
 import threading
-from unittest.mock import patch, MagicMock, AsyncMock
+import time
 from typing import List
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import psutil
+import pytest
 
 from sifaka import improve
-from sifaka.core.engine import SifakaEngine
 from sifaka.core.config import Config
-from sifaka.core.models import SifakaResult, Generation, CritiqueResult
-from sifaka.storage import MemoryStorage, FileStorage
-from sifaka.validators import LengthValidator, ContentValidator
+from sifaka.core.engine import SifakaEngine
 from sifaka.core.middleware import (
-    MiddlewarePipeline,
     LoggingMiddleware,
     MetricsMiddleware,
+    MiddlewarePipeline,
 )
+from sifaka.core.models import CritiqueResult, Generation, SifakaResult
+from sifaka.storage import FileStorage, MemoryStorage
+from sifaka.validators import ContentValidator, LengthValidator
 
 
 @pytest.fixture
@@ -668,9 +669,9 @@ class TestResourceCleanup:
     async def test_single_improvement_performance(self):
         """Test performance of a single improvement operation."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Good text. SUGGESTIONS: Keep it up."
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Good text. SUGGESTIONS: Keep it up."
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -691,9 +692,9 @@ class TestResourceCleanup:
     async def test_multiple_iterations_performance(self):
         """Test performance with multiple iterations."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Needs improvement. SUGGESTIONS: Add details."
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Needs improvement. SUGGESTIONS: Add details."
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -711,8 +712,9 @@ class TestResourceCleanup:
     @pytest.mark.asyncio
     async def test_memory_usage_single_operation(self):
         """Test memory usage for single operation."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB
@@ -801,9 +803,9 @@ class TestStressTests:
             system_content = kwargs.get("messages", [{}])[0].get("content", "")
 
             if "constitutional" in system_content.lower():
-                mock_response.choices[0].message.content = (
-                    """{"overall_assessment": "Good", "principle_scores": {"1": 4}, "violations": [], "suggestions": ["Continue"], "overall_confidence": 0.8, "evaluation_quality": 4}"""
-                )
+                mock_response.choices[
+                    0
+                ].message.content = """{"overall_assessment": "Good", "principle_scores": {"1": 4}, "violations": [], "suggestions": ["Continue"], "overall_confidence": 0.8, "evaluation_quality": 4}"""
             else:
                 mock_response.choices[0].message.content = "REFLECTION: Good analysis."
 
@@ -841,9 +843,9 @@ class TestStressTests:
         large_text = "This is a large text for stress testing. " * 2500  # ~100KB
 
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Handled large text successfully."
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Handled large text successfully."
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -1084,8 +1086,9 @@ class TestConcurrencyTests:
     async def test_resource_cleanup_under_stress(self):
         """Test that resources are properly cleaned up under stress."""
         import gc
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB
@@ -1174,9 +1177,9 @@ class TestScalabilityTests:
             system_content = kwargs.get("messages", [{}])[0].get("content", "")
 
             if "constitutional" in system_content.lower():
-                mock_response.choices[0].message.content = (
-                    """{"overall_assessment": "Good", "principle_scores": {"1": 4}, "violations": [], "suggestions": ["Continue"], "overall_confidence": 0.8, "evaluation_quality": 4}"""
-                )
+                mock_response.choices[
+                    0
+                ].message.content = """{"overall_assessment": "Good", "principle_scores": {"1": 4}, "violations": [], "suggestions": ["Continue"], "overall_confidence": 0.8, "evaluation_quality": 4}"""
             else:
                 mock_response.choices[0].message.content = "REFLECTION: Good analysis."
 
@@ -1212,8 +1215,9 @@ class TestScalabilityTests:
 
     def test_memory_scaling(self):
         """Test memory usage scaling."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
 

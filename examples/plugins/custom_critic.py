@@ -4,9 +4,10 @@ This example shows how to create a domain-specific critic
 that can be used to improve text according to custom criteria.
 """
 
-from typing import Optional, Dict, Any
-from sifaka.critics.core.base import BaseCritic
+from typing import Any, Dict, Optional
+
 from sifaka.core.config import ModelConfig
+from sifaka.critics.core.base import BaseCritic
 
 
 class AcademicWritingCritic(BaseCritic):

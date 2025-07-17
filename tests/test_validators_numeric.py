@@ -1,13 +1,14 @@
 """Tests for numeric range validator."""
 
 import pytest
+
+from sifaka.core.models import SifakaResult
 from sifaka.validators.numeric import (
     NumericRangeValidator,
+    create_age_validator,
     create_percentage_validator,
     create_price_validator,
-    create_age_validator,
 )
-from sifaka.core.models import SifakaResult
 
 
 class TestNumericRangeValidator:

@@ -5,14 +5,14 @@ with a focus on OpenAI's text-embedding models for vector storage and retrieval.
 """
 
 import hashlib
-from typing import List, Dict, Optional, Union, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 import numpy as np
 
-from .llm_client import Provider
 from .exceptions import EmbeddingError
+from .llm_client import Provider
 
 
 class EmbeddingModel(str, Enum):
@@ -214,7 +214,7 @@ class EmbeddingGenerator:
                     f"OpenAI API error: {e.response.status_code} - {e.response.text}"
                 )
             except Exception as e:
-                raise EmbeddingError(f"Failed to generate embeddings: {str(e)}")
+                raise EmbeddingError(f"Failed to generate embeddings: {e!s}")
 
     def cosine_similarity(self, a: List[float], b: List[float]) -> float:
         """Calculate cosine similarity between two embeddings.

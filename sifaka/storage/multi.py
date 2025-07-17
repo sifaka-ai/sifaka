@@ -16,8 +16,9 @@ Example:
     >>> # Automatically saved to both filesystem and Redis
 """
 
-from typing import List, Optional, Dict, Any
 import logging
+from typing import Any, Dict, List, Optional
+
 from ..core.models import SifakaResult
 from .base import StorageBackend
 

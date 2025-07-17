@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Runner script for Sifaka integration tests with multiple providers."""
 
-import os
-import sys
 import argparse
+import os
 import subprocess
+import sys
 from typing import Dict, Optional
 
 
@@ -69,7 +69,9 @@ def run_tests(test_pattern: Optional[str] = None, verbose: bool = True):
     print(f"\nRunning: {' '.join(cmd)}")
     print("=" * 60)
 
-    result = subprocess.run(cmd, cwd=os.path.dirname(os.path.dirname(__file__)))
+    result = subprocess.run(
+        cmd, cwd=os.path.dirname(os.path.dirname(__file__)), check=False
+    )
     return result.returncode
 
 
@@ -138,7 +140,7 @@ async def test():
 asyncio.run(test())
 """
 
-    result = subprocess.run([sys.executable, "-c", test_code])
+    result = subprocess.run([sys.executable, "-c", test_code], check=False)
     return result.returncode
 
 

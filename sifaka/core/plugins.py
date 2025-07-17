@@ -50,7 +50,7 @@ it via setuptools entry points:
 4. Failed plugins are logged but don't stop discovery
 """
 
-from typing import Dict, Type, List, Any, cast
+from typing import Any, Dict, List, Type, cast
 
 try:
     from importlib import metadata

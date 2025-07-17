@@ -59,13 +59,14 @@ This critic excels at maintaining brand consistency, adapting content for differ
 audiences, and ensuring stylistic coherence across document collections.
 """
 
-from typing import Optional, Union, List, Dict, Any
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
-from ..core.models import SifakaResult
-from ..core.llm_client import Provider
-from .core.base import BaseCritic
 from ..core.config import Config
+from ..core.llm_client import Provider
+from ..core.models import SifakaResult
+from .core.base import BaseCritic
 
 
 class StyleAnalysis(BaseModel):
@@ -531,7 +532,7 @@ def style_critic_from_file(
         - Store reference files in version control for consistency
     """
     try:
-        with open(style_file_path, "r", encoding="utf-8") as f:
+        with open(style_file_path, encoding="utf-8") as f:
             reference_text = f.read()
     except Exception as e:
         raise ValueError(f"Could not read style file: {e}")

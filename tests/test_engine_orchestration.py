@@ -1,10 +1,11 @@
 """Tests for the critic orchestration engine module."""
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
 
 from sifaka.core.engine.orchestration import CriticOrchestrator
-from sifaka.core.models import SifakaResult, CritiqueResult
+from sifaka.core.models import CritiqueResult, SifakaResult
 
 
 class TestCriticOrchestrator:

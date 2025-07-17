@@ -1,7 +1,11 @@
 """Tests for Prompt critic."""
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+
+from sifaka.core.config import Config
+from sifaka.core.models import CritiqueResult, SifakaResult
 from sifaka.critics.prompt import (
     PromptCritic,
     PromptResponse,
@@ -9,8 +13,6 @@ from sifaka.critics.prompt import (
     create_business_critic,
     create_creative_critic,
 )
-from sifaka.core.models import SifakaResult, CritiqueResult
-from sifaka.core.config import Config
 
 
 class TestPromptResponse:

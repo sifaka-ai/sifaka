@@ -58,13 +58,14 @@ License: MIT
 """
 
 import asyncio
-from typing import List, Dict, Optional, Union
+from typing import Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
-from sifaka.critics.meta_rewarding import MetaRewardingCritic, MetaRewardingResponse
-from sifaka.core.models import SifakaResult
-from sifaka.core.llm_client import Provider
 from sifaka.core.config import Config
+from sifaka.core.llm_client import Provider
+from sifaka.core.models import SifakaResult
+from sifaka.critics.meta_rewarding import MetaRewardingCritic, MetaRewardingResponse
 
 
 class SafetyAssessment(BaseModel):
@@ -322,8 +323,8 @@ async def main():
     ]
 
     # Use the critic standalone (not through improve() for this demo)
-    from sifaka.core.models import SifakaResult
     from sifaka.core.config import Config
+    from sifaka.core.models import SifakaResult
 
     for test_case in test_cases:
         print(f"\nTest: {test_case['name']}")

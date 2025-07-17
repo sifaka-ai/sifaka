@@ -1,14 +1,16 @@
 """Tests for Self-Refine critic."""
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+
+from sifaka.core.config import Config
+from sifaka.core.models import CritiqueResult, SifakaResult
 from sifaka.critics.self_refine import (
+    RefinementArea,
     SelfRefineCritic,
     SelfRefineResponse,
-    RefinementArea,
 )
-from sifaka.core.models import SifakaResult, CritiqueResult
-from sifaka.core.config import Config
 
 
 class TestRefinementArea:

@@ -11,15 +11,16 @@ This test suite covers:
 """
 
 import asyncio
-import pytest
 import json
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from sifaka.core.config import Config
 from sifaka.core.engine import SifakaEngine
 from sifaka.core.models import SifakaResult
 from sifaka.storage import MemoryStorage
-from sifaka.validators import LengthValidator, ContentValidator
+from sifaka.validators import ContentValidator, LengthValidator
 
 
 class TestConfigInitialization:
@@ -289,7 +290,6 @@ class TestSifakaEngineImprove:
             patch("sifaka.core.engine.orchestration.CriticOrchestrator") as mock_orch,
             patch("sifaka.core.engine.validation.ValidationRunner") as mock_val,
         ):
-
             # Mock components
             mock_generator = MagicMock()
             mock_generator.generate = AsyncMock(return_value="Improved text")
@@ -317,7 +317,6 @@ class TestSifakaEngineImprove:
             patch("sifaka.core.engine.orchestration.CriticOrchestrator") as mock_orch,
             patch("sifaka.core.engine.validation.ValidationRunner") as mock_val,
         ):
-
             # Mock components
             mock_generator = MagicMock()
             mock_generator.generate = AsyncMock(return_value="Improved text")
@@ -373,7 +372,6 @@ class TestSifakaEngineImprove:
             patch("sifaka.core.engine.orchestration.CriticOrchestrator") as mock_orch,
             patch("sifaka.core.engine.validation.ValidationRunner") as mock_val,
         ):
-
             # Mock components
             mock_generator = MagicMock()
             mock_generator.generate = AsyncMock(return_value="Improved text")
@@ -536,7 +534,6 @@ class TestEngineErrorHandling:
             patch("sifaka.core.engine.orchestration.CriticOrchestrator") as mock_orch,
             patch("sifaka.core.engine.validation.ValidationRunner") as mock_val,
         ):
-
             # Mock components
             mock_generator = MagicMock()
             mock_generator.generate = AsyncMock(return_value="")

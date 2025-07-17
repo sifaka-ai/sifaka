@@ -1,10 +1,11 @@
 """Integration tests for the complete Sifaka system."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 import tempfile
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from sifaka import improve, SifakaResult, FileStorage
+import pytest
+
+from sifaka import FileStorage, SifakaResult, improve
 from sifaka.core.exceptions import TimeoutError
 from sifaka.validators import LengthValidator
 
@@ -62,9 +63,7 @@ SUGGESTIONS:
 SUGGESTIONS: Add examples"""
             elif "constitutional" in system_content.lower():
                 # Return JSON for constitutional critic
-                mock_response.choices[
-                    0
-                ].message.content = """{
+                mock_response.choices[0].message.content = """{
     "overall_assessment": "Generally follows principles",
     "principle_scores": {"1": 4, "2": 3, "3": 4},
     "violations": [],
@@ -98,9 +97,9 @@ SUGGESTIONS: Add examples"""
     async def test_with_validators(self):
         """Test workflow with validators."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Good text. SUGGESTIONS: Keep improving"
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Good text. SUGGESTIONS: Keep improving"
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -124,9 +123,9 @@ SUGGESTIONS: Add examples"""
     async def test_with_file_storage(self):
         """Test workflow with file storage."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Good analysis. SUGGESTIONS: Add details"
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Good analysis. SUGGESTIONS: Add details"
 
         with tempfile.TemporaryDirectory() as temp_dir:
             storage = FileStorage(storage_dir=temp_dir)
@@ -155,9 +154,9 @@ SUGGESTIONS: Add examples"""
     async def test_timeout_enforcement(self):
         """Test timeout enforcement."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Analysis. SUGGESTIONS: Improve"
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Analysis. SUGGESTIONS: Improve"
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -192,7 +191,9 @@ SUGGESTIONS: Add examples"""
             else:
                 # Subsequent calls succeed
                 mock_response = MagicMock()
-                mock_response.choices[0].message.content = (
+                mock_response.choices[
+                    0
+                ].message.content = (
                     "REFLECTION: Recovery successful. SUGGESTIONS: Continue"
                 )
                 return mock_response
@@ -216,9 +217,9 @@ SUGGESTIONS: Add examples"""
     async def test_memory_bounds_enforcement(self):
         """Test memory bounds are enforced."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Analysis. SUGGESTIONS: Improve"
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Analysis. SUGGESTIONS: Improve"
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -247,9 +248,9 @@ SUGGESTIONS: Add examples"""
         """Test handling of empty critics list."""
         # Should use default critics
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Default analysis. SUGGESTIONS: Improve"
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Default analysis. SUGGESTIONS: Improve"
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -257,7 +258,8 @@ SUGGESTIONS: Add examples"""
             mock_openai.return_value = mock_client
 
             result = await improve(
-                "Test text", critics=None  # Should default to ["reflexion"]
+                "Test text",
+                critics=None,  # Should default to ["reflexion"]
             )
 
             assert len(result.critiques) >= 1
@@ -267,9 +269,9 @@ SUGGESTIONS: Add examples"""
     async def test_custom_model_and_temperature(self):
         """Test using custom model and temperature settings."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Custom model analysis. SUGGESTIONS: Continue"
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Custom model analysis. SUGGESTIONS: Continue"
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -295,9 +297,9 @@ SUGGESTIONS: Add examples"""
     async def test_result_completeness(self):
         """Test that results contain all expected information."""
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = (
-            "REFLECTION: Complete analysis. SUGGESTIONS: Finalize"
-        )
+        mock_response.choices[
+            0
+        ].message.content = "REFLECTION: Complete analysis. SUGGESTIONS: Finalize"
 
         with patch("openai.AsyncOpenAI") as mock_openai:
             mock_client = MagicMock()

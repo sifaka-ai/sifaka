@@ -50,10 +50,12 @@ This will send detailed traces and metrics to Logfire for analysis.
 
 import os
 import time
-from typing import Dict, List, Optional, Any, AsyncIterator, Callable
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from contextlib import asynccontextmanager
+from typing import Any, Callable, Dict, List, Optional
+
 import logfire
 
 from .models import SifakaResult

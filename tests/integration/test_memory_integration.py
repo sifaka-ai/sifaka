@@ -1,10 +1,11 @@
 """Integration tests for memory-bounded operations."""
 
-import pytest
-import psutil
 import os
-from sifaka import improve
-from sifaka import Config
+
+import psutil
+import pytest
+
+from sifaka import Config, improve
 
 
 @pytest.mark.integration
@@ -55,6 +56,7 @@ async def test_memory_bounded_large_text():
 async def test_concurrent_improvements():
     """Test multiple concurrent improvement operations."""
     import asyncio
+
     from sifaka import improve
 
     texts = [

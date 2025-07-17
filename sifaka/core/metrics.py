@@ -4,8 +4,8 @@ This module contains only objective, measurable metrics.
 No pseudo-intelligent analysis - just facts.
 """
 
-from typing import Dict, List, Any
 import re
+from typing import Any, Dict, List
 
 
 def analyze_suggestion_implementation(

@@ -1,11 +1,12 @@
 """Integration tests for all critics with multiple LLM providers."""
 
-import pytest
 import asyncio
 import os
 from dataclasses import dataclass
 
-from sifaka import improve, SifakaResult
+import pytest
+
+from sifaka import SifakaResult, improve
 from sifaka.core.config import Config
 from sifaka.critics import CriticRegistry
 from sifaka.critics.n_critics import NCriticsCritic
@@ -74,7 +75,7 @@ class TestMultiProviderCritics:
     @pytest.fixture
     def all_critics(self):
         """Get list of all available critics."""
-        return CriticRegistry.list_critics()
+        return CriticRegistry.list()
 
     @pytest.mark.asyncio
     @pytest.mark.integration

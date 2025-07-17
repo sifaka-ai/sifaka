@@ -1,15 +1,16 @@
 """Tests for the validation engine module."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock
 from collections import deque
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from sifaka.core.engine.validation import ValidationRunner
 from sifaka.core.models import (
+    CritiqueResult,
+    Generation,
     SifakaResult,
     ValidationResult,
-    Generation,
-    CritiqueResult,
 )
 
 

@@ -1,13 +1,15 @@
 """Comprehensive tests for all critic implementations."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from sifaka.critics.self_consistency import SelfConsistencyCritic
+
+from sifaka.core.models import CritiqueResult, SifakaResult
 from sifaka.critics.meta_rewarding import MetaRewardingCritic
 from sifaka.critics.n_critics import NCriticsCritic
-from sifaka.critics.self_refine import SelfRefineCritic
+from sifaka.critics.self_consistency import SelfConsistencyCritic
 from sifaka.critics.self_rag import SelfRAGCritic
-from sifaka.core.models import SifakaResult, CritiqueResult
+from sifaka.critics.self_refine import SelfRefineCritic
 
 
 def create_mock_openai_response(content: str):
@@ -147,7 +149,6 @@ CORRECTIONS: Consider adding more specific examples"""
             ),
             patch.object(critic, "_get_meta_judgment", return_value=meta_judgment),
         ):
-
             result = await critic.critique(sample_text, sample_result)
 
             assert isinstance(result, CritiqueResult)
@@ -168,7 +169,6 @@ CORRECTIONS: Consider adding more specific examples"""
             ),
             patch.object(critic, "_get_meta_judgment", return_value=meta_judgment),
         ):
-
             result = await critic.critique(sample_text, sample_result)
 
             assert result.confidence == 0.4
@@ -189,7 +189,6 @@ CORRECTIONS: Consider adding more specific examples"""
             ),
             patch.object(critic, "_get_meta_judgment", return_value=meta_judgment),
         ):
-
             result = await critic.critique(sample_text, sample_result)
 
             # Should handle gracefully with defaults

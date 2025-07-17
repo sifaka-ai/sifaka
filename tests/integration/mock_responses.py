@@ -1,7 +1,7 @@
 """Mock responses for integration tests in CI environments."""
 
 import time
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 from unittest.mock import MagicMock
 
 

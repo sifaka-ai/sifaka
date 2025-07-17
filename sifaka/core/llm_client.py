@@ -46,18 +46,18 @@ The client will automatically use the appropriate key based on the model.
 """
 
 import os
-from typing import Dict, Optional, List, Union, Any, cast
 from enum import Enum
-from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional, Union, cast
+
+import logfire
 import openai
+from dotenv import load_dotenv
 from openai.types.chat import ChatCompletionMessageParam
+from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.models import ModelSettings
-import logfire
 
-from ..core.retry import with_retry, RETRY_STANDARD
-
+from ..core.retry import RETRY_STANDARD, with_retry
 
 # Load environment variables
 load_dotenv()
@@ -299,7 +299,7 @@ class LLMClient:
                 ) from e
             else:
                 raise ModelProviderError(
-                    f"LLM API error: {str(e)}", provider=self.provider.value
+                    f"LLM API error: {e!s}", provider=self.provider.value
                 ) from e
 
 

@@ -10,8 +10,9 @@ This demonstrates:
 
 import asyncio
 import os
-from sifaka import improve, Config
-from sifaka.storage import MultiStorage, RedisStorage, FileStorage
+
+from sifaka import Config, improve
+from sifaka.storage import FileStorage, MultiStorage, RedisStorage
 
 
 async def main() -> None:

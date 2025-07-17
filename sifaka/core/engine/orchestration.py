@@ -1,13 +1,11 @@
 """Critic orchestration component of the Sifaka engine."""
 
 import asyncio
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
-from ..models import SifakaResult, CritiqueResult
-from ..interfaces import Critic
 from ...critics import create_critics
-
-from typing import TYPE_CHECKING
+from ..interfaces import Critic
+from ..models import CritiqueResult, SifakaResult
 
 if TYPE_CHECKING:
     from ..config import Config
@@ -79,7 +77,7 @@ class CriticOrchestrator:
                 # Create error critique
                 error_critique = CritiqueResult(
                     critic=self.critics[i].name,
-                    feedback=f"Error during critique: {str(critique)}",
+                    feedback=f"Error during critique: {critique!s}",
                     suggestions=["Review the text manually"],
                     needs_improvement=True,
                     confidence=0.0,

@@ -1,12 +1,14 @@
 """Tests for critic implementations."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from sifaka.critics.reflexion import ReflexionCritic
+
+import pytest
+
+from sifaka.core.config import Config
+from sifaka.core.models import CritiqueResult, SifakaResult
 from sifaka.critics.constitutional import ConstitutionalCritic
 from sifaka.critics.prompt import PromptCritic, create_academic_critic
-from sifaka.core.models import SifakaResult, CritiqueResult
-from sifaka.core.config import Config
+from sifaka.critics.reflexion import ReflexionCritic
 
 
 class TestReflexionCritic:
@@ -134,9 +136,7 @@ class TestReflexionCritic:
 
         # Mock OpenAI response with JSON format
         mock_response = MagicMock()
-        mock_response.choices[
-            0
-        ].message.content = """{
+        mock_response.choices[0].message.content = """{
     "feedback": "Good analysis of the text with clear structure.",
     "suggestions": ["Add more details", "Improve structure"],
     "needs_improvement": true,
@@ -390,9 +390,7 @@ class TestConstitutionalCritic:
 
         # Mock OpenAI response
         mock_response = MagicMock()
-        mock_response.choices[
-            0
-        ].message.content = """{
+        mock_response.choices[0].message.content = """{
     "feedback": "Text follows most principles well",
     "suggestions": ["Minor improvements needed"],
     "needs_improvement": false,

@@ -40,7 +40,8 @@ Tools are typically registered when their modules are imported:
 This allows critics to discover tools by importing the tools package.
 """
 
-from typing import Dict, Type, Optional, List
+from typing import Dict, List, Optional, Type
+
 from .base import ToolInterface
 
 

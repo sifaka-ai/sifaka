@@ -35,10 +35,11 @@ along with common utilities for score calculation and result formatting.
 
 from abc import ABC, abstractmethod
 from typing import Optional, Union
+
 from pydantic import BaseModel, Field
 
 from ..core.interfaces import Validator
-from ..core.models import ValidationResult, SifakaResult
+from ..core.models import SifakaResult, ValidationResult
 
 
 class ValidatorConfig(BaseModel):
@@ -144,7 +145,6 @@ class BaseValidator(Validator, ABC):
         Returns:
             Unique string identifier, e.g., "length_100_500"
         """
-        pass
 
     @abstractmethod
     async def _perform_validation(
@@ -170,7 +170,6 @@ class BaseValidator(Validator, ABC):
             This method should be deterministic and fast. Avoid
             external API calls or heavy computation.
         """
-        pass
 
     async def validate(self, text: str, result: SifakaResult) -> ValidationResult:
         """Validate text and return standardized result.
@@ -222,7 +221,7 @@ class BaseValidator(Validator, ABC):
                 validator=self.name,
                 passed=False,
                 score=0.0,
-                details=f"Validation error: {str(e)}",
+                details=f"Validation error: {e!s}",
             )
 
     def _calculate_score(

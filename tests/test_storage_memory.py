@@ -1,10 +1,12 @@
 """Tests for in-memory storage backend."""
 
-import pytest
-from sifaka.storage.memory import MemoryStorage
-from sifaka.core.models import SifakaResult
-from sifaka.core.exceptions import StorageError
 from unittest.mock import patch
+
+import pytest
+
+from sifaka.core.exceptions import StorageError
+from sifaka.core.models import SifakaResult
+from sifaka.storage.memory import MemoryStorage
 
 
 class TestMemoryStorage:

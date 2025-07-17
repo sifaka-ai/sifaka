@@ -9,22 +9,24 @@ This test suite covers:
 - Performance characteristics
 """
 
-import pytest
 import asyncio
 import time
+from collections.abc import Awaitable
+from typing import Any, Callable, Dict
 from unittest.mock import patch
-from typing import Dict, Any, Callable, Awaitable
 
-from sifaka.core.models import SifakaResult
+import pytest
+
+from sifaka.core.exceptions import SifakaError
 from sifaka.core.middleware import (
-    MiddlewarePipeline,
+    CachingMiddleware,
     LoggingMiddleware,
     MetricsMiddleware,
-    CachingMiddleware,
-    RateLimitingMiddleware,
     Middleware,
+    MiddlewarePipeline,
+    RateLimitingMiddleware,
 )
-from sifaka.core.exceptions import SifakaError
+from sifaka.core.models import SifakaResult
 
 
 @pytest.fixture

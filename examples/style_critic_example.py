@@ -6,7 +6,8 @@ voices, and tones using reference text and style descriptions.
 
 import asyncio
 import os
-from sifaka import improve, Config
+
+from sifaka import Config, improve
 
 
 async def casual_transformation() -> None:

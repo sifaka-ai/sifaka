@@ -47,8 +47,8 @@ ensuring the improvement process continues even if a validator fails.
 
 from typing import List
 
-from ..models import SifakaResult
 from ..interfaces import Validator
+from ..models import SifakaResult
 
 
 class ValidationRunner:
@@ -161,7 +161,7 @@ class ValidationRunner:
                     validator=getattr(validator, "name", "unknown"),
                     passed=False,
                     score=0.0,
-                    details=f"Validation error: {str(e)}",
+                    details=f"Validation error: {e!s}",
                 )
                 all_passed = False
 

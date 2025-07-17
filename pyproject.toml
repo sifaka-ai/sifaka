@@ -102,6 +102,35 @@ target-version = ['py39', 'py310', 'py311', 'py312']
 line-length = 88
 target-version = "py39"
 
+[tool.ruff.lint]
+# Select specific rules for auto-fixing
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes (unused imports, etc.)
+    "I",    # isort (import sorting)
+]
+
+# Rules to ignore
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+# Allow autofix for these rules
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["sifaka"]
+combine-as-imports = true
+
+[tool.ruff.format]
+# Formatting options
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 addopts = ["--strict-markers", "--cov=sifaka", "--cov-report=term-missing"]

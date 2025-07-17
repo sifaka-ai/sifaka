@@ -1,13 +1,14 @@
 """Tests for basic validators."""
 
 import pytest
+
+from sifaka.core.models import SifakaResult
+from sifaka.validators.base import ValidatorConfig
 from sifaka.validators.basic import (
-    LengthValidator,
     ContentValidator,
     FormatValidator,
+    LengthValidator,
 )
-from sifaka.validators.base import ValidatorConfig
-from sifaka.core.models import SifakaResult
 
 
 class TestLengthValidator:

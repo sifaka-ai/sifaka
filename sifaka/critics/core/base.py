@@ -172,7 +172,6 @@ class BaseCritic(Critic, ABC):
         Returns:
             The critic's unique name identifier
         """
-        pass
 
     def _get_available_tools(self) -> List[ToolInterface]:
         """Specify which tools this critic can use.

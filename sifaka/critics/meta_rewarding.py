@@ -55,14 +55,14 @@ based on meta-rewards to improve overall critique quality.
 This critic is ideal when critique quality itself is critical to success.
 """
 
-from typing import Optional, Union, List, Dict, Any
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
-from ..core.models import SifakaResult
-from ..core.llm_client import Provider
-from .core.base import BaseCritic
 from ..core.config import Config
-
+from ..core.llm_client import Provider
+from ..core.models import SifakaResult
+from .core.base import BaseCritic
 
 # Removed CritiqueEvaluation and SuggestionPreference classes since they're not used in generation.py
 

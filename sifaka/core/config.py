@@ -10,8 +10,9 @@ Configuration can be provided in multiple ways:
 3. From configuration files (JSON/YAML)
 4. Through the API functions"""
 
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Config(BaseModel):

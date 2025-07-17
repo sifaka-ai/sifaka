@@ -100,13 +100,14 @@ These serve as both ready-to-use critics and templates for customization.
 - Provides structured responses despite flexible prompt input
 """
 
-from typing import Optional, Union, List, Dict, Any
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
-from ..core.models import SifakaResult
-from ..core.llm_client import Provider
-from .core.base import BaseCritic
 from ..core.config import Config
+from ..core.llm_client import Provider
+from ..core.models import SifakaResult
+from .core.base import BaseCritic
 
 
 class PromptResponse(BaseModel):

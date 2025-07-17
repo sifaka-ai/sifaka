@@ -1,19 +1,21 @@
 """Tests for middleware system."""
 
-import pytest
 import logging
 import time
 from unittest.mock import Mock
+
+import pytest
+
 from sifaka.core.middleware import (
-    Middleware,
+    CachingMiddleware,
     LoggingMiddleware,
     MetricsMiddleware,
-    CachingMiddleware,
-    RateLimitingMiddleware,
+    Middleware,
     MiddlewarePipeline,
+    RateLimitingMiddleware,
     monitor,
 )
-from sifaka.core.models import SifakaResult, CritiqueResult, Generation
+from sifaka.core.models import CritiqueResult, Generation, SifakaResult
 
 
 class TestMiddleware:

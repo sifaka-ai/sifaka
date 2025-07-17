@@ -11,7 +11,7 @@ Built-in implementations include FileStorage, RedisStorage, and PostgresStorage.
 Custom backends can be created by inheriting from StorageBackend."""
 
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from ..core.models import SifakaResult
 
@@ -63,7 +63,6 @@ class StorageBackend(ABC):
             Implementations should handle serialization of datetime objects,
             deque collections, and nested Pydantic models appropriately.
         """
-        pass
 
     @abstractmethod
     async def load(self, result_id: str) -> Optional[SifakaResult]:
@@ -88,7 +87,6 @@ class StorageBackend(ABC):
             The loaded result should be identical to what was saved, including
             preservation of deque maxlen settings and all timestamps.
         """
-        pass
 
     @abstractmethod
     async def list(self, limit: int = 100, offset: int = 0) -> List[str]:
@@ -114,7 +112,6 @@ class StorageBackend(ABC):
             >>> # Get next 10 results
             >>> more_ids = await storage.list(limit=10, offset=10)
         """
-        pass
 
     @abstractmethod
     async def delete(self, result_id: str) -> bool:
@@ -138,7 +135,6 @@ class StorageBackend(ABC):
             support soft deletes internally but this should be transparent
             to the caller.
         """
-        pass
 
     @abstractmethod
     async def search(self, query: str, limit: int = 10) -> List[str]:
@@ -165,7 +161,6 @@ class StorageBackend(ABC):
             ...     result = await storage.load(id)
             ...     print(result.final_text[:100])
         """
-        pass
 
     async def get_metadata(self, result_id: str) -> Optional[Dict[str, Any]]:
         """Get summary metadata for a result without loading the full object.

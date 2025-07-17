@@ -1,8 +1,8 @@
 """Transform bad code comments into good ones using the Style critic."""
 
 import asyncio
-from sifaka import improve, Config
 
+from sifaka import Config, improve
 
 # Bad code comment example - vague, no structure, missing context
 bad_comment = """

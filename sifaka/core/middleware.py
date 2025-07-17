@@ -57,14 +57,14 @@ Middleware components form a chain where each component can:
     ...         return result
 """
 
-from abc import ABC, abstractmethod
-from typing import Callable, List, Optional, Any, Dict, cast, AsyncIterator
-import time
 import logging
+import time
+from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any, Callable, Dict, List, Optional, cast
 
 from .models import SifakaResult
-
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +134,6 @@ class Middleware(ABC):
             ...
             ...     return result
         """
-        pass
 
 
 class LoggingMiddleware(Middleware):
@@ -210,7 +209,7 @@ class LoggingMiddleware(Middleware):
         except Exception as e:
             elapsed = time.time() - start_time
             logger.error(
-                f"Improvement failed after {elapsed:.2f}s: {type(e).__name__}: {str(e)}"
+                f"Improvement failed after {elapsed:.2f}s: {type(e).__name__}: {e!s}"
             )
             raise
 

@@ -1,13 +1,14 @@
 """Tests for composable validators."""
 
 import pytest
-from sifaka.validators.composable import (
-    ValidationRule,
-    ComposableValidator,
-    ValidatorBuilder,
-    Validator,
-)
+
 from sifaka.core.models import SifakaResult
+from sifaka.validators.composable import (
+    ComposableValidator,
+    ValidationRule,
+    Validator,
+    ValidatorBuilder,
+)
 
 
 class TestValidationRule:

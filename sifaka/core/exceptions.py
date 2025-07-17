@@ -48,7 +48,7 @@ The module also provides utilities for classifying external errors
 (like OpenAI API errors) into appropriate Sifaka exceptions.
 """
 
-from typing import Optional, List, Any
+from typing import Any, List, Optional
 
 
 class SifakaError(Exception):

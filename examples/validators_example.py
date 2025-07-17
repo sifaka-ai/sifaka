@@ -5,9 +5,10 @@ Validators enforce specific requirements on the improved text.
 
 import asyncio
 import os
-from sifaka import improve, Config
-from sifaka.validators.composable import Validator
+
+from sifaka import Config, improve
 from sifaka.storage.file import FileStorage
+from sifaka.validators.composable import Validator
 
 
 async def main() -> None:

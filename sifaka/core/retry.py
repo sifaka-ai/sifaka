@@ -42,8 +42,8 @@ Other errors are raised immediately without retry.
 """
 
 import asyncio
-from typing import TypeVar, Callable, Optional, Any
 from functools import wraps
+from typing import Any, Callable, Optional, TypeVar
 
 from .exceptions import ModelProviderError
 

@@ -34,7 +34,7 @@ Instead, it focuses on objective, measurable factors:
 - 0.0-0.4: Very low confidence - minimal useful feedback
 """
 
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 
 class ConfidenceCalculator:

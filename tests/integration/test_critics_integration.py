@@ -1,16 +1,17 @@
 """Integration tests for all critics with real LLM calls."""
 
 import pytest
+
 from sifaka import improve
 from sifaka.critics import (
-    ReflexionCritic,
     ConstitutionalCritic,
-    SelfRefineCritic,
-    NCriticsCritic,
-    SelfRAGCritic,
     MetaRewardingCritic,
-    SelfConsistencyCritic,
+    NCriticsCritic,
     PromptCritic,
+    ReflexionCritic,
+    SelfConsistencyCritic,
+    SelfRAGCritic,
+    SelfRefineCritic,
 )
 
 

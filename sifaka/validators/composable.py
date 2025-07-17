@@ -53,9 +53,9 @@ logical operators, making complex validation logic intuitive to express and main
 Each validator provides detailed scoring and feedback for comprehensive results.
 """
 
-from typing import Callable, List, Optional
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
+from typing import Callable, List, Optional
 
 from ..core.models import SifakaResult
 from .base import BaseValidator
@@ -206,7 +206,7 @@ class ComposableValidator(BaseValidator):
                 details.append(f"{rule.name}: {rule_detail}")
 
             except Exception as e:
-                details.append(f"{rule.name}: Error - {str(e)}")
+                details.append(f"{rule.name}: Error - {e!s}")
 
         # Calculate overall results
         all_passed = passed_rules == len(self.rules)

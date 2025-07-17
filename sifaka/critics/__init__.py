@@ -148,16 +148,8 @@ analysis, offering diverse perspectives for comprehensive content improvement.
 Choose critics based on your quality requirements, performance constraints, and specific content needs.
 """
 
-from .core.base import BaseCritic, CriticResponse
-from .reflexion import ReflexionCritic
 from .constitutional import ConstitutionalCritic
-from .self_refine import SelfRefineCritic
-from .n_critics import NCriticsCritic
-from .self_rag import SelfRAGCritic
-from .meta_rewarding import MetaRewardingCritic
-from .self_consistency import SelfConsistencyCritic
-from .style import StyleCritic, style_critic_from_file
-from .prompt import PromptCritic, create_academic_critic
+from .core.base import BaseCritic, CriticResponse
 from .core.factory import (
     CriticFactory,
     create_critic,
@@ -166,6 +158,14 @@ from .core.factory import (
     register_critic,
 )
 from .core.registry import CriticRegistry
+from .meta_rewarding import MetaRewardingCritic
+from .n_critics import NCriticsCritic
+from .prompt import PromptCritic, create_academic_critic
+from .reflexion import ReflexionCritic
+from .self_consistency import SelfConsistencyCritic
+from .self_rag import SelfRAGCritic
+from .self_refine import SelfRefineCritic
+from .style import StyleCritic, style_critic_from_file
 
 # Public API exports
 __all__ = [

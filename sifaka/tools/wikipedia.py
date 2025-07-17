@@ -3,9 +3,10 @@
 Provides direct access to Wikipedia content without external dependencies.
 """
 
-import httpx
 import urllib.parse
-from typing import List, Dict, Any, Union
+from typing import Any, Dict, List, Union
+
+import httpx
 
 from .base import ToolInterface
 from .registry import ToolRegistry
@@ -128,7 +129,7 @@ class WikipediaTool(ToolInterface):
                     {
                         "title": "Wikipedia Error",
                         "url": "",
-                        "summary": f"Failed to search Wikipedia: {str(e)}",
+                        "summary": f"Failed to search Wikipedia: {e!s}",
                         "snippet": "",
                         "source": "wikipedia",
                     }

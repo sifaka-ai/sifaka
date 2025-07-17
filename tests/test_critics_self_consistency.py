@@ -1,13 +1,15 @@
 """Tests for Self-Consistency critic."""
 
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from sifaka.core.config import Config
+from sifaka.core.models import CritiqueResult, SifakaResult
 from sifaka.critics.self_consistency import (
     SelfConsistencyCritic,
     SelfConsistencyResponse,
 )
-from sifaka.core.models import SifakaResult, CritiqueResult
-from sifaka.core.config import Config
 
 
 class TestSelfConsistencyResponse:

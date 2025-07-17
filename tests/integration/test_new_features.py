@@ -1,17 +1,18 @@
 """Integration tests specifically for new features and improvements."""
 
-import pytest
 import asyncio
 import os
 
-from sifaka import improve, SifakaResult, Config
+import pytest
+
+from sifaka import Config, SifakaResult, improve
+from sifaka.core.middleware import (
+    CachingMiddleware,
+    MetricsMiddleware,
+    MiddlewarePipeline,
+)
 from sifaka.critics.n_critics import NCriticsCritic
 from sifaka.critics.self_rag import SelfRAGCritic
-from sifaka.core.middleware import (
-    MiddlewarePipeline,
-    MetricsMiddleware,
-    CachingMiddleware,
-)
 from sifaka.validators.composable import Validator
 
 

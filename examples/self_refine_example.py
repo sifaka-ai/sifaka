@@ -6,7 +6,8 @@ This example uses Google Gemini for fast, cost-effective refinement.
 
 import asyncio
 import os
-from sifaka import improve, Config
+
+from sifaka import Config, improve
 from sifaka.storage.file import FileStorage
 
 

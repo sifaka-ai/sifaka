@@ -1,11 +1,12 @@
 """Helper functions for mocking LLM calls in integration tests."""
 
 import os
+from collections.abc import Generator
 from contextlib import contextmanager
-from unittest.mock import patch, MagicMock
-from typing import Generator, Any
+from typing import Any
+from unittest.mock import MagicMock, patch
 
-from .mock_responses import create_mock_llm, create_mock_improvement_result
+from .mock_responses import create_mock_improvement_result, create_mock_llm
 
 
 @contextmanager

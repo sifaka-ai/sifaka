@@ -38,11 +38,11 @@ this suitable for:
 - No automatic cleanup or expiration
 """
 
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
 
-from .base import StorageBackend
-from ..core.models import SifakaResult
 from ..core.exceptions import StorageError
+from ..core.models import SifakaResult
+from .base import StorageBackend
 
 
 class MemoryStorage(StorageBackend):

@@ -14,12 +14,12 @@ import time
 from datetime import datetime
 from typing import List, Optional
 
-from ..models import SifakaResult
-from ..config import Config
-from ..interfaces import Validator
-from ..exceptions import TimeoutError, ModelProviderError
+from ...storage import FileStorage, StorageBackend
 from ...validators import LengthValidator
-from ...storage import StorageBackend, FileStorage
+from ..config import Config
+from ..exceptions import ModelProviderError, TimeoutError
+from ..interfaces import Validator
+from ..models import SifakaResult
 from .generation import TextGenerator
 from .orchestration import CriticOrchestrator
 from .validation import ValidationRunner
@@ -143,7 +143,7 @@ class SifakaEngine:
                     # Log critic error and continue
                     result.add_critique(
                         critic="system",
-                        feedback=f"Critics failed: {str(e)}",
+                        feedback=f"Critics failed: {e!s}",
                         suggestions=["Continue without critic feedback"],
                         needs_improvement=False,
                         confidence=0.0,
@@ -198,7 +198,7 @@ class SifakaEngine:
                     # Log generation error
                     result.add_critique(
                         critic="system",
-                        feedback=f"Generation failed: {str(e)}",
+                        feedback=f"Generation failed: {e!s}",
                         suggestions=["Try with different parameters"],
                         needs_improvement=False,
                         confidence=0.0,
@@ -214,7 +214,7 @@ class SifakaEngine:
             # Log unexpected errors as system critique
             result.add_critique(
                 critic="system",
-                feedback=f"Unexpected error: {type(e).__name__}: {str(e)}",
+                feedback=f"Unexpected error: {type(e).__name__}: {e!s}",
                 suggestions=["Check logs for details"],
                 needs_improvement=False,
                 confidence=0.0,

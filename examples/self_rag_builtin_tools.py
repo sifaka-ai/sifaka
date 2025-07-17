@@ -11,9 +11,10 @@ The built-in tools include:
 """
 
 import asyncio
-from sifaka import improve, Config
-from sifaka.tools import ToolRegistry
+
+from sifaka import Config, improve
 from sifaka.storage import FileStorage
+from sifaka.tools import ToolRegistry
 
 
 async def main():
