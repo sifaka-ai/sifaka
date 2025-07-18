@@ -81,7 +81,7 @@ class TestSelfConsistencyCritic:
     def test_initialization_with_config(self):
         """Test initialization with config."""
         config = Config()
-        config.self_consistency_num_samples = 5
+        config.critic.self_consistency_num_samples = 5
         critic = SelfConsistencyCritic(config=config)
         assert critic.config == config
         assert critic.num_samples == 5

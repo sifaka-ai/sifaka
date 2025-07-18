@@ -151,7 +151,6 @@ Choose critics based on your quality requirements, performance constraints, and 
 from .constitutional import ConstitutionalCritic
 from .core.base import BaseCritic, CriticResponse
 from .core.factory import (
-    CriticFactory,
     create_critic,
     create_critics,
     list_available_critics,
@@ -184,7 +183,6 @@ __all__ = [
     "StyleCritic",  # Style and voice transformation
     "PromptCritic",  # Custom prompt-engineered critics
     # Factory and management
-    "CriticFactory",  # Advanced critic creation
     "create_critic",  # Simple critic instantiation
     "create_critics",  # Batch critic creation
     "list_available_critics",  # Discovery and introspection

@@ -7,6 +7,7 @@ import asyncio
 import os
 
 from sifaka import Config, improve
+from sifaka.core.types import CriticType
 from sifaka.storage.file import FileStorage
 
 
@@ -34,7 +35,7 @@ async def main() -> None:
     if os.getenv("OPENAI_API_KEY"):
         result1 = await improve(
             text,
-            critics=["n_critics"],
+            critics=[CriticType.N_CRITICS],
             max_iterations=2,
             config=Config(
                 model="gpt-4o-mini", critic_model="gpt-4o-mini", temperature=0.7
@@ -91,7 +92,7 @@ async def main() -> None:
     if os.getenv("GOOGLE_API_KEY"):
         result3 = await improve(
             text,
-            critics=["n_critics"],
+            critics=[CriticType.N_CRITICS],
             max_iterations=1,  # Just one fast iteration
             config=Config(
                 model="gpt-4o-mini", critic_model="gpt-4o-mini", temperature=0.7

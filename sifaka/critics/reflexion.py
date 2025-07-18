@@ -166,7 +166,7 @@ Focus on being constructive and specific. Analyze the text's strengths, weakness
         context_parts = []
 
         # Get recent critiques (not just from this critic)
-        recent_critiques = list(result.critiques)[-self.config.critic_context_window :]
+        recent_critiques = list(result.critiques)[-self.config.critic.context_window :]
 
         for i, critique in enumerate(recent_critiques, 1):
             context_parts.append(f"Iteration {i} ({critique.critic}):")

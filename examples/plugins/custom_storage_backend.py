@@ -171,9 +171,9 @@ class RedisStorageBackend(StorageBackend):
 
 # To use this plugin, either:
 # 1. Register it manually in your code:
-#    from sifaka import register_storage_backend
-#    register_storage_backend("redis", RedisStorageBackend)
-#
+# from sifaka import register_storage_backend
+# register_storage_backend("redis", RedisStorageBackend)
+
 # 2. Or install it as a package with entry points in setup.py:
 #    entry_points={
 #        "sifaka.storage": [

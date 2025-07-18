@@ -183,8 +183,8 @@ class ConstitutionalCritic(BaseCritic):
         # Use provided principles or from config or defaults
         if principles is not None:
             self.principles = principles
-        elif config and config.constitutional_principles:
-            self.principles = config.constitutional_principles
+        elif config and config.critic.constitutional_principles:
+            self.principles = config.critic.constitutional_principles
         else:
             self.principles = DEFAULT_PRINCIPLES
 

@@ -8,6 +8,7 @@ import asyncio
 import os
 
 from sifaka import Config, improve
+from sifaka.core.types import CriticType
 from sifaka.storage.file import FileStorage
 
 
@@ -34,7 +35,7 @@ async def main() -> None:
         print("\n1️⃣ Using Google Gemini 1.5 Flash for rapid Reflexion...")
         result = await improve(
             text,
-            critics=["reflexion"],
+            critics=[CriticType.REFLEXION],
             max_iterations=3,
             config=Config(
                 model="gpt-4o-mini", critic_model="gpt-4o-mini", temperature=0.7
@@ -53,7 +54,7 @@ async def main() -> None:
         print("\n2️⃣ Using Anthropic Claude for deep Reflexion...")
         result = await improve(
             text,
-            critics=["reflexion"],
+            critics=[CriticType.REFLEXION],
             max_iterations=3,
             config=Config(
                 model="gpt-3.5-turbo", critic_model="gpt-3.5-turbo", temperature=0.6
@@ -72,7 +73,7 @@ async def main() -> None:
         print("\n3️⃣ Using OpenAI GPT-4o-mini...")
         result = await improve(
             text,
-            critics=["reflexion"],
+            critics=[CriticType.REFLEXION],
             max_iterations=3,
             config=Config(
                 model="gpt-4o-mini", critic_model="gpt-4o-mini", temperature=0.7
@@ -125,7 +126,7 @@ async def reflexion_comparison():
         start = asyncio.get_event_loop().time()
         result = await improve(
             test_text,
-            critics=["reflexion"],
+            critics=[CriticType.REFLEXION],
             max_iterations=2,
             config=Config(model="gpt-4o-mini", critic_model="gpt-4o-mini"),
         )
@@ -138,7 +139,7 @@ async def reflexion_comparison():
         start = asyncio.get_event_loop().time()
         result = await improve(
             test_text,
-            critics=["reflexion"],
+            critics=[CriticType.REFLEXION],
             max_iterations=2,
             config=Config(model="gpt-3.5-turbo", critic_model="gpt-3.5-turbo"),
         )

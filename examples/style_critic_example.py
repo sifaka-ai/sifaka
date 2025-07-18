@@ -8,6 +8,7 @@ import asyncio
 import os
 
 from sifaka import Config, improve
+from sifaka.core.types import CriticType
 
 
 async def casual_transformation() -> None:
@@ -47,7 +48,7 @@ async def casual_transformation() -> None:
     print(formal_text.strip())
 
     result = await improve(
-        formal_text, critics=["style"], max_iterations=3, config=config
+        formal_text, critics=[CriticType.STYLE], max_iterations=3, config=config
     )
 
     print("\n📱 Casual version:")
@@ -87,7 +88,7 @@ async def technical_to_executive() -> None:
     print(technical_text.strip())
 
     result = await improve(
-        technical_text, critics=["style"], max_iterations=2, config=config
+        technical_text, critics=[CriticType.STYLE], max_iterations=2, config=config
     )
 
     print("\n💼 Executive version:")
@@ -126,7 +127,7 @@ async def match_brand_voice() -> None:
     print(generic_text.strip())
 
     result = await improve(
-        generic_text, critics=["style"], max_iterations=3, config=config
+        generic_text, critics=[CriticType.STYLE], max_iterations=3, config=config
     )
 
     print("\n✨ Brand voice version:")
@@ -165,7 +166,7 @@ async def academic_to_blog() -> None:
     print(academic_text.strip())
 
     result = await improve(
-        academic_text, critics=["style"], max_iterations=3, config=config
+        academic_text, critics=[CriticType.STYLE], max_iterations=3, config=config
     )
 
     print("\n📖 Blog version:")

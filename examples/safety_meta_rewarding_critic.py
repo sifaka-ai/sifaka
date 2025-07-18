@@ -38,6 +38,7 @@ This combination provides nuanced safety evaluation that avoids both:
 ## Example Usage:
 
     >>> from sifaka import improve
+from sifaka.core.types import CriticType
     >>> from examples.safety_meta_rewarding_critic import SafetyMetaRewardingCritic
     >>>
     >>> # Create safety-focused critic

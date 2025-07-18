@@ -101,7 +101,7 @@ class SelfConsistencyCritic(BaseCritic):
         super().__init__(model, temperature, config, provider, api_key)
         # Use config value if available, otherwise use parameter
         self.num_samples = (
-            config.self_consistency_num_samples if config else num_samples
+            config.critic.self_consistency_num_samples if config else num_samples
         )
 
     @property

@@ -166,14 +166,14 @@ class SelfRAGCritic(BaseCritic):
 
     def _are_tools_enabled(self) -> bool:
         """Check if tools are enabled for this critic."""
-        if self.config and hasattr(self.config, "critic_tool_settings"):
+        if self.config and hasattr(self.config.critic, "critic_settings"):
             return bool(
-                self.config.critic_tool_settings.get(self.name, {}).get(
+                self.config.critic.critic_settings.get(self.name, {}).get(
                     "enable_tools", False
                 )
             )
-        elif self.config and hasattr(self.config, "enable_tools"):
-            return bool(self.config.enable_tools)
+        elif self.config and hasattr(self.config.critic, "enable_tools"):
+            return bool(self.config.critic.enable_tools)
         return False
 
     async def _decide_tool_usage(

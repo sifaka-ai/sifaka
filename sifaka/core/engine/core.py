@@ -68,15 +68,19 @@ class SifakaEngine:
 
         # Initialize components
         self.generator = TextGenerator(
-            model=self.config.model, temperature=self.config.temperature
+            model=self.config.llm.model, temperature=self.config.llm.temperature
         )
 
+        # Convert critics to strings if they are enums
+        critic_names = [
+            c.value if hasattr(c, "value") else c for c in self.config.critic.critics
+        ]
         self.orchestrator = CriticOrchestrator(
-            critic_names=self.config.critics,
-            model=self.config.model,
-            temperature=self.config.temperature,
-            critic_model=self.config.critic_model,
-            critic_temperature=self.config.critic_temperature,
+            critic_names=critic_names,
+            model=self.config.llm.model,
+            temperature=self.config.llm.temperature,
+            critic_model=self.config.llm.critic_model,
+            critic_temperature=self.config.llm.effective_critic_temperature,
             config=self.config,
         )
 
@@ -122,7 +126,7 @@ class SifakaEngine:
 
         try:
             # Improvement loop
-            for iteration in range(self.config.max_iterations):
+            for iteration in range(self.config.engine.max_iterations):
                 result.increment_iteration()
                 current_text = result.current_text
 
@@ -173,7 +177,7 @@ class SifakaEngine:
                         tokens,
                         processing_time,
                     ) = await self.generator.generate_improvement(
-                        current_text, result, self.config.show_improvement_prompt
+                        current_text, result, self.config.engine.show_improvement_prompt
                     )
 
                     if improved_text:
@@ -185,7 +189,7 @@ class SifakaEngine:
                         # Add generation to result
                         result.add_generation(
                             text=improved_text,
-                            model=self.config.model,
+                            model=self.config.llm.model,
                             prompt=prompt,
                             tokens=tokens,
                             processing_time=processing_time,
@@ -229,14 +233,16 @@ class SifakaEngine:
     def _check_timeout(self, start_time: float) -> None:
         """Check if operation has timed out."""
         elapsed = time.time() - start_time
-        if elapsed > self.config.timeout_seconds:
-            raise TimeoutError(elapsed_time=elapsed, limit=self.config.timeout_seconds)
+        if elapsed > self.config.engine.total_timeout_seconds:
+            raise TimeoutError(
+                elapsed_time=elapsed, limit=self.config.engine.total_timeout_seconds
+            )
 
     def _should_continue(
         self, validation_passed: bool, needs_improvement: bool
     ) -> bool:
         """Determine if improvement should continue."""
-        if self.config.force_improvements:
+        if self.config.engine.force_improvements:
             return True
 
         return not validation_passed or needs_improvement

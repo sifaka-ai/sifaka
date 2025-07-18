@@ -12,6 +12,7 @@ import asyncio
 import os
 
 from sifaka import Config, improve
+from sifaka.core.types import CriticType
 from sifaka.storage import FileStorage, MultiStorage, RedisStorage
 
 
@@ -114,25 +115,25 @@ async def demo_multiple_improvements(storage: MultiStorage) -> None:
 Machine learning is when computers learn from data. They use algorithms
 to find patterns. Deep learning uses neural networks. It's very powerful.
 """,
-            "critics": ["style", "self_refine"],
+            "critics": [CriticType.STYLE, CriticType.SELF_REFINE],
             "description": "Technical explanation",
         },
         {
             "text": """The implementation of the new feature should be done carefully.
 We need to consider all edge cases. Testing is important. Documentation too.""",
-            "critics": ["self_refine", "style"],
+            "critics": [CriticType.SELF_REFINE, CriticType.STYLE],
             "description": "Software development",
         },
         {
             "text": """Our product revolutionizes how businesses operate. It provides
 amazing benefits. Customers love it. You should buy it now.""",
-            "critics": ["style", "constitutional"],
+            "critics": [CriticType.STYLE, CriticType.CONSTITUTIONAL],
             "description": "Marketing copy",
         },
         {
             "text": """The research shows interesting results. The data supports our
 hypothesis. More studies are needed. This could be significant.""",
-            "critics": ["reflexion", "style"],
+            "critics": ["reflexion", CriticType.STYLE],
             "description": "Research summary",
         },
     ]
@@ -242,7 +243,7 @@ async def demo_storage_benefits(storage: MultiStorage) -> None:
                 try:
                     # Get the Redis backend directly for advanced search
                     results = await backend.search_advanced(
-                        critics=["style"], min_confidence=0.7, limit=3
+                        critics=[CriticType.STYLE], min_confidence=0.7, limit=3
                     )
                     print(f"   Found {len(results)} high-confidence style improvements")
                 except Exception as e:

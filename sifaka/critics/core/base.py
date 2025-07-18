@@ -113,10 +113,12 @@ class BaseCritic(Critic, ABC):
         self.config = config or Config()
         # Use critic_model from config if not explicitly provided
         self.model = (
-            model if model != "gpt-4o-mini" else (self.config.critic_model or model)
+            model if model != "gpt-4o-mini" else (self.config.llm.critic_model or model)
         )
         self.temperature = (
-            temperature or self.config.critic_temperature or self.config.temperature
+            temperature
+            or self.config.llm.critic_temperature
+            or self.config.llm.temperature
         )
         self.provider = provider
         self._api_key = api_key
@@ -124,7 +126,7 @@ class BaseCritic(Critic, ABC):
 
         # Components
         self._confidence_calc: ConfidenceCalculator = ConfidenceCalculator(
-            self.config.critic_base_confidence
+            self.config.critic.base_confidence
         )
 
         # Tool support
@@ -412,7 +414,7 @@ class BaseCritic(Critic, ABC):
             Formatted string of previous feedback or empty string
         """
         recent = []
-        for critique in list(result.critiques)[-self.config.critic_context_window :]:
+        for critique in list(result.critiques)[-self.config.critic.context_window :]:
             if critique.critic == self.name:
                 recent.append(f"- {critique.feedback}")
 

@@ -150,39 +150,3 @@ class ConfidenceCalculator:
 
         # Ensure valid range
         return max(0.0, min(1.0, confidence))
-
-    def _score_specificity(self, text: str) -> float:
-        """Deprecated method kept for backward compatibility.
-
-        This method attempted to score text specificity using complex
-        heuristics but was found to be unreliable. Now returns a
-        neutral score.
-
-        Args:
-            text: Text to analyze (ignored)
-
-        Returns:
-            Always returns 0.5 (neutral score)
-
-        Deprecated:
-            Use the main calculate() method instead.
-        """
-        return 0.5
-
-    def _score_uncertainty(self, text: str) -> float:
-        """Deprecated method kept for backward compatibility.
-
-        This method attempted to detect uncertainty in text using
-        keyword matching but produced unreliable results. Now returns
-        a neutral score.
-
-        Args:
-            text: Text to analyze (ignored)
-
-        Returns:
-            Always returns 0.5 (neutral score)
-
-        Deprecated:
-            Use the main calculate() method instead.
-        """
-        return 0.5

@@ -8,6 +8,7 @@ import asyncio
 import os
 
 from sifaka import Config, improve
+from sifaka.core.types import CriticType
 from sifaka.storage.file import FileStorage
 
 
@@ -32,7 +33,7 @@ async def main() -> None:
         print("🤖 Using OpenAI GPT-4o-mini for refinement...")
         result = await improve(
             text,
-            critics=["self_refine"],
+            critics=[CriticType.SELF_REFINE],
             max_iterations=3,
             config=Config(
                 model="gpt-4o-mini", critic_model="gpt-3.5-turbo", temperature=0.7
@@ -43,7 +44,7 @@ async def main() -> None:
         print("🤖 Using Anthropic Claude as fallback...")
         result = await improve(
             text,
-            critics=["self_refine"],
+            critics=[CriticType.SELF_REFINE],
             max_iterations=3,
             config=Config(
                 model="gpt-3.5-turbo", critic_model="gpt-3.5-turbo", temperature=0.7

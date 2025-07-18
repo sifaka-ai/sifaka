@@ -1,6 +1,6 @@
 """Factory for creating critics using the registry."""
 
-from typing import Any, List, Optional, Type, Union, cast
+from typing import List, Optional, Type, Union, cast
 
 from ...core.config import Config
 from ...core.interfaces import Critic
@@ -92,20 +92,3 @@ def register_critic(
         aliases: Optional alternative names
     """
     CriticRegistry.register(name, critic_class, aliases)
-
-
-# For backwards compatibility
-class CriticFactory:
-    """Factory class for backwards compatibility."""
-
-    @classmethod
-    def create(cls, critic_name: str, **kwargs: Any) -> Critic:
-        return create_critic(critic_name, **kwargs)
-
-    @classmethod
-    def create_multiple(cls, critic_names: List[str], **kwargs: Any) -> List[Critic]:
-        return create_critics(critic_names, **kwargs)
-
-    @classmethod
-    def list_critics(cls) -> List[str]:
-        return list_available_critics()

@@ -32,6 +32,8 @@ For more information, see the documentation at:
 https://docs.sifaka.ai/
 """
 
+from dotenv import load_dotenv
+
 # Core API
 from .api import improve, improve_sync
 from .core.config import Config
@@ -75,11 +77,17 @@ from .core.plugins import (
 )
 from .core.retry import RetryConfig
 
+# Type definitions
+from .core.types import CriticType, Provider, StorageType, ValidatorType
+
 # Critics
 from .critics import CriticRegistry, register_critic
 
 # Storage
 from .storage import FileStorage, MemoryStorage, StorageBackend
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Expose key classes for advanced usage
 __all__ = [
@@ -124,4 +132,9 @@ __all__ = [
     "monitor_context",
     "get_global_monitor",
     "PerformanceMetrics",
+    # Type definitions
+    "CriticType",
+    "ValidatorType",
+    "StorageType",
+    "Provider",
 ]

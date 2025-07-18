@@ -65,14 +65,17 @@ class TestConstitutionalCritic:
     def test_initialization_with_config_principles(self):
         """Test initialization with principles from config."""
         config = Config()
-        config.constitutional_principles = ["Config principle 1", "Config principle 2"]
+        config.critic.constitutional_principles = [
+            "Config principle 1",
+            "Config principle 2",
+        ]
         critic = ConstitutionalCritic(config=config)
-        assert critic.principles == config.constitutional_principles
+        assert critic.principles == config.critic.constitutional_principles
 
     def test_initialization_priority(self):
         """Test priority: custom > config > default."""
         config = Config()
-        config.constitutional_principles = ["From config"]
+        config.critic.constitutional_principles = ["From config"]
         custom = ["From custom"]
 
         # Custom takes precedence

@@ -8,6 +8,7 @@ import asyncio
 import os
 
 from sifaka import Config, improve
+from sifaka.core.types import CriticType
 from sifaka.storage.file import FileStorage
 
 
@@ -32,7 +33,7 @@ async def main() -> None:
         print("🤖 Using Anthropic Claude for meta-evaluation...")
         result = await improve(
             text,
-            critics=["meta_rewarding"],
+            critics=[CriticType.META_REWARDING],
             max_iterations=2,
             config=Config(
                 model="gpt-3.5-turbo",
@@ -45,7 +46,7 @@ async def main() -> None:
         print("🌐 Using Google Gemini as fallback...")
         result = await improve(
             text,
-            critics=["meta_rewarding"],
+            critics=[CriticType.META_REWARDING],
             max_iterations=2,
             config=Config(
                 model="gpt-4o-mini",  # Pro model for complex meta-evaluation

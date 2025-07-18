@@ -89,7 +89,7 @@ class TestMetaRewardingCritic:
     def test_initialization_with_config(self):
         """Test initialization with config."""
         config = Config()
-        config.temperature = 0.5
+        config.llm.temperature = 0.5
         critic = MetaRewardingCritic(config=config)
         assert critic.config == config
 

@@ -13,6 +13,7 @@ The built-in tools include:
 import asyncio
 
 from sifaka import Config, improve
+from sifaka.core.types import CriticType
 from sifaka.storage import FileStorage
 from sifaka.tools import ToolRegistry
 
@@ -45,7 +46,10 @@ async def main():
     print(text1.strip())
 
     result1 = await improve(
-        text1, critics=["self_rag"], storage=storage, config=Config(temperature=0.7)
+        text1,
+        critics=[CriticType.SELF_RAG],
+        storage=storage,
+        config=Config(temperature=0.7),
     )
 
     print("\nFact-checked version:")
@@ -70,7 +74,10 @@ async def main():
 
     # For academic content, the critic should prefer arXiv
     result2 = await improve(
-        text2, critics=["self_rag"], storage=storage, config=Config(temperature=0.7)
+        text2,
+        critics=[CriticType.SELF_RAG],
+        storage=storage,
+        config=Config(temperature=0.7),
     )
 
     print("\nEnhanced with research context:")
@@ -90,7 +97,10 @@ async def main():
     print(text3.strip())
 
     result3 = await improve(
-        text3, critics=["self_rag"], storage=storage, config=Config(temperature=0.7)
+        text3,
+        critics=[CriticType.SELF_RAG],
+        storage=storage,
+        config=Config(temperature=0.7),
     )
 
     print("\nHistorically verified version:")

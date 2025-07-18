@@ -2,7 +2,13 @@
 
 import asyncio
 
+from dotenv import load_dotenv
+
 from sifaka import Config, improve
+from sifaka.core.types import CriticType
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Bad code comment example - vague, no structure, missing context
 bad_comment = """
@@ -70,7 +76,7 @@ async def main():
     # Transform the bad comment
     result = await improve(
         bad_comment,
-        critics=["style"],
+        critics=[CriticType.STYLE],
         max_iterations=2,
         config=Config(
             model="gpt-4o-mini",

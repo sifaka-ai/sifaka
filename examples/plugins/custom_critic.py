@@ -6,6 +6,7 @@ that can be used to improve text according to custom criteria.
 
 from typing import Any, Dict, Optional
 
+from sifaka import improve_sync
 from sifaka.core.config import ModelConfig
 from sifaka.critics.core.base import BaseCritic
 
@@ -220,10 +221,10 @@ Provide only the improved documentation text."""
 
 # To register these critics:
 # 1. Manual registration:
-#    from sifaka.critics import register_critic
-#    register_critic("academic_writing", AcademicWritingCritic)
-#    register_critic("technical_docs", TechnicalDocumentationCritic)
-#
+# from sifaka.critics import register_critic
+# register_critic("academic_writing", AcademicWritingCritic)
+# register_critic("technical_docs", TechnicalDocumentationCritic)
+
 # 2. Or via entry points in setup.py:
 #    entry_points={
 #        "sifaka.critics": [
@@ -252,13 +253,13 @@ if __name__ == "__main__":
     print("Original:", academic_text)
 
     # This would make actual API calls in practice
-    # result = improve_sync(
-    #     academic_text,
-    #     critics=["academic_writing"],
-    #     max_iterations=2,
-    #     critic_kwargs={"citation_style": "APA", "formality_level": "high"}
-    # )
-    # print("Improved:", result.final_text)
+    result = improve_sync(
+        academic_text,
+        critics=["academic_writing"],  # Custom critics use strings after registration
+        max_iterations=2,
+        critic_kwargs={"citation_style": "APA", "formality_level": "high"},
+    )
+    print("Improved:", result.final_text)
 
     # Example 2: Improve technical documentation
     tech_docs = """
@@ -270,10 +271,10 @@ if __name__ == "__main__":
     print("\nTechnical Documentation Example:")
     print("Original:", tech_docs)
 
-    # result = improve_sync(
-    #     tech_docs,
-    #     critics=["technical_docs"],
-    #     max_iterations=2,
-    #     critic_kwargs={"programming_language": "Python", "doc_style": "sphinx"}
-    # )
-    # print("Improved:", result.final_text)
+    result = improve_sync(
+        tech_docs,
+        critics=["technical_docs"],  # Custom critics use strings after registration
+        max_iterations=2,
+        critic_kwargs={"programming_language": "Python", "doc_style": "sphinx"},
+    )
+    print("Improved:", result.final_text)

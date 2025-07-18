@@ -8,6 +8,7 @@ import asyncio
 import os
 
 from sifaka import Config, improve
+from sifaka.core.types import CriticType
 from sifaka.storage.file import FileStorage
 
 
@@ -32,7 +33,7 @@ async def main() -> None:
         print("🌐 Using Google Gemini for fast consistency checks...")
         result = await improve(
             text,
-            critics=["self_consistency"],
+            critics=[CriticType.SELF_CONSISTENCY],
             max_iterations=2,
             config=Config(
                 model="gpt-4o-mini",  # Fast for parallel evaluations
@@ -45,7 +46,7 @@ async def main() -> None:
         print("🔧 Using OpenAI as fallback...")
         result = await improve(
             text,
-            critics=["self_consistency"],
+            critics=[CriticType.SELF_CONSISTENCY],
             max_iterations=2,
             config=Config(
                 model="gpt-4o-mini", critic_model="gpt-4o-mini", temperature=0.5

@@ -118,7 +118,7 @@ class TestSelfRefineCritic:
     def test_initialization_with_config(self):
         """Test initialization with config."""
         config = Config()
-        config.temperature = 0.3
+        config.llm.temperature = 0.3
         critic = SelfRefineCritic(config=config)
         assert critic.config == config
 

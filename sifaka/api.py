@@ -11,18 +11,19 @@ import asyncio
 from typing import Any, Dict, List, Optional, Union
 
 from .core.config import Config
-from .core.constants import DEFAULT_CRITIC, DEFAULT_MAX_ITERATIONS
+from .core.constants import DEFAULT_MAX_ITERATIONS
 from .core.engine import SifakaEngine
 from .core.interfaces import Validator
 from .core.middleware import MiddlewarePipeline
 from .core.models import SifakaResult
+from .core.types import CriticType
 from .storage.base import StorageBackend
 
 
 async def improve(
     text: str,
     *,
-    critics: Optional[Union[str, List[str]]] = None,
+    critics: Optional[Union[CriticType, List[CriticType]]] = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     validators: Optional[List[Validator]] = None,
     config: Optional[Config] = None,
@@ -37,10 +38,10 @@ async def improve(
 
     Args:
         text: The text to improve. Can be any length.
-        critics: Single critic name or list of critics to apply. Available:
-            'reflexion', 'self_refine', 'constitutional', 'meta_rewarding',
-            'self_consistency', 'n_critics', 'self_rag', 'style'.
-            Defaults to 'reflexion'.
+        critics: Single CriticType enum or list of CriticType enums. Available:
+            CriticType.REFLEXION, CriticType.SELF_REFINE, CriticType.CONSTITUTIONAL,
+            CriticType.META_REWARDING, CriticType.SELF_CONSISTENCY, CriticType.N_CRITICS,
+            CriticType.SELF_RAG, CriticType.STYLE. Defaults to CriticType.REFLEXION.
         max_iterations: Maximum improvement iterations (1-10). Default: 3.
         validators: Optional quality validators to ensure text meets criteria.
         config: Configuration for models, temperature, style, etc.
@@ -63,7 +64,7 @@ async def improve(
         >>> # With multiple critics
         >>> result = await improve(
         ...     "Explain quantum computing",
-        ...     critics=["reflexion", "self_refine"],
+        ...     critics=[CriticType.REFLEXION, CriticType.SELF_REFINE],
         ...     max_iterations=5
         ... )
 
@@ -76,30 +77,27 @@ async def improve(
         >>> # Style transformation
         >>> result = await improve(
         ...     formal_text,
-        ...     critics="style",
+        ...     critics=CriticType.STYLE,
         ...     config=Config(
         ...         style_guide="Casual blog post",
         ...         style_examples=["Hey there!", "Let me tell you..."]
         ...     )
         ... )
     """
-    # Handle single critic string
-    if isinstance(critics, str):
+    # Handle single critic enum
+    if isinstance(critics, CriticType):
         critics = [critics]
     elif critics is None:
-        critics = [DEFAULT_CRITIC]
+        critics = [CriticType.REFLEXION]  # Default critic
 
     # Use default config if none provided
     if config is None:
         config = Config()
 
     # Create engine config
-    engine_config = config.model_copy(
-        update={
-            "max_iterations": max_iterations,
-            "critics": critics,
-        }
-    )
+    engine_config = config.model_copy(deep=True)
+    engine_config.engine.max_iterations = max_iterations
+    engine_config.critic.critics = critics
 
     # Create and run engine
     engine = SifakaEngine(engine_config, storage)
@@ -123,7 +121,7 @@ async def improve(
 def improve_sync(
     text: str,
     *,
-    critics: Optional[Union[str, List[str]]] = None,
+    critics: Optional[Union[CriticType, List[CriticType]]] = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     validators: Optional[List[Validator]] = None,
     config: Optional[Config] = None,

@@ -7,6 +7,7 @@ import asyncio
 import os
 
 from sifaka import Config, improve
+from sifaka.core.types import CriticType
 from sifaka.storage.file import FileStorage
 from sifaka.validators.composable import Validator
 
@@ -59,7 +60,7 @@ async def main() -> None:
     result2 = await improve(
         blog_text,
         validators=[blog_validator],
-        critics=["self_refine"],
+        critics=[CriticType.SELF_REFINE],
         max_iterations=3,
         config=Config(
             model="gpt-4o-mini",
@@ -89,7 +90,7 @@ async def main() -> None:
     result3 = await improve(
         abstract_text,
         validators=[academic_validator],
-        critics=["constitutional", "self_refine"],
+        critics=[CriticType.CONSTITUTIONAL, CriticType.SELF_REFINE],
         max_iterations=3,
         config=Config(
             model="gpt-4o-mini",

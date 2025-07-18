@@ -7,6 +7,7 @@ import asyncio
 import os
 
 from sifaka import Config, improve
+from sifaka.core.types import CriticType
 from sifaka.storage.file import FileStorage
 
 
@@ -29,7 +30,7 @@ async def main() -> None:
     # Run improvement with Constitutional critic using Anthropic
     result = await improve(
         text,
-        critics=["constitutional"],
+        critics=[CriticType.CONSTITUTIONAL],
         max_iterations=3,
         config=Config(
             model="gpt-3.5-turbo",  # Fast Anthropic model

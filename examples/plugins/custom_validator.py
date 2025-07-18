@@ -320,11 +320,11 @@ class AccessibilityValidator(BaseValidator):
 
 # To register these validators:
 # 1. Manual registration:
-#    from sifaka.validators import register_validator
-#    register_validator("seo", SEOValidator)
-#    register_validator("code_quality", CodeQualityValidator)
-#    register_validator("accessibility", AccessibilityValidator)
-#
+# from sifaka.validators import register_validator
+# register_validator("seo", SEOValidator)
+# register_validator("code_quality", CodeQualityValidator)
+# register_validator("accessibility", AccessibilityValidator)
+
 # 2. Or via entry points in setup.py:
 #    entry_points={
 #        "sifaka.validators": [

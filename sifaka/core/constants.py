@@ -46,7 +46,7 @@ DEFAULT_MODEL = "gpt-4o-mini"  # Fast, cost-effective model for general use
 DEFAULT_TEMPERATURE = 0.7  # Balanced between creativity and consistency
 DEFAULT_MAX_ITERATIONS = 3  # Usually sufficient for good improvements
 DEFAULT_TIMEOUT = 300  # 5 minutes - reasonable for most operations
-DEFAULT_CRITIC = "reflexion"  # Well-tested, general-purpose critic
+# DEFAULT_CRITIC removed - use CriticType.REFLEXION directly
 
 # Limits
 # These define acceptable ranges for configuration validation
