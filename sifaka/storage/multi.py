@@ -220,7 +220,7 @@ class MultiStorage(StorageBackend):
                 await backend.delete(result_id)
                 logger.debug(f"Deleted from {backend.__class__.__name__}")
             except Exception as e:
-                error_msg = f"Failed to delete from {backend.__class__.__name__}: {e}"
+                error_msg = f"Failed to delete from {backend.__class__.__name__}: {e}"  # nosec B608
                 errors.append(error_msg)
                 logger.warning(error_msg)
 

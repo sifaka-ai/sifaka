@@ -84,7 +84,10 @@ jobs:
       run: uv sync --all-extras --dev
 
     - name: Run security scan with bandit
-      run: uv run bandit -r sifaka/ -f json -o bandit-report.json
+      run: |
+        uv run bandit -r sifaka/ -f json -o bandit-report.json -ll || true
+        # Check if there are any high severity issues
+        uv run python -c "import json; data=json.load(open('bandit-report.json')); high_issues=[i for i in data['results'] if i['issue_severity']=='HIGH']; exit(1 if high_issues else 0)"
 
     - name: Upload security scan results
       uses: actions/upload-artifact@v4

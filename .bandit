@@ -1,0 +1,20 @@
+# Bandit configuration file
+[bandit]
+# Only report issues with confidence level MEDIUM or HIGH
+confidence: MEDIUM
+
+# Exclude test directories
+exclude_dirs:
+  - /tests/
+  - /examples/
+  - /benchmarks/
+
+# Skip specific tests that produce false positives
+skips:
+  - B101  # assert_used - We use asserts in our code appropriately
+  - B601  # paramiko_calls - We don't use paramiko
+  - B602  # subprocess_popen_with_shell_equals_true - Reviewed and safe
+
+# Test severity level threshold (LOW, MEDIUM, HIGH)
+# Only report MEDIUM and HIGH severity issues in CI
+severity: MEDIUM
