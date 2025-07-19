@@ -55,7 +55,7 @@ You'll need at least one API key from these providers:
 # Choose one or more:
 export ANTHROPIC_API_KEY="your-anthropic-key"
 export OPENAI_API_KEY="your-openai-key"
-export GOOGLE_API_KEY="your-google-key"
+export GEMINI_API_KEY="your-google-key"
 ```
 
 ## Basic Usage

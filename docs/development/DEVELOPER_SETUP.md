@@ -55,7 +55,7 @@ Create a `.env` file in the project root:
 # .env
 ANTHROPIC_API_KEY="your-key-here"
 OPENAI_API_KEY="your-key-here"
-GOOGLE_API_KEY="your-key-here"
+GEMINI_API_KEY="your-key-here"
 ```
 
 Or export them in your shell:
@@ -63,7 +63,7 @@ Or export them in your shell:
 ```bash
 export ANTHROPIC_API_KEY="your-key"
 export OPENAI_API_KEY="your-key"
-export GOOGLE_API_KEY="your-key"
+export GEMINI_API_KEY="your-key"
 ```
 
 ## Verify Installation
@@ -177,7 +177,7 @@ sifaka/
 ANTHROPIC_API_KEY="your-key" python examples/constitutional_example.py
 
 # Use Google
-GOOGLE_API_KEY="your-key" python examples/self_refine_example.py
+GEMINI_API_KEY="your-key" python examples/self_refine_example.py
 
 # Use OpenAI
 OPENAI_API_KEY="your-key" python examples/reflexion_example.py

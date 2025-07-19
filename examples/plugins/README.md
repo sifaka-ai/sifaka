@@ -237,4 +237,4 @@ uv run python examples/plugins/example_validator_plugin.py
 For full integration testing, you'll need to provide API keys for the LLM providers in your environment or `.env` file:
 - `OPENAI_API_KEY` for OpenAI models
 - `ANTHROPIC_API_KEY` for Claude models
-- `GOOGLE_API_KEY` for Gemini models
+- `GEMINI_API_KEY` for Gemini models

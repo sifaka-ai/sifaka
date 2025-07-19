@@ -475,7 +475,7 @@ class TestPerformanceWithProviders:
             providers_to_test.append(("openai", "gpt-4o-mini"))
         if os.getenv("ANTHROPIC_API_KEY"):
             providers_to_test.append(("anthropic", "claude-3-haiku-20240307"))
-        if os.getenv("GOOGLE_API_KEY"):
+        if os.getenv("GEMINI_API_KEY"):
             providers_to_test.append(("google", "gemini-1.5-flash"))
 
         if not providers_to_test:

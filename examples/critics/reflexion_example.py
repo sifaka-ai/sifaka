@@ -32,7 +32,7 @@ async def main() -> None:
     providers_tested = []
 
     # Option 1: Google Gemini (fastest, good for quick iterations)
-    if os.getenv("GOOGLE_API_KEY"):
+    if os.getenv("GEMINI_API_KEY"):
         print("\n1️⃣ Using Google Gemini 1.5 Flash for rapid Reflexion...")
         result = await improve(
             text,
@@ -99,7 +99,7 @@ async def main() -> None:
 
     else:
         print("❌ No API keys found. Please set one of:")
-        print("   - GOOGLE_API_KEY (recommended for speed)")
+        print("   - GEMINI_API_KEY (recommended for speed)")
         print("   - ANTHROPIC_API_KEY (recommended for quality)")
         print("   - OPENAI_API_KEY")
         return
@@ -117,7 +117,7 @@ async def reflexion_comparison():
 
     if not any(
         [
-            os.getenv("GOOGLE_API_KEY"),
+            os.getenv("GEMINI_API_KEY"),
             os.getenv("ANTHROPIC_API_KEY"),
             os.getenv("OPENAI_API_KEY"),
         ]
@@ -132,7 +132,7 @@ async def reflexion_comparison():
     results = {}
 
     # Test each available provider
-    if os.getenv("GOOGLE_API_KEY"):
+    if os.getenv("GEMINI_API_KEY"):
         start = asyncio.get_event_loop().time()
         result = await improve(
             test_text,

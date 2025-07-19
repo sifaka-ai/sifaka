@@ -28,7 +28,7 @@ class ProviderConfig:
 PROVIDERS = [
     ProviderConfig("openai", "gpt-4o-mini", "OPENAI_API_KEY"),
     ProviderConfig("anthropic", "claude-3-haiku-20240307", "ANTHROPIC_API_KEY"),
-    ProviderConfig("google", "gemini-1.5-flash", "GOOGLE_API_KEY"),
+    ProviderConfig("google", "gemini-1.5-flash", "GEMINI_API_KEY"),
     ProviderConfig("xai", "grok-beta", "XAI_API_KEY"),
 ]
 

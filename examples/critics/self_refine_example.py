@@ -59,7 +59,7 @@ async def main() -> None:
             storage=FileStorage(),
         )
     else:
-        print("❌ No API keys found. Please set GOOGLE_API_KEY or ANTHROPIC_API_KEY")
+        print("❌ No API keys found. Please set GEMINI_API_KEY or ANTHROPIC_API_KEY")
         return
 
     print(f"✅ Improved text ({len(result.final_text.split())} words):")
@@ -69,5 +69,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    # Note: Prefers GOOGLE_API_KEY, falls back to ANTHROPIC_API_KEY
+    # Note: Prefers GEMINI_API_KEY, falls back to ANTHROPIC_API_KEY
     asyncio.run(main())

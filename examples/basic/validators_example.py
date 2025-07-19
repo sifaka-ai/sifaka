@@ -193,16 +193,16 @@ async def batch_improve_demo():
 
 
 if __name__ == "__main__":
-    # Note: Works with GOOGLE_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY
+    # Note: Works with GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY
     if not any(
         [
-            os.getenv("GOOGLE_API_KEY"),
+            os.getenv("GEMINI_API_KEY"),
             os.getenv("ANTHROPIC_API_KEY"),
             os.getenv("OPENAI_API_KEY"),
         ]
     ):
         print("❌ No API keys found. Please set at least one of:")
-        print("   - GOOGLE_API_KEY")
+        print("   - GEMINI_API_KEY")
         print("   - ANTHROPIC_API_KEY")
         print("   - OPENAI_API_KEY")
     else:

@@ -110,7 +110,7 @@ def setup_ci_environment():
         # Set dummy API keys for CI
         os.environ.setdefault("OPENAI_API_KEY", "mock-key")
         os.environ.setdefault("ANTHROPIC_API_KEY", "mock-key")
-        os.environ.setdefault("GOOGLE_API_KEY", "mock-key")
+        os.environ.setdefault("GEMINI_API_KEY", "mock-key")
 
         # Reduce timeouts for faster CI
         os.environ.setdefault("INTEGRATION_TEST_TIMEOUT", "5.0")

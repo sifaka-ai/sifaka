@@ -13,7 +13,7 @@ def check_api_keys() -> Dict[str, bool]:
     providers = {
         "OpenAI": "OPENAI_API_KEY",
         "Anthropic": "ANTHROPIC_API_KEY",
-        "Google": "GOOGLE_API_KEY",
+        "Google": "GEMINI_API_KEY",
         "xAI": "XAI_API_KEY",
     }
 
@@ -40,7 +40,7 @@ def print_status(available_keys: Dict[str, bool]):
         print("\n⚠️  No API keys found! Set environment variables:")
         print("   export OPENAI_API_KEY='your-key'")
         print("   export ANTHROPIC_API_KEY='your-key'")
-        print("   export GOOGLE_API_KEY='your-key'")
+        print("   export GEMINI_API_KEY='your-key'")
         print("   export XAI_API_KEY='your-key'")
         return False
 

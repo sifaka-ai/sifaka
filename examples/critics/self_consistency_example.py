@@ -30,7 +30,7 @@ async def main() -> None:
     print()
 
     # Run improvement with Self-Consistency critic using Gemini for speed
-    if os.getenv("GOOGLE_API_KEY"):
+    if os.getenv("GEMINI_API_KEY"):
         print("🌐 Using Google Gemini for fast consistency checks...")
         result = await improve(
             text,
@@ -61,7 +61,7 @@ async def main() -> None:
             storage=FileStorage(),
         )
     else:
-        print("❌ No API keys found. Please set GOOGLE_API_KEY or OPENAI_API_KEY")
+        print("❌ No API keys found. Please set GEMINI_API_KEY or OPENAI_API_KEY")
         return
 
     print(f"✅ Improved text ({len(result.final_text.split())} words):")
@@ -72,5 +72,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    # Note: Prefers GOOGLE_API_KEY for speed, falls back to OPENAI_API_KEY
+    # Note: Prefers GEMINI_API_KEY for speed, falls back to OPENAI_API_KEY
     asyncio.run(main())

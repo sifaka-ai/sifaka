@@ -83,7 +83,7 @@ export OPENAI_API_KEY="your-openai-api-key"
 export ANTHROPIC_API_KEY="your-anthropic-api-key"
 
 # Google
-export GOOGLE_API_KEY="your-google-api-key"
+export GEMINI_API_KEY="your-google-api-key"
 ```
 
 Or use a `.env` file:
@@ -91,7 +91,7 @@ Or use a `.env` file:
 ```env
 OPENAI_API_KEY=your-openai-api-key
 ANTHROPIC_API_KEY=your-anthropic-api-key
-GOOGLE_API_KEY=your-google-api-key
+GEMINI_API_KEY=your-google-api-key
 ```
 
 ## Verify Installation

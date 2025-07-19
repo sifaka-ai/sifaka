@@ -135,7 +135,7 @@ def test_provider_switching(provider, integration_timeout):
     key_mapping = {
         "openai": "OPENAI_API_KEY",
         "anthropic": "ANTHROPIC_API_KEY",
-        "google": "GOOGLE_API_KEY",
+        "google": "GEMINI_API_KEY",
     }
 
     api_key = os.getenv(key_mapping[provider])

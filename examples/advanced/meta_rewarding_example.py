@@ -46,7 +46,7 @@ async def main() -> None:
             ),
             storage=FileStorage(),
         )
-    elif os.getenv("GOOGLE_API_KEY"):
+    elif os.getenv("GEMINI_API_KEY"):
         print("🌐 Using Google Gemini as fallback...")
         result = await improve(
             text,
@@ -63,7 +63,7 @@ async def main() -> None:
             storage=FileStorage(),
         )
     else:
-        print("❌ No API keys found. Please set ANTHROPIC_API_KEY or GOOGLE_API_KEY")
+        print("❌ No API keys found. Please set ANTHROPIC_API_KEY or GEMINI_API_KEY")
         return
 
     print(f"✅ Improved text ({len(result.final_text.split())} words):")
@@ -74,5 +74,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    # Note: Prefers ANTHROPIC_API_KEY for meta-evaluation, falls back to GOOGLE_API_KEY
+    # Note: Prefers ANTHROPIC_API_KEY for meta-evaluation, falls back to GEMINI_API_KEY
     asyncio.run(main())

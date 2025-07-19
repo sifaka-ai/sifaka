@@ -10,7 +10,7 @@ This directory contains integration tests that interact with real LLM APIs. Thes
    ```bash
    export OPENAI_API_KEY="your-openai-key"
    export ANTHROPIC_API_KEY="your-anthropic-key"
-   export GOOGLE_API_KEY="your-google-key"
+   export GEMINI_API_KEY="your-google-key"
    ```
 
 2. Install development dependencies:

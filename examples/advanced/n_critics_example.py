@@ -61,8 +61,13 @@ async def main() -> None:
             critics=[CriticType.N_CRITICS],
             max_iterations=2,
             config=Config(
-                llm=LLMConfig(model="claude-3-haiku-20240307" if os.getenv("ANTHROPIC_API_KEY") else "gpt-4o-mini", temperature=0.6),
-                critic=CriticConfig(critic_model="gpt-3.5-turbo")
+                llm=LLMConfig(
+                    model="claude-3-haiku-20240307"
+                    if os.getenv("ANTHROPIC_API_KEY")
+                    else "gpt-4o-mini",
+                    temperature=0.6,
+                ),
+                critic=CriticConfig(critic_model="gpt-3.5-turbo"),
             ),
             storage=FileStorage(),
         )
@@ -84,7 +89,7 @@ async def main() -> None:
     # Approach 3: Using Gemini for speed
     print("\n3️⃣ Fast iteration with Google Gemini...")
 
-    if os.getenv("GOOGLE_API_KEY"):
+    if os.getenv("GEMINI_API_KEY"):
         result3 = await improve(
             text,
             critics=[CriticType.N_CRITICS],
@@ -100,24 +105,24 @@ async def main() -> None:
         print(f"✅ Quick improvement in {result3.processing_time:.2f}s")
         print(f"   Result preview: {result3.final_text[:150]}...")
     else:
-        print("   ⏭️  Skipping - no GOOGLE_API_KEY")
+        print("   ⏭️  Skipping - no GEMINI_API_KEY")
 
 
 if __name__ == "__main__":
-    # Note: Can use OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY
+    # Note: Can use OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY
     available_providers = []
     if os.getenv("OPENAI_API_KEY"):
         available_providers.append("OpenAI")
     if os.getenv("ANTHROPIC_API_KEY"):
         available_providers.append("Anthropic")
-    if os.getenv("GOOGLE_API_KEY"):
+    if os.getenv("GEMINI_API_KEY"):
         available_providers.append("Google")
 
     if not available_providers:
         print("❌ No API keys found. Please set at least one of:")
         print("   - OPENAI_API_KEY")
         print("   - ANTHROPIC_API_KEY")
-        print("   - GOOGLE_API_KEY")
+        print("   - GEMINI_API_KEY")
     else:
         print(f"✅ Available providers: {', '.join(available_providers)}")
         asyncio.run(main())

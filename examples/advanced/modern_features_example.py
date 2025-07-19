@@ -242,7 +242,7 @@ async def connection_pool_demo():
         print(f"      - Idle: {stats['idle_connections']}")
     # Get pool metrics if available
     pool_metrics = pool.get_metrics()
-    print(f"\n   Pool Metrics:")
+    print("\n   Pool Metrics:")
     print(f"   - Pool hits: {pool_metrics.pool_hits}")
     print(f"   - Pool misses: {pool_metrics.pool_misses}")
 
@@ -273,12 +273,12 @@ if __name__ == "__main__":
         [
             os.getenv("OPENAI_API_KEY"),
             os.getenv("ANTHROPIC_API_KEY"),
-            os.getenv("GOOGLE_API_KEY"),
+            os.getenv("GEMINI_API_KEY"),
         ]
     ):
         print("❌ No API keys found. Please set at least one of:")
         print("   - OPENAI_API_KEY")
         print("   - ANTHROPIC_API_KEY")
-        print("   - GOOGLE_API_KEY")
+        print("   - GEMINI_API_KEY")
     else:
         asyncio.run(main())

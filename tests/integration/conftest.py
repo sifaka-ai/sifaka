@@ -49,7 +49,7 @@ def api_key(request) -> Optional[str]:
     key_mapping = {
         "openai": "OPENAI_API_KEY",
         "anthropic": "ANTHROPIC_API_KEY",
-        "google": "GOOGLE_API_KEY",
+        "google": "GEMINI_API_KEY",
     }
 
     env_var = key_mapping.get(provider)
