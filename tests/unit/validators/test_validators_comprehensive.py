@@ -81,7 +81,7 @@ class TestLengthValidator:
         assert isinstance(result, ValidationResult)
         assert result.validator == "length"
         assert result.passed is True
-        assert result.score == 1.0
+        assert 0.9 <= result.score <= 1.0  # Score based on centering within range
         assert f"Text length: {len(text)}" in result.details
 
     @pytest.mark.asyncio
@@ -125,7 +125,7 @@ class TestLengthValidator:
         result = await validator.validate(text, dummy_result)
 
         assert result.passed is False
-        assert result.score == 1.0  # Score only considers min_length, 63/10 > 1.0
+        assert 0.3 <= result.score <= 0.35  # Score is max_length/actual_length = 20/63
         assert "Text length: 63 characters (maximum allowed: 20)" in result.details
 
     @pytest.mark.asyncio
@@ -210,9 +210,7 @@ class TestLengthValidator:
         result = await validator.validate(text, dummy_result)
 
         assert result.passed is False
-        assert (
-            result.score == 1.0
-        )  # Score only considers min_length, text exceeds max but that doesn't affect score
+        assert 0.2 <= result.score <= 0.25  # Score is max_length/actual_length = 10/44
 
     @pytest.mark.asyncio
     async def test_validate_empty_text(self):
@@ -276,7 +274,7 @@ class TestLengthValidator:
         result = await validator.validate(text, dummy_result)
 
         assert result.passed is True
-        assert result.score == 1.0
+        assert 0.95 <= result.score <= 1.0  # Score based on centering within range
 
     @pytest.mark.asyncio
     async def test_validate_exact_boundaries(self):

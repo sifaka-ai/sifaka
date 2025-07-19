@@ -1,6 +1,6 @@
 """Tests for in-memory storage backend."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -218,10 +218,10 @@ class TestMemoryStorage:
         """Test exception handling in save operation."""
         result = SifakaResult(original_text="Test", final_text="Test")
 
-        # Mock the storage to raise an exception
-        with patch.object(
-            storage._storage, "__setitem__", side_effect=Exception("Save failed")
-        ):
+        # Mock the entire _storage dict to raise an exception
+        with patch.object(storage, "_storage", new_callable=MagicMock) as mock_storage:
+            mock_storage.__setitem__.side_effect = Exception("Save failed")
+
             with pytest.raises(StorageError) as exc_info:
                 await storage.save(result)
 
@@ -232,10 +232,10 @@ class TestMemoryStorage:
     @pytest.mark.asyncio
     async def test_load_exception_handling(self, storage):
         """Test exception handling in load operation."""
-        # Mock the storage to raise an exception
-        with patch.object(
-            storage._storage, "get", side_effect=Exception("Load failed")
-        ):
+        # Mock the entire _storage dict to raise an exception
+        with patch.object(storage, "_storage", new_callable=MagicMock) as mock_storage:
+            mock_storage.get.side_effect = Exception("Load failed")
+
             with pytest.raises(StorageError) as exc_info:
                 await storage.load("test-id")
 
@@ -250,10 +250,10 @@ class TestMemoryStorage:
         result = SifakaResult(original_text="Test", final_text="Test")
         storage._storage[result.id] = result
 
-        # Mock to raise an exception during iteration
-        with patch.object(
-            storage._storage, "items", side_effect=Exception("Search failed")
-        ):
+        # Mock the entire _storage dict to raise an exception
+        with patch.object(storage, "_storage", new_callable=MagicMock) as mock_storage:
+            mock_storage.items.side_effect = Exception("Search failed")
+
             with pytest.raises(StorageError) as exc_info:
                 await storage.search("test")
 
