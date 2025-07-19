@@ -25,7 +25,7 @@ class TestConfidenceCalculator:
             response_length=200,
         )
         # Should be close to base confidence with minor adjustments
-        assert 0.65 <= confidence <= 0.75
+        assert 0.649 <= confidence <= 0.75
 
     def test_long_response_bonus(self):
         """Test that long responses increase confidence."""

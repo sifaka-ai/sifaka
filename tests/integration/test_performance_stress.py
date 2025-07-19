@@ -179,7 +179,7 @@ class TestPerformanceBasics:
     async def test_storage_performance_file(self):
         """Test FileStorage performance."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            storage = FileStorage(base_path=temp_dir)
+            storage = FileStorage(temp_dir)
 
             # Create test results
             results = []
@@ -385,6 +385,7 @@ class TestMemoryManagement:
             for j in range(10):
                 large_generations.append(
                     Generation(
+                        iteration=1,
                         text="x" * 1000,  # 1KB per generation
                         model="gpt-4o-mini",
                         prompt_tokens=100,
@@ -424,6 +425,7 @@ class TestMemoryManagement:
         # Add many generations (should be bounded)
         for i in range(20):
             generation = Generation(
+                iteration=1,
                 text=f"Generation {i}",
                 model="gpt-4o-mini",
                 prompt_tokens=10,
@@ -1230,6 +1232,7 @@ class TestScalabilityTests:
             # Create result with increasing amounts of data
             generations = [
                 Generation(
+                    iteration=1,
                     text=f"Generated text {j}" * (i + 1),
                     model="gpt-4o-mini",
                     prompt_tokens=10,

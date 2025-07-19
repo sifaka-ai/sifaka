@@ -37,7 +37,7 @@ class CriticType(str, Enum):
         except ValueError:
             available = ", ".join(cls.values())
             raise ValueError(
-                f"Unknown critic type: '{value}'. " f"Available critics: {available}"
+                f"Unknown critic type: '{value}'. Available critics: {available}"
             )
 
 
@@ -69,8 +69,7 @@ class ValidatorType(str, Enum):
         except ValueError:
             available = ", ".join(cls.values())
             raise ValueError(
-                f"Unknown validator type: '{value}'. "
-                f"Available validators: {available}"
+                f"Unknown validator type: '{value}'. Available validators: {available}"
             )
 
 

@@ -598,6 +598,7 @@ class TestDataIntegrityEdgeCases:
         # Add items up to the limit
         for i in range(15):  # More than the limit of 10
             generation = Generation(
+                iteration=1,
                 text=f"Generation {i}",
                 model="gpt-4o-mini",
                 prompt_tokens=10,
@@ -621,6 +622,7 @@ class TestDataIntegrityEdgeCases:
             iteration=5,
             generations=[
                 Generation(
+                    iteration=1,
                     text="Gen 1",
                     model="gpt-4",
                     prompt_tokens=100,

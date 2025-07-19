@@ -18,7 +18,7 @@ from sifaka.core.plugin_interfaces import (
 from sifaka.core.plugin_loader import PluginLoader
 
 
-class TestCriticPlugin(CriticPlugin):
+class MockCriticPlugin(CriticPlugin):
     """Test critic plugin for testing."""
 
     @property
@@ -44,7 +44,7 @@ class TestCriticPlugin(CriticPlugin):
         )
 
 
-class TestValidatorPlugin(ValidatorPlugin):
+class MockValidatorPlugin(ValidatorPlugin):
     """Test validator plugin for testing."""
 
     @property
@@ -94,7 +94,7 @@ class TestPluginInterfaces:
 
     def test_critic_plugin_creation(self):
         """Test creating a critic plugin."""
-        plugin = TestCriticPlugin()
+        plugin = MockCriticPlugin()
 
         assert plugin.name == "test_critic"
         assert plugin.status == PluginStatus.LOADED
@@ -103,7 +103,7 @@ class TestPluginInterfaces:
 
     def test_validator_plugin_creation(self):
         """Test creating a validator plugin."""
-        plugin = TestValidatorPlugin()
+        plugin = MockValidatorPlugin()
 
         assert plugin.name == "test_validator"
         assert plugin.status == PluginStatus.LOADED
@@ -113,7 +113,7 @@ class TestPluginInterfaces:
     @pytest.mark.asyncio
     async def test_critic_plugin_critique(self):
         """Test critic plugin critique method."""
-        plugin = TestCriticPlugin()
+        plugin = MockCriticPlugin()
 
         # Create a mock result
         result = SifakaResult(
@@ -140,7 +140,7 @@ class TestPluginInterfaces:
     @pytest.mark.asyncio
     async def test_validator_plugin_validate(self):
         """Test validator plugin validate method."""
-        plugin = TestValidatorPlugin()
+        plugin = MockValidatorPlugin()
 
         # Create a mock result
         result = SifakaResult(
@@ -177,7 +177,7 @@ class TestPluginRegistry:
     def test_plugin_registration(self):
         """Test registering a plugin."""
         registry = PluginRegistry()
-        plugin = TestCriticPlugin()
+        plugin = MockCriticPlugin()
 
         registry.register(plugin)
 
@@ -188,7 +188,7 @@ class TestPluginRegistry:
     def test_plugin_unregistration(self):
         """Test unregistering a plugin."""
         registry = PluginRegistry()
-        plugin = TestCriticPlugin()
+        plugin = MockCriticPlugin()
 
         registry.register(plugin)
         assert len(registry.list_plugins()) == 1
@@ -200,8 +200,8 @@ class TestPluginRegistry:
     def test_plugin_filtering_by_type(self):
         """Test filtering plugins by type."""
         registry = PluginRegistry()
-        critic_plugin = TestCriticPlugin()
-        validator_plugin = TestValidatorPlugin()
+        critic_plugin = MockCriticPlugin()
+        validator_plugin = MockValidatorPlugin()
 
         registry.register(critic_plugin)
         registry.register(validator_plugin)
@@ -214,7 +214,7 @@ class TestPluginRegistry:
     def test_plugin_status_tracking(self):
         """Test plugin status tracking."""
         registry = PluginRegistry()
-        plugin = TestCriticPlugin()
+        plugin = MockCriticPlugin()
 
         registry.register(plugin)
 
@@ -229,7 +229,7 @@ class TestPluginRegistry:
     def test_plugin_health_status(self):
         """Test plugin health status."""
         registry = PluginRegistry()
-        plugin = TestCriticPlugin()
+        plugin = MockCriticPlugin()
 
         registry.register(plugin)
 
@@ -256,7 +256,7 @@ class TestPluginLoader:
     def test_plugin_validation(self):
         """Test plugin validation."""
         loader = PluginLoader()
-        plugin = TestCriticPlugin()
+        plugin = MockCriticPlugin()
 
         # Should validate successfully
         assert loader.validate_plugin(plugin) is True
@@ -359,7 +359,7 @@ class TestPluginLoader:
 
     def test_plugin_lifecycle(self):
         """Test plugin lifecycle management."""
-        plugin = TestCriticPlugin()
+        plugin = MockCriticPlugin()
 
         # Initial state
         assert plugin.status == PluginStatus.LOADED
@@ -383,7 +383,7 @@ class TestPluginLoader:
 
     def test_plugin_configuration(self):
         """Test plugin configuration."""
-        plugin = TestCriticPlugin()
+        plugin = MockCriticPlugin()
 
         # Initialize with config
         config = {"model": "gpt-4o-mini", "temperature": 0.5}
@@ -395,7 +395,7 @@ class TestPluginLoader:
 
     def test_plugin_error_handling(self):
         """Test plugin error handling."""
-        plugin = TestCriticPlugin()
+        plugin = MockCriticPlugin()
 
         # Mock an error during initialization
         with patch.object(

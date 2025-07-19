@@ -43,6 +43,7 @@ def sample_result():
         iteration=2,
         generations=[
             Generation(
+                iteration=1,
                 text="First generation",
                 model="gpt-4o-mini",
                 prompt_tokens=50,
@@ -50,6 +51,7 @@ def sample_result():
                 total_tokens=150,
             ),
             Generation(
+                iteration=1,
                 text="Second generation",
                 model="gpt-4o-mini",
                 prompt_tokens=60,
@@ -317,7 +319,7 @@ class TestFileStorage:
 
     def test_file_storage_initialization(self, temp_dir):
         """Test FileStorage initialization."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
         assert isinstance(storage, StorageBackend)
         assert storage.base_path == Path(temp_dir)
         assert storage.base_path.exists()
@@ -331,7 +333,7 @@ class TestFileStorage:
     @pytest.mark.asyncio
     async def test_save_and_load_basic(self, sample_result, temp_dir):
         """Test basic save and load operations."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
 
         # Save result
         result_id = await storage.save(sample_result)
@@ -351,11 +353,11 @@ class TestFileStorage:
     async def test_file_persistence(self, sample_result, temp_dir):
         """Test that FileStorage persists across instances."""
         # Save with first instance
-        storage1 = FileStorage(base_path=temp_dir)
+        storage1 = FileStorage(temp_dir)
         result_id = await storage1.save(sample_result)
 
         # Load with second instance
-        storage2 = FileStorage(base_path=temp_dir)
+        storage2 = FileStorage(temp_dir)
         loaded_result = await storage2.load(result_id)
         assert loaded_result is not None
         assert loaded_result.id == sample_result.id
@@ -363,7 +365,7 @@ class TestFileStorage:
     @pytest.mark.asyncio
     async def test_delete_file(self, sample_result, temp_dir):
         """Test file deletion."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
 
         # Save and verify file exists
         result_id = await storage.save(sample_result)
@@ -378,7 +380,7 @@ class TestFileStorage:
     @pytest.mark.asyncio
     async def test_list_files(self, temp_dir):
         """Test listing files."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
 
         # Save multiple results
         results = []
@@ -403,7 +405,7 @@ class TestFileStorage:
     @pytest.mark.asyncio
     async def test_search_files(self, temp_dir):
         """Test searching through files."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
 
         # Create results with searchable content
         result1 = SifakaResult(
@@ -440,7 +442,7 @@ class TestFileStorage:
     @pytest.mark.asyncio
     async def test_file_corruption_handling(self, temp_dir):
         """Test handling of corrupted files."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
 
         # Create a corrupted file
         corrupted_file = storage.base_path / "corrupted.json"
@@ -454,7 +456,7 @@ class TestFileStorage:
     @pytest.mark.asyncio
     async def test_concurrent_file_operations(self, temp_dir):
         """Test concurrent file operations."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
 
         async def save_and_load(i):
             result = SifakaResult(
@@ -480,13 +482,14 @@ class TestFileStorage:
     @pytest.mark.asyncio
     async def test_large_result_handling(self, temp_dir):
         """Test handling of large results."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
 
         # Create a large result
         large_generations = []
         for i in range(100):
             large_generations.append(
                 Generation(
+                    iteration=1,
                     text=f"Large generation {i} " + "x" * 1000,
                     model="gpt-4o-mini",
                     prompt_tokens=100,
@@ -516,7 +519,7 @@ class TestFileStorage:
     @pytest.mark.asyncio
     async def test_directory_permissions(self, temp_dir):
         """Test handling of directory permission issues."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
 
         # Make directory read-only (on Unix systems)
         if os.name != "nt":  # Skip on Windows
@@ -611,7 +614,7 @@ class TestStorageErrorHandling:
     @pytest.mark.asyncio
     async def test_file_storage_disk_full_simulation(self, temp_dir):
         """Test FileStorage behavior when disk is full."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
 
         result = SifakaResult(
             original_text="Disk full test",
@@ -631,7 +634,7 @@ class TestStorageErrorHandling:
     @pytest.mark.asyncio
     async def test_invalid_result_data(self, temp_dir):
         """Test handling of invalid result data."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
 
         # Try to save None
         with pytest.raises((AttributeError, TypeError)):
@@ -679,7 +682,7 @@ class TestStoragePerformance:
     @pytest.mark.asyncio
     async def test_file_storage_performance(self, temp_dir):
         """Test FileStorage performance with many operations."""
-        storage = FileStorage(base_path=temp_dir)
+        storage = FileStorage(temp_dir)
 
         # Create fewer results for file storage (slower)
         results = []
