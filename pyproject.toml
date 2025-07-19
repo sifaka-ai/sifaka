@@ -81,6 +81,7 @@ dev = [
     "watchdog>=4.0.1",  # File watching
     "python-dotenv>=1.0.1",  # Already in core, but good for dev too
     "psutil>=5.9.0",  # Process and system monitoring for tests
+    "setuptools>=60.0.0",  # For pkg_resources compatibility
 ]
 
 # All features

@@ -1,5 +1,15 @@
 """Tests for plugin discovery mechanism and entry point registration."""
 
+import sys
+from unittest.mock import MagicMock
+
+# Mock pkg_resources
+if "pkg_resources" not in sys.modules:
+    mock_pkg = MagicMock()
+    mock_pkg.iter_entry_points.return_value = []
+    sys.modules["pkg_resources"] = mock_pkg
+
+
 from typing import List, Optional
 from unittest.mock import MagicMock, patch
 
