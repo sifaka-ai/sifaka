@@ -3678,7 +3678,7 @@ wheels = [
 
 [[package]]
 name = "sifaka"
-version = "0.0.7"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

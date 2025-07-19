@@ -123,7 +123,7 @@ class TestFileStorage:
         with pytest.raises(StorageError) as exc_info:
             await storage.load("corrupted-id")
 
-        assert "Failed to parse result" in str(exc_info.value)
+        assert "Failed to parse from" in str(exc_info.value)
         assert exc_info.value.storage_type == "file"
         assert exc_info.value.operation == "load"
 
@@ -138,7 +138,7 @@ class TestFileStorage:
         with pytest.raises(StorageError) as exc_info:
             await storage.load("invalid-id")
 
-        assert "Failed to parse result" in str(exc_info.value)
+        assert "Failed to parse from" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_list_empty(self, storage):
