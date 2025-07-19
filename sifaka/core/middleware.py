@@ -472,16 +472,18 @@ class MiddlewarePipeline:
             context = {}
 
         # Build the chain
-        async def chain(index: int) -> SifakaResult:
+        async def chain(index: int, current_text: str) -> SifakaResult:
             if index >= len(self.middleware):
                 # End of middleware chain, call final handler
-                return cast(SifakaResult, await final_handler(text))
+                return cast(SifakaResult, await final_handler(current_text))
 
             # Call current middleware
             current = self.middleware[index]
-            return await current.process(text, lambda t: chain(index + 1), context)
+            return await current.process(
+                current_text, lambda t: chain(index + 1, t), context
+            )
 
-        return await chain(0)
+        return await chain(0, text)
 
 
 @asynccontextmanager

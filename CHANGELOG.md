@@ -5,6 +5,27 @@ All notable changes to Sifaka are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2025-07-19
+
+### Changed
+- **Migration to PydanticAI**: Replaced OpenAI client with PydanticAI for structured outputs
+- **Improved test suite**: Fixed all critic and middleware tests to work with new architecture
+- **Better error handling**: More robust error messages and exception handling
+- **Enhanced type safety**: Leveraging Pydantic models for all LLM interactions
+
+### Fixed
+- **Python version compatibility**: Fixed TypedDict imports for Python < 3.12
+- **Test fixtures**: Updated all test mocking to work with PydanticAI agents
+- **CI/CD pipeline**: Fixed GitHub Actions failures for all Python versions
+- **Bandit security issues**: Resolved MD5 hash and XML parsing security warnings
+- **Pre-commit hooks**: Fixed all linting and type checking issues
+
+### Technical Details
+- Migrated from direct OpenAI client usage to PydanticAI's agent-based approach
+- Updated all critic implementations to use structured response models
+- Fixed confidence calculation floating point precision issues
+- Improved middleware chain to properly pass text modifications through
+
 ## [0.0.7] - 2025-06-28
 
 ### Added
