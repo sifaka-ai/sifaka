@@ -8,7 +8,7 @@ The API is designed to be simple for basic use cases while allowing
 full customization through the Config object."""
 
 import asyncio
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 from .core.config import Config
 from .core.constants import DEFAULT_MAX_ITERATIONS
@@ -16,7 +16,9 @@ from .core.engine import SifakaEngine
 from .core.interfaces import Validator
 from .core.middleware import MiddlewarePipeline
 from .core.models import SifakaResult
+from .core.type_defs import MiddlewareContext
 from .core.types import CriticType
+from .core.validation import validate_config_params, validate_improve_params
 from .storage.base import StorageBackend
 
 
@@ -84,28 +86,46 @@ async def improve(
         ...     )
         ... )
     """
-    # Handle single critic enum
-    if isinstance(critics, CriticType):
-        critics = [critics]
-    elif critics is None:
-        critics = [CriticType.REFLEXION]  # Default critic
+    # Validate input parameters
+    validated = validate_improve_params(text, critics, max_iterations)
+    text = validated.text
+    max_iterations = validated.max_iterations
+
+    # Handle critics - validation always returns a list or None
+    critics_list: List[CriticType]
+    if validated.critics is not None:
+        critics_list = validated.critics
+    else:
+        critics_list = [CriticType.REFLEXION]  # Default critic
 
     # Use default config if none provided
     if config is None:
         config = Config()
 
+    # Validate config parameters with enhanced validation
+    try:
+        validate_config_params(
+            model=config.llm.model,
+            temperature=config.llm.temperature,
+            max_iterations=max_iterations,
+            timeout_seconds=config.llm.timeout_seconds,
+        )
+    except ValueError as e:
+        raise ValueError(f"Configuration validation failed: {e}") from e
+
     # Create engine config
     engine_config = config.model_copy(deep=True)
     engine_config.engine.max_iterations = max_iterations
-    engine_config.critic.critics = critics
+    engine_config.critic.critics = critics_list
 
     # Create and run engine
     engine = SifakaEngine(engine_config, storage)
 
     # Execute with middleware if provided
     if middleware:
-        context: Dict[str, Any] = {
-            "critics": critics,
+        critics_context: List[Union[str, CriticType]] = [c for c in critics_list]
+        context: MiddlewareContext = {
+            "critics": critics_context,
             "validators": validators,
             "config": engine_config,
         }

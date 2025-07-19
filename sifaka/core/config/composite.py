@@ -2,9 +2,10 @@
 
 from typing import List, Optional
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from ..types import StorageType
+from ..validation import validate_config_params
 from .base import BaseConfig
 from .critic import CriticConfig
 from .engine import EngineConfig
@@ -33,6 +34,21 @@ class Config(BaseConfig):
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     engine: EngineConfig = Field(default_factory=EngineConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
+
+    @model_validator(mode="after")
+    def validate_config_consistency(self) -> "Config":
+        """Validate configuration consistency using enhanced validation."""
+        try:
+            validate_config_params(
+                model=self.llm.model,
+                temperature=self.llm.temperature,
+                max_iterations=self.engine.max_iterations,
+                timeout_seconds=self.llm.timeout_seconds,
+            )
+        except ValueError as e:
+            raise ValueError(f"Configuration validation failed: {e}") from e
+
+        return self
 
     @classmethod
     def fast(cls) -> "Config":

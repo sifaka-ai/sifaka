@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field, field_validator
 
+from ..type_defs import CriticSettings
 from ..types import CriticType
 from .base import BaseConfig
 
@@ -95,7 +96,7 @@ class CriticConfig(BaseConfig):
     )
 
     # Per-critic settings
-    critic_settings: Dict[str, Dict[str, Any]] = Field(
+    critic_settings: Dict[str, CriticSettings] = Field(
         default_factory=dict,  # Empty dict for now, will be populated in __init__
         description="Per-critic configuration overrides",
     )
@@ -141,7 +142,7 @@ class CriticConfig(BaseConfig):
         description="Number of samples for Self-Consistency critic",
     )
 
-    def get_critic_settings(self, critic_name: str) -> Dict[str, Any]:
+    def get_critic_settings(self, critic_name: str) -> CriticSettings:
         """Get settings for a specific critic.
 
         Args:
@@ -150,7 +151,7 @@ class CriticConfig(BaseConfig):
         Returns:
             Dictionary of settings for the critic
         """
-        base_settings = {
+        base_settings: CriticSettings = {
             "enable_tools": self.enable_tools,
             "tool_timeout": self.tool_timeout,
             "base_confidence": self.base_confidence,
@@ -159,7 +160,11 @@ class CriticConfig(BaseConfig):
 
         # Merge with critic-specific settings
         specific_settings = self.critic_settings.get(critic_name, {})
-        return {**base_settings, **specific_settings}
+        # Create a new dict to avoid TypedDict issues
+        result: CriticSettings = {}
+        result.update(base_settings)
+        result.update(specific_settings)
+        return result
 
     def is_tools_enabled_for(self, critic_name: str) -> bool:
         """Check if tools are enabled for a specific critic."""

@@ -24,7 +24,7 @@ internally. It integrates with PydanticAI for structured outputs.
     >>> from sifaka.core.llm_client import LLMManager
     >>>
     >>> # Automatic provider detection
-    >>> client = LLMManager.get_client(model="gpt-4")
+    >>> client = await LLMManager.get_client(model="gpt-4")
     >>> response = await client.complete(messages)
     >>>
     >>> # Structured output with PydanticAI
@@ -47,7 +47,7 @@ The client will automatically use the appropriate key based on the model.
 
 import os
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, cast
 
 import logfire
 import openai
@@ -58,6 +58,9 @@ from pydantic_ai import Agent
 from pydantic_ai.models import ModelSettings
 
 from ..core.retry import RETRY_STANDARD, with_retry
+
+if TYPE_CHECKING:
+    from .llm_client_pool import ConnectionMetrics, LLMClientPool
 
 # Load environment variables
 load_dotenv()
@@ -304,19 +307,33 @@ class LLMClient:
 
 
 class LLMManager:
-    """Manager for LLM clients."""
+    """Manager for LLM clients with connection pooling."""
 
-    _clients: Dict[str, LLMClient] = {}
+    _pool: Optional["LLMClientPool"] = None
 
     @classmethod
-    def get_client(
+    def set_pool(cls, pool: "LLMClientPool") -> None:
+        """Set the connection pool for the manager."""
+        cls._pool = pool
+
+    @classmethod
+    def get_pool(cls) -> "LLMClientPool":
+        """Get the connection pool, creating one if needed."""
+        if cls._pool is None:
+            from .llm_client_pool import get_global_pool
+
+            cls._pool = get_global_pool()
+        return cls._pool
+
+    @classmethod
+    async def get_client(
         cls,
         provider: Optional[Union[str, Provider]] = None,
         model: str = "gpt-4o-mini",
         temperature: float = 0.7,
         api_key: Optional[str] = None,
     ) -> LLMClient:
-        """Get or create an LLM client."""
+        """Get a client from the connection pool."""
         # Auto-detect provider if not specified
         if provider is None:
             if os.getenv("OPENAI_API_KEY"):
@@ -336,11 +353,37 @@ class LLMManager:
         if isinstance(provider, str):
             provider = Provider(provider.lower())
 
-        # Create client key
-        client_key = f"{provider}:{model}:{temperature}"
+        # Get client from pool
+        pool = cls.get_pool()
+        return await pool.get_client(provider, model, temperature, api_key)
 
-        # Get or create client
-        if client_key not in cls._clients:
-            cls._clients[client_key] = LLMClient(provider, model, temperature, api_key)
+    @classmethod
+    async def return_client(cls, client: LLMClient) -> None:
+        """Return a client to the connection pool."""
+        pool = cls.get_pool()
+        await pool.return_client(client)
 
-        return cls._clients[client_key]
+    @classmethod
+    async def warm_up(
+        cls,
+        provider: Provider,
+        model: str,
+        temperature: float = 0.7,
+        connections: int = 1,
+    ) -> None:
+        """Pre-create connections for a provider/model combination."""
+        pool = cls.get_pool()
+        await pool.warm_up(provider, model, temperature, connections)
+
+    @classmethod
+    def get_metrics(cls) -> "ConnectionMetrics":
+        """Get connection pool metrics."""
+        pool = cls.get_pool()
+        return pool.get_metrics()
+
+    @classmethod
+    async def close(cls) -> None:
+        """Close the connection pool."""
+        if cls._pool:
+            await cls._pool.close()
+            cls._pool = None

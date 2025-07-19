@@ -65,6 +65,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Callable, Dict, List, Optional, cast
 
 from .models import SifakaResult
+from .type_defs import MiddlewareContext
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ class Middleware(ABC):
 
     @abstractmethod
     async def process(
-        self, text: str, next_handler: Callable[[str], Any], context: Dict[str, Any]
+        self, text: str, next_handler: Callable[[str], Any], context: MiddlewareContext
     ) -> SifakaResult:
         """Process the request through this middleware.
 
@@ -175,16 +176,18 @@ class LoggingMiddleware(Middleware):
         self.log_level = getattr(logging, log_level.upper())
 
     async def process(
-        self, text: str, next_handler: Callable[[str], Any], context: Dict[str, Any]
+        self, text: str, next_handler: Callable[[str], Any], context: MiddlewareContext
     ) -> SifakaResult:
         """Log the improvement process."""
         start_time = time.time()
 
         logger.log(self.log_level, f"Starting improvement for text: {text[:100]}...")
+        validators = context.get("validators", [])
+        validator_count = len(validators) if validators is not None else 0
         logger.log(
             self.log_level,
             f"Context: critics={context.get('critics', [])}, "
-            f"validators={len(context.get('validators', []))}",
+            f"validators={validator_count}",
         )
 
         try:
@@ -265,7 +268,7 @@ class MetricsMiddleware(Middleware):
         }
 
     async def process(
-        self, text: str, next_handler: Callable[[str], Any], context: Dict[str, Any]
+        self, text: str, next_handler: Callable[[str], Any], context: MiddlewareContext
     ) -> SifakaResult:
         """Collect metrics about the improvement."""
         start_time = time.time()
@@ -296,7 +299,10 @@ class MetricsMiddleware(Middleware):
 
             # Track LLM calls
             final_llm_calls = context.get("llm_calls", 0)
-            self.metrics["llm_calls"] += final_llm_calls - initial_llm_calls
+            if isinstance(final_llm_calls, (int, float)) and isinstance(
+                initial_llm_calls, (int, float)
+            ):
+                self.metrics["llm_calls"] += int(final_llm_calls - initial_llm_calls)
 
             # Track tokens
             for gen in result.generations:
@@ -341,10 +347,12 @@ class CachingMiddleware(Middleware):
         self.hits = 0
         self.misses = 0
 
-    def _get_cache_key(self, text: str, context: Dict[str, Any]) -> str:
+    def _get_cache_key(self, text: str, context: MiddlewareContext) -> str:
         """Generate cache key from text and context."""
-        critics = ",".join(sorted(context.get("critics", [])))
-        validators = len(context.get("validators", []))
+        critics_list = context.get("critics", [])
+        critics = ",".join(sorted(str(c) for c in critics_list))
+        validators_list = context.get("validators", [])
+        validators = len(validators_list) if validators_list is not None else 0
         config_key = (
             f"{context.get('model', 'default')}_{context.get('temperature', 0.7)}"
         )
@@ -352,7 +360,7 @@ class CachingMiddleware(Middleware):
         return f"{hash(text)}_{critics}_{validators}_{config_key}"
 
     async def process(
-        self, text: str, next_handler: Callable[[str], Any], context: Dict[str, Any]
+        self, text: str, next_handler: Callable[[str], Any], context: MiddlewareContext
     ) -> SifakaResult:
         """Check cache before processing."""
         cache_key = self._get_cache_key(text, context)
@@ -404,7 +412,7 @@ class RateLimitingMiddleware(Middleware):
         self.requests: List[float] = []
 
     async def process(
-        self, text: str, next_handler: Callable[[str], Any], context: Dict[str, Any]
+        self, text: str, next_handler: Callable[[str], Any], context: MiddlewareContext
     ) -> SifakaResult:
         """Check rate limit before processing."""
         now = time.time()
@@ -448,7 +456,7 @@ class MiddlewarePipeline:
         self,
         text: str,
         final_handler: Callable[[str], Any],
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[MiddlewareContext] = None,
     ) -> SifakaResult:
         """Execute the middleware pipeline.
 

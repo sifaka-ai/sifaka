@@ -5,13 +5,14 @@ using DuckDuckGo's HTML interface for search results.
 """
 
 import urllib.parse
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 import httpx
 from bs4 import BeautifulSoup, Tag
 
 from .base import ToolInterface
 from .registry import ToolRegistry
+from .types import WebSearchResult
 
 
 class WebSearchTool(ToolInterface):
@@ -76,7 +77,7 @@ class WebSearchTool(ToolInterface):
 
                 # Parse HTML results
                 soup = BeautifulSoup(response.text, "html.parser")
-                results: List[Dict[str, Any]] = []
+                results: List[WebSearchResult] = []
 
                 # Find result divs
                 for result_div in soup.find_all("div", class_="result"):
@@ -104,27 +105,25 @@ class WebSearchTool(ToolInterface):
                     )
 
                     if title and url:
-                        results.append(
-                            {
-                                "title": title,
-                                "url": url,
-                                "snippet": snippet,
-                                "source": "web_search",
-                            }
-                        )
+                        result: WebSearchResult = {
+                            "title": title,
+                            "url": url,
+                            "snippet": snippet,
+                            "source": "web_search",
+                        }
+                        results.append(result)
 
-                return results
+                return cast(List[Dict[str, Any]], results)
 
             except Exception as e:
                 # Return empty list on error rather than failing
-                return [
-                    {
-                        "title": "Search Error",
-                        "url": "",
-                        "snippet": f"Failed to search: {e!s}",
-                        "source": "web_search",
-                    }
-                ]
+                error_result: WebSearchResult = {
+                    "title": "Search Error",
+                    "url": "",
+                    "snippet": f"Failed to search: {e!s}",
+                    "source": "web_search",
+                }
+                return cast(List[Dict[str, Any]], [error_result])
 
 
 # Auto-register the tool

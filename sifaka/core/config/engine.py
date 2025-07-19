@@ -44,7 +44,7 @@ class EngineConfig(BaseConfig):
 
     # Performance settings
     parallel_critics: bool = Field(
-        default=False, description="Run critics in parallel (experimental)"
+        default=True, description="Run critics in parallel for better performance"
     )
 
     max_parallel_critics: int = Field(
@@ -52,6 +52,13 @@ class EngineConfig(BaseConfig):
         ge=1,
         le=10,
         description="Maximum number of critics to run in parallel",
+    )
+
+    critic_timeout_seconds: float = Field(
+        default=60.0,
+        ge=5.0,
+        le=300.0,
+        description="Timeout for individual critic execution",
     )
 
     # Timeout settings

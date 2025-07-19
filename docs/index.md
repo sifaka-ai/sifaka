@@ -6,7 +6,7 @@
 
 - **[Installation](installation.md)** - Setup and dependencies
 - **[Quickstart Guide](quickstart.md)** - Get running in 5 minutes
-- **[API Reference](../API.md)** - Complete API documentation
+- **[API Reference](API.md)** - Complete API documentation
 
 ## User Guides
 

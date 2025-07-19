@@ -42,7 +42,9 @@ Tools are discovered and used by critics that support tool calling:
 - Tool usage is tracked in CritiqueResult metadata
 """
 
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol, TypeVar
+
+T = TypeVar("T", bound=Dict[str, Any])
 
 
 class ToolInterface(Protocol):
@@ -86,10 +88,13 @@ class ToolInterface(Protocol):
         Args:
             query: The search query or input for the tool.
                 Should be a clear, specific request.
-            **kwargs: Tool-specific parameters such as:
+            **kwargs: Tool-specific parameters. See ToolCallParams in
+                core.type_defs for expected fields:
                 - max_results: Maximum number of results to return
                 - filters: Additional filtering criteria
                 - timeout: Operation timeout in seconds
+                - cache: Whether to cache results
+                - metadata: Additional metadata
 
         Returns:
             List of dictionaries containing structured results.

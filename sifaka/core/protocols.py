@@ -94,7 +94,10 @@ class ToolProtocol(Protocol):
         ...
 
     async def __call__(self, query: str, **kwargs: Any) -> List[Dict[str, Any]]:
-        """Execute the tool with a query."""
+        """Execute the tool with a query.
+
+        See ToolCallParams in core.type_defs for expected kwargs fields.
+        """
         ...
 
 
@@ -143,7 +146,10 @@ class LLMClientProtocol(Protocol):
         ...
 
     async def complete(self, messages: List[Dict[str, str]], **kwargs: Any) -> Any:
-        """Complete a conversation."""
+        """Complete a conversation.
+
+        See LLMCompleteParams in core.type_defs for expected kwargs fields.
+        """
         ...
 
 

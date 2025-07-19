@@ -87,12 +87,12 @@ dev = [
 # All features
 all = ["sifaka[anthropic,gemini,guardrails,redis,dev]"]
 
-[project.scripts]
-sifaka = "sifaka.cli:main"
-
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sifaka*"]
+
+[tool.setuptools.package-data]
+sifaka = ["py.typed"]
 
 [tool.black]
 line-length = 88
@@ -142,10 +142,30 @@ markers = [
 ]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"  # Match the minimum required version
+# Stricter settings for better type safety
+strict = true  # Enable all strict type checking flags
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+pretty = true
+# Additional strict settings
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+disallow_untyped_decorators = true
+no_implicit_reexport = true
+strict_optional = true
+strict_equality = true
+# Error on missing type annotations
+warn_no_return = true
+warn_unreachable = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"

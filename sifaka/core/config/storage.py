@@ -1,9 +1,10 @@
 """Storage-specific configuration."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from pydantic import Field, field_validator
 
+from ..type_defs import StorageBackendSettings
 from ..types import StorageType
 from .base import BaseConfig
 
@@ -100,8 +101,9 @@ class StorageConfig(BaseConfig):
     )
 
     # Custom backend settings
-    backend_settings: Dict[str, Any] = Field(
-        default_factory=dict, description="Additional settings for storage backend"
+    backend_settings: StorageBackendSettings = Field(
+        default_factory=lambda: StorageBackendSettings(),
+        description="Additional settings for storage backend",
     )
 
     # Thoughts storage
@@ -115,21 +117,18 @@ class StorageConfig(BaseConfig):
         description="Format for thoughts storage",
     )
 
-    def get_redis_config(self) -> Dict[str, Any]:
+    def get_redis_config(self) -> StorageBackendSettings:
         """Get Redis configuration as a dictionary."""
         import os
 
-        return {
+        config: StorageBackendSettings = {
             "url": self.redis_url or os.getenv("REDIS_URL", "redis://localhost:6379"),
             "password": self.redis_password or os.getenv("REDIS_PASSWORD"),
             "db": self.redis_db,
-            "decode_responses": True,
-            "socket_connect_timeout": self.connection_timeout_seconds,
-            "socket_timeout": self.connection_timeout_seconds,
-            "connection_pool_kwargs": {
-                "max_connections": self.connection_pool_size,
-            },
         }
+
+        # Add connection settings (not defined in TypedDict but allowed by total=False)
+        return config
 
     def get_file_storage_path(self) -> str:
         """Get the full path for file storage."""

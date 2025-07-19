@@ -7,9 +7,21 @@
 
 ## Basic Installation
 
-> **Note**: Sifaka will be available on PyPI in October 2025. Until then, please install from source.
+### Install from PyPI
 
-### Install from Source (Current Method)
+> **Note**: Sifaka will be available on PyPI soon. For now, please install from source.
+
+```bash
+# Once available on PyPI:
+# pip install sifaka
+
+# Or with uv (recommended)
+# uv pip install sifaka
+```
+
+### Install from Source
+
+For development or to get the latest features:
 
 ```bash
 # Clone the repository
@@ -21,18 +33,6 @@ uv pip install -e .
 
 # Or with standard pip
 pip install -e .
-```
-
-### Install from PyPI (Available October 2025)
-
-Once released, you'll be able to install directly:
-
-```bash
-# With pip
-pip install sifaka
-
-# With uv (recommended)
-uv pip install sifaka
 ```
 
 ## Optional Dependencies

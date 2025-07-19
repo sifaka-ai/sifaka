@@ -92,10 +92,11 @@ class SelfRAGCritic(BaseCritic):
         provider: Optional[Any] = None,
         api_key: Optional[str] = None,
         config: Optional[Config] = None,
+        enable_tools: Optional[bool] = None,
     ):
         if config is None:
             config = Config()
-        super().__init__(model, temperature, config, provider, api_key)
+        super().__init__(model, temperature, config, provider, api_key, enable_tools)
 
     @property
     def name(self) -> str:

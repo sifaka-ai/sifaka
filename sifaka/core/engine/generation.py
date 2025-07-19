@@ -138,8 +138,7 @@ class TextGenerator:
         self.temperature = temperature
         self._client: Optional[LLMClient] = None
 
-    @property
-    def client(self) -> LLMClient:
+    async def get_client(self) -> LLMClient:
         """Get or lazily create the LLM client.
 
         Uses lazy initialization to avoid creating clients until needed.
@@ -149,7 +148,7 @@ class TextGenerator:
             Configured LLMClient instance for the specified model
         """
         if self._client is None:
-            self._client = LLMManager.get_client(
+            self._client = await LLMManager.get_client(
                 model=self.model, temperature=self.temperature
             )
         return self._client
@@ -212,7 +211,8 @@ class TextGenerator:
 
         try:
             # Create PydanticAI agent for structured improvement
-            agent = self.client.create_agent(
+            client = await self.get_client()
+            agent = client.create_agent(
                 system_prompt=self.IMPROVEMENT_SYSTEM_PROMPT,
                 result_type=ImprovementResponse,
             )

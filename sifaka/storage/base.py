@@ -14,6 +14,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
 from ..core.models import SifakaResult
+from ..core.validation import validate_result_id, validate_sifaka_result
 
 
 class StorageBackend(ABC):
@@ -214,3 +215,31 @@ class StorageBackend(ABC):
             "num_validations": len(result.validations),
             "num_critiques": len(result.critiques),
         }
+
+    def _validate_result_before_save(self, result: SifakaResult) -> SifakaResult:
+        """Validate SifakaResult before saving with enhanced validation.
+
+        Args:
+            result: The result to validate
+
+        Returns:
+            The validated result
+
+        Raises:
+            ValueError: If the result is invalid
+        """
+        return validate_sifaka_result(result)
+
+    def _validate_result_id_format(self, result_id: str) -> str:
+        """Validate result ID format with enhanced validation.
+
+        Args:
+            result_id: The result ID to validate
+
+        Returns:
+            The validated result ID
+
+        Raises:
+            ValueError: If the result ID is invalid
+        """
+        return validate_result_id(result_id)

@@ -4,12 +4,13 @@ Provides access to arXiv's repository of scientific papers across multiple disci
 """
 
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, cast
 
 import httpx
 
 from .base import ToolInterface
 from .registry import ToolRegistry
+from .types import ArxivResult
 
 
 class ArxivTool(ToolInterface):
@@ -84,7 +85,7 @@ class ArxivTool(ToolInterface):
                     "arxiv": "http://arxiv.org/schemas/atom",
                 }
 
-                results = []
+                results: List[ArxivResult] = []
 
                 # Extract entries
                 for entry in root.findall("atom:entry", namespaces):
@@ -107,7 +108,7 @@ class ArxivTool(ToolInterface):
                     authors = []
                     for author in entry.findall("atom:author", namespaces):
                         name = author.find("atom:name", namespaces)
-                        if name is not None:
+                        if name is not None and name.text is not None:
                             authors.append(name.text)
 
                     # Extract links
@@ -128,7 +129,11 @@ class ArxivTool(ToolInterface):
                     )
 
                     published = entry.find("atom:published", namespaces)
-                    pub_date = published.text if published is not None else ""
+                    pub_date = (
+                        published.text
+                        if published is not None and published.text is not None
+                        else ""
+                    )
 
                     # Extract categories
                     categories = []
@@ -137,41 +142,37 @@ class ArxivTool(ToolInterface):
                         if cat_term:
                             categories.append(cat_term)
 
-                    results.append(
-                        {
-                            "title": title_text,
-                            "abstract": (
-                                abstract[:500] + "..."
-                                if len(abstract) > 500
-                                else abstract
-                            ),
-                            "authors": authors,
-                            "arxiv_id": arxiv_id,
-                            "url": abs_url,
-                            "pdf_url": pdf_url,
-                            "published": pub_date,
-                            "categories": categories,
-                            "source": "arxiv",
-                        }
-                    )
+                    result: ArxivResult = {
+                        "title": title_text,
+                        "abstract": (
+                            abstract[:500] + "..." if len(abstract) > 500 else abstract
+                        ),
+                        "authors": authors,
+                        "arxiv_id": arxiv_id,
+                        "url": abs_url,
+                        "pdf_url": pdf_url,
+                        "published": pub_date,
+                        "categories": categories,
+                        "source": "arxiv",
+                    }
+                    results.append(result)
 
-                return results
+                return cast(List[Dict[str, Any]], results)
 
             except Exception as e:
                 # Return error information
-                return [
-                    {
-                        "title": "arXiv Error",
-                        "abstract": f"Failed to search arXiv: {e!s}",
-                        "authors": [],
-                        "arxiv_id": "",
-                        "url": "",
-                        "pdf_url": "",
-                        "published": "",
-                        "categories": [],
-                        "source": "arxiv",
-                    }
-                ]
+                error_result: ArxivResult = {
+                    "title": "arXiv Error",
+                    "abstract": f"Failed to search arXiv: {e!s}",
+                    "authors": [],
+                    "arxiv_id": "",
+                    "url": "",
+                    "pdf_url": "",
+                    "published": "",
+                    "categories": [],
+                    "source": "arxiv",
+                }
+                return cast(List[Dict[str, Any]], [error_result])
 
 
 # Auto-register the tool

@@ -179,6 +179,13 @@ thoughts/
 test_results/
 tests_results/
 
+# Development files that shouldn't be committed
+bandit-report.json
+test_commit.sh
+TODO.md
+IMPROVEMENTS_SUMMARY.md
+COMPLETED_TASKS.md
+
 # Pre-commit
 .pre-commit-cache/
 

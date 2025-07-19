@@ -4,77 +4,43 @@ This directory contains example plugins demonstrating how to extend Sifaka with 
 
 ## Overview
 
-Sifaka supports three types of plugins:
+Sifaka supports plugin extensions for:
 
-1. **Storage Backends** - Custom storage solutions for persisting results
-2. **Critics** - Domain-specific text improvement strategies
-3. **Validators** - Custom validation rules for generated content
+1. **Critics** - Domain-specific text improvement strategies
+2. **Validators** - Custom validation rules for generated content
+3. **Storage Backends** - Custom storage solutions for persisting results
 
-## Plugin Examples
+## Example Plugins in This Directory
 
-### 1. Custom Storage Backend (`custom_storage_backend.py`)
+### 1. Critic Plugin (`example_critic_plugin.py`)
 
-Demonstrates a Redis-style storage backend that persists Sifaka results. In this example:
+Demonstrates how to create a custom critic plugin using the new `CriticPlugin` interface:
 
-- Shows the complete `StorageBackend` interface implementation
-- Demonstrates async methods for CRUD operations
-- Includes search functionality
-- Shows both file-based mock and production Redis patterns
+- Shows the complete plugin lifecycle (initialize, activate, deactivate, cleanup)
+- Implements a readability-focused critic
+- Demonstrates proper error handling and logging
+- Uses the modern plugin interface
 
-**Use cases:**
-- Persistent storage across sessions
-- Distributed caching for team collaboration
-- Integration with existing data infrastructure
+**Key features:**
+- Readability analysis (Flesch score, complex words)
+- Specific improvement suggestions
+- Confidence scoring based on text analysis
+- Proper async/await patterns
 
-### 2. Custom Critics (`custom_critic.py`)
+### 2. Validator Plugin (`example_validator_plugin.py`)
 
-Contains two domain-specific critics:
+Shows how to create a custom validator plugin using the `ValidatorPlugin` interface:
 
-#### Academic Writing Critic
-- Improves text for academic publications
-- Enforces citation standards (APA, MLA, etc.)
-- Ensures formal tone and clear argumentation
-- Validates logical structure
+- Implements comprehensive text quality validation
+- Shows plugin metadata and versioning
+- Demonstrates validation result formatting
+- Includes both warnings and errors
 
-#### Technical Documentation Critic
-- Optimizes API documentation
-- Validates code examples
-- Ensures completeness of parameter descriptions
-- Maintains consistent documentation style
-
-**Use cases:**
-- Research paper refinement
-- Technical writing improvement
-- Documentation standardization
-- Domain-specific content enhancement
-
-### 3. Custom Validators (`custom_validator.py`)
-
-Includes three specialized validators:
-
-#### SEO Validator
-- Checks keyword density
-- Validates content length
-- Ensures proper header structure
-- Monitors meta descriptions
-
-#### Code Quality Validator
-- Validates syntax in code blocks
-- Checks line length limits
-- Enforces docstring requirements
-- Language-specific validation
-
-#### Accessibility Validator
-- Ensures WCAG compliance
-- Validates alt text presence
-- Checks heading hierarchy
-- Reviews link text clarity
-
-**Use cases:**
-- Content marketing optimization
-- Documentation quality assurance
-- Web accessibility compliance
-- Code example validation
+**Key features:**
+- Multiple quality checks (length, structure, terminology)
+- Configurable validation rules
+- Detailed validation messages
+- Async validation support
 
 ## Installing Plugins
 
@@ -135,58 +101,115 @@ Plugins will be automatically discovered and available for use.
 
 ## Creating Your Own Plugins
 
+### Critic Plugin Template
+
+```python
+from sifaka.core.plugin_interfaces import CriticPlugin
+from sifaka.core.models import CritiqueResult, SifakaResult
+
+class MyCriticPlugin(CriticPlugin):
+    """Custom critic plugin for domain-specific improvements."""
+
+    def __init__(self):
+        super().__init__()
+        self.name = "my_critic"
+        self.version = "1.0.0"
+        self.author = "Your Name"
+        self.description = "Description of what your critic does"
+
+    async def initialize(self) -> None:
+        """Initialize plugin resources."""
+        # Setup any required resources
+        pass
+
+    async def critique(self, text: str, result: SifakaResult) -> CritiqueResult:
+        """Perform critique on the text."""
+        # Analyze text and return critique
+        return CritiqueResult(
+            feedback="Your detailed feedback here",
+            suggestions=["Suggestion 1", "Suggestion 2"],
+            confidence=0.85
+        )
+
+    async def cleanup(self) -> None:
+        """Clean up plugin resources."""
+        # Release any resources
+        pass
+```
+
+### Validator Plugin Template
+
+```python
+from sifaka.core.plugin_interfaces import ValidatorPlugin
+from sifaka.core.models import ValidationResult, SifakaResult
+
+class MyValidatorPlugin(ValidatorPlugin):
+    """Custom validator plugin for specific requirements."""
+
+    def __init__(self):
+        super().__init__()
+        self.name = "my_validator"
+        self.version = "1.0.0"
+        self.author = "Your Name"
+        self.description = "Description of validation rules"
+
+    async def initialize(self) -> None:
+        """Initialize plugin resources."""
+        # Setup validation rules
+        pass
+
+    async def validate(self, text: str, result: SifakaResult) -> ValidationResult:
+        """Validate the text against custom rules."""
+        errors = []
+        warnings = []
+
+        # Perform validation checks
+        if len(text) < 10:
+            errors.append("Text too short")
+
+        return ValidationResult(
+            valid=len(errors) == 0,
+            errors=errors,
+            warnings=warnings
+        )
+
+    async def cleanup(self) -> None:
+        """Clean up plugin resources."""
+        pass
+```
+
 ### Storage Backend Template
 
 ```python
 from sifaka.storage.base import StorageBackend
+from sifaka.core.models import SifakaResult
 
 class MyStorageBackend(StorageBackend):
-    async def save(self, result):
+    """Custom storage backend for persisting results."""
+
+    async def save(self, result: SifakaResult) -> str:
+        """Save result and return ID."""
         # Implementation
         pass
 
-    async def load(self, result_id):
+    async def load(self, result_id: str) -> Optional[SifakaResult]:
+        """Load result by ID."""
         # Implementation
         pass
 
-    async def list(self, limit=100, offset=0):
+    async def list(self, limit: int = 100, offset: int = 0) -> List[SifakaResult]:
+        """List stored results."""
         # Implementation
         pass
 
-    async def delete(self, result_id):
+    async def delete(self, result_id: str) -> bool:
+        """Delete result by ID."""
         # Implementation
         pass
 
-    async def search(self, query, limit=10):
+    async def search(self, query: str, limit: int = 10) -> List[SifakaResult]:
+        """Search results."""
         # Implementation
-        pass
-```
-
-### Critic Template
-
-```python
-from sifaka.critics.core.base import BaseCritic
-
-class MyCritic(BaseCritic):
-    name = "my_critic"
-
-    def _build_critique_prompt(self, original_text, current_text, attempt, metadata=None):
-        # Return critique prompt
-        pass
-
-    def _build_improvement_prompt(self, original_text, current_text, critique, attempt, metadata=None):
-        # Return improvement prompt
-        pass
-```
-
-### Validator Template
-
-```python
-from sifaka.validators.base import BaseValidator
-
-class MyValidator(BaseValidator):
-    async def validate(self, text, metadata=None):
-        # Return ValidationResult
         pass
 ```
 
@@ -199,14 +222,19 @@ class MyValidator(BaseValidator):
 5. **Testing**: Include tests for your plugins
 6. **Dependencies**: Declare any additional dependencies clearly
 
-## Testing Plugins
+## Running the Examples
 
-Run the example files directly to see basic functionality:
+To see the plugin examples in action:
 
 ```bash
-python custom_storage_backend.py
-python custom_critic.py
-python custom_validator.py
+# Run the critic plugin example
+uv run python examples/plugins/example_critic_plugin.py
+
+# Run the validator plugin example
+uv run python examples/plugins/example_validator_plugin.py
 ```
 
-For full integration testing, you'll need to provide API keys for the LLM providers.
+For full integration testing, you'll need to provide API keys for the LLM providers in your environment or `.env` file:
+- `OPENAI_API_KEY` for OpenAI models
+- `ANTHROPIC_API_KEY` for Claude models
+- `GOOGLE_API_KEY` for Gemini models

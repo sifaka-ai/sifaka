@@ -491,10 +491,9 @@ def style_critic_from_file(
             cost-effective style matching. Consider gpt-4 for nuanced styles.
         temperature: Generation temperature (0.0-1.0). Default 0.7 balances
             consistency with creative adaptation.
-        **kwargs: Additional arguments passed to StyleCritic:
-            - provider: LLM provider override
-            - api_key: API key override
-            - config: Full configuration object
+        **kwargs: Additional arguments passed to StyleCritic.
+            See CriticFactoryParams in core.type_defs for base fields.
+            StyleCritic-specific additional fields:
             - style_description: Additional style clarification
             - style_examples: Specific phrases to incorporate
 

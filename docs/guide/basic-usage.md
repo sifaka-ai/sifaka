@@ -25,7 +25,7 @@ Sifaka works through an iterative improvement loop:
 
 For basic usage examples, see:
 - **[Quickstart Guide](../quickstart.md)** - Getting started examples
-- **[API Reference](../../API.md)** - Complete API documentation with examples
+- **[API Reference](../API.md)** - Complete API documentation with examples
 
 ### Using Different Critics
 

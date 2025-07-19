@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field, field_validator
 
+from ..type_defs import ValidatorSettings
 from ..types import ValidatorType
 from .base import BaseConfig
 
@@ -70,7 +71,7 @@ class ValidationConfig(BaseConfig):
     )
 
     # Per-validator settings
-    validator_settings: Dict[str, Dict[str, Any]] = Field(
+    validator_settings: Dict[str, ValidatorSettings] = Field(
         default_factory=dict, description="Configuration for specific validators"
     )
 
@@ -99,7 +100,7 @@ class ValidationConfig(BaseConfig):
         default=None, description="Terms that must not appear in the text"
     )
 
-    def get_validator_settings(self, validator_name: str) -> Dict[str, Any]:
+    def get_validator_settings(self, validator_name: str) -> ValidatorSettings:
         """Get settings for a specific validator.
 
         Args:

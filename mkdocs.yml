@@ -33,12 +33,6 @@ theme:
 
 plugins:
   - search
-  - mkdocstrings:
-      handlers:
-        python:
-          options:
-            show_source: true
-            show_bases: true
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -58,23 +52,34 @@ nav:
   - Getting Started:
     - index.md
     - installation.md
-    - quickstart.md
+    - getting-started/quickstart.md
   - User Guide:
     - guide/basic-usage.md
     - guide/critics.md
     - guide/validators.md
     - guide/configuration.md
     - guide/advanced-usage.md
+  - Plugin Development:
+    - plugin_development.md
+    - plugin_api_reference.md
+    - plugin_best_practices.md
   - Critics:
     - critics/overview.md
   - Architecture:
     - architecture.md
-    - decisions/001-single-function-api.md
-    - decisions/002-plugin-architecture.md
-    - decisions/003-memory-management.md
-    - decisions/004-error-handling.md
+    - Design Decisions:
+      - decisions/001-single-function-api.md
+      - decisions/002-plugin-architecture.md
+      - decisions/003-memory-management.md
+      - decisions/004-error-handling.md
+  - API Reference:
+    - reference/api.md
+  - Development:
+    - development/DEVELOPER_SETUP.md
+    - development/ENV_SETUP.md
   - About:
     - FAQ.md
+    - about/license.md
 
 extra:
   social:

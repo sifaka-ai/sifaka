@@ -22,6 +22,7 @@ from ...core.exceptions import ModelProviderError
 from ...core.interfaces import Critic
 from ...core.llm_client import LLMClient, Provider
 from ...core.models import CritiqueResult, SifakaResult
+from ...core.validation import validate_critic_params
 from ...tools.base import ToolInterface
 from .confidence import ConfidenceCalculator
 
@@ -123,6 +124,31 @@ class BaseCritic(Critic, ABC):
         self.provider = provider
         self._api_key = api_key
         self._client: Optional[LLMClient] = None
+
+        # Validate critic parameters with enhanced validation
+        try:
+            from ...core.types import CriticType
+
+            # Try to get the critic type from the name property
+            try:
+                critic_type = CriticType(self.name)
+            except ValueError:
+                # If not a standard critic type, skip type validation
+                critic_type = None
+
+            if critic_type is not None:
+                validate_critic_params(
+                    critic_type=critic_type,
+                    enable_tools=enable_tools or False,
+                    confidence_threshold=0.7,  # Default confidence threshold
+                    max_suggestions=5,  # Default max suggestions
+                )
+        except Exception as e:
+            # Don't fail initialization for validation errors in development
+            # but provide helpful feedback
+            import warnings
+
+            warnings.warn(f"Critic parameter validation warning: {e}", UserWarning)
 
         # Components
         self._confidence_calc: ConfidenceCalculator = ConfidenceCalculator(

@@ -353,6 +353,8 @@ def create_academic_critic(
 ) -> PromptCritic:
     """Create a pre-configured critic for academic writing evaluation.
 
+    Input parameters are validated at runtime.
+
     Provides comprehensive evaluation of academic texts across key scholarly
     dimensions. Suitable for research papers, dissertations, academic articles,
     and scholarly communications.
@@ -362,7 +364,8 @@ def create_academic_critic(
             quality and cost. Consider gpt-4 for nuanced academic evaluation.
         temperature: Generation temperature (0.0-1.0). Default 0.7 provides
             balanced evaluation. Lower for more consistent assessment.
-        **kwargs: Additional arguments passed to PromptCritic:
+        **kwargs: Additional arguments passed to PromptCritic.
+            See CriticFactoryParams in core.type_defs for expected fields:
             - provider: LLM provider override
             - api_key: API key override
             - config: Full configuration object
@@ -410,8 +413,12 @@ def create_academic_critic(
 4. Academic tone and style
 5. Contribution to the field"""
 
+    # Create PromptCritic with parameters
     return PromptCritic(
-        custom_prompt=prompt, model=model, temperature=temperature, **kwargs
+        custom_prompt=prompt,
+        model=model,
+        temperature=temperature,
+        **kwargs,
     )
 
 
@@ -429,7 +436,8 @@ def create_business_critic(
             good business judgment. Use gpt-4 for executive-level content.
         temperature: Generation temperature (0.0-1.0). Default 0.7 balances
             consistency with insightful feedback.
-        **kwargs: Additional arguments passed to PromptCritic:
+        **kwargs: Additional arguments passed to PromptCritic.
+            See CriticFactoryParams in core.type_defs for expected fields:
             - provider: LLM provider override
             - api_key: API key override
             - config: Full configuration object
@@ -498,7 +506,8 @@ def create_creative_critic(
         temperature: Generation temperature (0.0-1.0). Default 0.7 allows
             for creative interpretation. Higher values (0.8-0.9) provide
             more diverse creative feedback.
-        **kwargs: Additional arguments passed to PromptCritic:
+        **kwargs: Additional arguments passed to PromptCritic.
+            See CriticFactoryParams in core.type_defs for expected fields:
             - provider: LLM provider override
             - api_key: API key override
             - config: Full configuration object

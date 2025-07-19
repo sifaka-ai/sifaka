@@ -4,12 +4,13 @@ Provides direct access to Wikipedia content without external dependencies.
 """
 
 import urllib.parse
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, cast
 
 import httpx
 
 from .base import ToolInterface
 from .registry import ToolRegistry
+from .types import WikipediaResult
 
 
 class WikipediaTool(ToolInterface):
@@ -78,7 +79,7 @@ class WikipediaTool(ToolInterface):
                 search_response.raise_for_status()
                 search_data = search_response.json()
 
-                results = []
+                results: List[WikipediaResult] = []
 
                 # Get summaries for each search result
                 for item in search_data.get("query", {}).get("search", []):
@@ -94,46 +95,43 @@ class WikipediaTool(ToolInterface):
                         summary_response.raise_for_status()
                         summary_data = summary_response.json()
 
-                        results.append(
-                            {
-                                "title": summary_data.get("title", title),
-                                "url": summary_data.get("content_urls", {})
-                                .get("desktop", {})
-                                .get("page", ""),
-                                "summary": summary_data.get("extract", ""),
-                                "snippet": item.get("snippet", "")
-                                .replace('<span class="searchmatch">', "")
-                                .replace("</span>", ""),
-                                "source": "wikipedia",
-                            }
-                        )
+                        result: WikipediaResult = {
+                            "title": summary_data.get("title", title),
+                            "url": summary_data.get("content_urls", {})
+                            .get("desktop", {})
+                            .get("page", ""),
+                            "summary": summary_data.get("extract", ""),
+                            "snippet": item.get("snippet", "")
+                            .replace('<span class="searchmatch">', "")
+                            .replace("</span>", ""),
+                            "source": "wikipedia",
+                        }
+                        results.append(result)
                     except Exception:
                         # If summary fails, still include basic search result
-                        results.append(
-                            {
-                                "title": title,
-                                "url": f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title)}",
-                                "summary": "",
-                                "snippet": item.get("snippet", "")
-                                .replace('<span class="searchmatch">', "")
-                                .replace("</span>", ""),
-                                "source": "wikipedia",
-                            }
-                        )
+                        fallback_result: WikipediaResult = {
+                            "title": title,
+                            "url": f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title)}",
+                            "summary": "",
+                            "snippet": item.get("snippet", "")
+                            .replace('<span class="searchmatch">', "")
+                            .replace("</span>", ""),
+                            "source": "wikipedia",
+                        }
+                        results.append(fallback_result)
 
-                return results
+                return cast(List[Dict[str, Any]], results)
 
             except Exception as e:
                 # Return error information
-                return [
-                    {
-                        "title": "Wikipedia Error",
-                        "url": "",
-                        "summary": f"Failed to search Wikipedia: {e!s}",
-                        "snippet": "",
-                        "source": "wikipedia",
-                    }
-                ]
+                error_result: WikipediaResult = {
+                    "title": "Wikipedia Error",
+                    "url": "",
+                    "summary": f"Failed to search Wikipedia: {e!s}",
+                    "snippet": "",
+                    "source": "wikipedia",
+                }
+                return cast(List[Dict[str, Any]], [error_result])
 
 
 # Auto-register the tool
