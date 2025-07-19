@@ -51,28 +51,19 @@ async def main() -> None:
         print("   ⏭️  Skipping - no OPENAI_API_KEY")
         result1 = None
 
-    # Approach 2: Custom perspectives with Anthropic
-    print("\n2️⃣ Using custom perspectives with Anthropic Claude...")
+    # Approach 2: Different configuration
+    print("\n2️⃣ Using different model configuration...")
 
-    if os.getenv("ANTHROPIC_API_KEY"):
-        # Create custom N-Critics with specific perspectives
-        from sifaka.critics.n_critics import NCriticsCritic
-
-        custom_critic = NCriticsCritic(
-            perspectives={
-                "Risk Analyst": "Evaluate risks and potential downsides",
-                "Financial Advisor": "Focus on financial wisdom and planning",
-                "Behavioral Economist": "Consider psychological biases and human behavior",
-                "Tech Expert": "Assess technological aspects and future trends",
-            },
-            model="gpt-3.5-turbo",
-        )
-
+    if os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY"):
+        # Use N_CRITICS with different model config
         result2 = await improve(
             text,
-            critics=[custom_critic],
+            critics=[CriticType.N_CRITICS],
             max_iterations=2,
-            config=Config(llm=LLMConfig(model="gpt-4o-mini", temperature=0.6)),
+            config=Config(
+                llm=LLMConfig(model="claude-3-haiku-20240307" if os.getenv("ANTHROPIC_API_KEY") else "gpt-4o-mini", temperature=0.6),
+                critic=CriticConfig(critic_model="gpt-3.5-turbo")
+            ),
             storage=FileStorage(),
         )
 

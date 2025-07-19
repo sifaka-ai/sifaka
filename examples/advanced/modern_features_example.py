@@ -50,7 +50,7 @@ async def batch_processing_demo():
 
     # Start performance monitoring
     monitor = PerformanceMonitor()
-    monitor.start()
+    monitor.start_monitoring(max_iterations=2)
 
     start_time = time.time()
 
@@ -80,8 +80,7 @@ async def batch_processing_demo():
     end_time = time.time()
 
     # Stop monitoring and get metrics
-    monitor.stop()
-    metrics = monitor.current_metrics
+    metrics = monitor.end_monitoring()
 
     # Display results
     print(
@@ -184,7 +183,7 @@ async def performance_monitoring_demo():
 
     # Process with monitoring
     monitor = PerformanceMonitor()
-    monitor.start()
+    monitor.start_monitoring(max_iterations=3)
 
     await improve(
         "Write a better version of this sentence.",
@@ -193,8 +192,7 @@ async def performance_monitoring_demo():
         config=config,
     )
 
-    monitor.stop()
-    metrics = monitor.current_metrics
+    metrics = monitor.end_monitoring()
 
     print("📈 Detailed Performance Metrics:")
     print(f"   - Duration: {metrics.total_duration:.2f}s")
@@ -216,12 +214,14 @@ async def connection_pool_demo():
 
     # Get global connection pool stats
     pool = get_global_pool()
-    initial_stats = pool.get_status()
+    initial_stats = await pool.get_pool_status()
 
     print("Initial pool status:")
-    print(f"   - Total connections: {initial_stats['total_connections']}")
-    print(f"   - Active connections: {initial_stats['active_connections']}")
-    print(f"   - Idle connections: {initial_stats['idle_connections']}")
+    if initial_stats:
+        for pool_key, stats in initial_stats.items():
+            print(f"   Pool {pool_key}: {stats['total_connections']} total")
+    else:
+        print("   - No connections yet")
 
     # Make multiple requests to see pool usage
     config = Config(llm=LLMConfig(model="gpt-4o-mini"))
@@ -233,13 +233,18 @@ async def connection_pool_demo():
     # Process concurrently to see pool behavior
     await asyncio.gather(*tasks)
 
-    final_stats = pool.get_status()
+    final_stats = await pool.get_pool_status()
     print("\nFinal pool status:")
-    print(f"   - Total connections: {final_stats['total_connections']}")
-    print(f"   - Active connections: {final_stats['active_connections']}")
-    print(f"   - Idle connections: {final_stats['idle_connections']}")
-    print(f"   - Pool hits: {final_stats['pool_hits']}")
-    print(f"   - Pool misses: {final_stats['pool_misses']}")
+    for pool_key, stats in final_stats.items():
+        print(f"   Pool {pool_key}:")
+        print(f"      - Total: {stats['total_connections']}")
+        print(f"      - Active: {stats['active_connections']}")
+        print(f"      - Idle: {stats['idle_connections']}")
+    # Get pool metrics if available
+    pool_metrics = pool.get_metrics()
+    print(f"\n   Pool Metrics:")
+    print(f"   - Pool hits: {pool_metrics.pool_hits}")
+    print(f"   - Pool misses: {pool_metrics.pool_misses}")
 
 
 async def main():
