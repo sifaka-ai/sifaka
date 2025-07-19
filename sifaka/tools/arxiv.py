@@ -3,9 +3,9 @@
 Provides access to arXiv's repository of scientific papers across multiple disciplines.
 """
 
-import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Union, cast
 
+import defusedxml.ElementTree as ET
 import httpx
 
 from .base import ToolInterface

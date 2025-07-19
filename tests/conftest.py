@@ -38,13 +38,10 @@ def setup_test_environment():
 
 
 @pytest.fixture(autouse=True)
-def mock_api_clients(monkeypatch):
+def mock_api_clients(request, monkeypatch):
     """Automatically mock API clients for unit tests."""
     # Only apply to unit tests, not integration tests
-    if (
-        "unit" in str(pytest.current_test_path)
-        or os.getenv("CI", "false").lower() == "true"
-    ):
+    if "unit" in str(request.fspath) or os.getenv("CI", "false").lower() == "true":
         # Mock openai client creation
         mock_openai = MagicMock()
         mock_client = MagicMock()
