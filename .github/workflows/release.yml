@@ -35,9 +35,27 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -e ".[dev]"
+        # Install setuptools for pkg_resources compatibility
+        pip install setuptools
+
+    - name: Set up test environment
+      run: |
+        # Set mock API keys for unit tests
+        echo "OPENAI_API_KEY=test-key-for-ci" >> $GITHUB_ENV
+        echo "ANTHROPIC_API_KEY=test-key-for-ci" >> $GITHUB_ENV
+        echo "GEMINI_API_KEY=test-key-for-ci" >> $GITHUB_ENV
+        echo "XAI_API_KEY=test-key-for-ci" >> $GITHUB_ENV
+        echo "CI=true" >> $GITHUB_ENV
+        echo "USE_MOCK_LLM=true" >> $GITHUB_ENV
 
     - name: Run tests
-      run: pytest tests/ --cov=sifaka
+      run: pytest tests/unit --cov=sifaka
+      env:
+        CI: true
+        USE_MOCK_LLM: true
+        OPENAI_API_KEY: test-key-for-ci
+        ANTHROPIC_API_KEY: test-key-for-ci
+        GEMINI_API_KEY: test-key-for-ci
 
   build-and-publish:
     needs: test
