@@ -351,11 +351,23 @@ class FileStorage(StorageBackend):
             Deletion is permanent. Consider implementing a soft delete
             or backup mechanism if you need recovery options.
         """
+        # Try exact match first
         file_path = self._get_file_path(result_id)
-
         if file_path.exists():
             file_path.unlink()
             return True
+
+        # Try to find by ID prefix (for descriptive filenames)
+        for f in self.storage_dir.glob(f"*{result_id[:8]}*.json"):
+            try:
+                # Load to verify it's the right file
+                result = await self._load_from_path(f)
+                if result and result.id == result_id:
+                    f.unlink()
+                    return True
+            except Exception:
+                continue
+
         return False
 
     async def search(self, query: str, limit: int = 10) -> List[str]:

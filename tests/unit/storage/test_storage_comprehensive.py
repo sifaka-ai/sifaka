@@ -95,7 +95,7 @@ class TestMemoryStorage:
         """Test MemoryStorage initialization."""
         storage = MemoryStorage()
         assert isinstance(storage, StorageBackend)
-        assert len(storage._data) == 0
+        assert len(storage._storage) == 0
 
     @pytest.mark.asyncio
     async def test_save_and_load_basic(self, sample_result):
@@ -243,7 +243,7 @@ class TestMemoryStorage:
         # Clear storage
         storage.clear()
         assert len(await storage.list()) == 0
-        assert len(storage._data) == 0
+        assert len(storage._storage) == 0
 
     def test_size_tracking(self, sample_result):
         """Test storage size tracking."""
@@ -321,14 +321,14 @@ class TestFileStorage:
         """Test FileStorage initialization."""
         storage = FileStorage(temp_dir)
         assert isinstance(storage, StorageBackend)
-        assert storage.base_path == Path(temp_dir)
-        assert storage.base_path.exists()
+        assert storage.storage_dir == Path(temp_dir)
+        assert storage.storage_dir.exists()
 
     def test_file_storage_default_path(self):
         """Test FileStorage with default path."""
         storage = FileStorage()
-        assert storage.base_path.exists()
-        assert storage.base_path.name == "sifaka_results"
+        assert storage.storage_dir.exists()
+        assert storage.storage_dir.name == "thoughts"
 
     @pytest.mark.asyncio
     async def test_save_and_load_basic(self, sample_result, temp_dir):
@@ -338,10 +338,6 @@ class TestFileStorage:
         # Save result
         result_id = await storage.save(sample_result)
         assert result_id == sample_result.id
-
-        # Verify file exists
-        file_path = storage.base_path / f"{result_id}.json"
-        assert file_path.exists()
 
         # Load result
         loaded_result = await storage.load(result_id)
@@ -367,15 +363,20 @@ class TestFileStorage:
         """Test file deletion."""
         storage = FileStorage(temp_dir)
 
-        # Save and verify file exists
+        # Save result
         result_id = await storage.save(sample_result)
-        file_path = storage.base_path / f"{result_id}.json"
-        assert file_path.exists()
 
-        # Delete and verify file is gone
+        # Ensure we can load it
+        loaded = await storage.load(result_id)
+        assert loaded is not None
+
+        # Delete and verify we can't load it anymore
         success = await storage.delete(result_id)
         assert success is True
-        assert not file_path.exists()
+
+        # Should not be able to load after deletion
+        loaded_after_delete = await storage.load(result_id)
+        assert loaded_after_delete is None
 
     @pytest.mark.asyncio
     async def test_list_files(self, temp_dir):
@@ -445,13 +446,14 @@ class TestFileStorage:
         storage = FileStorage(temp_dir)
 
         # Create a corrupted file
-        corrupted_file = storage.base_path / "corrupted.json"
+        corrupted_file = storage.storage_dir / "corrupted.json"
         with open(corrupted_file, "w") as f:
             f.write("invalid json content {")
 
-        # Try to load corrupted file
-        result = await storage.load("corrupted")
-        assert result is None
+        # Try to load corrupted file - should raise StorageError
+        with pytest.raises(StorageError) as exc_info:
+            await storage.load("corrupted")
+        assert "Failed to parse from" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_concurrent_file_operations(self, temp_dir):
@@ -595,7 +597,7 @@ class TestStorageErrorHandling:
         storage = MemoryStorage()
 
         # Simulate internal data corruption
-        storage._data = None
+        storage._storage = None
 
         result = SifakaResult(
             original_text="Error test",
@@ -607,8 +609,8 @@ class TestStorageErrorHandling:
             processing_time=1.0,
         )
 
-        # Should handle gracefully
-        with pytest.raises(AttributeError):
+        # Should handle gracefully - raises StorageError wrapping the original error
+        with pytest.raises(StorageError):
             await storage.save(result)
 
     @pytest.mark.asyncio
@@ -627,7 +629,7 @@ class TestStorageErrorHandling:
         )
 
         # Mock file write to raise OSError (disk full)
-        with patch("builtins.open", side_effect=OSError("No space left on device")):
+        with patch("aiofiles.open", side_effect=OSError("No space left on device")):
             with pytest.raises(StorageError):
                 await storage.save(result)
 

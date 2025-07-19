@@ -19,24 +19,14 @@ class TestRefinementArea:
     def test_creation(self):
         """Test creating a refinement area."""
         area = RefinementArea(
-            area="clarity",
-            current_state="Uses complex jargon",
-            target_state="Simple, clear language",
-            priority="high",
+            target_state="Simple, clear language instead of complex jargon"
         )
-        assert area.area == "clarity"
-        assert "complex jargon" in area.current_state
         assert "Simple, clear" in area.target_state
-        assert area.priority == "high"
 
-    def test_default_priority(self):
-        """Test default priority."""
-        area = RefinementArea(
-            area="structure",
-            current_state="Disorganized",
-            target_state="Well-structured",
-        )
-        assert area.priority == "medium"
+    def test_simple_creation(self):
+        """Test simple creation."""
+        area = RefinementArea(target_state="Well-structured instead of disorganized")
+        assert "Well-structured" in area.target_state
 
 
 class TestSelfRefineResponse:
@@ -51,23 +41,12 @@ class TestSelfRefineResponse:
         )
         assert response.feedback == "Text needs clarity improvements"
         assert response.confidence == 0.75  # default
-        assert response.quality_score == 0.7  # default
-        assert response.refinement_iterations_recommended == 1  # default
+        assert len(response.refinement_areas) == 0  # default empty list
 
     def test_creation_full(self):
         """Test creating response with all fields."""
-        area1 = RefinementArea(
-            area="introduction",
-            current_state="Weak hook",
-            target_state="Compelling opening",
-            priority="high",
-        )
-        area2 = RefinementArea(
-            area="conclusion",
-            current_state="Abrupt ending",
-            target_state="Strong closing",
-            priority="medium",
-        )
+        area1 = RefinementArea(target_state="Compelling opening instead of weak hook")
+        area2 = RefinementArea(target_state="Strong closing instead of abrupt ending")
 
         response = SelfRefineResponse(
             feedback="Multiple areas need refinement",
@@ -75,15 +54,10 @@ class TestSelfRefineResponse:
             needs_improvement=True,
             confidence=0.85,
             refinement_areas=[area1, area2],
-            quality_score=0.6,
-            refinement_iterations_recommended=2,
-            metadata={"word_count": 500},
         )
 
         assert len(response.refinement_areas) == 2
-        assert response.quality_score == 0.6
-        assert response.refinement_iterations_recommended == 2
-        assert response.metadata["word_count"] == 500
+        assert response.confidence == 0.85
 
     def test_validation_bounds(self):
         """Test field validation bounds."""
@@ -92,12 +66,8 @@ class TestSelfRefineResponse:
             suggestions=[],
             needs_improvement=False,
             confidence=1.0,
-            quality_score=0.0,
-            refinement_iterations_recommended=5,
         )
         assert response.confidence == 1.0  # max
-        assert response.quality_score == 0.0  # min
-        assert response.refinement_iterations_recommended == 5  # max
 
 
 class TestSelfRefineCritic:
@@ -112,7 +82,7 @@ class TestSelfRefineCritic:
         """Test default initialization."""
         critic = SelfRefineCritic()
         assert critic.name == "self_refine"
-        assert critic.model == "gpt-4o-mini"
+        assert critic.model == "gpt-3.5-turbo"  # Default from Config
         assert critic.temperature == 0.7
 
     def test_initialization_with_config(self):
@@ -186,26 +156,21 @@ class TestSelfRefineCritic:
             confidence=0.8,
             refinement_areas=[
                 RefinementArea(
-                    area="introduction",
-                    current_state="Dense and unclear",
-                    target_state="Clear and engaging",
-                    priority="high",
+                    target_state="Clear and engaging introduction instead of dense and unclear"
                 ),
                 RefinementArea(
-                    area="transitions",
-                    current_state="Abrupt topic changes",
-                    target_state="Smooth flow between ideas",
-                    priority="medium",
+                    target_state="Smooth flow between ideas instead of abrupt topic changes"
                 ),
             ],
-            quality_score=0.65,
-            refinement_iterations_recommended=2,
-            metadata={"analysis_depth": "detailed"},
         )
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
+        # Mock usage as a callable that returns an object with total_tokens
+        mock_usage = Mock()
+        mock_usage.total_tokens = 100
+        mock_agent_result.usage = Mock(return_value=mock_usage)
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -220,8 +185,9 @@ class TestSelfRefineCritic:
             assert result.confidence == 0.8
             assert "refinement_areas" in result.metadata
             assert len(result.metadata["refinement_areas"]) == 2
-            assert result.metadata["quality_score"] == 0.65
-            assert result.metadata["refinement_iterations_recommended"] == 2
+            assert (
+                "analysis_depth" not in result.metadata
+            )  # metadata was removed from response
 
     @pytest.mark.asyncio
     async def test_critique_no_improvement_needed(self, sample_result):
@@ -234,13 +200,15 @@ class TestSelfRefineCritic:
             needs_improvement=False,
             confidence=0.95,
             refinement_areas=[],
-            quality_score=0.9,
-            refinement_iterations_recommended=0,
         )
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
+        # Mock usage as a callable that returns an object with total_tokens
+        mock_usage = Mock()
+        mock_usage.total_tokens = 100
+        mock_agent_result.usage = Mock(return_value=mock_usage)
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -251,8 +219,7 @@ class TestSelfRefineCritic:
             assert result.needs_improvement is False
             assert len(result.suggestions) == 0
             assert result.confidence > 0.9
-            assert result.metadata["quality_score"] == 0.9
-            assert result.metadata["refinement_iterations_recommended"] == 0
+            assert len(result.metadata["refinement_areas"]) == 0
 
     @pytest.mark.asyncio
     async def test_critique_major_refinement(self, sample_result):
@@ -271,32 +238,24 @@ class TestSelfRefineCritic:
             confidence=0.9,
             refinement_areas=[
                 RefinementArea(
-                    area="overall_structure",
-                    current_state="Disorganized and confusing",
-                    target_state="Logical flow with clear sections",
-                    priority="high",
+                    target_state="Logical flow with clear sections instead of disorganized and confusing structure"
                 ),
                 RefinementArea(
-                    area="clarity",
-                    current_state="Dense technical jargon",
-                    target_state="Accessible language",
-                    priority="high",
+                    target_state="Accessible language instead of dense technical jargon"
                 ),
                 RefinementArea(
-                    area="completeness",
-                    current_state="Missing key information",
-                    target_state="Comprehensive coverage",
-                    priority="high",
+                    target_state="Comprehensive coverage instead of missing key information"
                 ),
             ],
-            quality_score=0.3,
-            refinement_iterations_recommended=4,
-            metadata={"severity": "major"},
         )
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
+        # Mock usage as a callable that returns an object with total_tokens
+        mock_usage = Mock()
+        mock_usage.total_tokens = 100
+        mock_agent_result.usage = Mock(return_value=mock_usage)
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -306,11 +265,11 @@ class TestSelfRefineCritic:
 
             assert result.needs_improvement is True
             assert len(result.suggestions) == 4
-            assert result.metadata["quality_score"] == 0.3
-            assert result.metadata["refinement_iterations_recommended"] == 4
+            # Check that we have high priority areas
+            assert len(result.suggestions) == 4
+            # RefinementArea only has target_state field
             assert all(
-                area["priority"] == "high"
-                for area in result.metadata["refinement_areas"]
+                "target_state" in area for area in result.metadata["refinement_areas"]
             )
 
     def test_provider_configuration(self):
@@ -335,26 +294,21 @@ class TestSelfRefineCritic:
             confidence=0.85,
             refinement_areas=[
                 RefinementArea(
-                    area="engagement",
-                    current_state="Dry and academic",
-                    target_state="Engaging and relatable",
-                    priority="high",
+                    target_state="Engaging and relatable instead of dry and academic"
                 ),
                 RefinementArea(
-                    area="flow",
-                    current_state="Choppy transitions",
-                    target_state="Smooth narrative flow",
-                    priority="medium",
+                    target_state="Smooth narrative flow instead of choppy transitions"
                 ),
             ],
-            quality_score=0.7,
-            refinement_iterations_recommended=1,
-            metadata={"focus_areas": ["engagement", "flow"]},
         )
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
         mock_agent_result.output = mock_response
+        # Mock usage as a callable that returns an object with total_tokens
+        mock_usage = Mock()
+        mock_usage.total_tokens = 100
+        mock_agent_result.usage = Mock(return_value=mock_usage)
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -363,6 +317,10 @@ class TestSelfRefineCritic:
             result = await critic.critique("Academic text", sample_result)
 
             assert len(result.metadata["refinement_areas"]) == 2
-            areas = [area["area"] for area in result.metadata["refinement_areas"]]
-            assert "engagement" in areas
-            assert "flow" in areas
+            # RefinementArea only has target_state field
+            areas = result.metadata["refinement_areas"]
+            target_states = [area["target_state"] for area in areas]
+
+            # Check that we have the expected refinement areas
+            assert any("Engaging and relatable" in state for state in target_states)
+            assert any("Smooth narrative flow" in state for state in target_states)

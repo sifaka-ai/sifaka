@@ -619,19 +619,39 @@ class ImproveParams(BaseModel):
         if isinstance(v, CriticType):
             return [v]
 
+        if isinstance(v, str):
+            # Single string critic
+            try:
+                return [CriticType(v)]
+            except ValueError:
+                valid_values = ", ".join(CriticType.values())
+                raise ValueError(
+                    f"Invalid critic type: '{v}'. Must be one of: {valid_values}"
+                )
+
         if not isinstance(v, list):
             raise ValueError(
-                f"Critics must be CriticType or list of CriticType, got {type(v).__name__}"
+                f"Critics must be CriticType, string, or list, got {type(v).__name__}"
             )
 
         # Validate each critic
         result = []
         for critic in v:
-            if not isinstance(critic, CriticType):
+            if isinstance(critic, CriticType):
+                result.append(critic)
+            elif isinstance(critic, str):
+                # Try to convert string to CriticType
+                try:
+                    result.append(CriticType(critic))
+                except ValueError:
+                    valid_values = ", ".join(CriticType.values())
+                    raise ValueError(
+                        f"Invalid critic type: '{critic}'. Must be one of: {valid_values}"
+                    )
+            else:
                 raise ValueError(
-                    f"Invalid critic type: {critic}. Must be CriticType enum value."
+                    f"Invalid critic type: {critic}. Must be CriticType enum value or string."
                 )
-            result.append(critic)
 
         return result
 

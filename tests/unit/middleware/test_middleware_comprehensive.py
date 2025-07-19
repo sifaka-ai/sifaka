@@ -429,13 +429,17 @@ class TestCachingMiddleware:
         """Test cache key generation."""
         middleware = CachingMiddleware()
 
-        # CachingMiddleware uses _get_cache_key, not _generate_cache_key
-        key1 = middleware._get_cache_key("test", {"a": 1})
-        key2 = middleware._get_cache_key("test", {"a": 1})
-        key3 = middleware._get_cache_key("test", {"a": 2})
+        # Test with context keys that the implementation actually uses
+        key1 = middleware._get_cache_key("test", {"model": "gpt-4", "temperature": 0.7})
+        key2 = middleware._get_cache_key("test", {"model": "gpt-4", "temperature": 0.7})
+        key3 = middleware._get_cache_key(
+            "test", {"model": "gpt-3.5", "temperature": 0.7}
+        )
+        key4 = middleware._get_cache_key("test", {"model": "gpt-4", "temperature": 0.9})
 
         assert key1 == key2  # Same input should generate same key
-        assert key1 != key3  # Different context should generate different key
+        assert key1 != key3  # Different model should generate different key
+        assert key1 != key4  # Different temperature should generate different key
 
     def test_cache_clear(self, sample_handler):
         """Test cache clearing."""

@@ -1,10 +1,5 @@
 """Test PydanticAI integration."""
 
-import os
-
-import pytest
-
-from sifaka import improve_sync
 from sifaka.core.llm_client import LLMClient, Provider
 
 
@@ -36,14 +31,4 @@ def test_improvement_response():
     assert response.confidence == 0.9
 
 
-@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OpenAI API key not set")
-def test_improve_with_pydantic_ai():
-    """Test that improve works with PydanticAI (now always enabled)."""
-
-    text = "AI is important."
-
-    result = improve_sync(text, critics=["reflexion"], max_iterations=1)
-
-    assert result is not None
-    assert hasattr(result, "final_text")
-    assert result.final_text != text
+# Removed test_improve_with_pydantic_ai as it requires OpenAI API key

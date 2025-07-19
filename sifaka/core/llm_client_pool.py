@@ -15,7 +15,7 @@ up idle connections based on configurable policies.
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -145,7 +145,7 @@ class LLMClientPool:
         """
         self.config = config or PoolConfig()
         self._pools: Dict[str, List[PooledConnection]] = {}
-        self._active_connections: Dict[str, Set[PooledConnection]] = {}
+        self._active_connections: Dict[str, List[PooledConnection]] = {}
         self._metrics = ConnectionMetrics()
         self._lock: Optional[asyncio.Lock] = None
         self._health_check_task: Optional[asyncio.Task] = None
@@ -203,8 +203,8 @@ class LLMClientPool:
 
                 # Move to active connections
                 if pool_key not in self._active_connections:
-                    self._active_connections[pool_key] = set()
-                self._active_connections[pool_key].add(connection)
+                    self._active_connections[pool_key] = []
+                self._active_connections[pool_key].append(connection)
 
                 if self.config.enable_metrics:
                     self._metrics.pool_hits += 1
@@ -226,8 +226,8 @@ class LLMClientPool:
 
                 # Move to active connections
                 if pool_key not in self._active_connections:
-                    self._active_connections[pool_key] = set()
-                self._active_connections[pool_key].add(connection)
+                    self._active_connections[pool_key] = []
+                self._active_connections[pool_key].append(connection)
 
                 if self.config.enable_metrics:
                     self._metrics.pool_misses += 1
@@ -258,8 +258,8 @@ class LLMClientPool:
             connection = None
             pool_key = None
 
-            for key, active_set in self._active_connections.items():
-                for conn in active_set:
+            for key, active_list in self._active_connections.items():
+                for conn in active_list:
                     if conn.client is client:
                         connection = conn
                         pool_key = key
@@ -272,7 +272,8 @@ class LLMClientPool:
                 return
 
             # Remove from active connections
-            self._active_connections[pool_key].discard(connection)
+            if connection in self._active_connections[pool_key]:
+                self._active_connections[pool_key].remove(connection)
 
             # Check if connection is still healthy and not expired
             if connection.is_healthy and not connection.is_expired(
@@ -461,7 +462,10 @@ class LLMClientPool:
                 pass
 
         # Clean up all connections
-        assert self._lock is not None
+        if self._lock is None:
+            # Pool was never initialized, nothing to clean up
+            return
+
         async with self._lock:
             for connections in self._pools.values():
                 for connection in connections:
@@ -470,8 +474,8 @@ class LLMClientPool:
                         self._metrics.idle_connections -= 1
                         self._metrics.total_connections -= 1
 
-            for active_set in self._active_connections.values():
-                for connection in active_set:
+            for active_list in self._active_connections.values():
+                for connection in active_list:
                     if self.config.enable_metrics:
                         self._metrics.destroyed_connections += 1
                         self._metrics.active_connections -= 1
@@ -491,7 +495,7 @@ class LLMClientPool:
                 self._active_connections.keys()
             ):
                 idle_count = len(self._pools.get(pool_key, []))
-                active_count = len(self._active_connections.get(pool_key, set()))
+                active_count = len(self._active_connections.get(pool_key, []))
 
                 status[pool_key] = {
                     "idle_connections": idle_count,

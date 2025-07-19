@@ -151,7 +151,7 @@ class TestSelfRAGCritic:
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
-        mock_agent_result.data = mock_response
+        mock_agent_result.output = mock_response
         mock_agent_result.usage = Mock(return_value=Mock(total_tokens=100))
 
         mock_agent = AsyncMock()
@@ -194,7 +194,7 @@ class TestSelfRAGCritic:
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
-        mock_agent_result.data = mock_response
+        mock_agent_result.output = mock_response
         mock_agent_result.usage = Mock(return_value=Mock(total_tokens=100))
 
         mock_agent = AsyncMock()
@@ -229,7 +229,7 @@ class TestSelfRAGCritic:
 
         # Mock the PydanticAI agent
         mock_agent_result = Mock()
-        mock_agent_result.data = mock_response
+        mock_agent_result.output = mock_response
         mock_agent_result.usage = Mock(return_value=Mock(total_tokens=100))
 
         mock_agent = AsyncMock()

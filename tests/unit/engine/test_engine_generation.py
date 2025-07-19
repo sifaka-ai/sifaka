@@ -12,6 +12,17 @@ from sifaka.core.models import (
 )
 
 
+def create_mock_agent_result(output, total_tokens=0):
+    """Helper to create a mock agent result with usage."""
+    mock_agent_result = Mock()
+    mock_agent_result.output = output
+    # Mock usage as a callable that returns an object with total_tokens
+    mock_usage = Mock()
+    mock_usage.total_tokens = total_tokens
+    mock_agent_result.usage = Mock(return_value=mock_usage)
+    return mock_agent_result
+
+
 class TestImprovementResponse:
     """Test the ImprovementResponse model."""
 
@@ -72,8 +83,7 @@ class TestTextGenerator:
         )
 
         # Mock the PydanticAI agent
-        mock_agent_result = Mock()
-        mock_agent_result.output = mock_response
+        mock_agent_result = create_mock_agent_result(mock_response, total_tokens=100)
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -82,13 +92,15 @@ class TestTextGenerator:
         mock_client.create_agent = Mock(return_value=mock_agent)
 
         generator._client = mock_client
-        improved_text, prompt = await generator.generate_improvement(
+        improved_text, prompt, tokens, elapsed = await generator.generate_improvement(
             "Current text", sample_result
         )
 
         assert improved_text == "Significantly improved text"
         assert prompt is not None
         assert "Current text:" in prompt
+        assert tokens == 100  # From mock usage
+        assert elapsed >= 0
         mock_client.create_agent.assert_called_once()
         mock_agent.run.assert_called_once()
 
@@ -102,8 +114,7 @@ class TestTextGenerator:
             confidence=0.5,
         )
 
-        mock_agent_result = Mock()
-        mock_agent_result.output = mock_response
+        mock_agent_result = create_mock_agent_result(mock_response)
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -129,8 +140,7 @@ class TestTextGenerator:
             improved_text="", changes_made=[], confidence=0.0
         )
 
-        mock_agent_result = Mock()
-        mock_agent_result.output = mock_response
+        mock_agent_result = create_mock_agent_result(mock_response)
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -174,8 +184,7 @@ class TestTextGenerator:
         """Test improvement with prompt display."""
         mock_response = ImprovementResponse(improved_text="Better text")
 
-        mock_agent_result = Mock()
-        mock_agent_result.output = mock_response
+        mock_agent_result = create_mock_agent_result(mock_response)
 
         mock_agent = AsyncMock()
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
@@ -184,7 +193,7 @@ class TestTextGenerator:
         mock_client.create_agent = Mock(return_value=mock_agent)
 
         generator._client = mock_client
-        improved_text, _ = await generator.generate_improvement(
+        improved_text, prompt, tokens, elapsed = await generator.generate_improvement(
             "Current text", sample_result, show_prompt=True
         )
 
