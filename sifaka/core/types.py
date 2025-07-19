@@ -4,8 +4,14 @@ This module provides type-safe enumerations and type aliases to replace
 magic strings throughout the codebase.
 """
 
+import sys
 from enum import Enum
-from typing import Literal, Union
+from typing import Union
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 
 class CriticType(str, Enum):

@@ -4,7 +4,13 @@ This module provides TypedDict and other type definitions to replace
 generic Dict[str, Any] usage with more specific, type-safe alternatives.
 """
 
-from typing import Any, Dict, List, Literal, Optional, TypedDict, Union
+import sys
+from typing import Any, Dict, List, Optional, Union
+
+if sys.version_info >= (3, 8):
+    from typing import Literal, TypedDict
+else:
+    from typing_extensions import Literal, TypedDict
 
 from .types import CriticType
 

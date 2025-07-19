@@ -1,6 +1,12 @@
 """Type definitions for tool results."""
 
-from typing import List, TypedDict
+import sys
+from typing import List
+
+if sys.version_info >= (3, 8):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
 
 
 class ArxivResult(TypedDict):
