@@ -7,7 +7,7 @@ generic Dict[str, Any] usage with more specific, type-safe alternatives.
 import sys
 from typing import Any, Dict, List, Optional, Union
 
-if sys.version_info >= (3, 8):
+if sys.version_info >= (3, 12):
     from typing import Literal, TypedDict
 else:
     from typing_extensions import Literal, TypedDict
