@@ -44,11 +44,17 @@ class CriticOrchestrator:
     def critics(self) -> List[Critic]:
         """Get or create critics."""
         if self._critics is None:
+            # Determine provider from config
+            provider = None
+            if self.config and self.config.llm.provider:
+                provider = self.config.llm.provider
+
             self._critics = create_critics(
                 self.critic_names,
                 model=self.model,
                 temperature=self.temperature,
                 config=self.config,
+                provider=provider,
             )
         return self._critics
 

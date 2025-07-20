@@ -68,7 +68,9 @@ class SifakaEngine:
 
         # Initialize components
         self.generator = TextGenerator(
-            model=self.config.llm.model, temperature=self.config.llm.temperature
+            model=self.config.llm.model,
+            temperature=self.config.llm.temperature,
+            provider=self.config.llm.provider,
         )
 
         # Convert critics to strings if they are enums

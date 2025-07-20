@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.2-blue)](https://github.com/sifaka-ai/sifaka)
+[![Version](https://img.shields.io/badge/version-0.1.4-blue)](https://github.com/sifaka-ai/sifaka)
 [![CI/CD](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml/badge.svg)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-60%25+-yellowgreen)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/sifaka)](https://pypi.org/project/sifaka/)
@@ -55,8 +55,14 @@ OPENAI_API_KEY=your-api-key
 from sifaka import improve_sync, Config
 from sifaka.core.config import LLMConfig
 
-# Use Ollama with specific model
-config = Config(llm=LLMConfig(provider="ollama", model="llama3.2"))
+# Use Ollama with specific model (must set critic_model too!)
+config = Config(
+    llm=LLMConfig(
+        provider="ollama",
+        model="llama3.2",
+        critic_model="llama3.2"  # Important: set this to use Ollama for critiques
+    )
+)
 result = improve_sync("Climate change is bad.", config=config)
 ```
 

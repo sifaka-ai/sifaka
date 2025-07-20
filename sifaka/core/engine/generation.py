@@ -119,7 +119,7 @@ class TextGenerator:
 
     IMPROVEMENT_SYSTEM_PROMPT = """You are an expert text editor focused on iterative improvement. Pay careful attention to all critic feedback and validation issues. Your goal is to address each piece of feedback thoroughly while maintaining the original intent and improving the overall quality of the text."""
 
-    def __init__(self, model: str, temperature: float):
+    def __init__(self, model: str, temperature: float, provider: Optional[str] = None):
         """Initialize the text generator with model configuration.
 
         Args:
@@ -134,9 +134,11 @@ class TextGenerator:
                 - 0.8-1.0: More creative and varied
                 - 1.1-2.0: Highly creative but less predictable
                 Default 0.7 works well for most improvements.
+            provider: Optional LLM provider ("openai", "anthropic", "ollama", etc.)
         """
         self.model = model
         self.temperature = temperature
+        self.provider = provider
         self._client: Optional[LLMClient] = None
 
     async def get_client(self) -> LLMClient:
@@ -150,7 +152,7 @@ class TextGenerator:
         """
         if self._client is None:
             self._client = await LLMManager.get_client(
-                model=self.model, temperature=self.temperature
+                provider=self.provider, model=self.model, temperature=self.temperature
             )
         return self._client
 
@@ -212,8 +214,28 @@ class TextGenerator:
 
         start_time = time.time()
         try:
-            # Create PydanticAI agent for structured improvement
+            # Get client
             client = await self.get_client()
+
+            # For Ollama, use direct completion instead of pydantic_ai agent
+            if self.provider == "ollama":
+                messages = [
+                    {"role": "system", "content": self.IMPROVEMENT_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ]
+
+                response = await client.complete(messages)
+                processing_time = time.time() - start_time
+
+                # Parse the response as improved text
+                improved_text = response.content.strip()
+                tokens_used = (
+                    response.usage.get("total_tokens", 0) if response.usage else 0
+                )
+
+                return improved_text, prompt, tokens_used, processing_time
+
+            # For other providers, use PydanticAI agent for structured output
             agent = client.create_agent(
                 system_prompt=self.IMPROVEMENT_SYSTEM_PROMPT,
                 result_type=ImprovementResponse,

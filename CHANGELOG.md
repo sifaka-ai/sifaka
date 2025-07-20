@@ -5,6 +5,21 @@ All notable changes to Sifaka are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2025-07-20
+
+### Fixed
+- **Ollama Support**: Fixed critical issues preventing Ollama from working correctly
+  - Fixed provider not being passed to critics during orchestration
+  - Fixed provider not being passed to text generator
+  - Fixed pydantic_ai integration for Ollama (now uses direct completion API)
+  - Ollama now correctly generates improved text
+- **Documentation**: Fixed broken internal links in MkDocs documentation
+- **README**: Updated Ollama usage example to include required `critic_model` setting
+
+### Changed
+- **Error Handling**: TextGenerator now gracefully handles Ollama-specific requirements
+- **Tests**: Fixed test expecting specific create_critics parameters
+
 ## [0.1.3] - 2025-07-20
 
 ### Added

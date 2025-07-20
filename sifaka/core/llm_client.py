@@ -275,8 +275,11 @@ class LLMClient:
             model_str = f"anthropic:{provider_model}"
         elif self.provider == Provider.GEMINI:
             model_str = f"gemini:{provider_model}"
-        else:  # Provider.GROQ
+        elif self.provider == Provider.GROQ:
             model_str = f"groq:{provider_model}"
+        else:  # Provider.OLLAMA
+            # For Ollama, use the openai provider with custom base URL
+            model_str = f"openai:{provider_model}"
 
         # Create agent with structured output
         return Agent(
