@@ -1,10 +1,10 @@
 site_name: Sifaka
-site_url: https://sifaka.readthedocs.io/
+site_url: https://sifaka-ai.github.io/sifaka/
 site_description: Simple AI text improvement through research-backed critique
 site_author: Evan Volgas
 
-repo_name: sifaka/sifaka
-repo_url: https://github.com/sifaka/sifaka
+repo_name: sifaka-ai/sifaka
+repo_url: https://github.com/sifaka-ai/sifaka
 edit_uri: edit/main/docs/
 
 theme:
@@ -84,6 +84,6 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/sifaka/sifaka
+      link: https://github.com/sifaka-ai/sifaka
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/sifaka/
