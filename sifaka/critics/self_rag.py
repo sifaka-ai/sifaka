@@ -1,12 +1,56 @@
 """Self-RAG (Retrieval-Augmented Generation) critic implementation.
 
-This critic implements the Self-RAG framework that enhances text generation
-through selective retrieval and self-reflection. It evaluates content quality
-using reflection tokens (ISREL, ISSUP, ISUSE) and can optionally use tools
-for fact-checking.
-
+Based on: Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection
 Paper: https://arxiv.org/abs/2310.11511
-"""
+Authors: Asai et al. (2023)
+
+Self-RAG enhances text generation through selective retrieval and self-reflection,
+using reflection tokens to evaluate content quality and determine when retrieval
+would improve generation.
+
+## Similarity to Original Paper:
+
+- PRESERVED: Core reflection tokens (ISREL, ISSUP, ISUSE) for content evaluation
+- PRESERVED: Adaptive retrieval decisions based on content needs
+- PRESERVED: Self-critique mechanism for quality assessment
+- SIMPLIFIED: Single-pass critique vs. iterative retrieval-generation cycles
+- ENHANCED: Integration with external tools for fact-checking capabilities
+
+## Implementation Strategy:
+
+1. **Reflection Token Framework**: Uses three key tokens from the paper:
+   - **ISREL (Relevance)**: Evaluates if content is relevant to its purpose
+   - **ISSUP (Support)**: Checks if content is supported by evidence
+   - **ISUSE (Usefulness)**: Assesses if content is valuable for readers
+
+2. **Adaptive Retrieval**: Identifies retrieval opportunities where external
+   information would enhance content quality, similar to paper's on-demand retrieval
+
+3. **Tool Integration**: Optional fact-checking through search tools when
+   factual claims need verification (extends paper's retrieval concept)
+
+4. **Self-Reflection Loop**: Re-evaluates content after retrieval to update
+   reflection tokens based on new evidence
+
+## Why This Approach:
+
+- **Efficiency**: Avoids unnecessary retrievals when content is already strong
+- **Accuracy**: Fact-checks claims only when needed, reducing false positives
+- **Adaptability**: Adjusts critique based on content type and quality needs
+- **Transparency**: Reflection tokens provide clear quality signals
+- **Practicality**: Integrates with existing tool ecosystem for retrieval
+
+## Key Differences from Paper:
+
+The original Self-RAG trains a model to generate reflection tokens during text
+generation. Our implementation:
+- Uses a critic model to evaluate existing text post-generation
+- Applies reflection tokens as evaluation criteria rather than generation signals
+- Focuses on identifying improvement opportunities rather than guiding generation
+- Leverages external tools for retrieval rather than a trained retriever
+
+This adaptation maintains the core insight of selective, self-reflective
+retrieval while fitting into a critique-refinement workflow."""
 
 import time
 from datetime import datetime
