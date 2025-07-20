@@ -143,8 +143,11 @@ class SifakaEngine:
                     critiques = await self.orchestrator.run_critics(
                         current_text, result
                     )
+                except ModelProviderError:
+                    # Re-raise authentication and provider errors
+                    raise
                 except Exception as e:
-                    # Log critic error and continue
+                    # Log other critic errors and continue
                     result.add_critique(
                         critic="system",
                         feedback=f"Critics failed: {e!s}",
@@ -213,6 +216,8 @@ class SifakaEngine:
                 self.validator.check_memory_bounds(result)
 
         except TimeoutError:
+            raise
+        except ModelProviderError:
             raise
         except Exception as e:
             # Log unexpected errors as system critique

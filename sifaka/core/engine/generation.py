@@ -44,6 +44,7 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from ..exceptions import ModelProviderError
 from ..llm_client import LLMClient, LLMManager
 from ..models import CritiqueResult, SifakaResult
 
@@ -250,9 +251,22 @@ class TextGenerator:
 
             return improved_text, prompt, tokens_used, processing_time
 
-        except Exception:
-            # Return None on error, let engine handle it
-            return None, prompt, 0, 0.0
+        except ValueError as e:
+            # Re-raise ValueError (e.g., no API key) with clear message
+            if "No API key found" in str(e):
+                raise ModelProviderError(
+                    f"Cannot improve text: {str(e)}",
+                    provider="unknown",
+                    error_code="authentication",
+                ) from e
+            raise
+        except Exception as e:
+            # Wrap other exceptions as ModelProviderError
+            raise ModelProviderError(
+                f"Failed to generate improved text: {str(e)}",
+                provider=getattr(client, "provider", "unknown"),
+                error_code="generation_failed",
+            ) from e
 
     def _build_improvement_prompt(self, text: str, result: SifakaResult) -> str:
         """Build a comprehensive prompt for text improvement.

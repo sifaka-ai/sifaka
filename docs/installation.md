@@ -112,7 +112,8 @@ print(result.final_text)
 
 **Note**: If you haven't set up an API key, you'll get a clear error message:
 ```
-ValueError: No API key found. Set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, OLLAMA_API_KEY
+ModelProviderError: No LLM provider available for critic. Please set up at least one provider by configuring the appropriate API key.
+Suggestion: Set up at least one API key: OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, or OLLAMA_API_KEY
 ```
 
 ### Using Ollama

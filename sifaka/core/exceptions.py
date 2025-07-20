@@ -159,6 +159,7 @@ class ModelProviderError(SifakaError):
     - invalid_request: Malformed request parameters
     - insufficient_quota: Account limits reached
     - server_error: Provider-side temporary failure
+    - no_provider: No LLM provider configured
     """
 
     def __init__(
@@ -176,6 +177,7 @@ class ModelProviderError(SifakaError):
             "invalid_request": "Check your request parameters and model configuration",
             "insufficient_quota": "Check your API account billing and usage limits",
             "server_error": "This is a temporary server issue - try again in a few moments",
+            "no_provider": "Set up at least one API key: OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, or OLLAMA_API_KEY",
         }
 
         suggestion = suggestions.get(

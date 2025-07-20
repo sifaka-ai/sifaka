@@ -5,6 +5,26 @@ All notable changes to Sifaka are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-07-20
+
+### Added
+- **Ollama Integration Tests**: Added comprehensive integration tests for Ollama provider
+  - Ollama now included in multi-provider critics integration tests
+  - All critics can be tested with local Ollama models
+  - Enhanced test configuration supports Ollama with `llama3.2` model
+
+### Improved
+- **Error Handling**: Enhanced error messages when no LLM provider is configured
+  - Replaced generic `ValueError` with structured `ModelProviderError`
+  - Added specific error code `"no_provider"` with helpful setup instructions
+  - Updated documentation to reflect new error format
+  - Users now get clear guidance on which API keys to set up
+
+### Fixed
+- **Test Suite**: Fixed Ollama provider tests to properly handle LLMResponse structure
+  - Corrected usage data access patterns in test assertions
+  - All Ollama provider tests now pass consistently
+
 ## [0.1.2] - 2025-07-20
 
 ### Fixed

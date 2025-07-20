@@ -30,6 +30,7 @@ PROVIDERS = [
     ProviderConfig("anthropic", "claude-3-haiku-20240307", "ANTHROPIC_API_KEY"),
     ProviderConfig("google", "gemini-1.5-flash", "GEMINI_API_KEY"),
     ProviderConfig("xai", "grok-beta", "XAI_API_KEY"),
+    ProviderConfig("ollama", "llama3.2", "OLLAMA_API_KEY"),
 ]
 
 # Test texts for different scenarios

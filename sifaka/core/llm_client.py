@@ -376,8 +376,12 @@ class LLMManager:
             elif os.getenv("OLLAMA_API_KEY") or os.getenv("OLLAMA_BASE_URL"):
                 provider = Provider.OLLAMA
             else:
-                raise ValueError(
-                    "No API key found. Set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, OLLAMA_API_KEY"
+                from .exceptions import ModelProviderError
+
+                raise ModelProviderError(
+                    "No LLM provider available for critic. Please set up at least one provider by configuring the appropriate API key.",
+                    provider="none",
+                    error_code="no_provider",
                 )
 
         # Convert string to Provider enum
