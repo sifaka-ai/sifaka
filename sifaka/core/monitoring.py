@@ -54,14 +54,19 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
-
-try:
-    import logfire
-except ImportError:
-    logfire = None
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from .models import SifakaResult
+
+if TYPE_CHECKING:
+    import logfire as logfire_module
+else:
+    try:
+        import logfire as logfire_module
+    except ImportError:
+        logfire_module = None  # type: ignore[assignment]
+
+logfire = logfire_module
 
 # Configure logfire if token is available
 if logfire and os.getenv("LOGFIRE_TOKEN"):

@@ -13,7 +13,7 @@ Key features:
 
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union
 
 from pydantic import BaseModel, Field
 
@@ -27,10 +27,15 @@ from ...tools.base import ToolInterface
 from .confidence import ConfidenceCalculator
 
 # Import logfire if available
-try:
-    import logfire
-except ImportError:
-    logfire = None
+if TYPE_CHECKING:
+    import logfire as logfire_module
+else:
+    try:
+        import logfire as logfire_module
+    except ImportError:
+        logfire_module = None  # type: ignore[assignment]
+
+logfire = logfire_module
 
 
 class CriticResponse(BaseModel):
