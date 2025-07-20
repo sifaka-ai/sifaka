@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sifaka"
-version = "0.1.4"
+version = "0.1.5"
 description = "Simple AI text improvement through research-backed critique with complete observability"
 authors = [{name = "Evan Volgas", email = "evan.volgas@gmail.com"}]
 license = "MIT"

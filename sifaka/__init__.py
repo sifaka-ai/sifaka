@@ -1,6 +1,6 @@
 """Sifaka: AI-powered text improvement through iterative critique.
 
-__version__ = "0.1.3"
+__version__ = "0.1.5"
 
 Sifaka is a Python framework for improving text using Large Language Models
 (LLMs) and research-backed critique techniques. It provides a simple API

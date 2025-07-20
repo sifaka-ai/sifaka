@@ -49,7 +49,11 @@ import os
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, cast
 
-import logfire
+try:
+    import logfire
+except ImportError:
+    # logfire is optional
+    logfire = None
 import openai
 from dotenv import load_dotenv
 from openai.types.chat import ChatCompletionMessageParam
@@ -66,7 +70,7 @@ if TYPE_CHECKING:
 load_dotenv()
 
 # Configure logfire if token is available
-if os.getenv("LOGFIRE_TOKEN"):
+if logfire and os.getenv("LOGFIRE_TOKEN"):
     logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
 
 
@@ -260,6 +264,10 @@ class LLMClient:
             - "gpt-4" on Groq maps to "llama-3.1-70b-versatile"
             - "gpt-4o-mini" on Groq maps to "llama-3.1-8b-instant"
         """
+        # For Ollama, always pass through the model name as-is (including tags)
+        if self.provider == Provider.OLLAMA:
+            return self.model
+
         mappings = self.MODEL_MAPPINGS.get(self.provider, {})
         return mappings.get(self.model, self.model)
 
@@ -280,6 +288,15 @@ class LLMClient:
         else:  # Provider.OLLAMA
             # For Ollama, use the openai provider with custom base URL
             model_str = f"openai:{provider_model}"
+
+            # Ensure pydantic-ai knows about Ollama's base URL
+            # This is required for pydantic-ai to properly route requests
+            if self.provider == Provider.OLLAMA:
+                base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+                os.environ["OPENAI_BASE_URL"] = base_url
+                # Ensure we have an API key set for OpenAI provider
+                if not os.getenv("OPENAI_API_KEY"):
+                    os.environ["OPENAI_API_KEY"] = self._api_key or "ollama"
 
         # Create agent with structured output
         return Agent(

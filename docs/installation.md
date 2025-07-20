@@ -121,15 +121,21 @@ Suggestion: Set up at least one API key: OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMI
 To use Ollama for local LLM inference:
 
 1. Install Ollama: https://ollama.ai/
-2. Pull a model: `ollama pull llama3.2`
+2. Pull a model: `ollama pull mistral`
 3. Use in Sifaka:
 
 ```python
 from sifaka import improve_sync, Config
 from sifaka.core.config import LLMConfig
 
-# Use local Ollama
-config = Config(llm=LLMConfig(provider="ollama", model="llama3.2"))
+# Use local Ollama (must set both model and critic_model)
+config = Config(
+    llm=LLMConfig(
+        provider="ollama",
+        model="mistral:latest",      # Use full model name with tag
+        critic_model="mistral:latest"  # Important: set this for critiques too
+    )
+)
 result = improve_sync("Hello world", config=config)
 ```
 
