@@ -165,6 +165,6 @@ python --version
 
 ## Next Steps
 
-- Follow the [Quickstart Guide](quickstart.md)
+- Follow the [Quickstart Guide](getting-started/quickstart.md)
 - Read the [Basic Usage Guide](guide/basic-usage.md)
 - Explore [Available Critics](guide/critics.md)

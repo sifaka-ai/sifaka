@@ -5,8 +5,8 @@
 ## Getting Started
 
 - **[Installation](installation.md)** - Setup and dependencies
-- **[Quickstart Guide](quickstart.md)** - Get running in 5 minutes
-- **[API Reference](API.md)** - Complete API documentation
+- **[Quickstart Guide](getting-started/quickstart.md)** - Get running in 5 minutes
+- **[API Reference](reference/api.md)** - Complete API documentation
 
 ## User Guides
 
@@ -19,7 +19,7 @@
 ## Architecture
 
 - **[Architecture Overview](architecture.md)** - System design and components
-- **[Design Decisions](decisions/)** - Technical decisions and rationale
+- **[Design Decisions](decisions/001-single-function-api.md)** - Technical decisions and rationale
 
 ## Why Sifaka?
 
