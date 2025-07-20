@@ -29,6 +29,27 @@ uv pip install sifaka
 
 ## Quick Start
 
+### 1. Set up your API key
+
+Sifaka requires an LLM API key. Set one of these environment variables:
+
+```bash
+export OPENAI_API_KEY="your-api-key"     # For OpenAI (GPT-4, etc.)
+# or
+export ANTHROPIC_API_KEY="your-api-key"  # For Claude
+# or
+export GEMINI_API_KEY="your-api-key"     # For Google Gemini
+# or
+export GROQ_API_KEY="your-api-key"       # For Groq
+```
+
+Or create a `.env` file in your project:
+```env
+OPENAI_API_KEY=your-api-key
+```
+
+### 2. Use Sifaka
+
 ```python
 from sifaka import improve_sync
 

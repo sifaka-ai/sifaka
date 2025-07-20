@@ -98,10 +98,15 @@ GEMINI_API_KEY=your-google-api-key
 import sifaka
 print(sifaka.__version__)
 
-# Test basic functionality
+# Test basic functionality (requires API key)
 from sifaka import improve_sync
 result = improve_sync("Hello, world!")
 print(result.final_text)
+```
+
+**Note**: If you haven't set up an API key, you'll get a clear error message:
+```
+ValueError: No API key found. Set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, GEMINI_API_KEY
 ```
 
 ## Troubleshooting
