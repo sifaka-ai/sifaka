@@ -115,7 +115,6 @@ SUGGESTIONS: Add examples"""
                 critics=["reflexion"],
                 validators=[LengthValidator(min_length=50, max_length=1000)],
             )
-
             assert len(result.validations) >= 1
             assert result.validations[0].validator == "length"
 
@@ -171,7 +170,6 @@ SUGGESTIONS: Add examples"""
                     critics=["reflexion"],
                     timeout_seconds=0.001,  # Very low timeout
                 )
-
             assert exc_info.value.limit == 0.001
             assert "timeout" in str(exc_info.value)
 
@@ -208,7 +206,6 @@ SUGGESTIONS: Add examples"""
             result = await improve(
                 "Test text for error recovery", max_iterations=1, critics=["reflexion"]
             )
-
             # Should still get a result despite the error
             assert isinstance(result, SifakaResult)
             assert len(result.critiques) >= 1

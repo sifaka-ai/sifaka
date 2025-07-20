@@ -98,14 +98,9 @@ class TestMultiProviderCritics:
                     config = Config(
                         model=provider.model, temperature=0.7, max_iterations=2
                     )
-
                     # Test with technical text
                     result = await improve(
-                        TEST_TEXTS["technical"],
-                        critics=[critic_name],
-                        config=config,
-                        provider=provider.name,
-                        api_key=os.getenv(provider.api_key_env),
+                        TEST_TEXTS["technical"], critics=[critic_name], config=config
                     )
 
                     # Verify result
@@ -127,7 +122,6 @@ class TestMultiProviderCritics:
                         f"    ✓ Success - Iterations: {result.iteration}, "
                         f"Confidence: {results[provider.name][critic_name]['confidence']:.2f}"
                     )
-
                 except Exception as e:
                     results[provider.name][critic_name] = {
                         "success": False,
@@ -143,7 +137,6 @@ class TestMultiProviderCritics:
             print(
                 f"\n{provider_name}: {success_count}/{len(critic_results)} critics succeeded"
             )
-
             for critic_name, result in critic_results.items():
                 if not result.get("success"):
                     print(
@@ -163,15 +156,7 @@ class TestMultiProviderCritics:
         results = {}
 
         for provider in available_providers[:3]:  # Test up to 3 providers
-            result = await improve(
-                test_text,
-                critics=[critic_name],
-                max_iterations=1,
-                provider=provider.name,
-                api_key=os.getenv(provider.api_key_env),
-                model=provider.model,
-            )
-
+            result = await improve(test_text, critics=[critic_name], max_iterations=1)
             results[provider.name] = {
                 "feedback": result.critiques[0].feedback if result.critiques else "",
                 "suggestions": (
@@ -216,12 +201,8 @@ class TestMultiProviderCritics:
 
         # Test with auto-generated perspectives
         dynamic_critic = NCriticsCritic(
-            model=provider.model,
-            provider=provider.name,
-            api_key=os.getenv(provider.api_key_env),
-            auto_generate_perspectives=True,
+            model=provider.model, auto_generate_perspectives=True
         )
-
         result = SifakaResult(
             original_text=TEST_TEXTS["technical"], final_text=TEST_TEXTS["technical"]
         )
@@ -242,12 +223,8 @@ class TestMultiProviderCritics:
         }
 
         custom_critic = NCriticsCritic(
-            model=provider.model,
-            provider=provider.name,
-            api_key=os.getenv(provider.api_key_env),
-            perspectives=custom_perspectives,
+            model=provider.model, perspectives=custom_perspectives
         )
-
         critique2 = await custom_critic.critique(TEST_TEXTS["technical"], result)
 
         assert critique2.feedback
@@ -285,8 +262,6 @@ class TestMultiProviderCritics:
                     critics=[critic_name],
                     max_iterations=1,
                     config=config,
-                    provider=provider.name,
-                    api_key=os.getenv(provider.api_key_env),
                 )
 
                 if result.critiques:
@@ -319,16 +294,10 @@ class TestMultiProviderCritics:
         provider = available_providers[0]
 
         # Create SelfRAG critic
-        rag_critic = SelfRAGCritic(
-            model=provider.model,
-            provider=provider.name,
-            api_key=os.getenv(provider.api_key_env),
-        )
-
+        rag_critic = SelfRAGCritic(model=provider.model)
         result = SifakaResult(
             original_text=TEST_TEXTS["factual"], final_text=TEST_TEXTS["factual"]
         )
-
         critique = await rag_critic.critique(TEST_TEXTS["factual"], result)
 
         assert critique.feedback
@@ -351,8 +320,6 @@ class TestMultiProviderCritics:
         if not available_providers:
             pytest.skip("No API keys available")
 
-        provider = available_providers[0]
-
         # Different critics for different text types
         critic_map = {
             "technical": ["self_refine", "n_critics"],
@@ -363,18 +330,9 @@ class TestMultiProviderCritics:
 
         critics = critic_map.get(text_type, ["reflexion"])
 
-        result = await improve(
-            TEST_TEXTS[text_type],
-            critics=critics,
-            max_iterations=2,
-            provider=provider.name,
-            api_key=os.getenv(provider.api_key_env),
-            model=provider.model,
-        )
-
+        result = await improve(TEST_TEXTS[text_type], critics=critics, max_iterations=2)
         assert result.final_text
         assert len(result.critiques) > 0
-
         print(f"\n{text_type.capitalize()} text improved successfully")
         print(f"Critics used: {critics}")
         print(f"Iterations: {result.iteration}")
@@ -395,15 +353,7 @@ class TestMultiProviderCritics:
             start_time = asyncio.get_event_loop().time()
 
             try:
-                result = await improve(
-                    test_text,
-                    critics=[critic],
-                    max_iterations=1,
-                    provider=provider.name,
-                    api_key=os.getenv(provider.api_key_env),
-                    model=provider.model,
-                )
-
+                result = await improve(test_text, critics=[critic], max_iterations=1)
                 end_time = asyncio.get_event_loop().time()
 
                 return {
@@ -452,8 +402,6 @@ class TestCriticChaining:
         if not available_providers:
             pytest.skip("No API keys available")
 
-        provider = available_providers[0]
-
         # Chain of critics from general to specific
         critic_chain = [
             "reflexion",  # Learn from attempts
@@ -469,15 +417,7 @@ class TestCriticChaining:
         current_text = text
 
         for i, critic in enumerate(critic_chain):
-            result = await improve(
-                current_text,
-                critics=[critic],
-                max_iterations=1,
-                provider=provider.name,
-                api_key=os.getenv(provider.api_key_env),
-                model=provider.model,
-            )
-
+            result = await improve(current_text, critics=[critic], max_iterations=1)
             intermediate_results.append(
                 {
                     "critic": critic,
@@ -489,7 +429,6 @@ class TestCriticChaining:
                     "improved": not result.needs_improvement,
                 }
             )
-
             current_text = result.final_text
 
         print("\n\nCritic Chain Results:")
@@ -520,13 +459,7 @@ class TestErrorHandlingAndEdgeCases:
         """Test fallback when primary provider fails."""
         # Use invalid API key for primary provider
         try:
-            await improve(
-                "Test text",
-                critics=["reflexion"],
-                provider="openai",
-                api_key="invalid-key",
-                max_iterations=1,
-            )
+            await improve("Test text", critics=["reflexion"], max_iterations=1)
             # Should fail
             assert False, "Should have raised an error"
         except Exception as e:
@@ -539,19 +472,12 @@ class TestErrorHandlingAndEdgeCases:
         if not available_providers:
             pytest.skip("No API keys available")
 
-        provider = available_providers[0]
-
         test_cases = ["", " ", "OK", "This is a test."]
 
         for text in test_cases:
             try:
                 result = await improve(
-                    text,
-                    critics=["constitutional"],
-                    max_iterations=1,
-                    provider=provider.name,
-                    api_key=os.getenv(provider.api_key_env),
-                    model=provider.model,
+                    text, critics=["constitutional"], max_iterations=1
                 )
 
                 print(f"\nInput: '{text}' → Output length: {len(result.final_text)}")

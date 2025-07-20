@@ -4,8 +4,9 @@ import os
 
 import pytest
 
-from sifaka import Config, improve
-from sifaka.critics.n_critics import NCriticsCritic
+from sifaka import improve
+from sifaka.core.config import Config
+from sifaka.core.types import CriticType
 from sifaka.validators.composable import Validator
 
 
@@ -47,21 +48,12 @@ class TestRealWorldScenarios:
         result = await improve(
             draft,
             critics=[
-                "reflexion",  # Learn from iterations
-                "self_refine",  # General quality
-                NCriticsCritic(  # Multiple perspectives
-                    perspectives={
-                        "Content Strategist": "Focus on engaging headlines and structure",
-                        "SEO Expert": "Consider search optimization and keywords",
-                        "Technical Writer": "Ensure accuracy and clarity of technical content",
-                        "Audience Advocate": "Make it accessible to beginners",
-                    },
-                    api_key=api_key,
-                ),
+                CriticType.REFLEXION,  # Learn from iterations
+                CriticType.SELF_REFINE,  # General quality
+                CriticType.N_CRITICS,  # Multiple perspectives
             ],
             validators=[blog_validator],
             max_iterations=3,
-            api_key=api_key,
         )
 
         # Verify improvements
@@ -267,19 +259,11 @@ class TestRealWorldScenarios:
             critics=[
                 "constitutional",  # Ensure academic principles
                 "meta_rewarding",  # Self-evaluate quality
-                NCriticsCritic(
-                    perspectives={
-                        "Journal Editor": "Evaluate clarity, novelty, and contribution",
-                        "Peer Reviewer": "Assess methodology and rigor",
-                        "Graduate Student": "Check accessibility and context",
-                    },
-                    api_key=api_key,
-                ),
+                CriticType.N_CRITICS,  # Multiple perspectives
             ],
             validators=[academic_validator],
             config=config,
             max_iterations=3,
-            api_key=api_key,
         )
 
         # Check for academic improvements
@@ -347,19 +331,11 @@ class TestRealWorldScenarios:
             draft_email,
             critics=[
                 "constitutional",  # Ensure respectful tone
-                NCriticsCritic(
-                    perspectives={
-                        "Customer Success Manager": "Focus on empathy and solutions",
-                        "Communications Expert": "Ensure professional yet warm tone",
-                        "Customer Advocate": "Address customer concerns fully",
-                    },
-                    api_key=api_key,
-                ),
+                CriticType.N_CRITICS,  # Multiple perspectives
                 "self_refine",  # Polish the message
             ],
             validators=[service_validator],
             max_iterations=2,
-            api_key=api_key,
         )
 
         # Check improvements
@@ -423,18 +399,10 @@ class TestRealWorldScenarios:
             critics=[
                 "constitutional",  # Ensure constructive feedback
                 "self_refine",  # Make it helpful
-                NCriticsCritic(
-                    perspectives={
-                        "Senior Developer": "Focus on best practices and mentoring",
-                        "Team Lead": "Ensure feedback is actionable and specific",
-                        "Code Quality Expert": "Address technical concerns thoroughly",
-                    },
-                    api_key=api_key,
-                ),
+                CriticType.N_CRITICS,  # Multiple perspectives
             ],
             validators=[review_validator],
             max_iterations=2,
-            api_key=api_key,
         )
 
         # Check for constructive feedback elements
@@ -484,9 +452,7 @@ class TestComplexWorkflows:
         initial_idea = "Write about the importance of sleep for productivity."
 
         # Step 1: Expand the idea
-        outline = await improve(
-            initial_idea, critics=["self_refine"], max_iterations=1, api_key=api_key
-        )
+        outline = await improve(initial_idea, critics=["self_refine"], max_iterations=1)
 
         print("\nStep 1 - Expanded idea:")
         print(outline.final_text[:200] + "...")
@@ -496,7 +462,6 @@ class TestComplexWorkflows:
             outline.final_text + "\n\nNow expand this into a detailed article.",
             critics=["reflexion", "n_critics"],
             max_iterations=2,
-            api_key=api_key,
         )
 
         print(f"\nStep 2 - Detailed content ({len(detailed.final_text)} chars)")
@@ -509,7 +474,6 @@ class TestComplexWorkflows:
             critics=["constitutional", "self_consistency"],
             validators=[final_validator],
             max_iterations=2,
-            api_key=api_key,
         )
 
         print(f"\nStep 3 - Final polished ({len(polished.final_text)} chars)")
@@ -556,9 +520,6 @@ class TestComplexWorkflows:
             text + " Be technical and detailed.",
             critics=["self_refine"],
             max_iterations=1,
-            provider=provider1,
-            api_key=os.getenv(key1),
-            model=model1,
         )
         results["technical"] = technical_result.final_text
 
@@ -568,9 +529,6 @@ class TestComplexWorkflows:
             text + " Explain it for a 10-year-old.",
             critics=["self_refine"],
             max_iterations=1,
-            provider=provider2,
-            api_key=os.getenv(key2),
-            model=model2,
         )
         results["simple"] = simple_result.final_text
 

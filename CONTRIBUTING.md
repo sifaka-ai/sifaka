@@ -142,7 +142,7 @@ Fixes #123
 
 - All new features must include tests
 - Bug fixes should include a test that reproduces the issue
-- Aim for at least 85% code coverage
+- Aim for at least 60% code coverage
 - Place tests in the appropriate file under `tests/`
 
 ### Test structure

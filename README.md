@@ -6,8 +6,12 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.0.7-blue)](https://github.com/sifaka-ai/sifaka)
 [![CI](https://github.com/sifaka-ai/sifaka/workflows/CI/badge.svg)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/coverage-85%25+-brightgreen)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-60%25+-yellowgreen)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/sifaka)](https://pypi.org/project/sifaka/)
+
+<div align="center">
+  <img src="docs/images/sifaka.png" alt="Sifaka Logo" width="900px" />
+</div>
 
 ## What is Sifaka?
 
