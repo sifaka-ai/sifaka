@@ -59,10 +59,7 @@ from typing import Any, Callable, Dict, List, Optional
 try:
     import logfire
 except ImportError:
-    try:
-        import logfire_api as logfire
-    except ImportError:
-        logfire = None
+    logfire = None
 
 from .models import SifakaResult
 

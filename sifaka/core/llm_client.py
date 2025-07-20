@@ -53,7 +53,7 @@ try:
     import logfire
 except ImportError:
     # logfire is optional
-    logfire = None
+    logfire = None  # type: ignore[assignment]
 import openai
 from dotenv import load_dotenv
 from openai.types.chat import ChatCompletionMessageParam

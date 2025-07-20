@@ -341,6 +341,7 @@ class BaseCritic(Critic, ABC):
                 )
             )
 
+            critic_response: Union[BaseModel, str]  # Type annotation for mypy
             if is_ollama:
                 messages = await self._create_messages(text, result)
                 user_prompt = messages[-1]["content"] if messages else text

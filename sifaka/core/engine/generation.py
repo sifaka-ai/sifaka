@@ -52,7 +52,7 @@ from ..models import CritiqueResult, SifakaResult
 try:
     import logfire
 except ImportError:
-    logfire = None
+    logfire = None  # type: ignore[assignment]
 
 
 class ImprovementResponse(BaseModel):
