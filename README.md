@@ -36,7 +36,7 @@ uv pip install sifaka
 from sifaka import improve_sync
 
 # Simple one-liner
-result = improve_sync("Write about renewable energy benefits")
+result = improve_sync("Climate change is bad.")
 print(result.final_text)
 ```
 
