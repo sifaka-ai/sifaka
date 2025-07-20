@@ -10,9 +10,6 @@
 [![PyPI](https://img.shields.io/pypi/v/sifaka)](https://pypi.org/project/sifaka/)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://sifaka-ai.github.io/sifaka/)
 
-<div align="center">
-  <img src="docs/images/sifaka.png" alt="Sifaka Logo" width="900px" />
-</div>
 
 ## What is Sifaka?
 
