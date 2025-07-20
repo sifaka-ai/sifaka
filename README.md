@@ -41,11 +41,23 @@ export ANTHROPIC_API_KEY="your-api-key"  # For Claude
 export GEMINI_API_KEY="your-api-key"     # For Google Gemini
 # or
 export GROQ_API_KEY="your-api-key"       # For Groq
+# or (for local Ollama - no API key needed)
+export OLLAMA_BASE_URL="http://localhost:11434/v1"  # Optional, defaults to localhost
 ```
 
 Or create a `.env` file in your project:
 ```env
 OPENAI_API_KEY=your-api-key
+```
+
+**Using Ollama (Local LLMs)**:
+```python
+from sifaka import improve_sync, Config
+from sifaka.core.config import LLMConfig
+
+# Use Ollama with specific model
+config = Config(llm=LLMConfig(provider="ollama", model="llama3.2"))
+result = improve_sync("Climate change is bad.", config=config)
 ```
 
 ### 2. Use Sifaka

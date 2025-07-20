@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GuardrailsAI dependency**: Temporarily disabled due to griffe version conflict with pydantic-ai
 - **PyPI display**: Removed logo from README as PyPI doesn't support relative image paths
 
+### Added
+- **Ollama Support**: Added support for local LLMs via Ollama
+  - New provider: `Provider.OLLAMA`
+  - Supports popular models: llama3.2, mistral, qwen2.5-coder, etc.
+  - Configurable base URL via `OLLAMA_BASE_URL` environment variable
+  - No API key required by default
+
 ### Changed
 - **Dependencies**: Removed guardrails-ai from dependencies until they release a fix
 - **GuardrailsValidator**: Temporarily replaced with placeholder that raises NotImplementedError

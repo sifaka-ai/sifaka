@@ -29,6 +29,7 @@ class CriticType(str, Enum):
     META_REWARDING = "meta_rewarding"
     N_CRITICS = "n_critics"
     STYLE = "style"
+    PROMPT = "prompt"
 
     @classmethod
     def values(cls) -> list[str]:
@@ -107,6 +108,7 @@ class Provider(str, Enum):
     ANTHROPIC = "anthropic"
     GEMINI = "gemini"
     GROQ = "groq"
+    OLLAMA = "ollama"
 
 
 # Type aliases for clarity
@@ -125,6 +127,7 @@ CriticTypeLiteral = Literal[
     "meta_rewarding",
     "n_critics",
     "style",
+    "prompt",
 ]
 
 ValidatorTypeLiteral = Literal[
@@ -133,7 +136,7 @@ ValidatorTypeLiteral = Literal[
 
 StorageTypeLiteral = Literal["memory", "file", "redis", "custom"]
 
-ProviderLiteral = Literal["openai", "anthropic", "gemini", "groq"]
+ProviderLiteral = Literal["openai", "anthropic", "gemini", "groq", "ollama"]
 
 
 # Export all types

@@ -81,12 +81,14 @@ class Provider(str, Enum):
         ANTHROPIC: Anthropic's Claude models (Claude 3 family)
         GEMINI: Google's Gemini models (Gemini Pro, etc.)
         GROQ: Groq's fast inference service for open models
+        OLLAMA: Local Ollama models (Llama, Mistral, etc.)
     """
 
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     GEMINI = "gemini"
     GROQ = "groq"
+    OLLAMA = "ollama"
 
 
 class LLMResponse(BaseModel):
@@ -152,6 +154,7 @@ class LLMClient:
     PROVIDER_URLS = {
         Provider.OPENAI: "https://api.openai.com/v1",
         Provider.GROQ: "https://api.groq.com/openai/v1",
+        Provider.OLLAMA: "http://localhost:11434/v1",  # Default local Ollama
     }
 
     # Model mappings
@@ -166,6 +169,25 @@ class LLMClient:
             "gpt-4o-mini": "llama-3.1-8b-instant",
             "gpt-4": "llama-3.1-70b-versatile",
             "mixtral": "mixtral-8x7b-32768",
+        },
+        Provider.OLLAMA: {
+            # Popular Ollama models - pass through model names directly
+            "llama3.2": "llama3.2",
+            "llama3.2:1b": "llama3.2:1b",
+            "llama3.2:3b": "llama3.2:3b",
+            "llama3.1": "llama3.1",
+            "llama3.1:8b": "llama3.1:8b",
+            "llama3.1:70b": "llama3.1:70b",
+            "mistral": "mistral",
+            "mixtral": "mixtral",
+            "qwen2.5-coder": "qwen2.5-coder",
+            "qwen2.5": "qwen2.5",
+            "gemma2": "gemma2",
+            "phi3": "phi3",
+            # Map common aliases to Ollama models
+            "gpt-4o-mini": "llama3.2:3b",  # Fast, small model
+            "gpt-4": "llama3.1:70b",  # Large, capable model
+            "gpt-3.5-turbo": "llama3.2",  # Default medium model
         },
     }
 
@@ -182,8 +204,13 @@ class LLMClient:
         self._api_key = api_key or self._get_api_key(provider)
 
         # For OpenAI-compatible providers
-        if provider in [Provider.OPENAI, Provider.GROQ]:
+        if provider in [Provider.OPENAI, Provider.GROQ, Provider.OLLAMA]:
             base_url = self.PROVIDER_URLS.get(provider)
+            # Ollama can use custom base URL from environment
+            if provider == Provider.OLLAMA:
+                base_url = os.getenv("OLLAMA_BASE_URL", base_url)
+                # Ollama doesn't require API key by default
+                self._api_key = self._api_key or "ollama"
             self.client = openai.AsyncOpenAI(api_key=self._api_key, base_url=base_url)
         else:
             # For other providers, fallback to OpenAI
@@ -207,12 +234,14 @@ class LLMClient:
             - ANTHROPIC_API_KEY for Anthropic
             - GEMINI_API_KEY for Google Gemini
             - GROQ_API_KEY for Groq
+            - OLLAMA_API_KEY for Ollama (optional, defaults to "ollama")
         """
         env_keys = {
             Provider.OPENAI: "OPENAI_API_KEY",
             Provider.ANTHROPIC: "ANTHROPIC_API_KEY",
             Provider.GEMINI: "GEMINI_API_KEY",
             Provider.GROQ: "GROQ_API_KEY",
+            Provider.OLLAMA: "OLLAMA_API_KEY",
         }
         env_var = env_keys.get(provider)
         return os.getenv(env_var) if env_var else None
@@ -344,9 +373,11 @@ class LLMManager:
                 provider = Provider.GROQ
             elif os.getenv("GEMINI_API_KEY"):
                 provider = Provider.GEMINI
+            elif os.getenv("OLLAMA_API_KEY") or os.getenv("OLLAMA_BASE_URL"):
+                provider = Provider.OLLAMA
             else:
                 raise ValueError(
-                    "No API key found. Set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, GEMINI_API_KEY"
+                    "No API key found. Set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, OLLAMA_API_KEY"
                 )
 
         # Convert string to Provider enum

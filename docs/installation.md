@@ -82,6 +82,12 @@ export ANTHROPIC_API_KEY="your-anthropic-api-key"
 
 # Google
 export GEMINI_API_KEY="your-google-api-key"
+
+# Groq
+export GROQ_API_KEY="your-groq-api-key"
+
+# Ollama (local LLMs - no API key required)
+export OLLAMA_BASE_URL="http://localhost:11434/v1"  # Optional
 ```
 
 Or use a `.env` file:
@@ -106,7 +112,24 @@ print(result.final_text)
 
 **Note**: If you haven't set up an API key, you'll get a clear error message:
 ```
-ValueError: No API key found. Set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, GEMINI_API_KEY
+ValueError: No API key found. Set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, OLLAMA_API_KEY
+```
+
+### Using Ollama
+
+To use Ollama for local LLM inference:
+
+1. Install Ollama: https://ollama.ai/
+2. Pull a model: `ollama pull llama3.2`
+3. Use in Sifaka:
+
+```python
+from sifaka import improve_sync, Config
+from sifaka.core.config import LLMConfig
+
+# Use local Ollama
+config = Config(llm=LLMConfig(provider="ollama", model="llama3.2"))
+result = improve_sync("Hello world", config=config)
 ```
 
 ## Troubleshooting
