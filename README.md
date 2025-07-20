@@ -4,10 +4,11 @@
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.7-blue)](https://github.com/sifaka-ai/sifaka)
-[![CI](https://github.com/sifaka-ai/sifaka/workflows/CI/badge.svg)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-0.1.1-blue)](https://github.com/sifaka-ai/sifaka)
+[![CI/CD](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml/badge.svg)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-60%25+-yellowgreen)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/sifaka)](https://pypi.org/project/sifaka/)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://sifaka-ai.github.io/sifaka/)
 
 <div align="center">
   <img src="docs/images/sifaka.png" alt="Sifaka Logo" width="900px" />
@@ -21,18 +22,12 @@ Sifaka improves AI-generated text through iterative critique using research-back
 
 ## Installation
 
-> **Note**: Sifaka will be available on PyPI in October 2025. Until then, install from source:
-
 ```bash
-# Clone the repository
-git clone https://github.com/sifaka-ai/sifaka
-cd sifaka
+# Install from PyPI
+pip install sifaka
 
-# Install with uv (recommended)
-uv pip install -e .
-
-# Or with standard pip
-pip install -e .
+# Or with uv
+uv pip install sifaka
 ```
 
 ## Quick Start
@@ -45,7 +40,7 @@ result = improve_sync("Write about renewable energy benefits")
 print(result.final_text)
 ```
 
-📚 **[Full Quickstart Guide →](docs/quickstart.md)**
+📚 **[Full Documentation →](https://sifaka-ai.github.io/sifaka/)**
 
 ## Key Features
 
@@ -58,19 +53,19 @@ print(result.final_text)
 ## Documentation
 
 ### Getting Started
-- **[Installation](docs/installation.md)** - Installation options and setup
-- **[Quickstart Guide](docs/quickstart.md)** - Get up and running in 5 minutes
-- **[Basic Usage](docs/guide/basic-usage.md)** - Common usage patterns
+- **[Installation](https://sifaka-ai.github.io/sifaka/installation/)** - Installation options and setup
+- **[Quickstart Guide](https://sifaka-ai.github.io/sifaka/getting-started/quickstart/)** - Get up and running in 5 minutes
+- **[Basic Usage](https://sifaka-ai.github.io/sifaka/guide/basic-usage/)** - Common usage patterns
 - **[API Reference](API.md)** - Complete API documentation
 
 ### User Guides
-- **[Critics Guide](docs/guide/critics.md)** - Available critics and usage
-- **[Validators Guide](docs/guide/validators.md)** - Input validation options
-- **[Configuration](docs/guide/configuration.md)** - Configuration options
-- **[Advanced Usage](docs/guide/advanced-usage.md)** - Advanced patterns
+- **[Critics Guide](https://sifaka-ai.github.io/sifaka/guide/critics/)** - Available critics and usage
+- **[Validators Guide](https://sifaka-ai.github.io/sifaka/guide/validators/)** - Input validation options
+- **[Configuration](https://sifaka-ai.github.io/sifaka/guide/configuration/)** - Configuration options
+- **[Advanced Usage](https://sifaka-ai.github.io/sifaka/guide/advanced-usage/)** - Advanced patterns
 
 ### Architecture & Development
-- **[Architecture Overview](docs/architecture.md)** - System design
+- **[Architecture Overview](https://sifaka-ai.github.io/sifaka/architecture/)** - System design
 - **[Contributing](CONTRIBUTING.md)** - How to contribute
 - **[Changelog](CHANGELOG.md)** - Version history
 
