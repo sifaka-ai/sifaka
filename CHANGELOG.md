@@ -5,6 +5,31 @@ All notable changes to Sifaka are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2025-07-20
+
+### Added
+- **Logfire Integration**: Deep observability integration with Logfire/OpenTelemetry
+  - Automatic tracing of LLM calls with rich metadata (model, tokens, duration)
+  - Detailed critic tracking with individual critic names and performance metrics
+  - Nested spans for operation hierarchy visualization
+  - Service name configuration for proper identification in Logfire dashboard
+  - Global monitor singleton for consistent metrics across the application
+  - Performance metrics including tokens/second, critic execution times
+
+### Fixed
+- **Logfire Critic Tracking**: Fixed parallel critic execution not being tracked in Logfire
+  - Critics now properly report to Logfire with individual names and timings
+  - Parallel execution wrapped with monitor.track_critic_call for visibility
+- **Service Naming**: Fixed "unknown_service" in Logfire by setting OTEL_SERVICE_NAME early
+- **Example Configurations**: Fixed n_critics_example.py invalid critic_model parameter
+  - Moved critic_model from CriticConfig to LLMConfig where it belongs
+
+### Changed
+- **Monitoring Enhancement**: Enriched Logfire spans with comprehensive LLM metadata
+  - Added model name, token counts, temperature settings to spans
+  - Enhanced critic spans with critic type and confidence scores
+  - Improved span naming for better clarity in traces
+
 ## [0.1.5] - 2025-07-20
 
 ### Fixed

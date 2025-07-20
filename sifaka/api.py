@@ -16,6 +16,7 @@ from .core.engine import SifakaEngine
 from .core.interfaces import Validator
 from .core.middleware import MiddlewarePipeline
 from .core.models import SifakaResult
+from .core.monitoring import monitor
 from .core.type_defs import MiddlewareContext
 from .core.types import CriticType
 from .core.validation import validate_config_params, validate_improve_params
@@ -121,21 +122,30 @@ async def improve(
     # Create and run engine
     engine = SifakaEngine(engine_config, storage)
 
-    # Execute with middleware if provided
-    if middleware:
-        critics_context: List[Union[str, CriticType]] = [c for c in critics_list]
-        context: MiddlewareContext = {
-            "critics": critics_context,
-            "validators": validators,
-            "config": engine_config,
-        }
+    # Execute with monitoring
+    async with monitor() as m:
+        # Start monitoring for this operation
+        m.start_monitoring(max_iterations=max_iterations)
 
-        async def final_handler(text: str) -> SifakaResult:
-            return await engine.improve(text, validators)
+        # Execute with middleware if provided
+        if middleware:
+            critics_context: List[Union[str, CriticType]] = [c for c in critics_list]
+            context: MiddlewareContext = {
+                "critics": critics_context,
+                "validators": validators,
+                "config": engine_config,
+            }
 
-        return await middleware.execute(text, final_handler, context)
+            async def final_handler(text: str) -> SifakaResult:
+                return await engine.improve(text, validators)
 
-    return await engine.improve(text, validators)
+            result = await middleware.execute(text, final_handler, context)
+        else:
+            result = await engine.improve(text, validators)
+
+        # Record final metrics
+        m.update_from_result(result)
+        return result
 
 
 def improve_sync(

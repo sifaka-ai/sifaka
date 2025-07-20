@@ -15,7 +15,7 @@ import time
 from sifaka import improve
 from sifaka.core.config import Config, CriticConfig, EngineConfig, LLMConfig
 from sifaka.core.llm_client_pool import get_global_pool
-from sifaka.core.monitoring import PerformanceMonitor
+from sifaka.core.monitoring import get_global_monitor
 from sifaka.core.types import CriticType
 
 
@@ -49,7 +49,7 @@ async def batch_processing_demo():
     )
 
     # Start performance monitoring
-    monitor = PerformanceMonitor()
+    monitor = get_global_monitor()
     monitor.start_monitoring(max_iterations=2)
 
     start_time = time.time()
@@ -182,7 +182,7 @@ async def performance_monitoring_demo():
     )
 
     # Process with monitoring
-    monitor = PerformanceMonitor()
+    monitor = get_global_monitor()
     monitor.start_monitoring(max_iterations=3)
 
     await improve(

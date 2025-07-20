@@ -26,6 +26,12 @@ from ...core.validation import validate_critic_params
 from ...tools.base import ToolInterface
 from .confidence import ConfidenceCalculator
 
+# Import logfire if available
+try:
+    import logfire
+except ImportError:
+    logfire = None
+
 
 class CriticResponse(BaseModel):
     """Standardized response format for all critics.
@@ -320,40 +326,118 @@ class BaseCritic(Critic, ABC):
         """
 
         try:
-            # Always use PydanticAI for structured outputs
-            agent = self.client.create_agent(
-                system_prompt=self._get_system_prompt(),
-                result_type=self._get_response_type(),
+            # For Ollama, use direct completion instead of pydantic-ai agent
+            # Check if the client is using Ollama provider
+            is_ollama = (
+                (self.provider and self.provider == Provider.OLLAMA)
+                or (
+                    self.provider
+                    and isinstance(self.provider, str)
+                    and self.provider.lower() == "ollama"
+                )
+                or (
+                    hasattr(self.client, "provider")
+                    and self.client.provider == Provider.OLLAMA
+                )
             )
 
-            # Get user prompt from messages
-            messages = await self._create_messages(text, result)
-            user_prompt = messages[-1]["content"] if messages else text
+            if is_ollama:
+                messages = await self._create_messages(text, result)
+                user_prompt = messages[-1]["content"] if messages else text
 
-            # Run agent with structured output and capture usage
-            start_time = time.time()
-            agent_result = await agent.run(user_prompt)
-            processing_time = time.time() - start_time
-            critic_response: Any = agent_result.output
-
-            # Ensure we have the correct response type
-            if isinstance(critic_response, str):
-                # If pydantic-ai returns a string, create a proper response
+                # Add JSON format instructions to the last message
                 response_type = self._get_response_type()
-                critic_response = response_type(
-                    feedback=critic_response, suggestions=[], needs_improvement=True
+                schema_info = {
+                    "feedback": "string - Main feedback about the text",
+                    "suggestions": "array of strings - Specific improvement suggestions",
+                    "needs_improvement": "boolean - Whether the text needs improvement",
+                    "confidence": "number between 0.0 and 1.0 - Confidence in the assessment",
+                    "metadata": "object - Additional critic-specific data (optional)",
+                }
+
+                json_instruction = (
+                    f"\n\nRespond with a JSON object with these fields: {schema_info}"
+                )
+                messages[-1]["content"] += json_instruction
+
+                start_time = time.time()
+
+                # Add logfire tracking if available
+                if logfire:
+                    with logfire.span(
+                        "ollama_critic_llm_call",
+                        critic_name=self.name,
+                        model=self.model,
+                        provider="ollama",
+                    ) as span:
+                        response = await self.client.complete(messages)
+                        processing_time = time.time() - start_time
+
+                        # Get usage data
+                        tokens_used = (
+                            response.usage.get("total_tokens", 0)
+                            if response.usage
+                            else 0
+                        )
+
+                        span.set_attribute("llm.tokens_used", tokens_used)
+                        span.set_attribute(
+                            "llm.duration_seconds", round(processing_time, 3)
+                        )
+                else:
+                    response = await self.client.complete(messages)
+                    processing_time = time.time() - start_time
+                    tokens_used = (
+                        response.usage.get("total_tokens", 0) if response.usage else 0
+                    )
+
+                # Parse the JSON response
+                import json
+
+                try:
+                    response_data = json.loads(response.content)
+                    # Create the response object
+                    critic_response = response_type(**response_data)
+                except json.JSONDecodeError:
+                    # Fallback if JSON parsing fails
+                    critic_response = response_type(
+                        feedback=response.content,
+                        suggestions=[],
+                        needs_improvement=True,
+                        confidence=0.5,
+                    )
+            else:
+                # Use PydanticAI for other providers
+                agent = self.client.create_agent(
+                    system_prompt=self._get_system_prompt(),
+                    result_type=self._get_response_type(),
                 )
 
+                # Get user prompt from messages
+                messages = await self._create_messages(text, result)
+                user_prompt = messages[-1]["content"] if messages else text
+
+                # Run agent with structured output and capture usage
+                start_time = time.time()
+                agent_result = await agent.run(user_prompt)
+                processing_time = time.time() - start_time
+                critic_response = agent_result.output
+
             # Get actual usage data
-            tokens_used = 0
-            try:
-                if hasattr(agent_result, "usage"):
-                    usage = agent_result.usage()  # Call as function
-                    if usage and hasattr(usage, "total_tokens"):
-                        tokens_used = getattr(usage, "total_tokens", 0)
-            except Exception:
-                # Fallback if usage() call fails
+            if is_ollama:
+                # For Ollama, tokens_used was already set above
+                pass
+            else:
+                # For pydantic-ai agents
                 tokens_used = 0
+                try:
+                    if hasattr(agent_result, "usage"):
+                        usage = agent_result.usage()  # Call as function
+                        if usage and hasattr(usage, "total_tokens"):
+                            tokens_used = getattr(usage, "total_tokens", 0)
+                except Exception:
+                    # Fallback if usage() call fails
+                    tokens_used = 0
 
             # Calculate confidence if not provided
             if (

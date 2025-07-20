@@ -65,9 +65,10 @@ async def main() -> None:
                     model="claude-3-haiku-20240307"
                     if os.getenv("ANTHROPIC_API_KEY")
                     else "gpt-4o-mini",
+                    critic_model="gpt-3.5-turbo",  # Specify critic model here
                     temperature=0.6,
                 ),
-                critic=CriticConfig(critic_model="gpt-3.5-turbo"),
+                critic=CriticConfig(critics=[CriticType.N_CRITICS]),
             ),
             storage=FileStorage(),
         )

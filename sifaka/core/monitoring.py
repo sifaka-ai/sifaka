@@ -56,13 +56,25 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
-import logfire
+try:
+    import logfire
+except ImportError:
+    try:
+        import logfire_api as logfire
+    except ImportError:
+        logfire = None
 
 from .models import SifakaResult
 
 # Configure logfire if token is available
-if os.getenv("LOGFIRE_TOKEN"):
-    logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
+if logfire and os.getenv("LOGFIRE_TOKEN"):
+    # Set service name in environment for OpenTelemetry
+    os.environ["OTEL_SERVICE_NAME"] = "sifaka"
+    os.environ["OTEL_SERVICE_VERSION"] = "0.1.6"
+
+    logfire.configure(
+        token=os.getenv("LOGFIRE_TOKEN"), service_name="sifaka", service_version="0.1.6"
+    )
 
 
 @dataclass
@@ -395,20 +407,60 @@ class PerformanceMonitor:
         if not self.current_metrics:
             return await func()
 
-        with logfire.span("llm_call"):
-            start = time.time()
-            try:
+        start = time.time()
+        try:
+            # Use logfire span if available with rich attributes
+            if logfire:
+                with logfire.span(
+                    "llm_call",
+                    llm_call_number=self.current_metrics.llm_calls + 1,
+                    llm_tokens_before=self.current_metrics.tokens_used,
+                    llm_type="generation"
+                    if self.current_metrics.critic_calls > 0
+                    else "critic",
+                ) as span:
+                    result = await func()
+                    duration = time.time() - start
+
+                    # Update metrics
+                    self.current_metrics.llm_calls += 1
+                    self.current_metrics.llm_time += duration
+
+                    # Extract token usage if available
+                    tokens_added = 0
+                    if isinstance(result, tuple) and len(result) >= 3:
+                        # Result is (text, prompt, tokens, time) from generator
+                        tokens_added = result[2] if result[2] else 0
+                        self.current_metrics.tokens_used += tokens_added
+                    elif hasattr(result, "usage") and result.usage:
+                        tokens_added = result.usage.get("total_tokens", 0)
+                        self.current_metrics.tokens_used += tokens_added
+
+                    # Log rich metrics
+                    span.set_attribute("llm.duration_seconds", round(duration, 3))
+                    span.set_attribute("llm.tokens_used", tokens_added)
+                    span.set_attribute(
+                        "llm.total_tokens_so_far", self.current_metrics.tokens_used
+                    )
+                    span.set_attribute(
+                        "llm.tokens_per_second",
+                        round(tokens_added / duration, 1) if duration > 0 else 0,
+                    )
+            else:
                 result = await func()
                 self.current_metrics.llm_calls += 1
                 self.current_metrics.llm_time += time.time() - start
-                logfire.info("LLM call completed", duration=time.time() - start)
-                return result
-            except Exception as e:
-                self.current_metrics.errors.append(
-                    {"type": "llm_error", "error": str(e), "timestamp": time.time()}
+
+            return result
+        except Exception as e:
+            self.current_metrics.errors.append(
+                {"type": "llm_error", "error": str(e), "timestamp": time.time()}
+            )
+            if logfire:
+                logfire.error(
+                    "LLM call failed", error=str(e), error_type=type(e).__name__
                 )
-                logfire.error("LLM call failed", error=str(e))
-                raise
+            raise
 
     async def track_critic_call(self, critic_name: str, func: Callable[[], Any]) -> Any:
         """Track execution of a critic evaluation.
@@ -435,28 +487,71 @@ class PerformanceMonitor:
         if not self.current_metrics:
             return await func()
 
-        with logfire.span("critic_call", critic=critic_name):
-            start = time.time()
-            try:
+        start = time.time()
+        try:
+            # Use logfire span if available with detailed attributes
+            if logfire:
+                with logfire.span(
+                    "critic_call",
+                    critic_name=critic_name,
+                    critic_call_number=self.current_metrics.critic_calls + 1,
+                    iteration=self.current_metrics.iterations_completed,
+                ) as span:
+                    result = await func()
+                    duration = time.time() - start
+
+                    # Update metrics
+                    self.current_metrics.critic_calls += 1
+                    self.current_metrics.critic_time += duration
+                    self.current_metrics.critics_used.append(critic_name)
+
+                    # Extract critique details if available
+                    if hasattr(result, "confidence"):
+                        span.set_attribute(
+                            "critic.confidence", round(result.confidence, 3)
+                        )
+                    if hasattr(result, "needs_improvement"):
+                        span.set_attribute(
+                            "critic.needs_improvement", result.needs_improvement
+                        )
+                    if hasattr(result, "suggestions") and result.suggestions:
+                        span.set_attribute(
+                            "critic.suggestion_count", len(result.suggestions)
+                        )
+                        # Log first few suggestions for debugging
+                        span.set_attribute(
+                            "critic.suggestions_preview", result.suggestions[:2]
+                        )
+                    if hasattr(result, "model_used"):
+                        span.set_attribute("critic.model_used", result.model_used)
+                    if hasattr(result, "tokens_used"):
+                        span.set_attribute("critic.tokens_used", result.tokens_used)
+
+                    span.set_attribute("critic.duration_seconds", round(duration, 3))
+            else:
                 result = await func()
                 self.current_metrics.critic_calls += 1
                 self.current_metrics.critic_time += time.time() - start
                 self.current_metrics.critics_used.append(critic_name)
-                logfire.info(
-                    f"Critic {critic_name} completed", duration=time.time() - start
+
+            return result
+        except Exception as e:
+            self.current_metrics.errors.append(
+                {
+                    "type": "critic_error",
+                    "critic": critic_name,
+                    "error": str(e),
+                    "timestamp": time.time(),
+                }
+            )
+            if logfire:
+                logfire.error(
+                    "Critic evaluation failed",
+                    critic_name=critic_name,
+                    error=str(e),
+                    error_type=type(e).__name__,
                 )
-                return result
-            except Exception as e:
-                self.current_metrics.errors.append(
-                    {
-                        "type": "critic_error",
-                        "critic": critic_name,
-                        "error": str(e),
-                        "timestamp": time.time(),
-                    }
-                )
-                logfire.error(f"Critic {critic_name} failed", error=str(e))
-                raise
+            raise
 
     async def track_validator_call(
         self, validator_name: str, func: Callable[[], Any]
@@ -551,25 +646,104 @@ async def monitor(
     Yields:
         PerformanceMonitor instance
     """
-    monitor = PerformanceMonitor()
+    # Use the global monitor instead of creating a new one
+    monitor = get_global_monitor()
 
-    # Start logfire span for the entire operation
-    with logfire.span("sifaka_improve"):
-        yield monitor
+    # Start logfire span for the entire operation if available
+    try:
+        if logfire:
+            # Use logfire context with rich initial attributes
+            with logfire.span(
+                "sifaka_improve",
+                track_llm=track_llm,
+                track_critics=track_critics,
+                track_validators=track_validators,
+                sifaka_version="0.1.6",
+            ) as span:
+                # Don't start monitoring here - let the caller do it
+                yield monitor
 
-        if print_summary and monitor.current_metrics:
+                # Finalize and log comprehensive metrics
+                if monitor.current_metrics:
+                    final_metrics = monitor.end_monitoring()
+
+                    # Log detailed performance data
+                    span.set_attribute(
+                        "performance.total_duration_seconds",
+                        round(final_metrics.total_duration, 3),
+                    )
+                    span.set_attribute("performance.llm_calls", final_metrics.llm_calls)
+                    span.set_attribute(
+                        "performance.llm_time_seconds", round(final_metrics.llm_time, 3)
+                    )
+                    span.set_attribute(
+                        "performance.tokens_used", final_metrics.tokens_used
+                    )
+                    span.set_attribute(
+                        "performance.tokens_per_second",
+                        round(final_metrics.tokens_per_second, 1),
+                    )
+
+                    span.set_attribute(
+                        "critics.total_calls", final_metrics.critic_calls
+                    )
+                    span.set_attribute(
+                        "critics.total_time_seconds",
+                        round(final_metrics.critic_time, 3),
+                    )
+                    span.set_attribute(
+                        "critics.unique_critics", len(set(final_metrics.critics_used))
+                    )
+                    span.set_attribute(
+                        "critics.names", list(set(final_metrics.critics_used))
+                    )
+
+                    span.set_attribute(
+                        "result.iterations_completed",
+                        final_metrics.iterations_completed,
+                    )
+                    span.set_attribute(
+                        "result.max_iterations", final_metrics.max_iterations
+                    )
+                    span.set_attribute(
+                        "result.final_confidence",
+                        round(final_metrics.final_confidence, 3),
+                    )
+                    span.set_attribute(
+                        "result.improvement_achieved",
+                        final_metrics.improvement_achieved,
+                    )
+                    span.set_attribute("result.error_count", len(final_metrics.errors))
+
+                    # Log confidence progression
+                    if final_metrics.confidence_scores:
+                        span.set_attribute(
+                            "confidence.progression",
+                            [round(c, 3) for c in final_metrics.confidence_scores],
+                        )
+                        span.set_attribute(
+                            "confidence.initial",
+                            round(final_metrics.confidence_scores[0], 3),
+                        )
+                        span.set_attribute(
+                            "confidence.improvement",
+                            round(
+                                final_metrics.final_confidence
+                                - final_metrics.confidence_scores[0],
+                                3,
+                            ),
+                        )
+
+                    if print_summary:
+                        print(final_metrics)
+        else:
+            # Just yield the monitor without logfire
+            yield monitor
+
+    finally:
+        if print_summary and monitor.current_metrics and not logfire:
             metrics = monitor.end_monitoring()
             print(metrics)
-
-            # Log summary to logfire
-            logfire.info(
-                "Improvement completed",
-                duration=metrics.total_duration,
-                iterations=metrics.iterations_completed,
-                confidence=metrics.final_confidence,
-                llm_calls=metrics.llm_calls,
-                critic_calls=metrics.critic_calls,
-            )
 
 
 def get_global_monitor() -> PerformanceMonitor:

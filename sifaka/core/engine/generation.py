@@ -48,6 +48,12 @@ from ..exceptions import ModelProviderError
 from ..llm_client import LLMClient, LLMManager
 from ..models import CritiqueResult, SifakaResult
 
+# Import logfire if available
+try:
+    import logfire
+except ImportError:
+    logfire = None
+
 
 class ImprovementResponse(BaseModel):
     """Structured response model for text improvements.
@@ -236,27 +242,63 @@ class TextGenerator:
                 return improved_text, prompt, tokens_used, processing_time
 
             # For other providers, use PydanticAI agent for structured output
-            agent = client.create_agent(
-                system_prompt=self.IMPROVEMENT_SYSTEM_PROMPT,
-                result_type=ImprovementResponse,
-            )
+            if logfire:
+                with logfire.span(
+                    "text_generation_llm_call",
+                    model=self.model,
+                    provider=self.provider or "unknown",
+                    iteration=result.iteration,
+                ) as span:
+                    agent = client.create_agent(
+                        system_prompt=self.IMPROVEMENT_SYSTEM_PROMPT,
+                        result_type=ImprovementResponse,
+                    )
 
-            # Run agent to get structured improvement with usage tracking
-            agent_result = await agent.run(prompt)
-            processing_time = time.time() - start_time
+                    # Run agent to get structured improvement with usage tracking
+                    agent_result = await agent.run(prompt)
+                    processing_time = time.time() - start_time
 
-            improvement = agent_result.output
+                    improvement = agent_result.output
 
-            # Get usage data
-            tokens_used = 0
-            try:
-                if hasattr(agent_result, "usage"):
-                    usage = agent_result.usage()  # Call as function
-                    if usage and hasattr(usage, "total_tokens"):
-                        tokens_used = getattr(usage, "total_tokens", 0)
-            except Exception:
-                # Fallback if usage() call fails
+                    # Get usage data
+                    tokens_used = 0
+                    try:
+                        if hasattr(agent_result, "usage"):
+                            usage = agent_result.usage()  # Call as function
+                            if usage and hasattr(usage, "total_tokens"):
+                                tokens_used = getattr(usage, "total_tokens", 0)
+                    except Exception:
+                        # Fallback if usage() call fails
+                        tokens_used = 0
+
+                    # Log metrics to span
+                    span.set_attribute("llm.tokens_used", tokens_used)
+                    span.set_attribute(
+                        "llm.duration_seconds", round(processing_time, 3)
+                    )
+                    span.set_attribute("llm.prompt_length", len(prompt))
+            else:
+                agent = client.create_agent(
+                    system_prompt=self.IMPROVEMENT_SYSTEM_PROMPT,
+                    result_type=ImprovementResponse,
+                )
+
+                # Run agent to get structured improvement with usage tracking
+                agent_result = await agent.run(prompt)
+                processing_time = time.time() - start_time
+
+                improvement = agent_result.output
+
+                # Get usage data
                 tokens_used = 0
+                try:
+                    if hasattr(agent_result, "usage"):
+                        usage = agent_result.usage()  # Call as function
+                        if usage and hasattr(usage, "total_tokens"):
+                            tokens_used = getattr(usage, "total_tokens", 0)
+                except Exception:
+                    # Fallback if usage() call fails
+                    tokens_used = 0
 
             # Handle case where improvement is a string
             if isinstance(improvement, str):

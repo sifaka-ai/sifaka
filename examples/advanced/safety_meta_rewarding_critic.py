@@ -359,10 +359,11 @@ async def main():
             and "safety_assessment" in critique_result.metadata
         ):
             assessment = critique_result.metadata["safety_assessment"]
-            print("\nSafety Scores:")
-            print(f"  - Toxicity: {assessment.get('toxicity_score', 'N/A')}")
-            print(f"  - Bias: {assessment.get('bias_score', 'N/A')}")
-            print(f"  - Ideology: {assessment.get('ideology_score', 'N/A')}")
+            if assessment and isinstance(assessment, dict):
+                print("\nSafety Scores:")
+                print(f"  - Toxicity: {assessment.get('toxicity_score', 'N/A')}")
+                print(f"  - Bias: {assessment.get('bias_score', 'N/A')}")
+                print(f"  - Ideology: {assessment.get('ideology_score', 'N/A')}")
 
     print("\n" + "=" * 50)
     print("Demo complete!")

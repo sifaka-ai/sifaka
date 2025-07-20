@@ -363,10 +363,17 @@ class TestBaseCritic:
         critic = ConcreteCritic()
         result = SifakaResult(original_text="Test", final_text="Test")
 
-        # Mock the agent to return a string
+        # Mock the agent to return a proper CriticResponse
         mock_agent = AsyncMock()
         mock_agent_result = MagicMock()
-        mock_agent_result.output = "String feedback"
+        # Create a proper CriticResponse object
+        mock_response = CriticResponse(
+            feedback="String feedback",
+            suggestions=[],
+            needs_improvement=True,
+            confidence=0.7,
+        )
+        mock_agent_result.output = mock_response
         mock_agent_result.usage = MagicMock(return_value=MagicMock(total_tokens=50))
         mock_agent.run = AsyncMock(return_value=mock_agent_result)
 

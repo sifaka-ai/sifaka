@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 from ...critics import create_critics
 from ..interfaces import Critic
 from ..models import CritiqueResult, SifakaResult
+from ..monitoring import get_global_monitor
 
 if TYPE_CHECKING:
     from ..config import Config
@@ -99,13 +100,17 @@ class CriticOrchestrator:
                 )
                 start_time = time.time()
                 try:
+                    monitor = get_global_monitor()
                     result_critique = await asyncio.wait_for(
-                        critic.critique(text, result), timeout=timeout
+                        monitor.track_critic_call(
+                            critic.name, lambda: critic.critique(text, result)
+                        ),
+                        timeout=timeout,
                     )
                     # Track performance
                     execution_time = time.time() - start_time
                     self._performance_metrics[critic.name] = execution_time
-                    return result_critique
+                    return result_critique  # type: ignore[no-any-return]
                 except asyncio.TimeoutError:
                     # Track timeout
                     self._performance_metrics[critic.name] = timeout
@@ -139,8 +144,12 @@ class CriticOrchestrator:
 
             async def run_critic_with_timeout(critic: Critic) -> CritiqueResult:
                 try:
+                    monitor = get_global_monitor()
                     return await asyncio.wait_for(
-                        critic.critique(text, result), timeout=timeout
+                        monitor.track_critic_call(
+                            critic.name, lambda: critic.critique(text, result)
+                        ),
+                        timeout=timeout,
                     )
                 except asyncio.TimeoutError:
                     return CritiqueResult(
@@ -166,10 +175,14 @@ class CriticOrchestrator:
         valid_critiques: List[CritiqueResult] = []
         timeout = self.config.engine.critic_timeout_seconds if self.config else 60.0
 
+        monitor = get_global_monitor()
         for critic in self.critics:
             try:
                 critique = await asyncio.wait_for(
-                    critic.critique(text, result), timeout=timeout
+                    monitor.track_critic_call(
+                        critic.name, lambda: critic.critique(text, result)
+                    ),
+                    timeout=timeout,
                 )
                 valid_critiques.append(critique)
             except asyncio.TimeoutError:
