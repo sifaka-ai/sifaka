@@ -63,13 +63,19 @@ include specific validator names and failure reasons for debugging.
 """
 
 import asyncio
+import warnings
 from typing import List, Optional, Tuple
 
 # GuardrailsAI optional dependency handling
 # Allows graceful degradation when GuardrailsAI is not installed
 try:
-    import guardrails as gr
-    from guardrails.hub import install
+    # Suppress pkg_resources deprecation warning from guardrails
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", category=UserWarning, module="guardrails.hub.install"
+        )
+        import guardrails as gr
+        from guardrails.hub import install
 
     HAS_GUARDRAILS = True
 except ImportError:
