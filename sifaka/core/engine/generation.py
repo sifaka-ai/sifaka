@@ -210,6 +210,7 @@ class TextGenerator:
             print(prompt)
             print("=" * 80 + "\n")
 
+        start_time = time.time()
         try:
             # Create PydanticAI agent for structured improvement
             client = await self.get_client()
@@ -219,7 +220,6 @@ class TextGenerator:
             )
 
             # Run agent to get structured improvement with usage tracking
-            start_time = time.time()
             agent_result = await agent.run(prompt)
             processing_time = time.time() - start_time
 
@@ -260,13 +260,10 @@ class TextGenerator:
                     error_code="authentication",
                 ) from e
             raise
-        except Exception as e:
-            # Wrap other exceptions as ModelProviderError
-            raise ModelProviderError(
-                f"Failed to generate improved text: {str(e)}",
-                provider=getattr(client, "provider", "unknown"),
-                error_code="generation_failed",
-            ) from e
+        except Exception:
+            # Log error but return None to allow graceful degradation
+            processing_time = time.time() - start_time
+            return None, prompt, 0, processing_time
 
     def _build_improvement_prompt(self, text: str, result: SifakaResult) -> str:
         """Build a comprehensive prompt for text improvement.
