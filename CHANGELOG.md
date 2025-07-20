@@ -5,6 +5,24 @@ All notable changes to Sifaka are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2025-07-20
+
+### Fixed
+- **Integration tests**: Fixed 7 failing integration tests related to Config API changes
+- **CI/CD workflow**: Removed redundant tests.yml workflow
+- **Documentation deployment**: Fixed GitHub Pages permissions for docs deployment
+- **Release workflow**: Fixed dependency installation to use uv with all extras
+- **PyPI publishing**: Configured PYPI_TOKEN secret for automated publishing
+- **Warnings**: Suppressed pkg_resources deprecation warning from guardrails
+
+### Changed
+- **Version management**: Added __version__ attribute to __init__.py
+- **Documentation**: Updated installation docs to reflect PyPI availability
+- **Repository links**: Fixed all documentation URLs to point to sifaka-ai/sifaka
+
+### Added
+- **Documentation badge**: Added GitHub Pages documentation badge to README
+
 ## [0.1.0] - 2025-07-19
 
 ### Changed
