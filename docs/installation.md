@@ -9,14 +9,12 @@
 
 ### Install from PyPI
 
-> **Note**: Sifaka will be available on PyPI soon. For now, please install from source.
-
 ```bash
-# Once available on PyPI:
-# pip install sifaka
+# Install with pip
+pip install sifaka
 
 # Or with uv (recommended)
-# uv pip install sifaka
+uv pip install sifaka
 ```
 
 ### Install from Source
@@ -41,7 +39,7 @@ Sifaka supports various LLM providers and features through optional dependencies
 
 ### Model Providers
 
-When installing from source, optional dependencies are included. Once available on PyPI:
+Install optional dependencies for specific features:
 
 ```bash
 # For Anthropic (Claude)
