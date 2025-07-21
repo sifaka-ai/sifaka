@@ -86,8 +86,8 @@ Each critic implements a specific research methodology:
 4. **Document plugin-specific configuration** options
 
 ### For Users
-1. **Start with the Quick Start Guide** (../quickstart.md)
-2. **Reference the API Documentation** (../API.md) for details
+1. **Start with the Quick Start Guide** (getting-started/quickstart.md)
+2. **Reference the API Documentation** (reference/api.md) for details
 3. **Explore examples** (../examples/) for usage patterns
 
 ## 🔗 Related Resources

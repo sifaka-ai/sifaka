@@ -4,11 +4,11 @@
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.2-blue)](https://github.com/sifaka-ai/sifaka)
+[![Version](https://img.shields.io/badge/version-0.1.6-blue)](https://github.com/sifaka-ai/sifaka)
 [![CI/CD](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml/badge.svg)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-60%25+-yellowgreen)](https://github.com/sifaka-ai/sifaka/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/sifaka)](https://pypi.org/project/sifaka/)
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://sifaka-ai.github.io/sifaka/)
+[![Documentation](https://img.shields.io/badge/docs-Read%20the%20Docs-blue)](https://sifaka.readthedocs.io/)
 
 
 ## What is Sifaka?
@@ -76,7 +76,7 @@ result = improve_sync("Climate change is bad.")
 print(result.final_text)
 ```
 
-📚 **[Full Documentation →](https://sifaka-ai.github.io/sifaka/)**
+📚 **[Full Documentation →](https://sifaka.readthedocs.io/)**
 
 ## Key Features
 
@@ -89,19 +89,19 @@ print(result.final_text)
 ## Documentation
 
 ### Getting Started
-- **[Installation](https://sifaka-ai.github.io/sifaka/installation/)** - Installation options and setup
-- **[Quickstart Guide](https://sifaka-ai.github.io/sifaka/getting-started/quickstart/)** - Get up and running in 5 minutes
-- **[Basic Usage](https://sifaka-ai.github.io/sifaka/guide/basic-usage/)** - Common usage patterns
-- **[API Reference](API.md)** - Complete API documentation
+- **[Installation](https://sifaka.readthedocs.io/en/latest/installation/)** - Installation options and setup
+- **[Quickstart Guide](https://sifaka.readthedocs.io/en/latest/getting-started/quickstart/)** - Get up and running in 5 minutes
+- **[Basic Usage](https://sifaka.readthedocs.io/en/latest/guide/basic-usage/)** - Common usage patterns
+- **[API Reference](https://sifaka.readthedocs.io/en/latest/reference/api/)** - Complete API documentation
 
 ### User Guides
-- **[Critics Guide](https://sifaka-ai.github.io/sifaka/guide/critics/)** - Available critics and usage
-- **[Validators Guide](https://sifaka-ai.github.io/sifaka/guide/validators/)** - Input validation options
-- **[Configuration](https://sifaka-ai.github.io/sifaka/guide/configuration/)** - Configuration options
-- **[Advanced Usage](https://sifaka-ai.github.io/sifaka/guide/advanced-usage/)** - Advanced patterns
+- **[Critics Guide](https://sifaka.readthedocs.io/en/latest/guide/critics/)** - Available critics and usage
+- **[Validators Guide](https://sifaka.readthedocs.io/en/latest/guide/validators/)** - Input validation options
+- **[Configuration](https://sifaka.readthedocs.io/en/latest/guide/configuration/)** - Configuration options
+- **[Advanced Usage](https://sifaka.readthedocs.io/en/latest/guide/advanced-usage/)** - Advanced patterns
 
 ### Architecture & Development
-- **[Architecture Overview](https://sifaka-ai.github.io/sifaka/architecture/)** - System design
+- **[Architecture Overview](https://sifaka.readthedocs.io/en/latest/architecture/)** - System design
 - **[Contributing](CONTRIBUTING.md)** - How to contribute
 - **[Changelog](CHANGELOG.md)** - Version history
 

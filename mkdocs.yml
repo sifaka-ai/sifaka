@@ -77,6 +77,8 @@ nav:
   - Development:
     - development/DEVELOPER_SETUP.md
     - development/ENV_SETUP.md
+  - Monitoring:
+    - monitoring.md
   - About:
     - FAQ.md
     - about/license.md
