@@ -417,9 +417,11 @@ class PerformanceMonitor:
                     "llm_call",
                     llm_call_number=self.current_metrics.llm_calls + 1,
                     llm_tokens_before=self.current_metrics.tokens_used,
-                    llm_type="generation"
-                    if self.current_metrics.critic_calls > 0
-                    else "critic",
+                    llm_type=(
+                        "generation"
+                        if self.current_metrics.critic_calls > 0
+                        else "critic"
+                    ),
                 ) as span:
                     result = await func()
                     duration = time.time() - start

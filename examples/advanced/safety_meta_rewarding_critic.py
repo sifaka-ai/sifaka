@@ -286,20 +286,19 @@ Be specific, balanced, and transparent in your reasoning. Safety is paramount, b
         return response
 
 
-async def main():
-    """Demonstrate the SafetyMetaRewardingCritic with various examples."""
-
-    print("SafetyMetaRewardingCritic Demo")
+async def simple_demo():
+    """Simple demonstration of the SafetyMetaRewardingCritic concept."""
+    print("🛡️ SafetyMetaRewardingCritic Demo")
     print("=" * 50)
     print()
 
-    # Create the safety critic
-    critic = SafetyMetaRewardingCritic(
+    # Create the custom safety critic
+    safety_critic = SafetyMetaRewardingCritic(
         model="gpt-4o-mini",
-        temperature=0.5,  # Lower temperature for consistent safety evaluation
+        temperature=0.6,
     )
 
-    # Test cases with varying safety concerns
+    # Test cases
     test_cases = [
         {
             "name": "Potentially Biased Statement",
@@ -323,7 +322,7 @@ async def main():
         },
     ]
 
-    # Use the critic standalone (not through improve() for this demo)
+    # Create a mock result for critique demonstration
     from sifaka.core.config import Config
     from sifaka.core.models import SifakaResult
 
@@ -333,7 +332,6 @@ async def main():
         print(f"Expected: {test_case['expected']}")
         print("-" * 40)
 
-        # Create a mock result for the critic
         mock_result = SifakaResult(
             original_text=test_case["text"],
             final_text=test_case["text"],
@@ -342,28 +340,23 @@ async def main():
         )
 
         # Get the critique
-        critique_result = await critic.critique(test_case["text"], mock_result)
+        critique_result = await safety_critic.critique(test_case["text"], mock_result)
 
         print(f"Needs Improvement: {critique_result.needs_improvement}")
         print(f"Confidence: {critique_result.confidence}")
+
         print(f"\nFeedback: {critique_result.feedback}")
 
-        if critique_result.suggestions:
-            print("\nSuggestions:")
-            for i, suggestion in enumerate(critique_result.suggestions, 1):
-                print(f"  {i}. {suggestion}")
-
-        # Show safety assessment if available
+        # Show safety scores if available
         if (
-            hasattr(critique_result, "metadata")
-            and "safety_assessment" in critique_result.metadata
+            hasattr(critique_result, "safety_assessment")
+            and critique_result.safety_assessment
         ):
-            assessment = critique_result.metadata["safety_assessment"]
-            if assessment and isinstance(assessment, dict):
-                print("\nSafety Scores:")
-                print(f"  - Toxicity: {assessment.get('toxicity_score', 'N/A')}")
-                print(f"  - Bias: {assessment.get('bias_score', 'N/A')}")
-                print(f"  - Ideology: {assessment.get('ideology_score', 'N/A')}")
+            assessment = critique_result.safety_assessment
+            print("\nSafety Scores:")
+            print(f"  - Toxicity: {assessment.toxicity_score}")
+            print(f"  - Bias: {assessment.bias_score}")
+            print(f"  - Ideology: {assessment.ideology_score}")
 
     print("\n" + "=" * 50)
     print("Demo complete!")
@@ -374,5 +367,136 @@ async def main():
     print("both over-censorship and under-detection of problematic content.")
 
 
+async def main():
+    """Demonstrate the SafetyMetaRewardingCritic with various examples."""
+    from sifaka import improve
+    from sifaka.core.config import Config, CriticConfig, LLMConfig
+    from sifaka.core.types import CriticType
+
+    print("🛡️ Safety-Focused Meta-Rewarding Demo")
+    print("=" * 50)
+    print("Using META_REWARDING critic for safety improvements\n")
+
+    # Test cases with varying safety concerns
+    test_cases = [
+        {
+            "name": "Gender Bias Statement",
+            "text": "Women are naturally better at nurturing roles while men excel in leadership positions.",
+            "description": "Should remove gender stereotypes",
+        },
+        {
+            "name": "Ideological Statement",
+            "text": "The free market always produces the most efficient outcomes for society, and government intervention only makes things worse.",
+            "description": "Should balance economic ideology",
+        },
+        {
+            "name": "Potentially Harmful Advice",
+            "text": "If you're feeling stressed, just ignore it and push through. Real winners don't need breaks or help from others.",
+            "description": "Should promote healthier perspectives",
+        },
+    ]
+
+    # Configure for safety-focused improvement
+    config = Config(
+        llm=LLMConfig(
+            model="gpt-4o-mini",
+            temperature=0.7,
+        ),
+        critic=CriticConfig(
+            critics=[CriticType.META_REWARDING],
+        ),
+    )
+
+    print("🎯 First, let's demonstrate the custom SafetyMetaRewardingCritic:")
+    print("-" * 60)
+
+    # Show how the custom critic evaluates text
+    safety_critic = SafetyMetaRewardingCritic(
+        model="gpt-4o-mini",
+        temperature=0.6,
+    )
+
+    # Create a mock result for critique demonstration
+    from sifaka.core.models import SifakaResult
+
+    mock_result = SifakaResult(
+        original_text=test_cases[0]["text"],
+        final_text=test_cases[0]["text"],
+        history=[],
+        config=config,
+    )
+
+    critique = await safety_critic.critique(test_cases[0]["text"], mock_result)
+    print(f"Safety evaluation of: \"{test_cases[0]['text']}\"")
+    print(f"Needs improvement: {critique.needs_improvement}")
+    print(f"Feedback: {critique.feedback[:200]}...")
+
+    print("\n\n📝 Now using standard META_REWARDING for improvements:")
+    print("=" * 50)
+
+    for test_case in test_cases:
+        print(f"\n📝 Test: {test_case['name']}")
+        print(f"Original: \"{test_case['text']}\"")
+        print(f"Goal: {test_case['description']}")
+        print("-" * 60)
+
+        # Use improve() with META_REWARDING
+        result = await improve(
+            test_case["text"],
+            critics=[CriticType.META_REWARDING],
+            max_iterations=2,
+            config=config,
+        )
+
+        print(f'✅ Improved: "{result.final_text}"')
+        print(f"📊 Iterations: {result.iteration}")
+
+        # Show safety improvements from the critique
+        if result.critiques:
+            last_critique = result.critiques[-1]
+            print(
+                f"🎯 Final assessment: {'Safe' if not last_critique.needs_improvement else 'Needs work'}"
+            )
+            print(f"💪 Confidence: {last_critique.confidence:.0%}")
+
+    # Demonstrate batch processing
+    print("\n\n🚀 Batch Safety Improvement")
+    print("=" * 50)
+
+    batch_texts = [
+        "Only lazy people need therapy or mental health support.",
+        "Climate change is just a hoax invented by politicians.",
+        "All politicians are corrupt and can't be trusted.",
+    ]
+
+    print("Processing multiple texts for safety improvements...\n")
+
+    # Process all texts concurrently
+    results = await asyncio.gather(
+        *[
+            improve(
+                text,
+                critics=[CriticType.META_REWARDING],
+                max_iterations=1,
+                config=config,
+            )
+            for text in batch_texts
+        ]
+    )
+
+    for i, (original, result) in enumerate(zip(batch_texts, results), 1):
+        print(f'{i}. Original: "{original}"')
+        print(f'   Improved: "{result.final_text}"')
+        print()
+
+    print("=" * 50)
+    print("✨ Demo complete!")
+    print("\nKey benefits of SafetyMetaRewardingCritic:")
+    print("1. ⚖️ Balanced evaluation - avoids over-censorship")
+    print("2. 🔍 Nuanced detection - catches subtle biases")
+    print("3. 🎯 Context-aware - considers intent and usage")
+    print("4. 📈 Self-improving - meta-evaluation refines assessments")
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(simple_demo())

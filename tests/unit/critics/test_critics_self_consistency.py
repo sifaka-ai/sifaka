@@ -259,7 +259,7 @@ class TestSelfConsistencyCritic:
         evals = []
         for i in range(3):
             eval = CritiqueResult(
-                critic=f"self_consistency_sample_{i+1}",
+                critic=f"self_consistency_sample_{i + 1}",
                 feedback="Excellent writing with clear structure",
                 suggestions=[],
                 needs_improvement=False,

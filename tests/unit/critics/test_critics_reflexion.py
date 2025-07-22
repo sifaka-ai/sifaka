@@ -243,8 +243,8 @@ class TestReflexionCritic:
         responses = []
         for i, conf in enumerate(confidences):
             mock_response = ReflexionResponse(
-                feedback=f"Iteration {i+1} feedback",
-                suggestions=[f"Suggestion {i+1}"] if i < 2 else [],
+                feedback=f"Iteration {i + 1} feedback",
+                suggestions=[f"Suggestion {i + 1}"] if i < 2 else [],
                 needs_improvement=i < 2,
                 confidence=conf,
             )
@@ -254,7 +254,7 @@ class TestReflexionCritic:
         mock_pydantic_agent.run.side_effect = responses
 
         for i, conf in enumerate(confidences):
-            critique = await critic.critique(f"Text v{i+1}", result)
+            critique = await critic.critique(f"Text v{i + 1}", result)
             # Confidence might be adjusted by internal calculation
             # Check it's reasonably close to the expected value
             assert abs(critique.confidence - conf) < 0.1
