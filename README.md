@@ -119,7 +119,10 @@ Sifaka implements these peer-reviewed techniques:
 - **[Self-RAG](https://arxiv.org/abs/2310.11511)** - Retrieval-augmented critique
 - **[Meta-Rewarding](https://arxiv.org/abs/2407.19594)** - Two-stage meta-evaluation
 - **[Self-Consistency](https://arxiv.org/abs/2203.11171)** - Multiple reasoning paths
+- **[Self-Taught Evaluator](https://arxiv.org/abs/2408.02666)** - Contrasting outputs with reasoning traces
+- **[Agent4Debate](https://arxiv.org/abs/2408.04472)** - Multi-agent competitive debate dynamics
 - **Style** - Transform text to match specific writing styles and voices
+- **Prompt** - Simple prompt-engineered critic for simple use cases
 
 ## Development
 

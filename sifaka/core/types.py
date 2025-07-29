@@ -28,6 +28,8 @@ class CriticType(str, Enum):
     CONSTITUTIONAL = "constitutional"
     META_REWARDING = "meta_rewarding"
     N_CRITICS = "n_critics"
+    SELF_TAUGHT_EVALUATOR = "self_taught_evaluator"
+    AGENT4DEBATE = "agent4debate"
     STYLE = "style"
     PROMPT = "prompt"
 
@@ -126,6 +128,8 @@ CriticTypeLiteral = Literal[
     "constitutional",
     "meta_rewarding",
     "n_critics",
+    "self_taught_evaluator",
+    "agent4debate",
     "style",
     "prompt",
 ]

@@ -98,7 +98,7 @@ mypy sifaka
 
 ```bash
 cd examples
-python constitutional_example.py
+uv run constitutional_example.py
 ```
 
 ## Development Workflow

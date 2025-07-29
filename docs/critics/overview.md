@@ -28,6 +28,8 @@ Critics analyze text and provide structured feedback for improvement. They:
 | **SELF_RAG** | Fact verification | Academic/factual content |
 | **META_REWARDING** | Quality assurance | High-stakes content |
 | **N_CRITICS** | Multiple perspectives | Comprehensive review |
+| **SELF_TAUGHT_EVALUATOR** | Comparative analysis | Complex evaluation tasks |
+| **AGENT4DEBATE** | Competitive debate | Trade-off analysis |
 | **STYLE** | Tone adaptation | Audience-specific content |
 
 ## How Critics Work
@@ -131,6 +133,8 @@ Each critic is based on peer-reviewed research:
 - **SELF_CONSISTENCY**: [Wang et al., 2022](https://arxiv.org/abs/2203.11171)
 - **SELF_RAG**: [Asai et al., 2023](https://arxiv.org/abs/2310.11511)
 - **META_REWARDING**: [Wu et al., 2024](https://arxiv.org/abs/2407.19594)
+- **SELF_TAUGHT_EVALUATOR**: [Wang et al., 2024](https://arxiv.org/abs/2408.02666)
+- **AGENT4DEBATE**: [Chen et al., 2024](https://arxiv.org/abs/2408.04472)
 
 ## Understanding Critique Results
 

@@ -14,7 +14,9 @@ Each critic implements a specific evaluation strategy based on academic research
 | SELF_CONSISTENCY | Balanced perspectives | [Self-Consistency (2022)](https://arxiv.org/abs/2203.11171) |
 | SELF_RAG | Fact-checking | [Self-RAG (2023)](https://arxiv.org/abs/2310.11511) |
 | META_REWARDING | Self-evaluation | [Meta-Rewarding (2024)](https://arxiv.org/abs/2407.19594) |
-| N_CRITICS | Multiple perspectives | Based on ensemble methods | [N-Critics (2023)](https://arxiv.org/abs/2310.18679) |
+| N_CRITICS | Multiple perspectives | [N-Critics (2023)](https://arxiv.org/abs/2310.18679) |
+| SELF_TAUGHT_EVALUATOR | Comparative analysis | [Self-Taught Evaluator (2024)](https://arxiv.org/abs/2408.02666) |
+| AGENT4DEBATE | Debate dynamics | [Agent4Debate (2024)](https://arxiv.org/abs/2408.04472) |
 | STYLE | Tone & style | Custom implementation |
 
 ## Using Critics
@@ -191,6 +193,67 @@ result = await improve(
     "Product launch announcement",
     critics=[CriticType.N_CRITICS]
 )
+```
+
+### SELF_TAUGHT_EVALUATOR
+
+Evaluates text by generating contrasting versions and reasoning traces.
+
+**Use when:**
+- Need transparent evaluation reasoning
+- Complex comparative analysis
+- Understanding trade-offs between approaches
+- Educational evaluation contexts
+
+**Key features:**
+- Generates 2-3 contrasting text versions
+- Provides detailed reasoning traces
+- Learns from evaluation history
+- No training data required
+
+**Example:**
+```python
+result = await improve(
+    "Technical documentation that needs clarity",
+    critics=[CriticType.SELF_TAUGHT_EVALUATOR],
+    max_iterations=3
+)
+
+# Access contrasting outputs and reasoning
+for critique in result.critiques:
+    if critique.critic == "self_taught_evaluator":
+        print(f"Reasoning: {critique.metadata.get('reasoning_trace', '')}")
+        print(f"Alternatives: {critique.metadata.get('contrasting_outputs', [])}")
+```
+
+### AGENT4DEBATE
+
+Uses multi-agent competitive debate to evaluate improvement strategies.
+
+**Use when:**
+- Weighing complex trade-offs
+- Need adversarial testing of ideas
+- High-stakes content decisions
+- Exploring competing approaches
+
+**Key features:**
+- Simulates debate between different perspectives
+- Reveals trade-offs explicitly
+- Competitive argumentation
+- Judge-based decision making
+
+**Example:**
+```python
+result = await improve(
+    "Strategic business proposal",
+    critics=[CriticType.AGENT4DEBATE],
+    max_iterations=2
+)
+
+# The critic will debate approaches like:
+# - Conservative: Minimal changes
+# - Transformative: Major rewrites
+# - Balanced: Selective improvements
 ```
 
 ### STYLE

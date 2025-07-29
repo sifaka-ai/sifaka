@@ -78,9 +78,12 @@ class CriticType(str, Enum):
     CONSTITUTIONAL = "constitutional"
     SELF_CONSISTENCY = "self_consistency"
     SELF_RAG = "self_rag"
+    SELF_TAUGHT_EVALUATOR = "self_taught_evaluator"
+    AGENT4DEBATE = "agent4debate"
     STYLE = "style"
     META_REWARDING = "meta_rewarding"
     N_CRITICS = "n_critics"
+    PROMPT = "prompt"
 ```
 
 ### `SifakaResult`

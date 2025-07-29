@@ -174,6 +174,10 @@ result = await improve(
 - **self_rag** - Fact-checking with web search (requires tools)
 - **meta_rewarding** - Two-stage quality evaluation
 - **self_consistency** - Consensus-based improvements
+- **self_taught_evaluator** - Contrasting outputs with reasoning traces
+- **agent4debate** - Multi-agent competitive debate dynamics
+- **style** - Style and tone transformation
+- **prompt** - Custom prompt-based critics
 
 ## Debugging with Thought Logs
 

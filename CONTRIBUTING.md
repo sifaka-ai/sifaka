@@ -66,7 +66,7 @@ We recommend using [uv](https://github.com/astral-sh/uv) for faster and more rel
 
 2. **Install the package in development mode**:
    ```bash
-   pip install -e ".[dev,all]"
+   uv pip install -e ".[dev,all]"
    ```
 
 3. **Install pre-commit hooks** (optional but recommended):

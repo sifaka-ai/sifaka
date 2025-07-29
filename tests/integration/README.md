@@ -15,29 +15,29 @@ This directory contains integration tests that interact with real LLM APIs. Thes
 
 2. Install development dependencies:
    ```bash
-   pip install -e ".[dev,all]"
+   uv pip install -e ".[dev,all]"
    ```
 
 ### Running Tests
 
 Run all integration tests:
 ```bash
-pytest tests/integration/ --integration
+uv run pytest tests/integration/ --integration
 ```
 
 Run with a specific provider:
 ```bash
-pytest tests/integration/ --integration --llm-provider=anthropic
+uv run pytest tests/integration/ --integration --llm-provider=anthropic
 ```
 
 Run with custom timeout:
 ```bash
-INTEGRATION_TEST_TIMEOUT=60 pytest tests/integration/ --integration
+INTEGRATION_TEST_TIMEOUT=60 uv run pytest tests/integration/ --integration
 ```
 
 Run specific test file:
 ```bash
-pytest tests/integration/test_critics_integration.py --integration
+uv run pytest tests/integration/test_critics_integration.py --integration
 ```
 
 ### Test Categories
@@ -76,10 +76,10 @@ Integration tests are automatically run in CI with mock responses to avoid API c
 When running in CI or with mock responses:
 ```bash
 # Automatically enabled in CI
-CI=true pytest tests/integration/ --integration
+CI=true uv run pytest tests/integration/ --integration
 
 # Or manually enable mocks
-USE_MOCK_LLM=true pytest tests/integration/ --integration
+USE_MOCK_LLM=true uv run pytest tests/integration/ --integration
 ```
 
 Mock responses provide:
