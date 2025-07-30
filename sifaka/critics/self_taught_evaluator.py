@@ -199,12 +199,12 @@ This allows you to see the improvement trajectory and make more informed evaluat
 
             iteration_instruction = f"""
 IMPORTANT: This is iteration {len(result.generations)}, and the text has already been improved.
-Previous critiques focused on: {', '.join(covered_aspects) if covered_aspects else 'general aspects'}
+Previous critiques focused on: {", ".join(covered_aspects) if covered_aspects else "general aspects"}
 
 For this evaluation, explore DIFFERENT dimensions:
-{chr(10).join(f'- {dim.upper()}: Evaluate {all_dimensions.get(dim, dim)}' for dim in dimensions_to_explore)}
+{chr(10).join(f"- {dim.upper()}: Evaluate {all_dimensions.get(dim, dim)}" for dim in dimensions_to_explore)}
 
-Do NOT repeat previous feedback about {', '.join(covered_aspects) if covered_aspects else 'previous topics'}.
+Do NOT repeat previous feedback about {", ".join(covered_aspects) if covered_aspects else "previous topics"}.
 """
 
         return f"""Evaluate this text using the Self-Taught Evaluator approach:
