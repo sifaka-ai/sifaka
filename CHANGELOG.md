@@ -5,6 +5,35 @@ All notable changes to Sifaka are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-07-30
+
+### Added
+- **Self-Taught Evaluator Critic**: New critic based on Wang et al. 2024 paper
+  - Generates contrasting text versions for transparent evaluation
+  - Provides detailed reasoning traces explaining decisions
+  - Learns from evaluation history to avoid repetitive feedback
+  - Tracks explored dimensions across iterations
+  - No training data required - uses synthetic contrasts
+- **Agent4Debate Critic**: New critic based on Chen et al. 2024 paper
+  - Simulates multi-agent competitive debate dynamics
+  - Three perspectives: Conservative, Transformative, and Balanced
+  - Reveals trade-offs through structured argumentation
+  - Judge mechanism determines winning approach
+  - Particularly useful for high-stakes content decisions
+- **Enhanced Dimension Tracking**: Self-Taught Evaluator tracks which aspects have been evaluated to ensure diverse feedback across iterations
+- **Example Scripts**: Added comprehensive examples for both new critics demonstrating their unique capabilities
+
+### Changed
+- **Documentation**: Updated all documentation to include new critics
+  - Added to Research Foundation sections
+  - Created detailed usage guides with examples
+  - Updated API reference with new CriticType entries
+- **Type System**: Extended CriticType enum to include SELF_TAUGHT_EVALUATOR and AGENT4DEBATE
+
+### Fixed
+- **Self-Taught Evaluator**: Fixed deque slicing issue in previous context retrieval
+- **Formatting**: Applied consistent quote style in f-strings for ruff compliance
+
 ## [0.1.6] - 2025-07-20
 
 ### Added
