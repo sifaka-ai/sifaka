@@ -1,11 +1,14 @@
 """Dynamic critic registry for extensibility."""
 
 import importlib.metadata
+import logging
 from importlib.metadata import EntryPoints
 from typing import Dict, List, Optional, Type, cast
 
 from ...core.constants import ENTRY_POINT_CRITICS
 from ...core.interfaces import Critic
+
+logger = logging.getLogger(__name__)
 
 
 class CriticRegistry:
@@ -82,7 +85,7 @@ class CriticRegistry:
                 cls.register(ep.name, critic_class)
             except Exception as e:
                 # Log but don't fail on individual plugin errors
-                print(f"Failed to load critic plugin {ep.name}: {e}")
+                logger.warning(f"Failed to load critic plugin {ep.name}: {e}")
 
     @classmethod
     def clear(cls) -> None:

@@ -258,8 +258,10 @@ class PluginRegistry:
                     self.register(entry_point.name, backend_class)
                 except Exception as e:
                     # Log but don't fail - plugin might have optional dependencies
-                    print(
-                        f"Warning: Failed to load storage plugin '{entry_point.name}': {e}"
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        f"Failed to load storage plugin '{entry_point.name}': {e}"
                     )
         except Exception:
             # Entry points might not be available in some environments

@@ -172,8 +172,10 @@ class StyleCritic(BaseCritic):
 
         Example:
             >>> # Brand voice from reference document
+            >>> with open("brand_voice_guide.txt") as f:
+            ...     reference_text = f.read()
             >>> critic = StyleCritic(
-            ...     reference_text=open("brand_voice_guide.txt").read(),
+            ...     reference_text=reference_text,
             ...     style_description="Conversational but authoritative"
             ... )
             >>>
