@@ -1,6 +1,6 @@
 # Sifaka
 
-**AI text improvement through research-backed critique with complete observability**
+AI text improvement through research-backed critique with complete observability
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -389,7 +389,7 @@ config = Config(
 
 ## Architecture Overview
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │           Sifaka Improvement Loop           │
 └─────────────────────────────────────────────┘

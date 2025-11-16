@@ -182,7 +182,7 @@ module = "sifaka.tests.*"
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["dotenv", "openai", "openai.*", "pydantic_ai", "pydantic_ai.*", "logfire", "importlib_metadata", "pytest"]
+module = ["dotenv", "pydantic_ai", "pydantic_ai.*", "logfire", "importlib_metadata", "pytest"]
 ignore_missing_imports = true
 
 [dependency-groups]

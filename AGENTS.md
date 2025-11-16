@@ -13,7 +13,7 @@
 
 ### Directory Structure
 
-```
+```text
 sifaka/
 ├── sifaka/
 │   ├── core/
@@ -217,7 +217,6 @@ async def improve(text: str, iterations: int = 3, provider: str = "openai") -> I
 - **pyproject.toml** - Dependencies and config
 - **README.md** - User documentation with examples
 - **examples/** - Comprehensive usage examples
-- **docs/** - Comprehensive documentation (being consolidated in future versions)
 - **AGENTS.md** (this file) - Primary AI agent developer guide
 
 ### Key Patterns

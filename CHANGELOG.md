@@ -66,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test suite verified against all dependency updates
 
 ### Migration Notes
-- **PydanticAI API Changes**: If you've extended Sifaka critics, review PydanticAI 1.14 migration guide
+- **PydanticAI API Changes**: If you've extended Sifaka critics, review [PydanticAI 1.14 migration guide](https://ai.pydantic.dev/latest/)
 - **Dependency Conflicts**: Clean reinstall recommended (`uv pip install -e .` or `pip install -e .`)
 - **Type Checking**: Some mypy errors may appear due to stricter Pydantic 2.12+ typing
 - **Documentation**: All docs now in README.md - no more docs/ directory
