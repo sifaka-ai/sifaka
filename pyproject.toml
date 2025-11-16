@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sifaka"
-version = "0.2.0"
+version = "0.3.0"
 description = "Simple AI text improvement through research-backed critique with complete observability"
 authors = [{name = "Evan Volgas", email = "evan.volgas@gmail.com"}]
 license = "MIT"
@@ -24,16 +24,16 @@ classifiers = [
 
 # Core dependencies - minimal for basic functionality
 dependencies = [
-    "pydantic>=2.11.3",
-    "pydantic-ai>=0.0.14",
-    "openai>=1.82.0",
+    "pydantic>=2.12.0",
+    "pydantic-ai>=1.14.0",
+    "openai>=2.0.0",
     "httpx>=0.28.1",
     "python-dotenv>=1.0.1",
-    "aiofiles>=24.1.0", # Required for FileStorage backend
-    "logfire>=3.21.1",
+    "aiofiles>=25.0.0", # Required for FileStorage backend
+    "logfire>=4.0.0",
     "redis>=6.2.0",
     "beautifulsoup4>=4.12.0",  # Required for web_search tool
-    "numpy>=1.24.0",  # Required for vector embeddings
+    "numpy>=2.0.0",  # Required for vector embeddings
     "typing-extensions>=4.0.0",  # For TypedDict on Python < 3.12
     "defusedxml>=0.7.1",  # For secure XML parsing
 ]
@@ -182,7 +182,7 @@ module = "sifaka.tests.*"
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["dotenv", "openai", "openai.*", "pydantic_ai", "pydantic_ai.*", "logfire", "importlib_metadata", "pytest"]
+module = ["dotenv", "pydantic_ai", "pydantic_ai.*", "logfire", "importlib_metadata", "pytest"]
 ignore_missing_imports = true
 
 [dependency-groups]

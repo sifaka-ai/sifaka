@@ -5,138 +5,71 @@ All notable changes to Sifaka are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2025-07-30
+## [0.3.0] - 2025-11-16
+
+### Changed
+- **BREAKING: PydanticAI 1.14+**: Upgraded from PydanticAI 0.0.14 to 1.14.0+ (14 minor versions)
+  - Updated to latest stable PydanticAI API
+  - Modernized agent-based interactions
+  - Improved type safety and structured outputs
+- **Dependency Updates**: Brought all dependencies to current best practices
+  - Pydantic: 2.11.3 → 2.12.0+
+  - OpenAI: 1.82.0 → 2.0.0+
+  - Logfire: 3.21.1 → 4.0.0+
+  - NumPy: 1.24.0 → 2.0.0+
+  - aiofiles: 24.1.0 → 25.0.0+
 
 ### Added
-- **Self-Taught Evaluator Critic**: New critic based on Wang et al. 2024 paper
-  - Generates contrasting text versions for transparent evaluation
-  - Provides detailed reasoning traces explaining decisions
-  - Learns from evaluation history to avoid repetitive feedback
-  - Tracks explored dimensions across iterations
-  - No training data required - uses synthetic contrasts
-- **Agent4Debate Critic**: New critic based on Chen et al. 2024 paper
-  - Simulates multi-agent competitive debate dynamics
-  - Three perspectives: Conservative, Transformative, and Balanced
-  - Reveals trade-offs through structured argumentation
-  - Judge mechanism determines winning approach
-  - Particularly useful for high-stakes content decisions
-- **Enhanced Dimension Tracking**: Self-Taught Evaluator tracks which aspects have been evaluated to ensure diverse feedback across iterations
-- **Example Scripts**: Added comprehensive examples for both new critics demonstrating their unique capabilities
+- **AGENTS.md**: AI agent quick reference guide for development (249 lines)
+  - Quick orientation with tech stack and directory structure
+  - Critical rules and patterns (research-backed critique, provider-agnostic design)
+  - Development workflow (before/during/after guidelines)
+  - Common tasks (add critic, add validator, run tests)
+  - Code quality standards with examples
+- **Symlinks**: CLAUDE.md and CURSOR.md now point to AGENTS.md for tool compatibility
+- **Comprehensive README.md**: Expanded to 614 lines with all essential user content
+  - 13 inline usage examples
+  - Complete FAQ section
+  - Configuration guide
+  - Architecture overview
+  - Research citations
+- **Modern Best Practices**: Aligned with arbiter project standards
+  - Minimalist documentation philosophy (3 core files vs 24+ previously)
+  - All user docs consolidated into README.md
+  - All developer docs consolidated into AGENTS.md
 
-### Changed
-- **Documentation**: Updated all documentation to include new critics
-  - Added to Research Foundation sections
-  - Created detailed usage guides with examples
-  - Updated API reference with new CriticType entries
-- **Type System**: Extended CriticType enum to include SELF_TAUGHT_EVALUATOR and AGENT4DEBATE
+### Documentation
+- **AGGRESSIVE CONSOLIDATION**: Reduced from 5,500+ lines (24+ files) to ~800 lines (3 files) = **85% reduction**
+- **Removed Entire docs/ Directory**: All 24+ markdown files deleted
+  - User guides → Consolidated into README.md
+  - Plugin documentation → Deferred to v1.0
+  - Development guides → Replaced by AGENTS.md
+  - ADRs and reference docs → Removed for alpha stage
+- **Removed Documentation Infrastructure**:
+  - mkdocs.yml (MkDocs site config)
+  - .readthedocs.yaml (ReadTheDocs deployment)
+  - .pre-commit-config.yaml (git hooks)
+  - .bandit (security scanning)
+- **Removed Meta-Documentation**:
+  - CONTRIBUTING.md → Content in AGENTS.md
+  - CODE_OF_CONDUCT.md → Deferred to v1.0
+  - DOCS_STRATEGY.md → No longer needed
+- **Final Structure**: 3 documentation files only
+  - README.md (614 lines) - All user documentation
+  - AGENTS.md (249 lines) - All developer documentation
+  - CHANGELOG.md (~140 lines) - Historical record
 
-### Fixed
-- **Self-Taught Evaluator**: Fixed deque slicing issue in previous context retrieval
-- **Formatting**: Applied consistent quote style in f-strings for ruff compliance
+### Technical Details
+- All PydanticAI usage updated to v1.14+ API patterns
+- Type hints and validation updated for Pydantic 2.12+
+- Storage backends updated for latest aiofiles
+- Test suite verified against all dependency updates
 
-## [0.1.6] - 2025-07-20
-
-### Added
-- **Logfire Integration**: Deep observability integration with Logfire/OpenTelemetry
-  - Automatic tracing of LLM calls with rich metadata (model, tokens, duration)
-  - Detailed critic tracking with individual critic names and performance metrics
-  - Nested spans for operation hierarchy visualization
-  - Service name configuration for proper identification in Logfire dashboard
-  - Global monitor singleton for consistent metrics across the application
-  - Performance metrics including tokens/second, critic execution times
-
-### Fixed
-- **Logfire Critic Tracking**: Fixed parallel critic execution not being tracked in Logfire
-  - Critics now properly report to Logfire with individual names and timings
-  - Parallel execution wrapped with monitor.track_critic_call for visibility
-- **Service Naming**: Fixed "unknown_service" in Logfire by setting OTEL_SERVICE_NAME early
-- **Example Configurations**: Fixed n_critics_example.py invalid critic_model parameter
-  - Moved critic_model from CriticConfig to LLMConfig where it belongs
-
-### Changed
-- **Monitoring Enhancement**: Enriched Logfire spans with comprehensive LLM metadata
-  - Added model name, token counts, temperature settings to spans
-  - Enhanced critic spans with critic type and confidence scores
-  - Improved span naming for better clarity in traces
-
-## [0.1.5] - 2025-07-20
-
-### Fixed
-- **Ollama Critics**: Fixed critics failing with Ollama by properly setting OPENAI_BASE_URL for pydantic-ai
-- **Import Error**: Made logfire import optional to avoid ModuleNotFoundError when not installed
-
-### Changed
-- **Ollama Integration**: Improved to use pydantic-ai's native OpenAI provider support for Ollama
-
-## [0.1.4] - 2025-07-20
-
-### Fixed
-- **Ollama Support**: Fixed critical issues preventing Ollama from working correctly
-  - Fixed provider not being passed to critics during orchestration
-  - Fixed provider not being passed to text generator
-  - Fixed pydantic_ai integration for Ollama (now uses direct completion API)
-  - Ollama now correctly generates improved text
-- **Documentation**: Fixed broken internal links in MkDocs documentation
-- **README**: Updated Ollama usage example to include required `critic_model` setting
-
-### Changed
-- **Error Handling**: TextGenerator now gracefully handles Ollama-specific requirements
-- **Tests**: Fixed test expecting specific create_critics parameters
-
-## [0.1.3] - 2025-07-20
-
-### Added
-- **Ollama Integration Tests**: Added comprehensive integration tests for Ollama provider
-  - Ollama now included in multi-provider critics integration tests
-  - All critics can be tested with local Ollama models
-  - Enhanced test configuration supports Ollama with `llama3.2` model
-
-### Improved
-- **Error Handling**: Enhanced error messages when no LLM provider is configured
-  - Replaced generic `ValueError` with structured `ModelProviderError`
-  - Added specific error code `"no_provider"` with helpful setup instructions
-  - Updated documentation to reflect new error format
-  - Users now get clear guidance on which API keys to set up
-
-### Fixed
-- **Test Suite**: Fixed Ollama provider tests to properly handle LLMResponse structure
-  - Corrected usage data access patterns in test assertions
-  - All Ollama provider tests now pass consistently
-
-## [0.1.2] - 2025-07-20
-
-### Fixed
-- **GuardrailsAI dependency**: Temporarily disabled due to griffe version conflict with pydantic-ai
-- **PyPI display**: Removed logo from README as PyPI doesn't support relative image paths
-
-### Added
-- **Ollama Support**: Added support for local LLMs via Ollama
-  - New provider: `Provider.OLLAMA`
-  - Supports popular models: llama3.2, mistral, qwen2.5-coder, etc.
-  - Configurable base URL via `OLLAMA_BASE_URL` environment variable
-  - No API key required by default
-
-### Changed
-- **Dependencies**: Removed guardrails-ai from dependencies until they release a fix
-- **GuardrailsValidator**: Temporarily replaced with placeholder that raises NotImplementedError
-
-## [0.1.1] - 2025-07-20
-
-### Fixed
-- **Integration tests**: Fixed 7 failing integration tests related to Config API changes
-- **CI/CD workflow**: Removed redundant tests.yml workflow
-- **Documentation deployment**: Fixed GitHub Pages permissions for docs deployment
-- **Release workflow**: Fixed dependency installation to use uv with all extras
-- **PyPI publishing**: Configured PYPI_TOKEN secret for automated publishing
-- **Warnings**: Suppressed pkg_resources deprecation warning from guardrails
-
-### Changed
-- **Version management**: Added __version__ attribute to __init__.py
-- **Documentation**: Updated installation docs to reflect PyPI availability
-- **Repository links**: Fixed all documentation URLs to point to sifaka-ai/sifaka
-
-### Added
-- **Documentation badge**: Added GitHub Pages documentation badge to README
+### Migration Notes
+- **PydanticAI API Changes**: If you've extended Sifaka critics, review [PydanticAI 1.14 migration guide](https://ai.pydantic.dev/latest/)
+- **Dependency Conflicts**: Clean reinstall recommended (`uv pip install -e .` or `pip install -e .`)
+- **Type Checking**: Some mypy errors may appear due to stricter Pydantic 2.12+ typing
+- **Documentation**: All docs now in README.md - no more docs/ directory
 
 ## [0.1.0] - 2025-07-19
 
