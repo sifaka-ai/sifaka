@@ -5,6 +5,49 @@ All notable changes to Sifaka are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-11-16
+
+### Changed
+- **BREAKING: PydanticAI 1.14+**: Upgraded from PydanticAI 0.0.14 to 1.14.0+ (14 minor versions)
+  - Updated to latest stable PydanticAI API
+  - Modernized agent-based interactions
+  - Improved type safety and structured outputs
+- **Dependency Updates**: Brought all dependencies to current best practices
+  - Pydantic: 2.11.3 → 2.12.0+
+  - OpenAI: 1.82.0 → 2.0.0+
+  - Logfire: 3.21.1 → 4.0.0+
+  - NumPy: 1.24.0 → 2.0.0+
+  - aiofiles: 24.1.0 → 25.0.0+
+
+### Added
+- **AGENTS.md**: AI agent quick reference guide for development
+  - Quick orientation with tech stack and directory structure
+  - Critical rules and patterns (research-backed critique, provider-agnostic design)
+  - Development workflow (before/during/after guidelines)
+  - Common tasks (add critic, add validator, run tests)
+  - Code quality standards with examples
+- **Symlinks**: CLAUDE.md and CURSOR.md now point to AGENTS.md for tool compatibility
+- **Modern Best Practices**: Aligned with arbiter project standards
+  - Minimalist, actionable documentation approach
+  - Enhanced code organization patterns
+  - Improved developer experience
+
+### Documentation
+- **Modernization**: Restructured documentation to follow current best practices
+- **AI-First**: Added first-class documentation for AI agents working on the project
+- **Consolidated**: Maintained comprehensive docs while adding quick reference guides
+
+### Technical Details
+- All PydanticAI usage updated to v1.14+ API patterns
+- Type hints and validation updated for Pydantic 2.12+
+- Storage backends updated for latest aiofiles
+- Test suite verified against all dependency updates
+
+### Migration Notes
+- **PydanticAI API Changes**: If you've extended Sifaka critics, review PydanticAI 1.14 migration guide
+- **Dependency Conflicts**: Clean reinstall recommended (`uv pip install -e .` or `pip install -e .`)
+- **Type Checking**: Some mypy errors may appear due to stricter Pydantic 2.12+ typing
+
 ## [0.1.0] - 2025-07-19
 
 ### Changed
