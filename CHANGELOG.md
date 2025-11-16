@@ -20,22 +20,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - aiofiles: 24.1.0 → 25.0.0+
 
 ### Added
-- **AGENTS.md**: AI agent quick reference guide for development
+- **AGENTS.md**: AI agent quick reference guide for development (249 lines)
   - Quick orientation with tech stack and directory structure
   - Critical rules and patterns (research-backed critique, provider-agnostic design)
   - Development workflow (before/during/after guidelines)
   - Common tasks (add critic, add validator, run tests)
   - Code quality standards with examples
 - **Symlinks**: CLAUDE.md and CURSOR.md now point to AGENTS.md for tool compatibility
+- **Comprehensive README.md**: Expanded to 614 lines with all essential user content
+  - 13 inline usage examples
+  - Complete FAQ section
+  - Configuration guide
+  - Architecture overview
+  - Research citations
 - **Modern Best Practices**: Aligned with arbiter project standards
-  - Minimalist, actionable documentation approach
-  - Enhanced code organization patterns
-  - Improved developer experience
+  - Minimalist documentation philosophy (3 core files vs 24+ previously)
+  - All user docs consolidated into README.md
+  - All developer docs consolidated into AGENTS.md
 
 ### Documentation
-- **Modernization**: Restructured documentation to follow current best practices
-- **AI-First**: Added first-class documentation for AI agents working on the project
-- **Consolidated**: Maintained comprehensive docs while adding quick reference guides
+- **AGGRESSIVE CONSOLIDATION**: Reduced from 5,500+ lines (24+ files) to ~800 lines (3 files) = **85% reduction**
+- **Removed Entire docs/ Directory**: All 24+ markdown files deleted
+  - User guides → Consolidated into README.md
+  - Plugin documentation → Deferred to v1.0
+  - Development guides → Replaced by AGENTS.md
+  - ADRs and reference docs → Removed for alpha stage
+- **Removed Documentation Infrastructure**:
+  - mkdocs.yml (MkDocs site config)
+  - .readthedocs.yaml (ReadTheDocs deployment)
+  - .pre-commit-config.yaml (git hooks)
+  - .bandit (security scanning)
+- **Removed Meta-Documentation**:
+  - CONTRIBUTING.md → Content in AGENTS.md
+  - CODE_OF_CONDUCT.md → Deferred to v1.0
+  - DOCS_STRATEGY.md → No longer needed
+- **Final Structure**: 3 documentation files only
+  - README.md (614 lines) - All user documentation
+  - AGENTS.md (249 lines) - All developer documentation
+  - CHANGELOG.md (~140 lines) - Historical record
 
 ### Technical Details
 - All PydanticAI usage updated to v1.14+ API patterns
@@ -47,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PydanticAI API Changes**: If you've extended Sifaka critics, review PydanticAI 1.14 migration guide
 - **Dependency Conflicts**: Clean reinstall recommended (`uv pip install -e .` or `pip install -e .`)
 - **Type Checking**: Some mypy errors may appear due to stricter Pydantic 2.12+ typing
+- **Documentation**: All docs now in README.md - no more docs/ directory
 
 ## [0.1.0] - 2025-07-19
 
