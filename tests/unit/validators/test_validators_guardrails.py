@@ -1,4 +1,10 @@
-"""Tests for the GuardrailsAI validator module."""
+"""Tests for the GuardrailsAI validator module.
+
+TODO: These tests are temporarily disabled because GuardrailsAI support
+is disabled due to a dependency conflict with griffe. Once guardrails
+releases a new version with the updated griffe dependency, remove the
+skip decorators and re-enable these tests.
+"""
 
 import asyncio
 import sys
@@ -10,6 +16,9 @@ from sifaka.core.models import SifakaResult
 from sifaka.validators.base import ValidatorConfig
 
 
+@pytest.mark.skip(
+    reason="GuardrailsAI support temporarily disabled due to griffe dependency conflict"
+)
 class TestGuardrailsValidatorImportError:
     """Test GuardrailsValidator when GuardrailsAI is not available."""
 
@@ -31,6 +40,9 @@ class TestGuardrailsValidatorImportError:
                 assert "pip install sifaka[guardrails]" in str(exc_info.value)
 
 
+@pytest.mark.skip(
+    reason="GuardrailsAI support temporarily disabled due to griffe dependency conflict"
+)
 class TestGuardrailsValidatorMocked:
     """Test GuardrailsValidator with mocked GuardrailsAI."""
 

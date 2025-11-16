@@ -208,12 +208,24 @@ class StyleCritic(BaseCritic):
 
         # Allow config to override if provided
         if config:
-            if hasattr(config, "style_reference_text") and config.style_reference_text:
-                self.reference_text = config.style_reference_text
-            if hasattr(config, "style_description") and config.style_description:
-                self.style_description = config.style_description
-            if hasattr(config, "style_examples") and config.style_examples:
-                self.style_examples = config.style_examples
+            # Check if config has a critic attribute (it's the full Config object)
+            critic_config = getattr(config, "critic", config)
+
+            if (
+                hasattr(critic_config, "style_reference_text")
+                and critic_config.style_reference_text
+            ):
+                self.reference_text = critic_config.style_reference_text
+            if (
+                hasattr(critic_config, "style_description")
+                and critic_config.style_description
+            ):
+                self.style_description = critic_config.style_description
+            if (
+                hasattr(critic_config, "style_examples")
+                and critic_config.style_examples
+            ):
+                self.style_examples = critic_config.style_examples
 
     @property
     def name(self) -> str:

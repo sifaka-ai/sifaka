@@ -20,6 +20,7 @@ from ..config import Config
 from ..exceptions import ModelProviderError, TimeoutError
 from ..interfaces import Validator
 from ..models import SifakaResult
+from ..monitoring import get_global_monitor
 from .generation import TextGenerator
 from .orchestration import CriticOrchestrator
 from .validation import ValidationRunner
@@ -68,7 +69,9 @@ class SifakaEngine:
 
         # Initialize components
         self.generator = TextGenerator(
-            model=self.config.llm.model, temperature=self.config.llm.temperature
+            model=self.config.llm.model,
+            temperature=self.config.llm.temperature,
+            provider=self.config.llm.provider,
         )
 
         # Convert critics to strings if they are enums
@@ -134,17 +137,22 @@ class SifakaEngine:
                 self._check_timeout(start_time)
 
                 # Run validation
+                monitor = get_global_monitor()
                 validation_passed = await self.validator.run_validators(
                     current_text, result, validators
                 )
 
                 # Run critics
                 try:
+                    # Don't wrap orchestrator calls - let it track individual critics
                     critiques = await self.orchestrator.run_critics(
                         current_text, result
                     )
+                except ModelProviderError:
+                    # Re-raise authentication and provider errors
+                    raise
                 except Exception as e:
-                    # Log critic error and continue
+                    # Log other critic errors and continue
                     result.add_critique(
                         critic="system",
                         feedback=f"Critics failed: {e!s}",
@@ -176,8 +184,12 @@ class SifakaEngine:
                         prompt,
                         tokens,
                         processing_time,
-                    ) = await self.generator.generate_improvement(
-                        current_text, result, self.config.engine.show_improvement_prompt
+                    ) = await monitor.track_llm_call(
+                        lambda: self.generator.generate_improvement(
+                            current_text,
+                            result,
+                            self.config.engine.show_improvement_prompt,
+                        )
                     )
 
                     if improved_text:
@@ -213,6 +225,8 @@ class SifakaEngine:
                 self.validator.check_memory_bounds(result)
 
         except TimeoutError:
+            raise
+        except ModelProviderError:
             raise
         except Exception as e:
             # Log unexpected errors as system critique

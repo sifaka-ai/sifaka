@@ -4,10 +4,10 @@
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.0-blue)](https://github.com/sifaka-ai/sifaka)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/sifaka-ai/sifaka)
 [![Coverage](https://img.shields.io/badge/coverage-85%25+-brightgreen)](https://github.com/sifaka-ai/sifaka)
 
-**Status**: Alpha software (v0.2.0). Functional but early-stage. Best suited for evaluation, experimentation, and development.
+**Status**: Alpha software (v0.3.0). Functional but early-stage. Best suited for evaluation, experimentation, and development.
 
 ---
 
@@ -543,20 +543,20 @@ pytest --cov=sifaka
 
 ## Roadmap
 
-### Phase 1: Core Functionality (v0.2.0) ✅
+### Phase 1: Core Functionality (v0.3.0) ✅
 - PydanticAI 1.14+ integration
 - Research-backed critics
 - Provider-agnostic design
 - Storage backends
 - Comprehensive documentation consolidation
 
-### Phase 2: Enhanced Critics (v0.3.0)
+### Phase 2: Enhanced Critics (v0.4.0)
 - More specialized critics
 - Custom critic templates
 - Critic performance optimization
 - Enhanced validation framework
 
-### Phase 3: Production Features (v0.4.0)
+### Phase 3: Production Features (v0.5.0)
 - Advanced caching strategies
 - Distributed processing
 - Cost optimization tools

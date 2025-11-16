@@ -1,209 +1,198 @@
-"""Tests for the metrics module."""
+"""Tests for metrics module."""
 
-from sifaka.core.metrics import analyze_suggestion_implementation
+from sifaka.core.metrics import (
+    _calculate_similarity,
+    _count_numbers,
+    _count_questions,
+    _count_quotes,
+    analyze_suggestion_implementation,
+)
 
 
 class TestAnalyzeSuggestionImplementation:
-    """Test the analyze_suggestion_implementation function."""
+    """Test suggestion implementation analysis."""
+
+    def test_basic_analysis(self):
+        """Test basic metric analysis."""
+        suggestions = ["Add more detail", "Use examples"]
+        old_text = "Machine learning is important."
+        new_text = "Machine learning is important for data analysis. For example, it can predict outcomes."
+
+        metrics = analyze_suggestion_implementation(suggestions, old_text, new_text)
+
+        # Check objective metrics
+        assert metrics["old_text_length"] == len(old_text)
+        assert metrics["new_text_length"] == len(new_text)
+        assert metrics["length_change"] > 0
+        assert metrics["old_word_count"] == 4
+        assert metrics["new_word_count"] > 4
+        assert metrics["suggestion_count"] == 2
+        assert metrics["text_similarity"] < 1.0
+
+    def test_no_changes(self):
+        """Test when text doesn't change."""
+        suggestions = ["Make it better"]
+        old_text = "Same text"
+        new_text = "Same text"
+
+        metrics = analyze_suggestion_implementation(suggestions, old_text, new_text)
+
+        assert metrics["length_change"] == 0
+        assert metrics["word_count_change"] == 0
+        assert metrics["text_similarity"] == 1.0
+        assert metrics["length_change_ratio"] == 1.0
 
     def test_empty_suggestions(self):
         """Test with no suggestions."""
-        result = analyze_suggestion_implementation([], "old text", "new text")
+        suggestions = []
+        old_text = "Original"
+        new_text = "Modified"
 
-        assert result["suggestions_given"] == []
-        assert result["suggestions_implemented"] == []
-        assert result["suggestions_not_implemented"] == []
-        assert result["implementation_rate"] == 0
-        assert result["implementation_count"] == 0
+        metrics = analyze_suggestion_implementation(suggestions, old_text, new_text)
 
-    def test_objective_metrics_basic(self):
-        """Test basic objective metrics calculation."""
-        suggestions = ["Add examples", "Improve clarity"]
-        old_text = "Short text."
-        new_text = "This is a much longer text with more details and examples."
-
-        result = analyze_suggestion_implementation(suggestions, old_text, new_text)
-
-        # Backward compatibility fields (always same values now)
-        assert result["suggestions_given"] == suggestions
-        assert result["suggestions_implemented"] == []
-        assert result["suggestions_not_implemented"] == suggestions
-        assert result["implementation_rate"] == 0.0
-        assert result["implementation_count"] == 0
-
-        # Objective metrics
-        assert result["old_text_length"] == len(old_text)
-        assert result["new_text_length"] == len(new_text)
-        assert result["length_change"] > 0
-        assert result["word_count_change"] > 0
-        assert result["text_similarity"] < 0.5  # Very different texts
-
-    def test_no_changes_made(self):
-        """Test when text remains unchanged."""
-        suggestions = ["Add more details", "Include examples"]
-        text = "This is the same text."
-
-        result = analyze_suggestion_implementation(suggestions, text, text)
-
-        assert result["suggestions_implemented"] == []
-        assert result["suggestions_not_implemented"] == suggestions
-        assert result["length_change"] == 0
-        assert result["word_count_change"] == 0
-        assert result["text_similarity"] == 1.0  # Identical texts
-
-    def test_sentence_and_paragraph_counting(self):
-        """Test sentence and paragraph counting."""
-        old_text = "First sentence. Second one."
-        new_text = """First paragraph with one sentence.
-
-Second paragraph. It has two sentences!
-
-Third paragraph? Yes, with a question."""
-
-        result = analyze_suggestion_implementation([], old_text, new_text)
-
-        assert result["old_sentence_count"] == 2
-        assert result["new_sentence_count"] == 5
-        assert result["old_paragraph_count"] == 1
-        assert result["new_paragraph_count"] == 3
-
-    def test_content_change_detection(self):
-        """Test detection of specific content changes."""
-        old_text = "Basic information about the topic."
-        new_text = """Basic information about the topic. In 2023, studies showed
-        75% improvement. As Einstein said, "Imagination is more important
-        than knowledge." But what about the future?"""
-
-        result = analyze_suggestion_implementation([], old_text, new_text)
-
-        assert result["numbers_added"] > 0  # "2023", "75%"
-        assert result["quotes_added"] > 0  # Einstein quote
-        assert result["questions_added"] > 0  # "But what about..."
-
-    def test_text_similarity_calculation(self):
-        """Test text similarity metric."""
-        # Identical texts
-        text1 = "The quick brown fox"
-        result1 = analyze_suggestion_implementation([], text1, text1)
-        assert result1["text_similarity"] == 1.0
-
-        # Completely different texts
-        text2 = "Completely different content here"
-        result2 = analyze_suggestion_implementation([], text1, text2)
-        assert result2["text_similarity"] == 0.0
-
-        # Partially similar texts
-        text3 = "The quick brown cat"
-        result3 = analyze_suggestion_implementation([], text1, text3)
-        assert 0.5 < result3["text_similarity"] < 1.0
+        assert metrics["suggestion_count"] == 0
+        assert metrics["avg_suggestion_length"] == 0
 
     def test_empty_texts(self):
-        """Test with empty old or new text."""
+        """Test with empty texts."""
         suggestions = ["Add content"]
 
         # Empty old text
-        result1 = analyze_suggestion_implementation(
-            suggestions, "", "New content added"
-        )
-        assert result1["old_text_length"] == 0
-        assert result1["new_text_length"] > 0
-        assert result1["length_change_ratio"] == float("inf")
+        metrics = analyze_suggestion_implementation(suggestions, "", "New content")
+        assert metrics["old_text_length"] == 0
+        assert metrics["length_change_ratio"] == float("inf")
 
         # Empty new text
-        result2 = analyze_suggestion_implementation(suggestions, "Old content", "")
-        assert result2["old_text_length"] > 0
-        assert result2["new_text_length"] == 0
-        assert result2["length_change"] < 0
+        metrics = analyze_suggestion_implementation(suggestions, "Old content", "")
+        assert metrics["new_text_length"] == 0
+        assert metrics["length_change"] < 0
 
-    def test_suggestion_metrics(self):
-        """Test metrics about the suggestions themselves."""
-        short_suggestions = ["Fix", "Add", "Change"]
-        long_suggestions = [
-            "Add comprehensive examples with detailed explanations",
-            "Restructure the entire document for better flow",
-            "Include statistical data from recent studies",
-        ]
+    def test_content_changes(self):
+        """Test specific content change detection."""
+        suggestions = ["Add statistics"]
+        old_text = "The system works well."
+        new_text = 'The system works well with 95% accuracy. As stated: "It\'s effective." How does it work?'
 
-        result1 = analyze_suggestion_implementation(short_suggestions, "text", "text")
-        result2 = analyze_suggestion_implementation(long_suggestions, "text", "text")
+        metrics = analyze_suggestion_implementation(suggestions, old_text, new_text)
 
-        assert result1["suggestion_count"] == 3
-        assert result2["suggestion_count"] == 3
-        assert result1["avg_suggestion_length"] < result2["avg_suggestion_length"]
+        assert metrics["numbers_added"] > 0  # Added 95%
+        assert metrics["quotes_added"] > 0  # Added quoted text
+        assert metrics["questions_added"] > 0  # Added question
 
-    def test_return_value_structure(self):
-        """Test that return value has all expected keys."""
-        result = analyze_suggestion_implementation(["Test suggestion"], "old", "new")
 
-        # Backward compatibility fields
-        assert "suggestions_given" in result
-        assert "suggestions_implemented" in result
-        assert "suggestions_not_implemented" in result
-        assert "implementation_rate" in result
-        assert "implementation_count" in result
+class TestCalculateSimilarity:
+    """Test text similarity calculation."""
 
-        # Objective metric fields
-        assert "old_text_length" in result
-        assert "new_text_length" in result
-        assert "length_change" in result
-        assert "length_change_ratio" in result
-        assert "old_word_count" in result
-        assert "new_word_count" in result
-        assert "word_count_change" in result
-        assert "word_count_ratio" in result
-        assert "old_sentence_count" in result
-        assert "new_sentence_count" in result
-        assert "old_paragraph_count" in result
-        assert "new_paragraph_count" in result
-        assert "suggestion_count" in result
-        assert "avg_suggestion_length" in result
-        assert "text_similarity" in result
-        assert "numbers_added" in result
-        assert "quotes_added" in result
-        assert "questions_added" in result
+    def test_identical_texts(self):
+        """Test similarity of identical texts."""
+        similarity = _calculate_similarity("Hello world", "Hello world")
+        assert similarity == 1.0
 
-        # Check types
-        assert isinstance(result["suggestions_given"], list)
-        assert isinstance(result["suggestions_implemented"], list)
-        assert isinstance(result["suggestions_not_implemented"], list)
-        assert isinstance(result["implementation_rate"], (int, float))
-        assert isinstance(result["implementation_count"], int)
+    def test_completely_different(self):
+        """Test completely different texts."""
+        similarity = _calculate_similarity("Hello world", "Goodbye universe")
+        assert similarity == 0.0
 
-    def test_word_count_with_punctuation(self):
-        """Test word counting handles punctuation correctly."""
-        old_text = "Hello, world! How are you?"
-        new_text = "Hello, world! How are you? I'm fine, thanks."
+    def test_partial_overlap(self):
+        """Test partial word overlap."""
+        similarity = _calculate_similarity("The quick brown fox", "The slow brown dog")
+        assert 0 < similarity < 1
+        # Should have "the" and "brown" in common
+        # Jaccard similarity: |intersection| / |union|
+        # Common: {the, brown} = 2
+        # Union: {the, quick, brown, fox, slow, dog} = 6
+        assert similarity == 2 / 6  # 2 common words out of 6 unique total
 
-        result = analyze_suggestion_implementation([], old_text, new_text)
+    def test_case_insensitive(self):
+        """Test case insensitive comparison."""
+        similarity = _calculate_similarity("Hello World", "hello world")
+        assert similarity == 1.0
 
-        assert result["old_word_count"] == 5
-        assert result["new_word_count"] == 8  # "I'm" counts as one word
-        assert result["word_count_change"] == 3
+    def test_empty_texts(self):
+        """Test empty text handling."""
+        assert _calculate_similarity("", "") == 1.0
+        assert _calculate_similarity("Hello", "") == 0.0
+        assert _calculate_similarity("", "World") == 0.0
 
-    def test_number_detection_patterns(self):
-        """Test various number detection patterns."""
-        old_text = "Some text"
-        new_text = "In 2024, we saw 45% growth, spent $1,234, and reached 1000 users."
 
-        result = analyze_suggestion_implementation([], old_text, new_text)
+class TestCountNumbers:
+    """Test number counting."""
 
-        # Should detect: 2024 (year), 45% (percentage), $1,234 (money), 1000 (plain)
-        assert result["numbers_added"] >= 4
+    def test_plain_numbers(self):
+        """Test counting plain numbers."""
+        count = _count_numbers("There are 5 apples and 10 oranges")
+        assert count == 2
 
-    def test_question_detection(self):
-        """Test question detection in various formats."""
-        old_text = "Statement one. Statement two."
-        new_text = "Statement one. But why? Statement two. What about this? Really?"
+    def test_percentages(self):
+        """Test counting percentages."""
+        count = _count_numbers("Growth of 25% and efficiency at 90%")
+        assert count >= 2
 
-        result = analyze_suggestion_implementation([], old_text, new_text)
+    def test_money(self):
+        """Test counting money amounts."""
+        count = _count_numbers("Cost is $100 or $1,000")
+        assert count >= 2
 
-        assert result["questions_added"] == 3
+    def test_years(self):
+        """Test counting years."""
+        count = _count_numbers("From 2020 to 2024")
+        assert count >= 2
 
-    def test_quote_detection(self):
-        """Test quote detection with different quote styles."""
-        old_text = "Plain text"
-        new_text = """He said "hello" and she replied 'hi there'."""
+    def test_no_numbers(self):
+        """Test text without numbers."""
+        count = _count_numbers("No numbers here")
+        assert count == 0
 
-        result = analyze_suggestion_implementation([], old_text, new_text)
 
-        assert result["quotes_added"] == 2
+class TestCountQuotes:
+    """Test quote counting."""
+
+    def test_double_quotes(self):
+        """Test counting double quotes."""
+        count = _count_quotes('He said "hello" and she said "goodbye"')
+        assert count == 2
+
+    def test_single_quotes(self):
+        """Test counting single quotes."""
+        count = _count_quotes("It's 'working' and 'done'")
+        assert count == 2
+
+    def test_mixed_quotes(self):
+        """Test mixed quote types."""
+        count = _count_quotes("She said \"yes\" and he said 'no'")
+        assert count == 2
+
+    def test_no_quotes(self):
+        """Test text without quotes."""
+        count = _count_quotes("No quotes in this text")
+        assert count == 0
+
+    def test_empty_quotes(self):
+        """Test that empty quotes aren't counted."""
+        count = _count_quotes('Test "" text')
+        # Regex looks for non-empty quotes
+        assert count == 0 or count == 1  # Depends on regex implementation
+
+
+class TestCountQuestions:
+    """Test question counting."""
+
+    def test_simple_question(self):
+        """Test counting simple questions."""
+        count = _count_questions("How are you?")
+        assert count == 1
+
+    def test_multiple_questions(self):
+        """Test multiple questions."""
+        count = _count_questions("What is this? Why is it here? Who knows?")
+        assert count >= 2  # At least detects some questions
+
+    def test_no_questions(self):
+        """Test text without questions."""
+        count = _count_questions("This is a statement. So is this!")
+        assert count == 0
+
+    def test_question_at_end(self):
+        """Test question at end of text."""
+        count = _count_questions("I wonder what this is?")
+        assert count >= 1

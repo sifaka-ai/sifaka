@@ -37,7 +37,7 @@ def pytest_addoption(parser):
         "--llm-provider",
         action="store",
         default="openai",
-        help="LLM provider to use for integration tests (openai, anthropic, google)",
+        help="LLM provider to use for integration tests (openai, anthropic, google, ollama)",
     )
 
 
@@ -50,6 +50,7 @@ def api_key(request) -> Optional[str]:
         "openai": "OPENAI_API_KEY",
         "anthropic": "ANTHROPIC_API_KEY",
         "google": "GEMINI_API_KEY",
+        "ollama": "OLLAMA_API_KEY",
     }
 
     env_var = key_mapping.get(provider)
@@ -58,6 +59,9 @@ def api_key(request) -> Optional[str]:
 
     api_key = os.getenv(env_var)
     if not api_key:
+        # For Ollama, use default "ollama" as API key since it doesn't require auth
+        if provider == "ollama":
+            return "ollama"
         pytest.skip(
             f"No API key found for {provider}. Set {env_var} environment variable."
         )

@@ -64,7 +64,11 @@ class TestCriticOrchestrator:
             assert critics == [mock_critic]
             assert orchestrator._critics == [mock_critic]
             mock_create.assert_called_once_with(
-                ["clarity"], model="gpt-4o-mini", temperature=0.7, config=None
+                ["clarity"],
+                model="gpt-4o-mini",
+                temperature=0.7,
+                config=None,
+                provider=None,
             )
 
             # Second access reuses

@@ -17,24 +17,24 @@ The benchmarks cover:
 
 ### Run All Benchmarks
 ```bash
-python -m pytest benchmarks/ -v
+uv run pytest benchmarks/ -v
 ```
 
 ### Run Specific Benchmark Categories
 ```bash
 # Core operations only
-python -m pytest benchmarks/performance_benchmarks.py::TestCoreOperationBenchmarks -v
+uv run pytest benchmarks/performance_benchmarks.py::TestCoreOperationBenchmarks -v
 
 # Scalability tests only
-python -m pytest benchmarks/performance_benchmarks.py::TestScalabilityBenchmarks -v
+uv run pytest benchmarks/performance_benchmarks.py::TestScalabilityBenchmarks -v
 
 # Memory benchmarks only
-python -m pytest benchmarks/performance_benchmarks.py::TestMemoryBenchmarks -v
+uv run pytest benchmarks/performance_benchmarks.py::TestMemoryBenchmarks -v
 ```
 
 ### Run Basic Benchmark Demo
 ```bash
-python -m benchmarks.performance_benchmarks run
+uv run python -m benchmarks.performance_benchmarks run
 ```
 
 ## Benchmark Structure

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from sifaka import improve
-from sifaka.core.config import Config
+from sifaka.core.config import Config, LLMConfig
 from sifaka.core.models import SifakaResult
 from sifaka.validators import ContentValidator, LengthValidator
 
@@ -27,7 +27,6 @@ class TestBasicFunctionality:
             mock_client.return_value.chat.completions.create = AsyncMock(
                 return_value=mock_response
             )
-
             result = await improve("Write about renewable energy")
 
             assert isinstance(result, SifakaResult)
@@ -84,26 +83,30 @@ class TestConfig:
 
     def test_config_validation(self):
         """Test config validation catches errors."""
+        from sifaka.core.config import EngineConfig
+
         # Test invalid max_iterations
         with pytest.raises(ValueError):
-            Config(max_iterations=0)
+            Config(engine=EngineConfig(max_iterations=0))
 
         # Test invalid temperature
         with pytest.raises(ValueError):
-            Config(temperature=3.0)
+            Config(llm=LLMConfig(temperature=3.0))
 
         # Valid config should work
-        config = Config(max_iterations=3, temperature=0.5)
-        assert config.max_iterations == 3
-        assert config.temperature == 0.5
+        config = Config(
+            engine=EngineConfig(max_iterations=3), llm=LLMConfig(temperature=0.5)
+        )
+        assert config.engine.max_iterations == 3
+        assert config.llm.temperature == 0.5
 
     def test_config_defaults(self):
         """Test default configuration values."""
         config = Config()
-        assert config.model == "gpt-4o-mini"
-        assert config.temperature == 0.7
-        assert config.max_iterations == 3
-        assert config.critics == ["reflexion"]
+        assert config.llm.model == "gpt-4o-mini"
+        assert config.llm.temperature == 0.7
+        assert config.engine.max_iterations == 3
+        assert config.critic.critics == ["reflexion"]
 
 
 class TestMemoryBounds:

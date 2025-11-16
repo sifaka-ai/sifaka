@@ -1,11 +1,29 @@
 """GuardrailsAI integration for advanced content validation and safety.
 
-This module provides seamless integration with GuardrailsAI's comprehensive
+TODO: GuardrailsAI support is temporarily disabled due to a dependency conflict
+with griffe. The issue has been fixed in guardrails main branch but not yet
+released. Once guardrails releases a new version with the updated griffe
+dependency, uncomment this module to re-enable guardrails support.
+
+See: https://github.com/guardrails-ai/guardrails (main branch has the fix)
+
+This module will provide seamless integration with GuardrailsAI's comprehensive
 validator hub, enabling advanced content validation capabilities including
 toxicity detection, PII identification, profanity filtering, and custom
 business rule validation.
+"""
 
-## Key Features:
+# Temporary placeholder to maintain module structure
+from typing import List, Optional
+
+from ..core.models import SifakaResult
+from .base import BaseValidator, ValidatorConfig
+
+# TODO: Uncomment the entire implementation below once guardrails releases
+# a new version with the updated griffe dependency
+
+"""
+## Key Features (when re-enabled):
 
 - **Pre-built Validators**: Access to 50+ validators from GuardrailsAI hub
 - **Safety & Compliance**: Built-in toxicity, PII, and profanity detection
@@ -24,7 +42,7 @@ business rule validation.
 - **one-line**: Ensures text is a single line
 - **length**: Validates text length constraints
 
-## Usage Examples:
+## Usage Examples (when re-enabled):
 
     >>> # Content safety validator
     >>> safety_validator = GuardrailsValidator([
@@ -40,7 +58,7 @@ business rule validation.
     ...     "gibberish"
     ... ], on_fail="exception")
 
-## Installation:
+## Installation (when re-enabled):
 
 Requires GuardrailsAI package:
 ```bash
@@ -60,16 +78,21 @@ include specific validator names and failure reasons for debugging.
 - Validators are installed once and cached for reuse
 - Guard objects are built lazily and reused across validations
 - Thread-safe operation for concurrent validation scenarios
-"""
 
 import asyncio
+import warnings
 from typing import List, Optional, Tuple
 
 # GuardrailsAI optional dependency handling
 # Allows graceful degradation when GuardrailsAI is not installed
 try:
-    import guardrails as gr
-    from guardrails.hub import install
+    # Suppress pkg_resources deprecation warning from guardrails
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", category=UserWarning, module="guardrails.hub.install"
+        )
+        import guardrails as gr
+        from guardrails.hub import install
 
     HAS_GUARDRAILS = True
 except ImportError:
@@ -82,7 +105,7 @@ from .base import BaseValidator, ValidatorConfig
 
 
 class GuardrailsValidator(BaseValidator):
-    """Validator that integrates GuardrailsAI for advanced content validation.
+    ""\"Validator that integrates GuardrailsAI for advanced content validation.
 
     Provides access to GuardrailsAI's extensive validator hub for sophisticated
     content validation including safety checks, compliance validation, and
@@ -137,7 +160,7 @@ class GuardrailsValidator(BaseValidator):
         - Validators are installed once and cached for subsequent use
         - Guard objects are reused across multiple validations
         - Thread-safe design supports concurrent validation scenarios
-    """
+    ""\"
 
     def __init__(
         self,
@@ -145,7 +168,7 @@ class GuardrailsValidator(BaseValidator):
         on_fail: str = "fix",
         config: Optional[ValidatorConfig] = None,
     ):
-        """Initialize GuardrailsValidator with specified validators.
+        ""\"Initialize GuardrailsValidator with specified validators.
 
         Creates a validator that uses GuardrailsAI validators for content
         validation. Validators are installed automatically on first use.
@@ -182,7 +205,7 @@ class GuardrailsValidator(BaseValidator):
         Installation note:
             Requires GuardrailsAI package. Install with:
             pip install sifaka[guardrails] or pip install guardrails-ai
-        """
+        ""\"
         super().__init__(config)
         if not HAS_GUARDRAILS:
             raise ImportError(
@@ -196,7 +219,7 @@ class GuardrailsValidator(BaseValidator):
         self._lock = asyncio.Lock()  # Thread-safe access to shared state
 
     def _ensure_validators_installed(self) -> None:
-        """Ensure all required validators are installed from GuardrailsAI hub.
+        ""\"Ensure all required validators are installed from GuardrailsAI hub.
 
         Downloads and installs validators on-demand from the GuardrailsAI hub.
         Validators are cached after installation to avoid repeated downloads.
@@ -207,7 +230,7 @@ class GuardrailsValidator(BaseValidator):
         Note:
             This method is called automatically during Guard creation and
             uses caching to avoid redundant installation attempts.
-        """
+        ""\"
         for validator_name in self.validators:
             if validator_name not in self._installed_validators:
                 try:
@@ -220,7 +243,7 @@ class GuardrailsValidator(BaseValidator):
                     )
 
     def _build_guard(self) -> None:
-        """Build the GuardrailsAI Guard object with configured validators.
+        ""\"Build the GuardrailsAI Guard object with configured validators.
 
         Creates a Guard object using RAIL (Reliable AI Language) specification
         that includes all configured validators. The Guard is cached for reuse
@@ -230,35 +253,35 @@ class GuardrailsValidator(BaseValidator):
             This method is called automatically during first validation and
             uses lazy initialization for optimal performance. The Guard object
             is thread-safe and can be reused across concurrent validations.
-        """
+        ""\"
         if self._guard is not None:
             return  # type: ignore[unreachable]  # Already initialized
 
         self._ensure_validators_installed()
 
         # Create Guard with validators
-        rail_spec = """
+        rail_spec = ""\"
 <rail version="0.1">
 <output>
     <string name="text" description="The validated text">
-        """
+        ""\"
 
         # Add each validator
         for validator_name in self.validators:
             rail_spec += f'<validator name="{validator_name}" on-fail="{self.on_fail}"/>\n        '
 
-        rail_spec += """
+        rail_spec += ""\"
     </string>
 </output>
 </rail>
-"""
+""\"
 
         self._guard = gr.Guard.from_rail_string(rail_spec)
 
     async def _perform_validation(
         self, text: str, result: SifakaResult
     ) -> Tuple[bool, float, str]:
-        """Validate text using GuardrailsAI validators.
+        ""\"Validate text using GuardrailsAI validators.
 
         Executes all configured GuardrailsAI validators against the text and
         returns comprehensive validation results with detailed failure information.
@@ -292,7 +315,7 @@ class GuardrailsValidator(BaseValidator):
             >>>
             >>> # Some validators fail
             >>> (False, 0.67, "toxic-language: Detected offensive content; detect-pii: Found email address")
-        """
+        ""\"
         # Thread-safe guard initialization
         async with self._lock:
             self._build_guard()
@@ -333,7 +356,7 @@ class GuardrailsValidator(BaseValidator):
 
     @property
     def name(self) -> str:
-        """Return descriptive validator name including configured validators.
+        ""\"Return descriptive validator name including configured validators.
 
         Returns:
             String identifier that includes all configured validator names
@@ -343,6 +366,40 @@ class GuardrailsValidator(BaseValidator):
             >>> validator = GuardrailsValidator(["toxic-language", "detect-pii"])
             >>> print(validator.name)
             "guardrails[toxic-language, detect-pii]"
-        """
+        ""\"
         validator_list = ", ".join(self.validators)
         return f"guardrails[{validator_list}]"
+"""
+
+
+class GuardrailsValidator(BaseValidator):
+    """Placeholder for GuardrailsValidator - temporarily disabled.
+
+    GuardrailsAI integration is temporarily disabled due to a dependency
+    conflict. This will be re-enabled once guardrails releases a new version
+    with the updated griffe dependency.
+    """
+
+    def __init__(
+        self,
+        validators: List[str],
+        on_fail: str = "fix",
+        config: Optional[ValidatorConfig] = None,
+    ):
+        """Initialize placeholder GuardrailsValidator."""
+        raise NotImplementedError(
+            "GuardrailsValidator is temporarily disabled due to a dependency conflict. "
+            "It will be re-enabled once guardrails releases a new version with the "
+            "updated griffe dependency. See the module docstring for more information."
+        )
+
+    async def _perform_validation(
+        self, text: str, result: SifakaResult
+    ) -> tuple[bool, float, str]:
+        """Placeholder validation method."""
+        raise NotImplementedError("GuardrailsValidator is temporarily disabled")
+
+    @property
+    def name(self) -> str:
+        """Return validator name."""
+        return "guardrails[disabled]"

@@ -63,6 +63,22 @@ analysis, offering diverse perspectives for comprehensive content improvement.
 - **Strengths**: Real-time fact-checking, evidence-based evaluation
 - **Use cases**: News articles, research content, factual documentation
 
+### 🎓 **SelfTaughtEvaluatorCritic**
+📖 *"Self-Taught Evaluator: The Path to GPT-4 Level Performance Without Human Annotations"* (Wang et al., 2024)
+
+**Core Innovation**: Contrasting outputs with reasoning traces for self-improving evaluation
+- **Best for**: High-quality evaluation without human-labeled data
+- **Strengths**: Generates contrasting examples, transparent reasoning, self-improvement
+- **Use cases**: Complex evaluation tasks, comparative analysis, evaluation system development
+
+### 🎭 **Agent4DebateCritic**
+📖 *"Agent4Debate: Multiagent Competitive Debate Dynamics"* (Chen et al., 2024)
+
+**Core Innovation**: Multi-agent competitive debate for text improvement through argumentation
+- **Best for**: Weighing complex trade-offs between competing improvements
+- **Strengths**: Adversarial testing, structured reasoning, transparent decisions
+- **Use cases**: High-stakes content, controversial topics, strategic documents
+
 ## Specialized Critics:
 
 ### 🎨 **StyleCritic**
@@ -148,6 +164,7 @@ analysis, offering diverse perspectives for comprehensive content improvement.
 Choose critics based on your quality requirements, performance constraints, and specific content needs.
 """
 
+from .agent4debate import Agent4DebateCritic
 from .constitutional import ConstitutionalCritic
 from .core.base import BaseCritic, CriticResponse
 from .core.factory import (
@@ -164,6 +181,7 @@ from .reflexion import ReflexionCritic
 from .self_consistency import SelfConsistencyCritic
 from .self_rag import SelfRAGCritic
 from .self_refine import SelfRefineCritic
+from .self_taught_evaluator import SelfTaughtEvaluatorCritic
 from .style import StyleCritic, style_critic_from_file
 
 # Public API exports
@@ -179,6 +197,8 @@ __all__ = [
     "SelfConsistencyCritic",  # Consensus-based evaluation
     "NCriticsCritic",  # Multi-perspective ensemble
     "SelfRAGCritic",  # Tool-enabled fact-checking
+    "SelfTaughtEvaluatorCritic",  # Contrasting outputs with reasoning traces
+    "Agent4DebateCritic",  # Multi-agent competitive debate
     # Specialized critics
     "StyleCritic",  # Style and voice transformation
     "PromptCritic",  # Custom prompt-engineered critics

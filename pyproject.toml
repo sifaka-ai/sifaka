@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sifaka"
-version = "0.2.0"
+version = "0.3.0"
 description = "Simple AI text improvement through research-backed critique with complete observability"
 authors = [{name = "Evan Volgas", email = "evan.volgas@gmail.com"}]
 license = "MIT"
@@ -44,7 +44,9 @@ anthropic = ["anthropic>=0.50.0"]
 gemini = ["google-generativeai>=0.8.5"]
 
 # Validation
-guardrails = ["guardrails-ai @ git+https://github.com/guardrails-ai/guardrails.git@main"]
+# TODO: Re-enable guardrails once they release a version with updated griffe dependency
+# The fix is already in their main branch but not yet released
+# guardrails = ["guardrails-ai>=0.6.0"]
 
 # Tool support (temporarily disabled until sifaka-tools is published)
 # tools = ["sifaka-tools>=0.0.1"]
@@ -88,7 +90,8 @@ dev = [
 ]
 
 # All features
-all = ["sifaka[anthropic,gemini,guardrails,redis,dev]"]
+# TODO: Add guardrails back once they release a version with updated griffe dependency
+all = ["sifaka[anthropic,gemini,redis,dev]"]
 
 [tool.setuptools.packages.find]
 where = ["."]

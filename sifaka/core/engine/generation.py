@@ -44,8 +44,15 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from ..exceptions import ModelProviderError
 from ..llm_client import LLMClient, LLMManager
 from ..models import CritiqueResult, SifakaResult
+
+# Import logfire if available
+try:
+    import logfire
+except ImportError:
+    logfire = None  # type: ignore[assignment]
 
 
 class ImprovementResponse(BaseModel):
@@ -118,7 +125,7 @@ class TextGenerator:
 
     IMPROVEMENT_SYSTEM_PROMPT = """You are an expert text editor focused on iterative improvement. Pay careful attention to all critic feedback and validation issues. Your goal is to address each piece of feedback thoroughly while maintaining the original intent and improving the overall quality of the text."""
 
-    def __init__(self, model: str, temperature: float):
+    def __init__(self, model: str, temperature: float, provider: Optional[str] = None):
         """Initialize the text generator with model configuration.
 
         Args:
@@ -133,9 +140,11 @@ class TextGenerator:
                 - 0.8-1.0: More creative and varied
                 - 1.1-2.0: Highly creative but less predictable
                 Default 0.7 works well for most improvements.
+            provider: Optional LLM provider ("openai", "anthropic", "ollama", etc.)
         """
         self.model = model
         self.temperature = temperature
+        self.provider = provider
         self._client: Optional[LLMClient] = None
 
     async def get_client(self) -> LLMClient:
@@ -149,7 +158,7 @@ class TextGenerator:
         """
         if self._client is None:
             self._client = await LLMManager.get_client(
-                model=self.model, temperature=self.temperature
+                provider=self.provider, model=self.model, temperature=self.temperature
             )
         return self._client
 
@@ -209,31 +218,87 @@ class TextGenerator:
             print(prompt)
             print("=" * 80 + "\n")
 
+        start_time = time.time()
         try:
-            # Create PydanticAI agent for structured improvement
+            # Get client
             client = await self.get_client()
-            agent = client.create_agent(
-                system_prompt=self.IMPROVEMENT_SYSTEM_PROMPT,
-                result_type=ImprovementResponse,
-            )
 
-            # Run agent to get structured improvement with usage tracking
-            start_time = time.time()
-            agent_result = await agent.run(prompt)
-            processing_time = time.time() - start_time
+            # For Ollama, use direct completion instead of pydantic_ai agent
+            if self.provider == "ollama":
+                messages = [
+                    {"role": "system", "content": self.IMPROVEMENT_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ]
 
-            improvement = agent_result.output
+                response = await client.complete(messages)
+                processing_time = time.time() - start_time
 
-            # Get usage data
-            tokens_used = 0
-            try:
-                if hasattr(agent_result, "usage"):
-                    usage = agent_result.usage()  # Call as function
-                    if usage and hasattr(usage, "total_tokens"):
-                        tokens_used = getattr(usage, "total_tokens", 0)
-            except Exception:
-                # Fallback if usage() call fails
+                # Parse the response as improved text
+                improved_text = response.content.strip()
+                tokens_used = (
+                    response.usage.get("total_tokens", 0) if response.usage else 0
+                )
+
+                return improved_text, prompt, tokens_used, processing_time
+
+            # For other providers, use PydanticAI agent for structured output
+            if logfire:
+                with logfire.span(
+                    "text_generation_llm_call",
+                    model=self.model,
+                    provider=self.provider or "unknown",
+                    iteration=result.iteration,
+                ) as span:
+                    agent = client.create_agent(
+                        system_prompt=self.IMPROVEMENT_SYSTEM_PROMPT,
+                        result_type=ImprovementResponse,
+                    )
+
+                    # Run agent to get structured improvement with usage tracking
+                    agent_result = await agent.run(prompt)
+                    processing_time = time.time() - start_time
+
+                    improvement = agent_result.output
+
+                    # Get usage data
+                    tokens_used = 0
+                    try:
+                        if hasattr(agent_result, "usage"):
+                            usage = agent_result.usage()  # Call as function
+                            if usage and hasattr(usage, "total_tokens"):
+                                tokens_used = getattr(usage, "total_tokens", 0)
+                    except Exception:
+                        # Fallback if usage() call fails
+                        tokens_used = 0
+
+                    # Log metrics to span
+                    span.set_attribute("llm.tokens_used", tokens_used)
+                    span.set_attribute(
+                        "llm.duration_seconds", round(processing_time, 3)
+                    )
+                    span.set_attribute("llm.prompt_length", len(prompt))
+            else:
+                agent = client.create_agent(
+                    system_prompt=self.IMPROVEMENT_SYSTEM_PROMPT,
+                    result_type=ImprovementResponse,
+                )
+
+                # Run agent to get structured improvement with usage tracking
+                agent_result = await agent.run(prompt)
+                processing_time = time.time() - start_time
+
+                improvement = agent_result.output
+
+                # Get usage data
                 tokens_used = 0
+                try:
+                    if hasattr(agent_result, "usage"):
+                        usage = agent_result.usage()  # Call as function
+                        if usage and hasattr(usage, "total_tokens"):
+                            tokens_used = getattr(usage, "total_tokens", 0)
+                except Exception:
+                    # Fallback if usage() call fails
+                    tokens_used = 0
 
             # Handle case where improvement is a string
             if isinstance(improvement, str):
@@ -250,9 +315,19 @@ class TextGenerator:
 
             return improved_text, prompt, tokens_used, processing_time
 
+        except ValueError as e:
+            # Re-raise ValueError (e.g., no API key) with clear message
+            if "No API key found" in str(e):
+                raise ModelProviderError(
+                    f"Cannot improve text: {str(e)}",
+                    provider="unknown",
+                    error_code="authentication",
+                ) from e
+            raise
         except Exception:
-            # Return None on error, let engine handle it
-            return None, prompt, 0, 0.0
+            # Log error but return None to allow graceful degradation
+            processing_time = time.time() - start_time
+            return None, prompt, 0, processing_time
 
     def _build_improvement_prompt(self, text: str, result: SifakaResult) -> str:
         """Build a comprehensive prompt for text improvement.

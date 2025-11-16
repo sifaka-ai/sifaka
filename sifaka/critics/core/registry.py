@@ -94,6 +94,7 @@ class CriticRegistry:
 # Pre-register built-in critics
 def register_builtin_critics() -> None:
     """Register all built-in critics."""
+    from ..agent4debate import Agent4DebateCritic
     from ..constitutional import ConstitutionalCritic
     from ..meta_rewarding import MetaRewardingCritic
     from ..n_critics import NCriticsCritic
@@ -102,6 +103,7 @@ def register_builtin_critics() -> None:
     from ..self_consistency import SelfConsistencyCritic
     from ..self_rag import SelfRAGCritic
     from ..self_refine import SelfRefineCritic
+    from ..self_taught_evaluator import SelfTaughtEvaluatorCritic
     from ..style import StyleCritic
 
     CriticRegistry.register("reflexion", ReflexionCritic, ["reflection"])
@@ -123,6 +125,16 @@ def register_builtin_critics() -> None:
     )
     CriticRegistry.register("style", StyleCritic, ["style_match", "voice"])
     CriticRegistry.register("prompt", PromptCritic, ["custom"])
+    CriticRegistry.register(
+        "self_taught_evaluator",
+        SelfTaughtEvaluatorCritic,
+        ["self-taught-evaluator", "ste", "self_taught"],
+    )
+    CriticRegistry.register(
+        "agent4debate",
+        Agent4DebateCritic,
+        ["agent-4-debate", "a4d", "debate"],
+    )
 
 
 # Register built-in critics on import
