@@ -243,6 +243,44 @@ mypy sifaka/               # Type check
 
 ---
 
+## Working with AI Agents
+
+### Task Management
+**Use TodoWrite for multi-step tasks**: When a task involves 3+ distinct steps, track progress with TodoWrite. This ensures nothing gets forgotten and provides visibility into progress.
+
+**Plan before executing**: For complex tasks, create a plan first. Understand requirements, identify dependencies, then execute systematically.
+
+### Audience & Context Recognition
+**Recognize audience immediately**: Engineers get technical tone, no marketing language. Business audiences get value/ROI focus. Academic audiences get methodology and rigor. Adapt tone and content immediately based on context.
+
+**Separate material types**: Code examples stay clean (no narratives or marketing). Presentation materials (openers, talking points) live in separate files. Documentation explains architecture and usage patterns.
+
+### Quality & Testing
+**Test output quality, not just functionality**: Run code AND verify the output is actually useful. Truncated or abstracted output defeats the purpose of examples. Show real data structures, not summaries.
+
+**Verify before committing**: Run tests and verify examples work before showing output. Test both functionality and usefulness.
+
+**Connect work to strategy**: Explicitly reference project milestones, coverage targets, and strategic priorities when completing work. Celebrate milestones when achieved.
+
+### Workflow Patterns
+**Iterate fast**: Ship → test → get feedback → fix → commit. Don't perfect upfront. Progressive refinement beats upfront perfection.
+
+**Proactive problem solving**: Use tools like Glob to check file existence before execution. Anticipate common issues and handle them gracefully.
+
+**Parallel execution**: Batch independent operations (multiple reads, parallel test execution) to improve efficiency.
+
+### Communication & Feedback
+**Direct feedback enables fast iteration**: Clear, immediate feedback on what's wrong enables rapid course correction. Specific, actionable requests work better than vague suggestions.
+
+**Match user communication style**: Some users prefer speed over process formality, results over explanations. Adapt communication style accordingly while maintaining quality standards.
+
+### Git & Commit Hygiene
+**Commit hygiene**: Each meaningful change gets its own commit with clear message (what + why). This makes progress tracking and rollback easier.
+
+**Clean git workflow**: Always check `git status` and `git branch` before operations. Use feature branches for all changes.
+
+---
+
 **Questions?** Check existing critics in `sifaka/critics/core/` or README.md (user docs)
 
-**Last Updated**: 2025-11-16
+**Last Updated**: 2025-01-18
