@@ -246,11 +246,20 @@ mypy sifaka/               # Type check
 ## Working with AI Agents
 
 ### Task Management
-**Use TodoWrite for multi-step tasks**: When a task involves 3+ distinct steps, track progress with TodoWrite. This ensures nothing gets forgotten and provides visibility into progress.
+**TodoWrite enforcement (MANDATORY)**: For ANY task with 3+ distinct steps, use TodoWrite to track progress - even if the user doesn't request it explicitly. This ensures nothing gets forgotten and provides visibility into progress for everyone working on the project.
 
 **Plan before executing**: For complex tasks, create a plan first. Understand requirements, identify dependencies, then execute systematically.
 
+### Output Quality
+**Full data display**: Show complete data structures, not summaries or truncations. Examples should display real, useful output (not "[truncated]" or "...").
+
+**Debugging context**: When showing debug output, include enough detail to actually debug - full prompts, complete responses, actual data structures. Truncating output defeats the purpose.
+
+**Verify usefulness**: Before showing output, verify it's actually helpful for the user's goal. Test that examples demonstrate real functionality, not abstractions.
+
 ### Audience & Context Recognition
+**Auto-detect technical audiences**: Code examples, technical docs, developer presentations → eliminate ALL marketing language automatically. Engineering contexts get technical tone (no superlatives like "blazingly fast", "magnificent", "revolutionary").
+
 **Recognize audience immediately**: Engineers get technical tone, no marketing language. Business audiences get value/ROI focus. Academic audiences get methodology and rigor. Adapt tone and content immediately based on context.
 
 **Separate material types**: Code examples stay clean (no narratives or marketing). Presentation materials (openers, talking points) live in separate files. Documentation explains architecture and usage patterns.
