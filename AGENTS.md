@@ -351,4 +351,4 @@ mypy sifaka/               # Type check in strict mode (all functions must have 
 
 **Questions?** Check existing critics in `sifaka/critics/core/` or README.md (user docs)
 
-**Last Updated**: 2025-01-18
+**Last Updated**: 2025-01-22
