@@ -1,7 +1,12 @@
+---
+name: sifaka-agent
+description: Research-backed AI text improvement framework developer
+---
+
 # AGENTS.md - AI Agent Guide
 
 **Purpose**: Quick reference for working on Sifaka
-**Last Updated**: 2025-11-16
+**Last Updated**: 2025-01-21
 
 ---
 
@@ -98,6 +103,45 @@ All critics and validators use PydanticAI for type-safe LLM responses.
 
 ---
 
+## Boundaries
+
+### ✅ Always Do (No Permission Needed)
+- Run tests: `pytest tests/`, `pytest --cov=sifaka`, `pytest -v`
+- Format code: `black .`
+- Lint code: `ruff check .`
+- Type check: `mypy sifaka/` (strict mode required)
+- Add unit tests for new critics in `tests/critics/`
+- Add integration tests in `tests/integration/`
+- Update docstrings when changing function signatures
+- Export new critics in `__init__.py` files
+- Add examples to `examples/` for new user-facing features
+- Update audit trail documentation for new features
+
+### ⚠️ Ask First
+- Add new critics to `sifaka/critics/core/`
+- Modify improvement engine in `sifaka/core/engine/`
+- Change research-backed critique methodologies (Reflexion, Constitutional AI, Self-Refine)
+- Add/update dependencies in `pyproject.toml`
+- Modify storage backends in `sifaka/storage/`
+- Change validation logic in `sifaka/validators/`
+- Update public API in `sifaka/__init__.py` (improve, improve_sync functions)
+- Change observability/audit trail implementation
+- Modify configuration management in `sifaka/core/config/`
+- Update `README.md` examples or API documentation
+
+### 🚫 Never Touch
+- `.env` files or API keys (use environment variables)
+- Production deployment configurations
+- Git history manipulation (no force push, interactive rebase on shared branches)
+- User's `~/.claude/` configuration files
+- Any files outside the `sifaka/` repository
+- Test files to make them pass (fix the code, not the tests)
+- Type checking strictness settings in `pyproject.toml`
+- Coverage thresholds (must maintain >80%)
+- Research methodology implementations without validation (must follow published research)
+
+---
+
 ## Development Workflow
 
 ### Before Starting
@@ -167,10 +211,15 @@ touch tests/validators/test_my_validator.py
 
 ### Run Tests
 ```bash
-pytest tests/              # All tests
-pytest tests/unit/         # Unit tests only
-pytest -v                  # Verbose output
-pytest --cov=sifaka        # Coverage report
+pytest tests/              # Run all tests (unit + integration)
+pytest tests/unit/         # Run unit tests only (fast, mocked dependencies)
+pytest tests/integration/  # Run integration tests only (end-to-end flows)
+pytest -v                  # Run all tests with verbose output (shows test names and status)
+pytest --cov=sifaka        # Generate coverage report (requires >80% coverage)
+pytest --cov=sifaka --cov-report=term-missing  # Coverage with missing lines highlighted
+pytest tests/critics/test_reflexion.py -v  # Run specific test file with verbose output
+pytest -k "test_improve" -v  # Run tests matching pattern "test_improve"
+pytest -q                  # Quiet mode (minimal output, only failures)
 ```
 
 ---
@@ -227,18 +276,19 @@ async def improve(text: str, iterations: int = 3, provider: str = "openai") -> I
 
 ### Testing
 ```bash
-pytest tests/              # Run all tests
-pytest --cov=sifaka        # Coverage report
-pytest -v                  # Verbose output
-pytest tests/unit/         # Unit tests only
-pytest tests/integration/  # Integration tests only
+pytest tests/              # Run all tests (unit + integration combined)
+pytest --cov=sifaka        # Generate coverage report (requires >80% to pass)
+pytest -v                  # Run with verbose output (shows individual test results)
+pytest tests/unit/         # Run unit tests only (fast, mocked LLM calls)
+pytest tests/integration/  # Run integration tests only (real critique flows with observability)
+pytest -q                  # Quiet mode (minimal output, failures only)
 ```
 
 ### Code Quality
 ```bash
-black .                    # Format code
-ruff check .               # Lint code
-mypy sifaka/               # Type check
+black .                    # Format code with black (line length 88, modifies files)
+ruff check .               # Lint code with ruff (checks style and potential bugs)
+mypy sifaka/               # Type check in strict mode (all functions must have type hints)
 ```
 
 ---
