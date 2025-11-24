@@ -8,6 +8,8 @@ description: Research-backed AI text improvement framework developer
 **Purpose**: Quick reference for working on Sifaka
 **Last Updated**: 2025-01-21
 
+**Design Philosophy**: Simplicity wins, use good defaults, YAML config where needed, no hardcoded assumptions.
+
 ---
 
 ## Quick Start (First Session Commands)
