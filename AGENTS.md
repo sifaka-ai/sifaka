@@ -6,7 +6,7 @@ description: Research-backed AI text improvement framework developer
 # AGENTS.md - AI Agent Guide
 
 **Purpose**: Quick reference for working on Sifaka
-**Last Updated**: 2025-01-21
+**Last Updated**: 2025-12-03
 
 **Design Philosophy**: Simplicity wins, use good defaults, YAML config where needed, no hardcoded assumptions.
 
